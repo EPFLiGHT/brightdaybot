@@ -42,6 +42,8 @@ Execute the main Python script:
 python app.py
 ```
 
+While running, the app will create a birthdays.txt file where birthdates are stored, as well as an app.log file for logging information and errors using python logging.
+
 Once running, BrightDayBot will start listening for birthdays and sending greetings at the appropriate time.
 
 ## Slack App Setup and Installation Instructions
