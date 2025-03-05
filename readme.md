@@ -25,7 +25,7 @@ pip install -r requirements.txt
 
 ### 2. Configure Slack API Tokens
 
-In the .env file, add your Slack tokens, as well as the channel id that the bot should send wishes in.
+In the `.env` file, add your Slack tokens, as well as the channel id that the bot should send wishes in.
 Example:
 ```plaintext
 SLACK_BOT_TOKEN=xoxb-12345
