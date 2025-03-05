@@ -4,7 +4,7 @@ A Slack bot that records and wishes Slack workspace members a happy birthday.
 
 ## Setup Instructions
 
-Follow these steps to set up BrightDayBot. These instructions assume you have already created and installed the Slack App in your workspace.
+Follow these steps to set up BrightDayBot. These instructions assume you have already created and installed the Slack App in your workspace. Insturctions for how to do that are coming soon.
 
 ### 1. Install Dependencies
 
@@ -14,11 +14,14 @@ Before running the bot, make sure you have generated SSL certificates within you
 On my mac, the path to the file that will install that for you is /Applications/Python\ 3.12/Install\ Certificates.command
 
 
-Use `pip` to install the required packages:
+Use `pip` to install the required packages into your venv:
 
 ```bash
+python3 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
 ```
+
 
 ### 2. Configure Slack API Tokens
 
