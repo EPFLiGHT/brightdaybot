@@ -15,7 +15,7 @@ On my mac, the path to the file that will install that for you is /Applications/
 
 
 Use `pip` to install the required packages into your venv:
-
+If you have already created a venv, please omit the first line (which creates a venv)
 ```bash
 python3 -m venv venv
 source venv/bin/activate
@@ -28,9 +28,10 @@ pip install -r requirements.txt
 In the `.env` file, add your Slack tokens, as well as the channel id that the bot should send wishes in.
 Example:
 ```plaintext
-SLACK_BOT_TOKEN=xoxb-12345
-SLACK_SIGNING_SECRET=123abc456def
-BIRTHDAY_CHANNEL_ID=C0
+SLACK_BOT_TOKEN="xoxb-12345"
+SLACK_SIGNING_SECRET="123abc456def"
+BIRTHDAY_CHANNEL_ID="C0"
+OPENAI_API_KEY="sk-proj"
 ```
 
 Replace the placeholders with your actual Slack API tokens.
