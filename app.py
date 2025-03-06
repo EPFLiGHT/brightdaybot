@@ -7,6 +7,7 @@ from datetime import datetime, timezone, timedelta
 from calendar import month_name
 import logging
 from slack_sdk.errors import SlackApiError
+from llm_wrapper import completion
 
 #loads API keys into os.environ from the .env file.
 # Make sure that the .env file contains the correct Slack API keys
@@ -30,6 +31,8 @@ def daily(moment) -> None:
 
     Checks birthdays.txt list for any dates matching today, and if so, sends a happy birthday message.
 
+    Uses llm_wrapper.completion to generate a birthday message. (Tries openai, falls back to default message if not)
+
     :param moment: datetime object, the current moment
     '''
     logger.log(msg=f"daily task, {moment}", level=logging.INFO)
@@ -42,10 +45,22 @@ def daily(moment) -> None:
         logger.log(msg=f"birthdays.txt file not found", level=logging.ERROR)
         pass
     for line in lines:
-        if line.split(",")[1].strip() == date:
+        if line.split(",")[1].strip() == date: #today is someone's birthday!
             user = line.split(",")[0]
+            try:
+                #attempting to get their display name
+                response = app.client.users_profile_get(user=user)
+                if response["ok"] is True:
+                    username = response["profile"]["display_name"]
+                else:
+                    logger.log(msg=f"{user} did not get a user profile", level=logging.ERROR)
+                    username = user
+            except SlackApiError as e:
+                logger.log(msg=f"Slack API error: {e}", level=logging.ERROR)
+                username = f"<@{user}>" #fallback to mentioning by user id if error
+            reply = completion(username, date_to_words(date))
             send_im(
-                message=f"Happy Birthday <@{user}>!!! \n \n <!channel>",
+                message=f"{reply} \n \n <@{user}> <!channel> ",
                 channel=birthday_channel,
             )
     return
@@ -78,7 +93,7 @@ def handle_message(body, say = None):
     date = extract_date(text)
 
     if date == "no_date":
-        say("No date found in your message. Please include your birthday in the format DD/MM")
+        say("No date found in your message. Please include your birthday in the format DD/MM. If you're attempting to remove your birthdate from our records, please send a message with the word 'remove' in it")
         return
 
     if date == "invalid_date":
