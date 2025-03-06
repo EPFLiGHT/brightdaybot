@@ -54,3 +54,4 @@ For now, I've already done this. I'll add instructions on how to do it in the fu
 I will also add more information on how to add more functionality to this bot soon.
 
 Unfortunately I am very sleep right now so that's not going to happen.
+
