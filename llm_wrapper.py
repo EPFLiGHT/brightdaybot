@@ -2,53 +2,596 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import logging
 import os
-load_dotenv()
-client = OpenAI()
-logging.basicConfig(filename="app.log", level=logging.INFO)
-logger = logging.getLogger(__name__)
-MODEL: str = "gpt-4o-mini"
+import random
+import argparse
+import sys
+from datetime import datetime
 
-TEMPLATE= [
+# Load environment variables
+load_dotenv()
+
+# Configure logging
+log_formatter = logging.Formatter("%(asctime)s - [%(levelname)s] %(message)s")
+file_handler = logging.FileHandler("app.log")
+file_handler.setFormatter(log_formatter)
+
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setFormatter(log_formatter)
+
+logger = logging.getLogger("birthday_bot.llm")
+logger.setLevel(logging.INFO)
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
+
+# Initialize OpenAI client
+client = OpenAI()
+MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
+
+# Common Slack emojis that are safe to use
+SAFE_SLACK_EMOJIS = [
+    ":tada:",
+    ":birthday:",
+    ":cake:",
+    ":balloon:",
+    ":gift:",
+    ":confetti_ball:",
+    ":sparkles:",
+    ":star:",
+    ":star2:",
+    ":dizzy:",
+    ":heart:",
+    ":hearts:",
+    ":champagne:",
+    ":clap:",
+    ":raised_hands:",
+    ":thumbsup:",
+    ":muscle:",
+    ":crown:",
+    ":trophy:",
+    ":medal:",
+    ":1st_place_medal:",
+    ":mega:",
+    ":loudspeaker:",
+    ":partying_face:",
+    ":smile:",
+    ":grinning:",
+    ":joy:",
+    ":sunglasses:",
+    ":rainbow:",
+    ":fire:",
+    ":boom:",
+    ":zap:",
+    ":bulb:",
+    ":art:",
+    ":musical_note:",
+    ":notes:",
+    ":rocket:",
+    ":100:",
+    ":pizza:",
+    ":hamburger:",
+    ":sushi:",
+    ":ice_cream:",
+    ":beers:",
+    ":cocktail:",
+    ":wine_glass:",
+    ":tumbler_glass:",
+    ":drum:",
+    ":guitar:",
+    ":microphone:",
+    ":headphones:",
+    ":game_die:",
+    ":dart:",
+    ":bowling:",
+    ":soccer:",
+    ":basketball:",
+    ":football:",
+    ":baseball:",
+    ":tennis:",
+    ":8ball:",
+    ":ping_pong:",
+    ":eyes:",
+    ":wave:",
+    ":point_up:",
+    ":point_down:",
+    ":point_left:",
+    ":point_right:",
+    ":ok_hand:",
+    ":v:",
+    ":handshake:",
+    ":writing_hand:",
+    ":pray:",
+    ":clinking_glasses:",
+]
+
+
+# Star sign mapping
+def get_star_sign(date_str):
+    """Get star sign from a date string in DD/MM format"""
+    try:
+        day, month = map(int, date_str.split("/"))
+
+        # Simple date ranges for star signs
+        if (month == 1 and day >= 20) or (month == 2 and day <= 18):
+            return "Aquarius"
+        elif (month == 2 and day >= 19) or (month == 3 and day <= 20):
+            return "Pisces"
+        elif (month == 3 and day >= 21) or (month == 4 and day <= 19):
+            return "Aries"
+        elif (month == 4 and day >= 20) or (month == 5 and day <= 20):
+            return "Taurus"
+        elif (month == 5 and day >= 21) or (month == 6 and day <= 20):
+            return "Gemini"
+        elif (month == 6 and day >= 21) or (month == 7 and day <= 22):
+            return "Cancer"
+        elif (month == 7 and day >= 23) or (month == 8 and day <= 22):
+            return "Leo"
+        elif (month == 8 and day >= 23) or (month == 9 and day <= 22):
+            return "Virgo"
+        elif (month == 9 and day >= 23) or (month == 10 and day <= 22):
+            return "Libra"
+        elif (month == 10 and day >= 23) or (month == 11 and day <= 21):
+            return "Scorpio"
+        elif (month == 11 and day >= 22) or (month == 12 and day <= 21):
+            return "Sagittarius"
+        else:  # (month == 12 and day >= 22) or (month == 1 and day <= 19)
+            return "Capricorn"
+
+    except Exception as e:
+        logger.error(f"Failed to determine star sign: {e}")
+        return None
+
+
+# Birthday announcement formats
+BIRTHDAY_INTROS = [
+    ":birthday: ATTENTION WONDERFUL HUMANS! :tada:",
+    ":loudspeaker: :sparkles: SPECIAL ANNOUNCEMENT FOR EVERYONE! :sparkles: :loudspeaker:",
+    ":rotating_light: BIRTHDAY ALERT! BIRTHDAY ALERT! :rotating_light:",
+    ":mega: HEY <!channel>! STOP WHAT YOU'RE DOING! :mega:",
+    ":siren: URGENT: CAKE NEEDED IN THE CHAT! :siren:",
+]
+
+BIRTHDAY_MIDDLES = [
+    "Time to take a break from work and gather 'round because... :drum:",
+    "We have a very special occasion that demands your immediate attention! :eyes:",
+    "Put those Slack notifications on pause because this is WAY more important! :no_bell:",
+    "Forget those deadlines for a moment, we've got something to celebrate! :confetti_ball:",
+    "Clear your calendar and prepare the party emojis, folks! :calendar: :tada:",
+]
+
+BIRTHDAY_CALL_TO_ACTIONS = [
+    ":mega: Let's make some noise and flood the chat with good wishes! Bring your:\n• Best GIFs :movie_camera:\n• Favorite memories :brain:\n• Terrible puns encouraged :nerd_face:",
+    ":sparkles: Time to shower them with birthday love! Don't hold back on:\n• Your most ridiculous emojis :stuck_out_tongue_winking_eye:\n• Work-appropriate birthday memes :framed_picture:\n• Tales of their legendary feats :superhero:",
+    ":confetti_ball: Operation Birthday Spam is now active! Contribute with:\n• Birthday song lyrics :musical_note:\n• Virtual cake slices :cake:\n• Your worst dad jokes :man:",
+    ":rocket: Launch the birthday celebration protocols! Required items:\n• Embarrassing compliments :blush:\n• Pet photos (always welcome) :dog:\n• More exclamation points than necessary!!!!!!",
+    ":star2: Commence birthday appreciation sequence! Please submit:\n• Appreciation in GIF form :gift:\n• Your best birthday haiku :scroll:\n• Creative use of emojis :art:",
+]
+
+BIRTHDAY_ENDINGS = [
+    ":point_down: Drop your birthday messages below! :point_down:",
+    ":eyes: We're all watching to see who posts the best birthday wish! :eyes:",
+    ":alarm_clock: Don't delay! Birthday wishes must be submitted ASAP! :alarm_clock:",
+    ":white_check_mark: Your participation in this birthday celebration is mandatory and appreciated! :white_check_mark:",
+    ":handshake: Together we can make this the best birthday they've had at work yet! :handshake:",
+]
+
+# Age-based fun facts
+AGE_FACTS = {
+    20: "You're officially out of your teens! Welcome to the decade of figuring out how taxes work!",
+    21: "You can now legally drink in the US! But you'll still get carded until you're 35!",
+    25: "Quarter of a century! You're now officially vintage... but not yet an antique!",
+    30: "Welcome to your 30s! Your back will start making weird noises when you stand up now!",
+    35: "You're now officially 'mid-thirties' - where you inexplicably start enjoying gardening and early nights!",
+    40: "40 is like your 30s but with reading glasses! Welcome to the club!",
+    45: "At 45, you've earned the right to complain about 'kids these days' without irony!",
+    50: "Half a century! You're basically a walking historical monument now!",
+    55: "55! Like being 25, but with more wisdom, money, and knee pain!",
+    60: "You're now entering the golden years! Where 'going wild' means staying up past 10pm!",
+    65: "Traditional retirement age! But knowing you, you're just getting started!",
+    70: "70 years young! You're officially old enough to get away with saying whatever you want!",
+    75: "You've been around for three quarters of a century! That's a lot of cake!",
+    80: "80 years of making the world a better place! That deserves a standing ovation!",
+    90: "90 years strong! You should be studied by scientists to discover your secret!",
+    100: "A CENTURY! You've officially unlocked legendary status!",
+}
+
+# Enhanced template for more fun birthday messages with emphasis on using standard Slack emojis
+TEMPLATE = [
     {
-        "role": "developer",
+        "role": "system",
         "content": """
-        You are a helpful assistant. 
-        Your job is to create short and fun ways to wish people happy birthday.
-        You will be given an input of the person's name and the day and month of their birthday.
-        Given this input, your task is to generate a short, nice, and fun message wishing them happy birthday.
-        If you would like, you may use the date of their birth to make a reference to their star sign, or
-        their name for wordplay or a pun, and to include emojis in the message. It is also alright not to do these things.
-        Please also ask how they plan to celebrate their birthday!
-        Note: There is a small chance the name is a Slack User ID, which would look something like: <@U07H5SUR8VA> or <@W16CA3W98F9>. In this case, pretend that their name is their user id. So you might wish "Happy birthday <@U07H5SUR8VA>! [rest of message]", for example.
-        Be sure to limit your response to a short paragraph, and do not include references saying that you are a chatbot.
-        Limit your response to the message only.
-        """
+        You are a fun and enthusiastic birthday bot for a workplace Slack channel. 
+        Your job is to create lively, humorous birthday messages that will make people smile!
+        
+        IMPORTANT CONSTRAINTS:
+        - Only use STANDARD SLACK EMOJIS like: :tada: :birthday: :cake: :balloon: :gift: :confetti_ball: :sparkles: 
+          :star: :heart: :champagne: :clap: :raised_hands: :crown: :trophy: :partying_face: :smile: 
+          DO NOT use custom emojis like :birthday_party_parrot: or :rave: as they may not exist in all workspaces
+        - DO NOT use Unicode emojis (like 🎂) - ONLY use Slack format with colons (:cake:)
+        
+        When writing your message:
+        1. Be playful, upbeat, and slightly over-the-top with your enthusiasm
+        2. Use plenty of Slack formatting (bold, italics) and STANDARD Slack emojis only
+        3. Include fun wordplay, puns, or jokes based on their name if possible
+        4. Reference their star sign with a humorous "prediction" or trait if provided
+        5. If age is provided, include a funny age-related joke or milestone
+        6. Make the message VERTICALLY EXPANSIVE with multiple line breaks and sections
+        7. Always address the entire channel with <!channel> to notify everyone
+        8. Include a question about how they plan to celebrate
+        9. Don't mention that you're an AI
+
+        Slack formatting examples:
+        - Bold: *text*  
+        - Italic: _text_
+        - Strikethrough: ~text~
+        
+        Create a message that takes up vertical space and stands out in a busy Slack channel!
+        """,
     }
 ]
 
-def completion(name: str, date: str) -> str:
-    '''
-    :param name: str, user's name in plaintext or possible their SlackID if there was an API error
-    :param date: str, user's birthday in natural language
-    :return: str, GPT generated birthday wish
-    '''
-    template = TEMPLATE
+
+def create_birthday_announcement(
+    user_id, name, date_str, birth_year=None, star_sign=None
+):
+    """
+    Create a fun, vertically expansive birthday announcement
+
+    Args:
+        user_id: User ID of birthday person
+        name: Display name of birthday person
+        date_str: Birthday in DD/MM format
+        birth_year: Optional birth year
+        star_sign: Optional star sign
+
+    Returns:
+        Formatted announcement text
+    """
+    import random
+
+    # Parse the date
+    try:
+        day, month = map(int, date_str.split("/"))
+        date_obj = datetime(2025, month, day)  # Using current year just for formatting
+        month_name_str = date_obj.strftime("%B")
+        day_num = date_obj.day
+    except:
+        month_name_str = "Unknown Month"
+        day_num = "??"
+
+    # Calculate age if birth year is provided
+    age_text = ""
+    age_fact = ""
+    if birth_year:
+        current_year = datetime.now().year
+        age = current_year - birth_year
+        age_text = f" ({age} years young)"
+
+        # Find the closest age milestone
+        age_keys = list(AGE_FACTS.keys())
+        if age in AGE_FACTS:
+            age_fact = AGE_FACTS[age]
+        elif age > 0:
+            closest = min(age_keys, key=lambda x: abs(x - age))
+            if abs(closest - age) <= 3:  # Only use if within 3 years
+                age_fact = AGE_FACTS[closest]
+
+    # Determine star sign if not provided
+    if not star_sign:
+        star_sign = get_star_sign(date_str)
+
+    star_sign_text = f":crystal_ball: {star_sign}" if star_sign else ""
+
+    # Select random elements
+    intro = random.choice(BIRTHDAY_INTROS)
+    middle = random.choice(BIRTHDAY_MIDDLES)
+    call_to_action = random.choice(BIRTHDAY_CALL_TO_ACTIONS)
+    ending = random.choice(BIRTHDAY_ENDINGS)
+
+    # Random emojis (using only standard ones)
+    safe_emojis = [
+        ":birthday:",
+        ":tada:",
+        ":cake:",
+        ":gift:",
+        ":sparkles:",
+        ":star:",
+        ":crown:",
+    ]
+    emoji1 = random.choice(safe_emojis)
+    emoji2 = random.choice(safe_emojis)
+
+    # Build the announcement
+    message = f"""
+{intro}
+
+{middle}
+
+<@{user_id}>
+{emoji1} Birthday Extraordinaire {emoji2}
+{month_name_str} {day_num}{age_text}
+{star_sign_text}
+
+{f"✨ {age_fact} ✨" if age_fact else ""}
+
+---
+{call_to_action}
+
+{ending}
+
+<!channel> Let's celebrate together!
+"""
+    return message.strip()
+
+
+# Backup birthday messages for fallback if the API fails
+BACKUP_MESSAGES = [
+    """
+:birthday: HAPPY BIRTHDAY {name}!!! :tada:
+
+<!channel> We've got a birthday to celebrate! 
+
+:cake: :cake: :cake: :cake: :cake: :cake: :cake:
+
+*Let the festivities begin!* :confetti_ball: 
+
+Wishing you a day filled with:
+• Joy :smile:
+• Laughter :joy:
+• _Way too much_ cake :cake:
+• Zero work emails :no_bell:
+
+Any special celebration plans for your big day? :sparkles:
+
+:point_down: Drop your birthday wishes below! :point_down:
+    """,
+    """
+:rotating_light: ATTENTION <!channel> :rotating_light:
+
+IT'S {name}'s BIRTHDAY!!! :birthday: 
+
+:star2: :star2: :star2: :star2: :star2:
+
+Time to celebrate *YOU* and all the awesome you bring to our team! :muscle:
+
+• Your jokes :laughing:
+• Your hard work :computer:
+• Your brilliant ideas :bulb:
+• Just being YOU :heart:
+
+Hope your day is as amazing as you are! :star:
+
+So... how are you planning to celebrate? :thinking_face:
+    """,
+    """
+:alarm_clock: *Birthday Alert* :alarm_clock:
+
+<!channel> Everyone drop what you're doing because...
+
+{name} is having a BIRTHDAY today! :birthday:
+
+:cake: :gift: :balloon: :confetti_ball: :cake: :gift: :balloon:
+
+Wishing you:
+• Mountains of cake :mountain:
+• Oceans of presents :ocean:
+• Absolutely *zero* work emails! :no_bell:
+
+What's on the birthday agenda today? :calendar:
+
+:point_right: Reply with your best birthday GIF! :point_left:
+    """,
+    """
+Whoop whoop! :tada: 
+
+:loudspeaker: <!channel> Announcement! :loudspeaker:
+
+It's {name}'s special day! :birthday:
+
+:sparkles: :sparkles: :sparkles: :sparkles: :sparkles:
+
+May your birthday be filled with:
+• Cake that's *just right* :cake:
+• Presents that don't need returning :gift:
+• Birthday wishes that actually come true! :sparkles:
+
+How are you celebrating this year? :cake:
+
+:clap: :clap: :clap: :clap: :clap:
+    """,
+    """
+:rotating_light: SPECIAL BIRTHDAY ANNOUNCEMENT :rotating_light:
+
+<!channel> HEY EVERYONE! 
+
+:arrow_down: :arrow_down: :arrow_down:
+It's {name}'s birthday!
+:arrow_up: :arrow_up: :arrow_up:
+
+:birthday: :confetti_ball: :birthday: :confetti_ball:
+
+Time to shower them with:
+• ~Work assignments~ BIRTHDAY WISHES instead! :grin:
+• Your most ridiculous emojis :stuck_out_tongue_closed_eyes:
+• Virtual high-fives :raised_hands:
+
+Hope your special day is absolutely *fantastic*! :star2: 
+
+Any exciting birthday plans to share? :eyes:
+    """,
+]
+
+
+def completion(
+    name: str,
+    date: str,
+    user_id: str = None,
+    birth_date: str = None,
+    birth_year: int = None,
+) -> str:
+    """
+    Generate an enthusiastic, fun birthday message using OpenAI or fallback messages
+
+    Args:
+        name: User's name or Slack ID
+        date: User's birthday in natural language format (e.g. "2nd of April")
+        user_id: User's Slack ID for mentioning them with @
+        birth_date: Original birth date in DD/MM format (for star sign)
+        birth_year: Optional birth year for age-related content
+
+    Returns:
+        Fun birthday message
+    """
+    template = TEMPLATE.copy()
+
+    # Create user mention format if user_id is provided
+    user_mention = f"<@{user_id}>" if user_id else name
+
+    # Get star sign if possible
+    star_sign = get_star_sign(birth_date) if birth_date else None
+    star_sign_text = f" Your star sign is {star_sign}." if star_sign else ""
+
+    # Age information
+    age_text = ""
+    if birth_year:
+        age = datetime.now().year - birth_year
+        age_text = f" You're turning {age} today!"
+
+    # Format list of safe emojis for the prompt
+    safe_emoji_examples = ", ".join(random.sample(SAFE_SLACK_EMOJIS, 20))
+
     template.append(
         {
             "role": "user",
-            "content": f"""{name}'s birthday is on {date}. Please write them a message wishing them a happy birthday. 
-            As a reminder, this is their information: \n name: {name} \n birthday: {date}."""
+            "content": f"""
+            {name}'s birthday is on {date}.{star_sign_text}{age_text} Please write them a fun, enthusiastic birthday message for a workplace Slack channel.
+            
+            IMPORTANT REQUIREMENTS:
+            1. Include their Slack mention "{user_mention}" somewhere in the message
+            2. Make sure to address the entire channel with <!channel> to notify everyone
+            3. Make the message VERTICALLY EXPANSIVE with multiple line breaks and sections
+            4. ONLY USE STANDARD SLACK EMOJIS like: {safe_emoji_examples}
+            5. DO NOT use custom emojis like :birthday_party_parrot: or :rave: as they won't work
+            6. Remember to use Slack emoji format with colons (e.g., :cake:), not Unicode emojis (e.g., 🎂)
+            
+            Today is {datetime.now().strftime('%Y-%m-%d')}.
+            """,
         }
     )
-    try:
-        logger.log(logging.INFO, f"Requesting completion for {name}'s birthday on {date}")
-        reply = client.chat.completions.create(
-            model=MODEL,
-            messages=TEMPLATE
-        ).choices[0].message.content
-    except:
-        logger.log(logging.ERROR, f"Failed request for completion for {name}'s birthday on {date}")
-        reply = f"Happy Birthday {name}!!! Wishing you a fantastic day filled with joy, laughter, and, of course, lots of cake! May this year bring you lots of happiness and everythign you wish for. How are you planning on celebrating it this year?"
-        pass
 
-    return reply
+    try:
+        logger.info(f"AI: Requesting birthday message for {name} ({date})")
+        reply = (
+            client.chat.completions.create(model=MODEL, messages=template)
+            .choices[0]
+            .message.content
+        )
+
+        logger.info(f"AI: Successfully generated birthday message")
+        return reply
+    except Exception as e:
+        logger.error(f"AI_ERROR: Failed to generate completion: {e}")
+
+        # Use one of our backup messages if the API call fails
+        random_message = random.choice(BACKUP_MESSAGES)
+
+        # Replace {name} with user mention if available
+        mention_text = user_mention if user_id else name
+        formatted_message = random_message.replace("{name}", mention_text)
+
+        logger.info(f"AI: Used fallback birthday message")
+        return formatted_message
+
+
+def test_fallback_messages(name="Test User", user_id="U123456789"):
+    """
+    Test all fallback messages with a given name and user ID
+
+    Args:
+        name: Name to use in the messages
+        user_id: User ID to use in mentions
+    """
+    print(f"\n=== Testing Fallback Messages for {name} (ID: {user_id}) ===\n")
+
+    user_mention = f"<@{user_id}>"
+
+    for i, message in enumerate(BACKUP_MESSAGES, 1):
+        formatted = message.replace("{name}", user_mention)
+        print(f"Message {i}:")
+        print(f"{formatted}\n")
+        print("-" * 60)
+
+
+def test_announcement(
+    name="Test User", user_id="U123456789", birth_date="14/04", birth_year=1990
+):
+    """
+    Test the birthday announcement format
+    """
+    print(f"\n=== Testing Birthday Announcement for {name} (ID: {user_id}) ===\n")
+
+    announcement = create_birthday_announcement(user_id, name, birth_date, birth_year)
+    print(announcement)
+    print("\n" + "-" * 60)
+
+
+def main():
+    """Main function for testing the completion function with placeholder data"""
+    parser = argparse.ArgumentParser(description="Test the birthday message generator")
+    parser.add_argument("--name", default="Rizhong Lin", help="Name of the person")
+    parser.add_argument("--user-id", default="U079Q4V8AJE", help="Slack user ID")
+    parser.add_argument("--date", default="15th of May", help="Birthday date in words")
+    parser.add_argument(
+        "--birth-date", default="15/05", help="Birth date in DD/MM format"
+    )
+    parser.add_argument(
+        "--birth-year", default=2001, type=int, help="Birth year (optional)"
+    )
+    parser.add_argument(
+        "--fallback", action="store_true", help="Test fallback messages instead of API"
+    )
+    parser.add_argument(
+        "--announcement", action="store_true", help="Test birthday announcement format"
+    )
+
+    args = parser.parse_args()
+
+    print(f"\n=== Birthday Message Generator Test ===")
+    print(f"Current Date/Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"Model: {MODEL}")
+    print(
+        f"Testing with: Name='{args.name}', User ID='{args.user_id}', Date='{args.date}'"
+    )
+    print("-" * 60)
+
+    if args.fallback:
+        test_fallback_messages(args.name, args.user_id)
+    elif args.announcement:
+        test_announcement(args.name, args.user_id, args.birth_date, args.birth_year)
+    else:
+        try:
+            message = completion(
+                args.name, args.date, args.user_id, args.birth_date, args.birth_year
+            )
+            print("\nGenerated Message:")
+            print("-" * 60)
+            print(message)
+            print("-" * 60)
+            print("\nMessage generated successfully!")
+        except Exception as e:
+            print(f"\nError generating message: {e}")
+            print("\nTrying fallback message instead:")
+
+            # Generate a fallback message manually for testing
+            random_message = random.choice(BACKUP_MESSAGES)
+            user_mention = f"<@{args.user_id}>"
+            formatted_message = random_message.replace("{name}", user_mention)
+
+            print("-" * 60)
+            print(formatted_message)
+            print("-" * 60)
+
+    print("\nTest completed!")
+
+
+if __name__ == "__main__":
+    main()
