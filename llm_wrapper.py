@@ -376,7 +376,7 @@ def completion(
 
     # Get star sign if possible
     star_sign = get_star_sign(birth_date) if birth_date else None
-    star_sign_text = f" Your star sign is {star_sign}." if star_sign else ""
+    star_sign_text = f" Their star sign is {star_sign}." if star_sign else ""
 
     # Age information
     age_text = ""
