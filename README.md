@@ -138,6 +138,24 @@ Or simply send a date in `DD/MM` or `DD/MM/YYYY` format.
 - `admin backup` - Create a manual backup of birthdays data
 - `admin restore latest` - Restore from the latest backup
 
+### Bot Personality
+
+The bot supports multiple personalities that change how birthday messages are written:
+
+- `standard` - Friendly, enthusiastic birthday bot (default)
+- `mystic_dog` - Ludo the Mystic Birthday Dog who provides cosmic predictions
+- `custom` - Customizable personality using environment variables
+
+To change the personality:
+
+1. As an admin, use the command: `admin personality [name]`
+2. Or set in the configuration file [`config.py`](config.py)
+3. For custom personalities, set these environment variables:
+   - `CUSTOM_BOT_NAME` - Name of your bot
+   - `CUSTOM_BOT_DESCRIPTION` - Short description of the bot's character
+   - `CUSTOM_BOT_STYLE` - Writing style (e.g., "funny and sarcastic")
+   - `CUSTOM_FORMAT_INSTRUCTION` - How the message should be structured
+
 ## Customization
 
 ### Changing Birthday Message Style

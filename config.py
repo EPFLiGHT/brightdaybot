@@ -103,5 +103,44 @@ COMMAND_PERMISSIONS = {
 # Cache for username lookups to reduce API calls
 username_cache = {}
 
+# ----- BOT PERSONALITY CUSTOMIZATION -----
+
+# Team and bot identity settings
+TEAM_NAME = 'Laboratory for Intelligent Global Health and Humanitarian Response Technologies ("LiGHT Lab")'  # Your team/workspace name
+BOT_NAME = "BrightDay"  # Default bot name
+BOT_PERSONALITY = "standard"  # Options: "standard", "mystic_dog", or "custom"
+
+# Personality templates
+BOT_PERSONALITIES = {
+    "standard": {
+        "name": BOT_NAME,
+        "description": "a friendly, enthusiastic birthday bot",
+        "style": "fun, upbeat, and slightly over-the-top with enthusiasm",
+        "format_instruction": "Create a lively message with multiple line breaks that stands out",
+    },
+    "mystic_dog": {
+        "name": "Ludo",
+        "description": "the Mystic Birthday Dog—a cosmic canine whose mystical powers manifest through epileptic-like fits, revealing esoteric truths",
+        "style": "mystical, cosmic, and enigmatic, yet uplifting and inspiring",
+        "format_instruction": "Include an enigmatic yet inspiring prediction for their year ahead, drawing from mystical disciplines like numerology, astrology, tarot, spirit animals, and machine learning theory",
+    },
+    "custom": {
+        "name": BOT_NAME,  # Can be overridden with CUSTOM_BOT_NAME
+        "description": "a customizable birthday celebration assistant",
+        "style": "personalized based on configuration",
+        "format_instruction": "Create a message that matches the configured personality",
+    },
+}
+
+# Custom bot configuration (used when BOT_PERSONALITY = "custom")
+CUSTOM_BOT_NAME = os.getenv("CUSTOM_BOT_NAME", BOT_NAME)
+CUSTOM_BOT_DESCRIPTION = os.getenv(
+    "CUSTOM_BOT_DESCRIPTION", "a birthday celebration assistant"
+)
+CUSTOM_BOT_STYLE = os.getenv("CUSTOM_BOT_STYLE", "friendly and enthusiastic")
+CUSTOM_FORMAT_INSTRUCTION = os.getenv(
+    "CUSTOM_FORMAT_INSTRUCTION", "Create a lively birthday message"
+)
+
 # Indicate successful startup
 logger.info("Bot configuration loaded successfully")

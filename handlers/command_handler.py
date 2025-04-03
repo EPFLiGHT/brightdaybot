@@ -23,8 +23,19 @@ from utils.slack_utils import (
     is_admin,
 )
 from services.birthday import send_reminder_to_users
-from llm_wrapper import completion, create_birthday_announcement
-from config import BIRTHDAY_CHANNEL, ADMIN_USERS, COMMAND_PERMISSIONS, get_logger
+from llm_wrapper import (
+    completion,
+    create_birthday_announcement,
+    get_current_personality,
+)
+from config import (
+    BIRTHDAY_CHANNEL,
+    ADMIN_USERS,
+    COMMAND_PERMISSIONS,
+    get_logger,
+    BOT_PERSONALITY,
+    BOT_PERSONALITIES,
+)
 
 logger = get_logger("commands")
 
@@ -73,10 +84,15 @@ def handle_dm_admin_help(say, user_id, app):
 
 • `config` - View command permissions
 • `config COMMAND true/false` - Change command permissions
-  
+
 *Data Management:*
 • `admin backup` - Create a manual backup of birthdays data
 • `admin restore latest` - Restore from the latest backup
+
+*Bot Personality:*
+• `admin personality` - Show current bot personality
+• `admin personality [name]` - Change bot personality
+  Available options: standard, mystic_dog, custom
 """
     say(admin_help)
     logger.info(f"HELP: Sent admin help to {user_id}")
@@ -688,6 +704,34 @@ def handle_admin_command(subcommand, args, say, user_id, app):
                 say("Failed to restore. No backups found or restore failed.")
         else:
             say("Use `admin restore latest` to restore from the most recent backup.")
+
+    elif subcommand == "personality":
+        if not args:
+            # Display current personality
+            current = BOT_PERSONALITY
+            personalities = ", ".join([f"`{p}`" for p in BOT_PERSONALITIES.keys()])
+            say(
+                f"Current bot personality: `{current}`\nAvailable personalities: {personalities}\n\nUse `admin personality [name]` to change."
+            )
+        else:
+            # Set new personality
+            new_personality = args[0].lower()
+            if new_personality not in BOT_PERSONALITIES:
+                say(
+                    f"Unknown personality: `{new_personality}`. Available options: {', '.join(BOT_PERSONALITIES.keys())}"
+                )
+                return
+
+            global BOT_PERSONALITY
+            BOT_PERSONALITY = new_personality
+            personality = get_current_personality()
+
+            say(
+                f"Bot personality changed to `{BOT_PERSONALITY}`: {personality['name']}, {personality['description']}"
+            )
+            logger.info(
+                f"ADMIN: {username} ({user_id}) changed bot personality to {BOT_PERSONALITY}"
+            )
 
     else:
         say(
