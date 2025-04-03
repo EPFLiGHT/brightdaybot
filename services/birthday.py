@@ -1,4 +1,3 @@
-import logging
 from datetime import datetime, timezone
 
 from utils.date_utils import check_if_birthday_today, date_to_words, get_star_sign

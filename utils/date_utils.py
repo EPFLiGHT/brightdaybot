@@ -1,7 +1,6 @@
 import re
 from datetime import datetime, timezone, timedelta
 from calendar import month_name
-import logging
 
 from config import DATE_FORMAT, DATE_WITH_YEAR_FORMAT, get_logger
 
