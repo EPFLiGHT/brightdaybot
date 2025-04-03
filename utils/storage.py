@@ -1,7 +1,101 @@
 import logging
+import os
+import shutil
+from datetime import datetime
 from config import BIRTHDAYS_FILE, get_logger
 
 logger = get_logger("storage")
+
+# Backup configuration
+BACKUP_DIR = "backups"
+MAX_BACKUPS = 10  # Keep last 10 backups
+
+
+def create_backup():
+    """
+    Create a timestamped backup of the birthdays file
+    """
+    # Ensure backup directory exists
+    if not os.path.exists(BACKUP_DIR):
+        os.makedirs(BACKUP_DIR)
+        logger.info(f"BACKUP: Created backup directory at {BACKUP_DIR}")
+
+    # Only backup if the file exists
+    if not os.path.exists(BIRTHDAYS_FILE):
+        logger.warning(f"BACKUP: Cannot backup {BIRTHDAYS_FILE} as it does not exist")
+        return
+
+    # Create a timestamped backup filename
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_file = os.path.join(BACKUP_DIR, f"birthdays_{timestamp}.txt")
+
+    try:
+        # Copy the current file to backup location
+        shutil.copy2(BIRTHDAYS_FILE, backup_file)
+        logger.info(f"BACKUP: Created backup at {backup_file}")
+
+        # Rotate backups if we have too many
+        rotate_backups()
+    except Exception as e:
+        logger.error(f"BACKUP_ERROR: Failed to create backup: {e}")
+
+
+def rotate_backups():
+    """
+    Maintain only the specified number of most recent backups
+    """
+    try:
+        # List all backup files
+        backup_files = [
+            os.path.join(BACKUP_DIR, f)
+            for f in os.listdir(BACKUP_DIR)
+            if f.startswith("birthdays_") and f.endswith(".txt")
+        ]
+
+        # Sort by modification time (oldest first)
+        backup_files.sort(key=lambda x: os.path.getmtime(x))
+
+        # Remove oldest files if we exceed the limit
+        while len(backup_files) > MAX_BACKUPS:
+            oldest = backup_files.pop(0)
+            os.remove(oldest)
+            logger.info(f"BACKUP: Removed old backup {oldest}")
+
+    except Exception as e:
+        logger.error(f"BACKUP_ERROR: Failed to rotate backups: {e}")
+
+
+def restore_latest_backup():
+    """
+    Restore the most recent backup file
+
+    Returns:
+        bool: True if restore succeeded, False otherwise
+    """
+    try:
+        # List all backup files
+        backup_files = [
+            os.path.join(BACKUP_DIR, f)
+            for f in os.listdir(BACKUP_DIR)
+            if f.startswith("birthdays_") and f.endswith(".txt")
+        ]
+
+        if not backup_files:
+            logger.warning("RESTORE: No backup files found")
+            return False
+
+        # Sort by modification time (newest first)
+        backup_files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+        latest = backup_files[0]
+
+        # Copy the backup to the main file
+        shutil.copy2(latest, BIRTHDAYS_FILE)
+        logger.info(f"RESTORE: Successfully restored from {latest}")
+        return True
+
+    except Exception as e:
+        logger.error(f"RESTORE_ERROR: Failed to restore from backup: {e}")
+        return False
 
 
 def load_birthdays():
@@ -44,6 +138,10 @@ def load_birthdays():
         logger.warning(
             f"FILE_ERROR: {BIRTHDAYS_FILE} not found, will be created when needed"
         )
+        # Try to restore from backup if main file doesn't exist
+        if restore_latest_backup():
+            # Try loading again after restoration
+            return load_birthdays()
 
     return birthdays
 
@@ -62,6 +160,10 @@ def save_birthdays(birthdays):
                 f.write(f"{user},{data['date']}{year_part}\n")
 
         logger.info(f"STORAGE: Saved {len(birthdays)} birthdays to file")
+
+        # Create a backup after saving
+        create_backup()
+
     except Exception as e:
         logger.error(f"FILE_ERROR: Failed to save birthdays file: {e}")
 

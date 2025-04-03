@@ -67,7 +67,10 @@ def handle_dm_admin_help(say, user_id, app):
 
 • `config` - View command permissions
 • `config COMMAND true/false` - Change command permissions
-  (Example: `config list false` to make the list command available to all users)
+  
+*Data Management:*
+• `admin backup` - Create a manual backup of birthdays data
+• `admin restore latest` - Restore from the latest backup
 """
     say(admin_help)
     logger.info(f"HELP: Sent admin help to {user_id}")
@@ -665,6 +668,24 @@ def handle_admin_command(subcommand, args, say, user_id, app):
         logger.info(
             f"ADMIN: {username} ({user_id}) removed {removed_name} ({admin_to_remove}) from admin list"
         )
+
+    elif subcommand == "backup":
+        from utils.storage import create_backup
+
+        create_backup()
+        say("Manual backup of birthdays file created successfully.")
+        logger.info(f"ADMIN: {username} ({user_id}) triggered manual backup")
+
+    elif subcommand == "restore":
+        if args and args[0] == "latest":
+            from utils.storage import restore_latest_backup
+
+            if restore_latest_backup():
+                say("Successfully restored from the latest backup")
+            else:
+                say("Failed to restore. No backups found or restore failed.")
+        else:
+            say("Use `admin restore latest` to restore from the most recent backup.")
 
     else:
         say(
