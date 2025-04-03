@@ -8,7 +8,13 @@ from utils.date_utils import (
     calculate_days_until_birthday,
     check_if_birthday_today,
 )
-from utils.storage import save_birthday, remove_birthday, load_birthdays
+from utils.storage import (
+    save_birthday,
+    remove_birthday,
+    load_birthdays,
+    create_backup,
+    restore_latest_backup,
+)
 from utils.slack_utils import (
     get_username,
     check_command_permission,
@@ -670,16 +676,12 @@ def handle_admin_command(subcommand, args, say, user_id, app):
         )
 
     elif subcommand == "backup":
-        from utils.storage import create_backup
-
         create_backup()
         say("Manual backup of birthdays file created successfully.")
         logger.info(f"ADMIN: {username} ({user_id}) triggered manual backup")
 
     elif subcommand == "restore":
         if args and args[0] == "latest":
-            from utils.storage import restore_latest_backup
-
             if restore_latest_backup():
                 say("Successfully restored from the latest backup")
             else:

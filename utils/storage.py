@@ -2,13 +2,9 @@ import logging
 import os
 import shutil
 from datetime import datetime
-from config import BACKUP_DIR, BIRTHDAYS_FILE, get_logger
+from config import BACKUP_DIR, MAX_BACKUPS, BIRTHDAYS_FILE, TRACKING_DIR, get_logger
 
 logger = get_logger("storage")
-
-# Backup configuration
-BACKUP_DIR = "backups"
-MAX_BACKUPS = 10  # Keep last 10 backups
 
 
 def create_backup():
@@ -229,7 +225,6 @@ def get_announced_birthdays_today():
     Returns:
         List of user IDs
     """
-    from config import TRACKING_DIR
 
     today = datetime.now().strftime("%Y-%m-%d")
     announced_file = os.path.join(TRACKING_DIR, f"announced_{today}.txt")
@@ -252,7 +247,6 @@ def mark_birthday_announced(user_id):
     Args:
         user_id: User ID whose birthday was announced
     """
-    from config import TRACKING_DIR
 
     today = datetime.now().strftime("%Y-%m-%d")
     announced_file = os.path.join(TRACKING_DIR, f"announced_{today}.txt")
@@ -269,7 +263,6 @@ def cleanup_old_announcement_files():
     """
     Remove announcement tracking files older than today
     """
-    from config import TRACKING_DIR
 
     today = datetime.now().strftime("%Y-%m-%d")
 

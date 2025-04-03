@@ -13,6 +13,7 @@ LOGS_DIR = os.path.join(DATA_DIR, "logs")
 STORAGE_DIR = os.path.join(DATA_DIR, "storage")
 TRACKING_DIR = os.path.join(DATA_DIR, "tracking")
 BACKUP_DIR = os.path.join(DATA_DIR, "backups")
+MAX_BACKUPS = 10  # Keep last 10 backups
 
 # File paths
 LOG_FILE = os.path.join(LOGS_DIR, "app.log")
