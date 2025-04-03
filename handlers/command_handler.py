@@ -188,7 +188,9 @@ def handle_command(text, user_id, say, app):
                     f"AI_ERROR: Failed to generate immediate birthday message: {e}"
                 )
                 # Fallback to generated announcement if AI fails
-                announcement = create_birthday_announcement(user_id, username, date, year)
+                announcement = create_birthday_announcement(
+                    user_id, username, date, year
+                )
                 send_message(app, BIRTHDAY_CHANNEL, announcement)
         else:
             if updated:
