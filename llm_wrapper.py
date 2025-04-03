@@ -414,7 +414,9 @@ def main():
     parser = argparse.ArgumentParser(description="Test the birthday message generator")
     parser.add_argument("--name", default="John Doe", help="Name of the person")
     parser.add_argument("--user-id", default="U1234567890", help="Slack user ID")
-    parser.add_argument("--date", default="25th of December", help="Birthday date in words")
+    parser.add_argument(
+        "--date", default="25th of December", help="Birthday date in words"
+    )
     parser.add_argument(
         "--birth-date", default="25/12", help="Birth date in DD/MM format"
     )
