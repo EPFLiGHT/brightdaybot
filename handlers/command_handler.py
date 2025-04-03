@@ -173,10 +173,28 @@ def handle_command(text, user_id, say, app):
             date_words = date_to_words(date)
             age_text = ""
 
-        if updated:
-            say(f"Your birthday has been updated to {date_words}{age_text}")
+        # Check if birthday is today and send announcement if so - ADD THIS BLOCK
+        if check_if_birthday_today(date):
+            say(
+                f"It's your birthday today! {date_words}{age_text} - I'll send an announcement to the birthday channel right away!"
+            )
+
+            try:
+                # Try to get personalized AI message
+                ai_message = completion(username, date_words, user_id, date, year)
+                send_message(app, BIRTHDAY_CHANNEL, ai_message)
+            except Exception as e:
+                logger.error(
+                    f"AI_ERROR: Failed to generate immediate birthday message: {e}"
+                )
+                # Fallback to generated announcement if AI fails
+                announcement = create_birthday_announcement(user_id, username, date, year)
+                send_message(app, BIRTHDAY_CHANNEL, announcement)
         else:
-            say(f"Your birthday ({date_words}{age_text}) has been saved!")
+            if updated:
+                say(f"Your birthday has been updated to {date_words}{age_text}")
+            else:
+                say(f"Your birthday ({date_words}{age_text}) has been saved!")
 
     elif command == "remove":
         removed = remove_birthday(user_id, username)
