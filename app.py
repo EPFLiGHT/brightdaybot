@@ -1289,7 +1289,7 @@ def handle_dm_date(say, user, result):
     """Handle a date sent in a DM"""
     date = result["date"]
     year = result["year"]
-
+    
     # Format birthday information for response
     if year:
         date_words = date_to_words(date, year)
@@ -1301,14 +1301,33 @@ def handle_dm_date(say, user, result):
 
     updated = save_birthday(date, user, year)
 
-    if updated:
-        say(
-            f"Birthday updated to {date_words}{age_text}. If this is incorrect, please try again with the correct date."
-        )
+    # Check if birthday is today and send announcement if so
+    if check_if_birthday_today(date):
+        say(f"It's your birthday today! {date_words}{age_text} - I'll send an announcement to the birthday channel right away!")
+        
+        username = get_username(app, user)
+        try:
+            # Try to get personalized AI message
+            ai_message = completion(
+                username,
+                date_words,
+                user,
+                date,
+                year
+            )
+            send_message(channel=BIRTHDAY_CHANNEL, text=ai_message)
+        except Exception as e:
+            logger.error(f"AI_ERROR: Failed to generate immediate birthday message: {e}")
+            # Fallback to generated announcement if AI fails
+            announcement = create_birthday_announcement(
+                user, username, date, year
+            )
+            send_message(channel=BIRTHDAY_CHANNEL, text=announcement)
     else:
-        say(
-            f"{date_words}{age_text} has been saved as your birthday. If this is incorrect, please try again."
-        )
+        if updated:
+            say(f"Birthday updated to {date_words}{age_text}. If this is incorrect, please try again with the correct date.")
+        else:
+            say(f"{date_words}{age_text} has been saved as your birthday. If this is incorrect, please try again.")
 
 
 @app.event("team_join")
