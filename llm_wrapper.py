@@ -1,5 +1,4 @@
 from openai import OpenAI
-from dotenv import load_dotenv
 import logging
 import os
 import random
@@ -7,138 +6,16 @@ import argparse
 import sys
 from datetime import datetime
 
-# Load environment variables
-load_dotenv()
+from config import get_logger
 
-# Configure logging
-log_formatter = logging.Formatter("%(asctime)s - [%(levelname)s] %(message)s")
-file_handler = logging.FileHandler("app.log")
-file_handler.setFormatter(log_formatter)
+from utils.date_utils import get_star_sign
+from utils.slack_utils import SAFE_SLACK_EMOJIS
 
-console_handler = logging.StreamHandler(sys.stdout)
-console_handler.setFormatter(log_formatter)
-
-logger = logging.getLogger("birthday_bot.llm")
-logger.setLevel(logging.INFO)
-logger.addHandler(file_handler)
-logger.addHandler(console_handler)
+logger = get_logger("llm")
 
 # Initialize OpenAI client
-client = OpenAI()
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
-
-# Common Slack emojis that are safe to use
-SAFE_SLACK_EMOJIS = [
-    ":tada:",
-    ":birthday:",
-    ":cake:",
-    ":balloon:",
-    ":gift:",
-    ":confetti_ball:",
-    ":sparkles:",
-    ":star:",
-    ":star2:",
-    ":dizzy:",
-    ":heart:",
-    ":hearts:",
-    ":champagne:",
-    ":clap:",
-    ":raised_hands:",
-    ":thumbsup:",
-    ":muscle:",
-    ":crown:",
-    ":trophy:",
-    ":medal:",
-    ":1st_place_medal:",
-    ":mega:",
-    ":loudspeaker:",
-    ":partying_face:",
-    ":smile:",
-    ":grinning:",
-    ":joy:",
-    ":sunglasses:",
-    ":rainbow:",
-    ":fire:",
-    ":boom:",
-    ":zap:",
-    ":bulb:",
-    ":art:",
-    ":musical_note:",
-    ":notes:",
-    ":rocket:",
-    ":100:",
-    ":pizza:",
-    ":hamburger:",
-    ":sushi:",
-    ":ice_cream:",
-    ":beers:",
-    ":cocktail:",
-    ":wine_glass:",
-    ":tumbler_glass:",
-    ":drum:",
-    ":guitar:",
-    ":microphone:",
-    ":headphones:",
-    ":game_die:",
-    ":dart:",
-    ":bowling:",
-    ":soccer:",
-    ":basketball:",
-    ":football:",
-    ":baseball:",
-    ":tennis:",
-    ":8ball:",
-    ":ping_pong:",
-    ":eyes:",
-    ":wave:",
-    ":point_up:",
-    ":point_down:",
-    ":point_left:",
-    ":point_right:",
-    ":ok_hand:",
-    ":v:",
-    ":handshake:",
-    ":writing_hand:",
-    ":pray:",
-    ":clinking_glasses:",
-]
-
-
-# Star sign mapping
-def get_star_sign(date_str):
-    """Get star sign from a date string in DD/MM format"""
-    try:
-        day, month = map(int, date_str.split("/"))
-
-        # Simple date ranges for star signs
-        if (month == 1 and day >= 20) or (month == 2 and day <= 18):
-            return "Aquarius"
-        elif (month == 2 and day >= 19) or (month == 3 and day <= 20):
-            return "Pisces"
-        elif (month == 3 and day >= 21) or (month == 4 and day <= 19):
-            return "Aries"
-        elif (month == 4 and day >= 20) or (month == 5 and day <= 20):
-            return "Taurus"
-        elif (month == 5 and day >= 21) or (month == 6 and day <= 20):
-            return "Gemini"
-        elif (month == 6 and day >= 21) or (month == 7 and day <= 22):
-            return "Cancer"
-        elif (month == 7 and day >= 23) or (month == 8 and day <= 22):
-            return "Leo"
-        elif (month == 8 and day >= 23) or (month == 9 and day <= 22):
-            return "Virgo"
-        elif (month == 9 and day >= 23) or (month == 10 and day <= 22):
-            return "Libra"
-        elif (month == 10 and day >= 23) or (month == 11 and day <= 21):
-            return "Scorpio"
-        elif (month == 11 and day >= 22) or (month == 12 and day <= 21):
-            return "Sagittarius"
-        else:  # (month == 12 and day >= 22) or (month == 1 and day <= 19)
-            return "Capricorn"
-
-    except Exception as e:
-        logger.error(f"Failed to determine star sign: {e}")
-        return None
 
 
 # Birthday announcement formats
@@ -246,8 +123,6 @@ def create_birthday_announcement(
     Returns:
         Formatted announcement text
     """
-    import random
-
     # Parse the date
     try:
         day, month = map(int, date_str.split("/"))
@@ -537,14 +412,14 @@ def test_announcement(
 def main():
     """Main function for testing the completion function with placeholder data"""
     parser = argparse.ArgumentParser(description="Test the birthday message generator")
-    parser.add_argument("--name", default="Rizhong Lin", help="Name of the person")
-    parser.add_argument("--user-id", default="U079Q4V8AJE", help="Slack user ID")
-    parser.add_argument("--date", default="15th of May", help="Birthday date in words")
+    parser.add_argument("--name", default="John Doe", help="Name of the person")
+    parser.add_argument("--user-id", default="U1234567890", help="Slack user ID")
+    parser.add_argument("--date", default="25th of December", help="Birthday date in words")
     parser.add_argument(
-        "--birth-date", default="15/05", help="Birth date in DD/MM format"
+        "--birth-date", default="25/12", help="Birth date in DD/MM format"
     )
     parser.add_argument(
-        "--birth-year", default=2001, type=int, help="Birth year (optional)"
+        "--birth-year", default=1990, type=int, help="Birth year (optional)"
     )
     parser.add_argument(
         "--fallback", action="store_true", help="Test fallback messages instead of API"
@@ -555,10 +430,25 @@ def main():
 
     args = parser.parse_args()
 
-    print(f"\n=== Birthday Message Generator Test ===")
-    print(f"Current Date/Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"Model: {MODEL}")
-    print(
+    # Configure console logging for direct testing
+    # Note: We're no longer adding handlers to the existing logger
+    # Instead, we create a console logger just for testing
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(
+        logging.Formatter("%(asctime)s - [%(levelname)s] %(message)s")
+    )
+
+    # Create a separate logger just for command-line testing
+    test_logger = logging.getLogger("birthday_bot.test")
+    test_logger.setLevel(logging.INFO)
+    test_logger.addHandler(console_handler)
+
+    test_logger.info(f"=== Birthday Message Generator Test ===")
+    test_logger.info(
+        f"Current Date/Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    )
+    test_logger.info(f"Model: {MODEL}")
+    test_logger.info(
         f"Testing with: Name='{args.name}', User ID='{args.user_id}', Date='{args.date}'"
     )
     print("-" * 60)
