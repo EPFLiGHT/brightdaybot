@@ -8,6 +8,9 @@ from calendar import month_name
 import logging
 from slack_sdk.errors import SlackApiError
 from llm_wrapper import completion, create_birthday_announcement, get_star_sign
+import schedule
+import time
+import threading
 
 # Configure logging with a more structured approach
 log_formatter = logging.Formatter("%(asctime)s - [%(levelname)s] %(message)s")
@@ -29,24 +32,14 @@ if not BIRTHDAY_CHANNEL:
 app = App()
 logger.info("INIT: App initialized")
 
-# Set initial time for daily checks
-tom_time = datetime.now(tz=timezone.utc)
-tom_time = datetime(
-    year=tom_time.year,
-    month=tom_time.month,
-    day=tom_time.day,
-    hour=8,
-    minute=0,
-    second=0,
-    microsecond=0,
-) - timedelta(days=1)
-
 # Constants
 BIRTHDAYS_FILE = "birthdays.txt"
 DATE_FORMAT = "%d/%m"
 DATE_WITH_YEAR_FORMAT = "%d/%m/%Y"
-DEFAULT_REMINDER_MESSAGE = "Hi there! 👋\nThis is a friendly reminder to add your birthday so we can celebrate with you! Just type `add DD/MM` or `add DD/MM/YYYY` in a direct message to me to set your birthday."
 DEFAULT_REMINDER_MESSAGE = None  # Set to None to use the dynamic message generator
+
+# Time to run daily birthday checks (8:00 AM UTC)
+DAILY_CHECK_TIME = "08:00"
 
 # List of User IDs with admin privileges for the bot (in addition to workspace admins)
 ADMIN_USERS = [
@@ -611,25 +604,34 @@ def send_reminder_to_users(app, users, custom_message=None):
     return results
 
 
-def check_time():
-    """Check if it's time to run daily tasks"""
-    global tom_time
-    # Make sure both times have the same timezone awareness
-    cur_time = datetime.now(tz=timezone.utc)
+def daily_task():
+    """
+    Run the daily birthday check task
+    This function is called by the scheduler at the specified time each day
+    """
+    current_time = datetime.now(timezone.utc)
+    logger.info(f"SCHEDULER: Running daily birthday check at {current_time}")
+    daily(current_time)
 
-    # Ensure tom_time is also timezone-aware with UTC
-    if tom_time.tzinfo is None:
-        # If tom_time is naive, make it aware with UTC timezone
-        tom_time = tom_time.replace(tzinfo=timezone.utc)
 
-    # Log time comparison for debugging
-    logger.debug(f"TIME_CHECK: Current time: {cur_time}, Target time: {tom_time}")
+def run_scheduler():
+    """Run the scheduler in a separate thread"""
+    while True:
+        schedule.run_pending()
+        time.sleep(60)  # Check every minute
 
-    if cur_time > tom_time:
-        # When updating tom_time, ensure it stays timezone-aware
-        tom_time += timedelta(days=1)
-        logger.info(f"SCHEDULE: Triggering daily tasks at {cur_time}")
-        daily(cur_time)
+
+def setup_scheduler():
+    """Set up the scheduled tasks"""
+    # Schedule daily birthday check at the specified time (UTC)
+    schedule.every().day.at(DAILY_CHECK_TIME).do(daily_task)
+    logger.info(f"SCHEDULER: Daily birthday check scheduled for {DAILY_CHECK_TIME} UTC")
+    
+    # Start the scheduler in a separate thread
+    scheduler_thread = threading.Thread(target=run_scheduler)
+    scheduler_thread.daemon = True  # Make thread exit when main program exits
+    scheduler_thread.start()
+    logger.info("SCHEDULER: Background scheduler thread started")
 
 
 def daily(moment):
@@ -646,7 +648,6 @@ def daily(moment):
     logger.info(
         f"DAILY: Running birthday checks for {moment.strftime('%Y-%m-%d')} (UTC)"
     )
-    date_str = moment.strftime(DATE_FORMAT)
     birthdays = load_birthdays()
 
     birthday_count = 0
@@ -726,6 +727,7 @@ def handle_dm_admin_help(say, user_id):
 • `admin remove USER_ID` - Remove a user from admin list
 
 • `list` - List upcoming birthdays
+• `list all` - List all birthdays organized by month
 • `stats` - View birthday statistics
 • `remind [message]` - Send reminders to users without birthdays
 
@@ -778,7 +780,7 @@ def handle_command(text, user_id, say):
 
         elif admin_subcommand == "add" and len(parts) >= 3:
             # Add a new admin user
-            new_admin = parts[2].strip("<@>")
+            new_admin = parts[2].strip("<@>").upper()
 
             # Validate user exists
             try:
@@ -803,7 +805,7 @@ def handle_command(text, user_id, say):
 
         elif admin_subcommand == "remove" and len(parts) >= 3:
             # Remove an admin user
-            admin_to_remove = parts[2].strip("<@>")
+            admin_to_remove = parts[2].strip("<@>").upper()
 
             if admin_to_remove not in ADMIN_USERS:
                 say(f"User <@{admin_to_remove}> is not in the admin list.")
@@ -1245,8 +1247,6 @@ def handle_command(text, user_id, say):
 @app.event("message")
 def handle_message(body, say):
     """Handle direct message events"""
-    check_time()  # Check for daily tasks
-
     # Only respond to direct messages that aren't from bots
     if body["event"].get("channel_type") != "im" or body["event"].get("bot_id"):
         return
@@ -1314,7 +1314,6 @@ def handle_dm_date(say, user, result):
 @app.event("team_join")
 def handle_team_join(body):
     """Welcome new team members and invite them to the birthday channel"""
-    check_time()
     user = body["event"]["user"]
     username = get_username(app, user)
     logger.info(f"JOIN: New user joined: {username} ({user})")
@@ -1348,6 +1347,13 @@ if __name__ == "__main__":
     handler = SocketModeHandler(app)
     logger.info("INIT: Handler initialized, starting app")
     try:
+        # Set up the scheduler before starting the app
+        setup_scheduler()
+        
+        # Check for today's birthdays at startup
+        daily_task()
+        
+        # Start the app
         handler.start()
     except Exception as e:
         logger.critical(f"CRITICAL: Error starting app: {e}")
