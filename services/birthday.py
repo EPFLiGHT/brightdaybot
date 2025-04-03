@@ -2,7 +2,12 @@ import logging
 from datetime import datetime, timezone
 
 from utils.date_utils import check_if_birthday_today, date_to_words, get_star_sign
-from utils.storage import load_birthdays
+from utils.storage import (
+    load_birthdays,
+    get_announced_birthdays_today,
+    mark_birthday_announced,
+    cleanup_old_announcement_files,
+)
 from utils.slack_utils import get_username, send_message
 from llm_wrapper import completion, create_birthday_announcement
 from config import BIRTHDAY_CHANNEL, get_logger
@@ -130,8 +135,20 @@ def daily(app, moment):
     )
     birthdays = load_birthdays()
 
+    # Clean up old announcement files
+    cleanup_old_announcement_files()
+
+    # Get already announced birthdays
+    already_announced = get_announced_birthdays_today()
+
     birthday_count = 0
     for user_id, birthday_data in birthdays.items():
+        # Skip if already announced today
+        if user_id in already_announced:
+            logger.info(f"BIRTHDAY: Skipping already announced birthday for {user_id}")
+            birthday_count += 1
+            continue
+
         # Use our accurate date checking function instead of string comparison
         if check_if_birthday_today(birthday_data["date"], moment):
             username = get_username(app, user_id)
@@ -155,6 +172,9 @@ def daily(app, moment):
                 # Send the AI-generated message
                 send_message(app, BIRTHDAY_CHANNEL, ai_message)
 
+                # Mark as announced
+                mark_birthday_announced(user_id)
+
             except Exception as e:
                 logger.error(f"AI_ERROR: Failed to generate message: {e}")
 
@@ -167,6 +187,9 @@ def daily(app, moment):
                     get_star_sign(birthday_data["date"]),
                 )
                 send_message(app, BIRTHDAY_CHANNEL, announcement)
+
+                # Mark as announced
+                mark_birthday_announced(user_id)
 
     if birthday_count == 0:
         logger.info("DAILY: No birthdays today")

@@ -2,7 +2,7 @@ import logging
 import os
 import shutil
 from datetime import datetime
-from config import BIRTHDAYS_FILE, get_logger
+from config import BACKUP_DIR, BIRTHDAYS_FILE, get_logger
 
 logger = get_logger("storage")
 
@@ -220,3 +220,67 @@ def remove_birthday(user: str, username: str = None) -> bool:
         f"BIRTHDAY: Attempted to remove birthday for user {user} but none was found"
     )
     return False
+
+
+def get_announced_birthdays_today():
+    """
+    Get list of user IDs whose birthdays have already been announced today
+
+    Returns:
+        List of user IDs
+    """
+    from config import TRACKING_DIR
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    announced_file = os.path.join(TRACKING_DIR, f"announced_{today}.txt")
+
+    try:
+        if os.path.exists(announced_file):
+            with open(announced_file, "r") as f:
+                return [line.strip() for line in f if line.strip()]
+        else:
+            return []
+    except Exception as e:
+        logger.error(f"FILE_ERROR: Failed to read announced birthdays: {e}")
+        return []
+
+
+def mark_birthday_announced(user_id):
+    """
+    Mark a user's birthday as announced for today
+
+    Args:
+        user_id: User ID whose birthday was announced
+    """
+    from config import TRACKING_DIR
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    announced_file = os.path.join(TRACKING_DIR, f"announced_{today}.txt")
+
+    try:
+        with open(announced_file, "a") as f:
+            f.write(f"{user_id}\n")
+        logger.info(f"BIRTHDAY: Marked {user_id}'s birthday as announced")
+    except Exception as e:
+        logger.error(f"FILE_ERROR: Failed to mark birthday as announced: {e}")
+
+
+def cleanup_old_announcement_files():
+    """
+    Remove announcement tracking files older than today
+    """
+    from config import TRACKING_DIR
+
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    try:
+        for filename in os.listdir(TRACKING_DIR):
+            if (
+                filename.startswith("announced_")
+                and filename != f"announced_{today}.txt"
+            ):
+                file_path = os.path.join(TRACKING_DIR, filename)
+                os.remove(file_path)
+                logger.info(f"CLEANUP: Removed old announcement file {filename}")
+    except Exception as e:
+        logger.error(f"FILE_ERROR: Failed to clean up old announcement files: {e}")

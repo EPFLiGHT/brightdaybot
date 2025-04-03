@@ -10,7 +10,6 @@
 # Icon must end with two \r
 Icon
 
-
 # Thumbnails
 ._*
 
@@ -255,3 +254,15 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# BrightDayBot data files
+data/logs/
+data/tracking/
+data/storage/
+data/backups/
+
+# Keep the directories but ignore their contents
+!data/logs/.gitkeep
+!data/tracking/.gitkeep
+!data/storage/.gitkeep
+!data/backups/.gitkeep

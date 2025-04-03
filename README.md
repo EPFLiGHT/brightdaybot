@@ -9,6 +9,7 @@ A Slack bot that records and wishes Slack workspace members a happy birthday wit
 - **AI-Generated Messages**: Personalized birthday wishes using OpenAI
 - **Admin Commands**: Statistics, user management, and settings
 - **Reminders**: Automatically remind users who haven't set their birthday
+- **Data Management**: Automated backups and organized data storage
 
 ## Project Structure
 
@@ -17,6 +18,11 @@ brightdaybot/
 ├── app.py                 # Main entry point
 ├── config.py              # Configuration and environment settings
 ├── llm_wrapper.py         # OpenAI integration for messages
+├── data/                  # Data directory
+│   ├── logs/              # Log files
+│   ├── storage/           # Birthday data
+│   ├── tracking/          # Announcement tracking
+│   └── backups/           # Backup files
 ├── handlers/              # Slack event and command handlers
 │   ├── command_handler.py # Command processing logic
 │   └── event_handler.py   # Event handling logic
@@ -93,8 +99,9 @@ python app.py
 
 The bot will:
 
-- Create a `birthdays.txt` file to store user birthdays
-- Generate an `app.log` file for logging
+- Create necessary data directories (logs, storage, tracking, backups)
+- Store birthdays in data/storage/birthdays.txt
+- Write logs to data/logs/app.log
 - Check for today's birthdays at startup
 - Schedule daily birthday checks at 8:00 AM UTC
 
@@ -126,6 +133,11 @@ Or simply send a date in `DD/MM` or `DD/MM/YYYY` format.
 - `config` - View command permissions
 - `config COMMAND true/false` - Change command permissions
 
+### Data Management Commands
+
+- `admin backup` - Create a manual backup of birthdays data
+- `admin restore latest` - Restore from the latest backup
+
 ## Customization
 
 ### Changing Birthday Message Style
@@ -139,6 +151,16 @@ Edit the templates in llm_wrapper.py to customize:
 ### Schedule Configuration
 
 Change when birthday checks run by modifying `DAILY_CHECK_TIME` in config.py.
+
+## Data Management
+
+The bot implements several data management features:
+
+- **Automatic Backups**: Creates timestamped backups of the birthdays file whenever it's modified
+- **Backup Rotation**: Maintains the 10 most recent backups to save space
+- **Auto-Recovery**: Tries to restore from backup if the main file is missing
+- **Administrative Control**: Provides commands for manual backup and restore operations
+- **Birthday Tracking**: Prevents duplicate announcements if the bot is restarted
 
 ## License
 
