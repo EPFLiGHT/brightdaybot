@@ -33,8 +33,9 @@ from config import (
     ADMIN_USERS,
     COMMAND_PERMISSIONS,
     get_logger,
-    BOT_PERSONALITY,
     BOT_PERSONALITIES,
+    get_current_personality_name,
+    set_current_personality,
 )
 
 logger = get_logger("commands")
@@ -708,7 +709,7 @@ def handle_admin_command(subcommand, args, say, user_id, app):
     elif subcommand == "personality":
         if not args:
             # Display current personality
-            current = BOT_PERSONALITY
+            current = get_current_personality_name()
             personalities = ", ".join([f"`{p}`" for p in BOT_PERSONALITIES.keys()])
             say(
                 f"Current bot personality: `{current}`\nAvailable personalities: {personalities}\n\nUse `admin personality [name]` to change."
@@ -722,16 +723,18 @@ def handle_admin_command(subcommand, args, say, user_id, app):
                 )
                 return
 
-            global BOT_PERSONALITY
-            BOT_PERSONALITY = new_personality
-            personality = get_current_personality()
-
-            say(
-                f"Bot personality changed to `{BOT_PERSONALITY}`: {personality['name']}, {personality['description']}"
-            )
-            logger.info(
-                f"ADMIN: {username} ({user_id}) changed bot personality to {BOT_PERSONALITY}"
-            )
+            # Use the new function to set the personality
+            if set_current_personality(new_personality):
+                # Get the updated personality details
+                personality = get_current_personality()
+                say(
+                    f"Bot personality changed to `{new_personality}`: {personality['name']}, {personality['description']}"
+                )
+                logger.info(
+                    f"ADMIN: {username} ({user_id}) changed bot personality to {new_personality}"
+                )
+            else:
+                say(f"Failed to change personality to {new_personality}")
 
     else:
         say(

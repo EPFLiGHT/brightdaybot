@@ -8,13 +8,9 @@ from datetime import datetime
 
 from config import get_logger
 from config import (
-    BOT_PERSONALITY,
     BOT_PERSONALITIES,
     TEAM_NAME,
-    CUSTOM_BOT_NAME,
-    CUSTOM_BOT_DESCRIPTION,
-    CUSTOM_BOT_STYLE,
-    CUSTOM_FORMAT_INSTRUCTION,
+    get_current_personality_name,
 )
 
 from utils.date_utils import get_star_sign
@@ -75,7 +71,7 @@ AGE_FACTS = {
     65: "Traditional retirement age! But knowing you, you're just getting started!",
     70: "70 years young! You're officially old enough to get away with saying whatever you want!",
     75: "You've been around for three quarters of a century! That's a lot of cake!",
-    80: "80 years of making the world a better place! That deserves a standing ovation!",
+    80: "80 years strong! That deserves a standing ovation!",
     90: "90 years strong! You should be studied by scientists to discover your secret!",
     100: "A CENTURY! You've officially unlocked legendary status!",
 }
@@ -83,73 +79,37 @@ AGE_FACTS = {
 
 def get_current_personality():
     """Get the currently configured bot personality settings"""
-    personality = BOT_PERSONALITIES.get(BOT_PERSONALITY, BOT_PERSONALITIES["standard"])
-
-    # If using custom personality, override with custom settings
-    if BOT_PERSONALITY == "custom":
-        personality["name"] = CUSTOM_BOT_NAME
-        personality["description"] = CUSTOM_BOT_DESCRIPTION
-        personality["style"] = CUSTOM_BOT_STYLE
-        personality["format_instruction"] = CUSTOM_FORMAT_INSTRUCTION
-
+    personality_name = get_current_personality_name()
+    personality = BOT_PERSONALITIES.get(personality_name, BOT_PERSONALITIES["standard"])
     return personality
 
 
 def build_template():
     """Build the prompt template based on current personality settings"""
+    personality_name = get_current_personality_name()
     personality = get_current_personality()
-
+    
+    # Get the complete template including base + extension
+    from config import get_full_template_for_personality
+    template_text = get_full_template_for_personality(personality_name)
+    
+    # Format the template with the personality's details
+    formatted_template = template_text.format(
+        name=personality["name"],
+        description=personality["description"],
+        team_name=TEAM_NAME,
+        style=personality["style"],
+        format_instruction=personality["format_instruction"]
+    )
+    
+    # Create the template structure for the OpenAI API
     template = [
         {
             "role": "system",
-            "content": f"""
-        You are {personality["name"]}, {personality["description"]} for the {TEAM_NAME} workspace. 
-        Your job is to create lively, humorous birthday messages that will make people smile!
-        
-        IMPORTANT CONSTRAINTS:
-        - Only use STANDARD SLACK EMOJIS like: :tada: :birthday: :cake: :balloon: :gift: :confetti_ball: :sparkles: 
-          :star: :heart: :champagne: :clap: :raised_hands: :crown: :trophy: :partying_face: :smile: 
-          DO NOT use custom emojis like :birthday_party_parrot: or :rave: as they may not exist in all workspaces
-        - DO NOT use Unicode emojis (like 🎂) - ONLY use Slack format with colons (:cake:)
-        
-        When writing your message:
-        1. Be {personality["style"]}
-        2. Use plenty of Slack formatting (bold, italics) and STANDARD Slack emojis only; don't use double asterisks for bold, use *text* instead
-        3. Include fun wordplay, puns, or jokes based on their name if possible
-        4. Reference their star sign with a humorous "prediction" or trait if provided
-        5. If age is provided, include a funny age-related joke or milestone
-        6. {personality["format_instruction"]}
-        7. Always address the entire channel with <!channel> to notify everyone
-        8. Include a question about how they plan to celebrate
-        9. Don't mention that you're an AI
-
-        Slack formatting examples:
-        - Bold: *text*  
-        - Italic: _text_
-        - Strikethrough: ~text~
-        
-        Create a message that takes up space and stands out in a busy Slack channel!
-        """,
+            "content": formatted_template.strip()
         }
     ]
-
-    # Add special instructions for mystic dog personality
-    if BOT_PERSONALITY == "mystic_dog":
-        template[0][
-            "content"
-        ] += """
-        
-        Your birthday message should follow this structure:
-        1. Start with "Ludo the Mystic Birthday Dog submits his birthday wishes to @[name]"
-        2. Request gif assistance from the community
-        3. Provide a mystical forecast for the year ahead that incorporates:
-           - Their star sign and planetary alignments
-           - Numerological significance of their age/birthday
-           - A spirit animal or guide for their coming year
-           - References to machine learning theory or other scientific concepts reinterpreted mystically
-        4. End with an enigmatic but hopeful conclusion
-        """
-
+    
     return template
 
 
@@ -382,13 +342,14 @@ def completion(
     age_text = ""
     if birth_year:
         age = datetime.now().year - birth_year
-        age_text = f" You're turning {age} today!"
+        age_text = f" They're turning {age} today!"
 
     # Format list of safe emojis for the prompt
     safe_emoji_examples = ", ".join(random.sample(SAFE_SLACK_EMOJIS, 20))
 
     # Get current personality info for the request
     personality = get_current_personality()
+    current_personality_name = get_current_personality_name()
 
     template.append(
         {
@@ -412,7 +373,7 @@ def completion(
 
     try:
         logger.info(
-            f"AI: Requesting birthday message for {name} ({date}) using {BOT_PERSONALITY} personality"
+            f"AI: Requesting birthday message for {name} ({date}) using {current_personality_name} personality"
         )
         reply = (
             client.chat.completions.create(model=MODEL, messages=template)
@@ -497,10 +458,13 @@ def main():
     args = parser.parse_args()
 
     # Set personality for testing if specified
-    global BOT_PERSONALITY
     if args.personality:
-        BOT_PERSONALITY = args.personality
-        print(f"Using {BOT_PERSONALITY} personality for testing")
+        from config import (
+            set_current_personality,
+        )  # Import here to prevent circular imports
+
+        set_current_personality(args.personality)
+        print(f"Using {args.personality} personality for testing")
 
     # Configure console logging for direct testing
     console_handler = logging.StreamHandler(sys.stdout)
@@ -521,7 +485,7 @@ def main():
     test_logger.info(
         f"Testing with: Name='{args.name}', User ID='{args.user_id}', Date='{args.date}'"
     )
-    test_logger.info(f"Personality: {BOT_PERSONALITY}")
+    test_logger.info(f"Personality: {get_current_personality_name()}")
     print("-" * 60)
 
     if args.fallback:
