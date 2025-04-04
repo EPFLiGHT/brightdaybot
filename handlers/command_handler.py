@@ -645,6 +645,9 @@ def handle_test_command(user_id, say, app):
 
 def handle_admin_command(subcommand, args, say, user_id, app):
     """Handle admin-specific commands"""
+    # Add global declaration
+    global ADMIN_USERS
+
     username = get_username(app, user_id)
 
     if subcommand == "list":
@@ -700,10 +703,7 @@ def handle_admin_command(subcommand, args, say, user_id, app):
 
         # Save the combined list
         if save_admins_to_file(current_admins):
-            # Update the global variable with the latest admin list
-            from config import ADMIN_USERS
-
-            # Update in-memory list too
+            # Update in-memory list too - using the global variable now
             ADMIN_USERS[:] = current_admins
 
             new_admin_name = get_username(app, new_admin)
@@ -734,7 +734,7 @@ def handle_admin_command(subcommand, args, say, user_id, app):
 
         # Save the updated list
         if save_admins_to_file(current_admins):
-            # Update in-memory list too
+            # Update in-memory list too - using the global variable now
             ADMIN_USERS[:] = current_admins
 
             removed_name = get_username(app, admin_to_remove)
