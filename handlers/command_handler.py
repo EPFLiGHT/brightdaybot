@@ -94,6 +94,13 @@ def handle_dm_admin_help(say, user_id, app):
 • `admin personality` - Show current bot personality
 • `admin personality [name]` - Change bot personality
   Available options: standard, mystic_dog, custom
+  
+*Custom Personality:*
+• `admin custom name [value]` - Set custom bot name
+• `admin custom description [value]` - Set custom bot description
+• `admin custom style [value]` - Set custom writing style
+• `admin custom format [value]` - Set custom format instruction
+• `admin custom template [value]` - Set custom template extension
 """
     say(admin_help)
     logger.info(f"HELP: Sent admin help to {user_id}")

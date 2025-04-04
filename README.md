@@ -30,6 +30,7 @@ brightdaybot/
 │   ├── birthday.py        # Birthday management logic
 │   └── scheduler.py       # Scheduling functionality
 └── utils/                 # Helper modules
+    ├── config_storage.py  # Configuration storage
     ├── date_utils.py      # Date handling functions
     ├── slack_utils.py     # Slack API wrapper functions
     └── storage.py         # Birthday storage functions
@@ -155,6 +156,26 @@ To change the personality:
    - `CUSTOM_BOT_DESCRIPTION` - Short description of the bot's character
    - `CUSTOM_BOT_STYLE` - Writing style (e.g., "funny and sarcastic")
    - `CUSTOM_FORMAT_INSTRUCTION` - How the message should be structured
+
+### Persistent Configuration
+
+The bot maintains persistent configuration across restarts:
+
+1. **Admin Users**: Admins are saved to `data/storage/admins.json`
+
+   - Changes made with `admin add` and `admin remove` commands are persisted
+
+2. **Bot Personality**: Settings are saved to `data/storage/personality.json`
+
+   - Active personality selection is remembered between restarts
+   - Custom personality settings are saved automatically
+
+3. **Custom Personality Configuration**:
+   - `admin custom name [value]` - Set the bot's name
+   - `admin custom description [value]` - Set the bot's character description
+   - `admin custom style [value]` - Set the writing style
+   - `admin custom format [value]` - Set formatting instructions
+   - `admin custom template [value]` - Set additional template instructions
 
 ## Customization
 

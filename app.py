@@ -3,7 +3,7 @@ from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 
 # Import configuration
-from config import logger
+from config import logger, initialize_config
 
 # Import services
 from services.scheduler import setup_scheduler, run_now
@@ -11,6 +11,9 @@ from services.birthday import daily
 
 # Import event handlers
 from handlers.event_handler import register_event_handlers
+
+# Initialize configuration from storage files
+initialize_config()
 
 # Initialize Slack app with error handling
 app = App()

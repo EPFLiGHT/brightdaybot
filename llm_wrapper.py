@@ -88,28 +88,24 @@ def build_template():
     """Build the prompt template based on current personality settings"""
     personality_name = get_current_personality_name()
     personality = get_current_personality()
-    
+
     # Get the complete template including base + extension
     from config import get_full_template_for_personality
+
     template_text = get_full_template_for_personality(personality_name)
-    
+
     # Format the template with the personality's details
     formatted_template = template_text.format(
         name=personality["name"],
         description=personality["description"],
         team_name=TEAM_NAME,
         style=personality["style"],
-        format_instruction=personality["format_instruction"]
+        format_instruction=personality["format_instruction"],
     )
-    
+
     # Create the template structure for the OpenAI API
-    template = [
-        {
-            "role": "system",
-            "content": formatted_template.strip()
-        }
-    ]
-    
+    template = [{"role": "system", "content": formatted_template.strip()}]
+
     return template
 
 

@@ -86,11 +86,14 @@ DEFAULT_REMINDER_MESSAGE = None  # Set to None to use the dynamic message genera
 
 # ----- ACCESS CONTROL CONFIGURATION -----
 
-# Admin users list
-ADMIN_USERS = [
+# Default admin users list - will be overridden by file-based storage
+DEFAULT_ADMIN_USERS = [
     "U079Q4V8AJE",  # Example admin user
     # Add more UIDs here
 ]
+
+# Actual admin list will be populated from file in initialize_config()
+ADMIN_USERS = []
 
 # Permission settings - which commands require admin privileges
 COMMAND_PERMISSIONS = {
@@ -105,25 +108,8 @@ username_cache = {}
 
 # ----- BOT PERSONALITY CUSTOMIZATION -----
 
-# Function to get and set personality
+# Placeholder for current personality setting - will be loaded from file
 _current_personality = "standard"  # Default
-
-
-def get_current_personality_name():
-    """Get the currently selected personality name"""
-    global _current_personality
-    return _current_personality
-
-
-def set_current_personality(personality_name):
-    """Set the current personality name"""
-    global _current_personality
-    if personality_name in BOT_PERSONALITIES:
-        _current_personality = personality_name
-        logger.info(f"CONFIG: Bot personality changed to '{personality_name}'")
-        return True
-    return False
-
 
 # Team and bot identity settings
 TEAM_NAME = 'Laboratory for Intelligent Global Health and Humanitarian Response Technologies ("LiGHT Lab")'
@@ -166,7 +152,7 @@ BOT_PERSONALITIES = {
         "description": "a friendly, enthusiastic birthday bot",
         "style": "fun, upbeat, and slightly over-the-top with enthusiasm",
         "format_instruction": "Create a lively message with multiple line breaks that stands out",
-        "template_extension": ""  # No additional instructions for standard
+        "template_extension": "",  # No additional instructions for standard
     },
     "mystic_dog": {
         "name": "Ludo",
@@ -183,7 +169,7 @@ Your birthday message should follow this structure:
    - A spirit animal or guide for their coming year
    - References to machine learning theory or other scientific concepts reinterpreted mystically
 4. End with an enigmatic but hopeful conclusion
-"""
+""",
     },
     "custom": {
         "name": os.getenv("CUSTOM_BOT_NAME", BOT_NAME),
@@ -192,27 +178,134 @@ Your birthday message should follow this structure:
         ),
         "style": os.getenv("CUSTOM_BOT_STYLE", "personalized based on configuration"),
         "format_instruction": os.getenv(
-            "CUSTOM_FORMAT_INSTRUCTION", 
-            "Create a message that matches the configured personality"
+            "CUSTOM_FORMAT_INSTRUCTION",
+            "Create a message that matches the configured personality",
         ),
-        "template_extension": os.getenv("CUSTOM_BOT_TEMPLATE_EXTENSION", "")
+        "template_extension": os.getenv("CUSTOM_BOT_TEMPLATE_EXTENSION", ""),
     },
 }
+
+
+def get_current_personality_name():
+    """Get the currently selected personality name"""
+    global _current_personality
+    return _current_personality
+
+
+def set_current_personality(personality_name):
+    """
+    Set the current personality name and save to storage file
+
+    Args:
+        personality_name: Name of personality to set
+
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    global _current_personality
+    if personality_name in BOT_PERSONALITIES:
+        _current_personality = personality_name
+        logger.info(f"CONFIG: Bot personality changed to '{personality_name}'")
+
+        # Import here to avoid circular imports
+        from utils.config_storage import save_personality_setting
+
+        # Save the setting to file
+        custom_settings = None
+        if personality_name == "custom":
+            # Save current custom settings
+            custom_settings = {
+                "name": BOT_PERSONALITIES["custom"]["name"],
+                "description": BOT_PERSONALITIES["custom"]["description"],
+                "style": BOT_PERSONALITIES["custom"]["style"],
+                "format_instruction": BOT_PERSONALITIES["custom"]["format_instruction"],
+                "template_extension": BOT_PERSONALITIES["custom"]["template_extension"],
+            }
+
+        save_personality_setting(personality_name, custom_settings)
+        return True
+    return False
+
+
+def set_custom_personality_setting(setting_name, value):
+    """
+    Update a custom personality setting
+
+    Args:
+        setting_name: Name of the setting (name, description, style, etc.)
+        value: New value for the setting
+
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    if setting_name not in [
+        "name",
+        "description",
+        "style",
+        "format_instruction",
+        "template_extension",
+    ]:
+        logger.error(
+            f"CONFIG_ERROR: Invalid custom personality setting: {setting_name}"
+        )
+        return False
+
+    BOT_PERSONALITIES["custom"][setting_name] = value
+    logger.info(f"CONFIG: Updated custom personality setting '{setting_name}'")
+
+    # Save current personality if it's custom
+    if get_current_personality_name() == "custom":
+        set_current_personality("custom")  # This will trigger saving to file
+
+    return True
+
 
 # Function to get the full template for a personality
 def get_full_template_for_personality(personality_name):
     """Build the full template for a given personality by combining base and extensions"""
     if personality_name not in BOT_PERSONALITIES:
         personality_name = "standard"
-        
+
     personality = BOT_PERSONALITIES[personality_name]
     full_template = BASE_TEMPLATE
-    
+
     # Add any personality-specific extension
     if personality["template_extension"]:
         full_template += "\n" + personality["template_extension"]
-        
+
     return full_template
 
-# Indicate successful startup
-logger.info("Bot configuration loaded successfully")
+
+def initialize_config():
+    """Initialize configuration from storage files"""
+    global ADMIN_USERS, _current_personality, BOT_PERSONALITIES
+
+    # Import here to avoid circular imports
+    from utils.config_storage import load_admins_from_file, load_personality_setting
+
+    # Load admins
+    admin_users_from_file = load_admins_from_file()
+    if admin_users_from_file:
+        ADMIN_USERS = admin_users_from_file
+    else:
+        ADMIN_USERS = DEFAULT_ADMIN_USERS
+        # Save defaults to file
+        from utils.config_storage import save_admins_to_file
+
+        save_admins_to_file(ADMIN_USERS)
+
+    # Load personality settings
+    personality_name, custom_settings = load_personality_setting()
+    _current_personality = personality_name
+
+    # If there are custom settings, apply them
+    if custom_settings and isinstance(custom_settings, dict):
+        for key, value in custom_settings.items():
+            if key in BOT_PERSONALITIES["custom"]:
+                BOT_PERSONALITIES["custom"][key] = value
+
+    logger.info("CONFIG: Configuration initialized from storage files")
+
+
+# Initialize config after all definitions are complete
+# This will be called from app.py
