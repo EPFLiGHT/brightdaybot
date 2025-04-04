@@ -649,14 +649,25 @@ def handle_admin_command(subcommand, args, say, user_id, app):
 
     if subcommand == "list":
         # List all configured admin users
-        if not ADMIN_USERS:
+        from utils.config_storage import get_current_admins
+
+        current_admins = get_current_admins()
+        logger.info(
+            f"ADMIN_LIST: Current admin list has {len(current_admins)} users: {current_admins}"
+        )
+
+        if not current_admins:
             say("No additional admin users configured.")
             return
 
         admin_list = []
-        for admin_id in ADMIN_USERS:
-            admin_name = get_username(app, admin_id)
-            admin_list.append(f"• {admin_name} ({admin_id})")
+        for admin_id in current_admins:
+            try:
+                admin_name = get_username(app, admin_id)
+                admin_list.append(f"• {admin_name} ({admin_id})")
+            except Exception as e:
+                logger.error(f"ERROR: Failed to get username for admin {admin_id}: {e}")
+                admin_list.append(f"• {admin_id} (name unavailable)")
 
         say(f"*Configured Admin Users:*\n\n" + "\n".join(admin_list))
 
@@ -674,15 +685,27 @@ def handle_admin_command(subcommand, args, say, user_id, app):
             say(f"User ID `{new_admin}` not found or invalid.")
             return
 
-        if new_admin in ADMIN_USERS:
+        # Get the current list from the file
+        from utils.config_storage import get_current_admins, load_admins_from_file
+
+        # Get the updated list from file to ensure we have the latest
+        current_admins = load_admins_from_file()
+
+        if new_admin in current_admins:
             say(f"User <@{new_admin}> is already an admin.")
             return
 
-        # Add to in-memory list
-        ADMIN_USERS.append(new_admin)
+        # Add to the list from the file
+        current_admins.append(new_admin)
 
-        # Explicitly save the entire list to file
-        if save_admins_to_file(ADMIN_USERS):
+        # Save the combined list
+        if save_admins_to_file(current_admins):
+            # Update the global variable with the latest admin list
+            from config import ADMIN_USERS
+
+            # Update in-memory list too
+            ADMIN_USERS[:] = current_admins
+
             new_admin_name = get_username(app, new_admin)
             say(f"Added {new_admin_name} (<@{new_admin}>) as admin")
             logger.info(
@@ -690,22 +713,30 @@ def handle_admin_command(subcommand, args, say, user_id, app):
             )
         else:
             say(
-                f"Added <@{new_admin}> as admin but failed to save to file. Changes may be lost on restart."
+                f"Failed to add <@{new_admin}> as admin due to an error saving to file."
             )
 
     elif subcommand == "remove" and args:
-        # Remove an admin user
+        # Similar approach for removal
         admin_to_remove = args[0].strip("<@>").upper()
 
-        if admin_to_remove not in ADMIN_USERS:
+        # Get the current list from the file
+        from utils.config_storage import load_admins_from_file
+
+        current_admins = load_admins_from_file()
+
+        if admin_to_remove not in current_admins:
             say(f"User <@{admin_to_remove}> is not in the admin list.")
             return
 
-        # Remove from in-memory list
-        ADMIN_USERS.remove(admin_to_remove)
+        # Remove from the list
+        current_admins.remove(admin_to_remove)
 
-        # Save the updated list to file
-        if save_admins_to_file(ADMIN_USERS):
+        # Save the updated list
+        if save_admins_to_file(current_admins):
+            # Update in-memory list too
+            ADMIN_USERS[:] = current_admins
+
             removed_name = get_username(app, admin_to_remove)
             say(f"Removed {removed_name} (<@{admin_to_remove}>) from admin list")
             logger.info(
@@ -713,7 +744,7 @@ def handle_admin_command(subcommand, args, say, user_id, app):
             )
         else:
             say(
-                f"Removed <@{admin_to_remove}> from admin list but failed to save to file. Changes may be lost on restart."
+                f"Failed to remove <@{admin_to_remove}> due to an error saving to file."
             )
 
     elif subcommand == "backup":

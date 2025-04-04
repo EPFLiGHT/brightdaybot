@@ -124,3 +124,9 @@ def load_personality_setting():
     except Exception as e:
         logger.error(f"CONFIG_ERROR: Failed to load personality setting: {e}")
         return "standard", None
+
+
+def get_current_admins():
+    """Get the current admin list from file"""
+    # Always load fresh from the file to ensure we have the latest
+    return load_admins_from_file()

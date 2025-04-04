@@ -10,6 +10,8 @@ A Slack bot that records and wishes Slack workspace members a happy birthday wit
 - **Admin Commands**: Statistics, user management, and settings
 - **Reminders**: Automatically remind users who haven't set their birthday
 - **Data Management**: Automated backups and organized data storage
+- **Multiple Personalities**: Switch between different bot personalities with persistent settings
+- **Custom Templates**: Fully customizable message templates for each personality
 
 ## Project Structure
 
@@ -20,7 +22,7 @@ brightdaybot/
 ├── llm_wrapper.py         # OpenAI integration for messages
 ├── data/                  # Data directory
 │   ├── logs/              # Log files
-│   ├── storage/           # Birthday data
+│   ├── storage/           # Birthday data and configuration
 │   ├── tracking/          # Announcement tracking
 │   └── backups/           # Backup files
 ├── handlers/              # Slack event and command handlers
@@ -88,6 +90,13 @@ SLACK_BOT_TOKEN="xoxb-your-bot-token"
 BIRTHDAY_CHANNEL_ID="C0123456789"
 OPENAI_API_KEY="sk-your-openai-api-key"
 OPENAI_MODEL="gpt-4o"  # Optional: defaults to gpt-4o
+
+# Optional: Custom bot personality settings
+CUSTOM_BOT_NAME="Birthday Wizard"
+CUSTOM_BOT_DESCRIPTION="a magical birthday celebration wizard"
+CUSTOM_BOT_STYLE="magical, whimsical, and full of enchantment"
+CUSTOM_FORMAT_INSTRUCTION="Create a magical spell-like birthday message"
+CUSTOM_BOT_TEMPLATE_EXTENSION="Your custom template extension here"
 ```
 
 ### 4. Running the Bot
@@ -101,7 +110,9 @@ python app.py
 The bot will:
 
 - Create necessary data directories (logs, storage, tracking, backups)
+- Initialize configuration from storage or create default settings
 - Store birthdays in data/storage/birthdays.txt
+- Store configuration in data/storage/\*.json files
 - Write logs to data/logs/app.log
 - Check for today's birthdays at startup
 - Schedule daily birthday checks at 8:00 AM UTC
@@ -145,17 +156,12 @@ The bot supports multiple personalities that change how birthday messages are wr
 
 - `standard` - Friendly, enthusiastic birthday bot (default)
 - `mystic_dog` - Ludo the Mystic Birthday Dog who provides cosmic predictions
-- `custom` - Customizable personality using environment variables
+- `custom` - Customizable personality using environment variables or commands
 
 To change the personality:
 
 1. As an admin, use the command: `admin personality [name]`
-2. Or set in the configuration file [`config.py`](config.py)
-3. For custom personalities, set these environment variables:
-   - `CUSTOM_BOT_NAME` - Name of your bot
-   - `CUSTOM_BOT_DESCRIPTION` - Short description of the bot's character
-   - `CUSTOM_BOT_STYLE` - Writing style (e.g., "funny and sarcastic")
-   - `CUSTOM_FORMAT_INSTRUCTION` - How the message should be structured
+2. The selection persists across bot restarts
 
 ### Persistent Configuration
 
@@ -164,6 +170,7 @@ The bot maintains persistent configuration across restarts:
 1. **Admin Users**: Admins are saved to `data/storage/admins.json`
 
    - Changes made with `admin add` and `admin remove` commands are persisted
+   - Workspace admins always have admin privileges regardless of this list
 
 2. **Bot Personality**: Settings are saved to `data/storage/personality.json`
 
@@ -181,9 +188,14 @@ The bot maintains persistent configuration across restarts:
 
 ### Changing Birthday Message Style
 
-Edit the templates in llm_wrapper.py to customize:
+Edit the templates in config.py to customize:
 
-- `TEMPLATE` - System prompt for AI-generated messages
+- `BASE_TEMPLATE` - The core template all personalities share
+- `BOT_PERSONALITIES` - Individual personality definitions
+- `template_extension` - Personality-specific additions to the base template
+
+Additional message components can be customized in llm_wrapper.py:
+
 - `BACKUP_MESSAGES` - Fallback templates when AI is unavailable
 - `BIRTHDAY_INTROS`, `BIRTHDAY_MIDDLES`, etc. - Components for template messages
 
@@ -200,6 +212,12 @@ The bot implements several data management features:
 - **Auto-Recovery**: Tries to restore from backup if the main file is missing
 - **Administrative Control**: Provides commands for manual backup and restore operations
 - **Birthday Tracking**: Prevents duplicate announcements if the bot is restarted
+
+## Troubleshooting
+
+- **Admin List Issues**: If admin commands aren't working properly, restart the bot and check the logs to verify admins are loading correctly.
+- **Personality Not Applying**: Use `admin personality` to check the current personality setting.
+- **Message Generation Fails**: The bot will automatically fall back to template messages if the AI service is unavailable.
 
 ## License
 

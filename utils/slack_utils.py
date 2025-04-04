@@ -48,8 +48,13 @@ def is_admin(app, user_id):
     Returns:
         True if user is admin, False otherwise
     """
+    # Get the current admin list from config
+    from utils.config_storage import get_current_admins
+
+    current_admins = get_current_admins()
+
     # First, check if user is in the manually configured admin list
-    if user_id in ADMIN_USERS:
+    if user_id in current_admins:
         username = get_username(app, user_id)
         logger.debug(
             f"PERMISSIONS: {username} ({user_id}) is admin via ADMIN_USERS list"

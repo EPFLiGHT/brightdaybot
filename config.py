@@ -281,18 +281,32 @@ def initialize_config():
     global ADMIN_USERS, _current_personality, BOT_PERSONALITIES
 
     # Import here to avoid circular imports
-    from utils.config_storage import load_admins_from_file, load_personality_setting
+    from utils.config_storage import (
+        load_admins_from_file,
+        load_personality_setting,
+        save_admins_to_file,
+    )
 
     # Load admins
     admin_users_from_file = load_admins_from_file()
+
     if admin_users_from_file:
         ADMIN_USERS = admin_users_from_file
+        logger.info(f"CONFIG: Loaded {len(ADMIN_USERS)} admin users from file")
     else:
-        ADMIN_USERS = DEFAULT_ADMIN_USERS
-        # Save defaults to file
-        from utils.config_storage import save_admins_to_file
+        # If no admins in file, use defaults but make sure to maintain any existing ones
+        logger.info(f"CONFIG: No admins found in file, using default list")
+        # Add any default admins that aren't already in the list
+        for admin in DEFAULT_ADMIN_USERS:
+            if admin not in ADMIN_USERS:
+                ADMIN_USERS.append(admin)
 
+        # Save the combined list to file
         save_admins_to_file(ADMIN_USERS)
+        logger.info(f"CONFIG: Saved {len(ADMIN_USERS)} default admin users to file")
+
+    # Add this debug print
+    logger.info(f"CONFIG: ADMIN_USERS now contains: {ADMIN_USERS}")
 
     # Load personality settings
     personality_name, custom_settings = load_personality_setting()
@@ -305,7 +319,3 @@ def initialize_config():
                 BOT_PERSONALITIES["custom"][key] = value
 
     logger.info("CONFIG: Configuration initialized from storage files")
-
-
-# Initialize config after all definitions are complete
-# This will be called from app.py
