@@ -20,6 +20,14 @@ def save_admins_to_file(admin_list):
         bool: True if successful, False otherwise
     """
     try:
+        # Ensure admin_list is actually a list, not a string or other type
+        if not isinstance(admin_list, list):
+            logger.error(f"CONFIG_ERROR: admin_list is not a list: {type(admin_list)}")
+            return False
+
+        # Make sure the storage directory exists
+        os.makedirs(os.path.dirname(ADMINS_FILE), exist_ok=True)
+
         with open(ADMINS_FILE, "w") as f:
             json.dump({"admins": admin_list}, f, indent=2)
         logger.info(f"CONFIG: Saved {len(admin_list)} admins to {ADMINS_FILE}")
@@ -44,6 +52,14 @@ def load_admins_from_file():
         with open(ADMINS_FILE, "r") as f:
             data = json.load(f)
             admins = data.get("admins", [])
+
+            # Make sure we got a list back
+            if not isinstance(admins, list):
+                logger.error(
+                    f"CONFIG_ERROR: Loaded admins is not a list: {type(admins)}"
+                )
+                return []
+
             logger.info(f"CONFIG: Loaded {len(admins)} admins from {ADMINS_FILE}")
             return admins
     except Exception as e:

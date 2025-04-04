@@ -37,6 +37,7 @@ from config import (
     get_current_personality_name,
     set_current_personality,
 )
+from utils.config_storage import save_admins_to_file
 
 logger = get_logger("commands")
 
@@ -677,12 +678,20 @@ def handle_admin_command(subcommand, args, say, user_id, app):
             say(f"User <@{new_admin}> is already an admin.")
             return
 
+        # Add to in-memory list
         ADMIN_USERS.append(new_admin)
-        new_admin_name = get_username(app, new_admin)
-        say(f"Added {new_admin_name} (<@{new_admin}>) as admin")
-        logger.info(
-            f"ADMIN: {username} ({user_id}) added {new_admin_name} ({new_admin}) as admin"
-        )
+
+        # Explicitly save the entire list to file
+        if save_admins_to_file(ADMIN_USERS):
+            new_admin_name = get_username(app, new_admin)
+            say(f"Added {new_admin_name} (<@{new_admin}>) as admin")
+            logger.info(
+                f"ADMIN: {username} ({user_id}) added {new_admin_name} ({new_admin}) as admin"
+            )
+        else:
+            say(
+                f"Added <@{new_admin}> as admin but failed to save to file. Changes may be lost on restart."
+            )
 
     elif subcommand == "remove" and args:
         # Remove an admin user
@@ -692,12 +701,20 @@ def handle_admin_command(subcommand, args, say, user_id, app):
             say(f"User <@{admin_to_remove}> is not in the admin list.")
             return
 
+        # Remove from in-memory list
         ADMIN_USERS.remove(admin_to_remove)
-        removed_name = get_username(app, admin_to_remove)
-        say(f"Removed {removed_name} (<@{admin_to_remove}>) from admin list")
-        logger.info(
-            f"ADMIN: {username} ({user_id}) removed {removed_name} ({admin_to_remove}) from admin list"
-        )
+
+        # Save the updated list to file
+        if save_admins_to_file(ADMIN_USERS):
+            removed_name = get_username(app, admin_to_remove)
+            say(f"Removed {removed_name} (<@{admin_to_remove}>) from admin list")
+            logger.info(
+                f"ADMIN: {username} ({user_id}) removed {removed_name} ({admin_to_remove}) from admin list"
+            )
+        else:
+            say(
+                f"Removed <@{admin_to_remove}> from admin list but failed to save to file. Changes may be lost on restart."
+            )
 
     elif subcommand == "backup":
         create_backup()
