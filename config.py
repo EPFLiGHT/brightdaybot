@@ -126,9 +126,17 @@ IMPORTANT CONSTRAINTS:
   DO NOT use custom emojis like :birthday_party_parrot: or :rave: as they may not exist in all workspaces
 - DO NOT use Unicode emojis (like 🎂) - ONLY use Slack format with colons (:cake:)
 
+SLACK FORMATTING RULES - VERY IMPORTANT:
+1. For bold text, use *single asterisks* NOT **double asterisks**
+2. For italic text, use _single underscores_ NOT *asterisks* or __double underscores__
+3. For strikethrough, use ~tildes~ around text
+4. For links use <URL|text> format NOT [text](URL)
+5. To mention a channel use <!channel> exactly as written
+6. To mention a user use <@USER_ID> exactly as provided to you
+
 When writing your message:
 1. Be {style}
-2. Use plenty of Slack formatting (bold, italics) and STANDARD Slack emojis only; don't use double asterisks for bold, use *text* instead
+2. Use plenty of Slack formatting (bold, italics) and STANDARD Slack emojis only
 3. Include fun wordplay, puns, or jokes based on their name if possible
 4. Reference their star sign with a humorous "prediction" or trait if provided
 5. If age is provided, include a funny age-related joke or milestone
@@ -138,9 +146,12 @@ When writing your message:
 9. Don't mention that you're an AI
 
 Slack formatting examples:
-- Bold: *text*  
-- Italic: _text_
+- Bold: *text*  (NOT **text**)
+- Italic: _text_  (NOT *text*)
 - Strikethrough: ~text~
+- Link: <https://example.com|click here>
+- Mention channel: <!channel>
+- Mention user: <@U123ABC456>
 
 Create a message that stands out in a busy Slack channel!
 """

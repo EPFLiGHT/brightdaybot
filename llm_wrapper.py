@@ -310,9 +310,11 @@ def completion(
     user_id: str = None,
     birth_date: str = None,
     birth_year: int = None,
+    max_retries: int = 2,
 ) -> str:
     """
     Generate an enthusiastic, fun birthday message using OpenAI or fallback messages
+    with validation to ensure proper mentions are included.
 
     Args:
         name: User's name or Slack ID
@@ -320,9 +322,10 @@ def completion(
         user_id: User's Slack ID for mentioning them with @
         birth_date: Original birth date in DD/MM format (for star sign)
         birth_year: Optional birth year for age-related content
+        max_retries: Maximum number of retries if validation fails
 
     Returns:
-        Fun birthday message
+        Fun birthday message with Slack-compatible formatting
     """
     # Get the dynamic template based on current configuration
     template = get_template()
@@ -347,50 +350,188 @@ def completion(
     personality = get_current_personality()
     current_personality_name = get_current_personality_name()
 
-    template.append(
-        {
-            "role": "user",
-            "content": f"""
-            {name}'s birthday is on {date}.{star_sign_text}{age_text} Please write them a fun, enthusiastic birthday message for a workplace Slack channel.
-            
-            IMPORTANT REQUIREMENTS:
-            1. Include their Slack mention "{user_mention}" somewhere in the message
-            2. Make sure to address the entire channel with <!channel> to notify everyone
-            3. Create a message that's lively and engaging with good structure and flow
-            4. ONLY USE STANDARD SLACK EMOJIS like: {safe_emoji_examples}
-            5. DO NOT use custom emojis like :birthday_party_parrot: or :rave: as they won't work
-            6. Remember to use Slack emoji format with colons (e.g., :cake:), not Unicode emojis (e.g., 🎂)
-            7. Your name is {personality["name"]} and you are {personality["description"]}
-            
-            Today is {datetime.now().strftime('%Y-%m-%d')}.
-            """,
-        }
+    user_content = f"""
+        {name}'s birthday is on {date}.{star_sign_text}{age_text} Please write them a fun, enthusiastic birthday message for a workplace Slack channel.
+        
+        IMPORTANT REQUIREMENTS:
+        1. Include their Slack mention "{user_mention}" somewhere in the message
+        2. Make sure to address the entire channel with <!channel> to notify everyone
+        3. Create a message that's lively and engaging with good structure and flow
+        4. ONLY USE STANDARD SLACK EMOJIS like: {safe_emoji_examples}
+        5. DO NOT use custom emojis like :birthday_party_parrot: or :rave: as they won't work
+        6. Remember to use Slack emoji format with colons (e.g., :cake:), not Unicode emojis (e.g., 🎂)
+        7. Your name is {personality["name"]} and you are {personality["description"]}
+        
+        Today is {datetime.now().strftime('%Y-%m-%d')}.
+    """
+
+    # Add extra emphasis for validation requirements
+    if max_retries > 0:
+        user_content += f"""
+        
+        CRITICAL: The message MUST contain both:
+        1. The exact user mention format: "{user_mention}"
+        2. The exact channel mention format: "<!channel>"
+        
+        Previous attempts failed to include these required mention formats. Please ensure they're included.
+        """
+
+    # Add user message to template
+    template.append({"role": "user", "content": user_content})
+
+    retry_count = 0
+    while retry_count <= max_retries:
+        try:
+            logger.info(
+                f"AI: Requesting birthday message for {name} ({date}) using {current_personality_name} personality"
+                + (f" (retry {retry_count})" if retry_count > 0 else "")
+            )
+
+            reply = (
+                client.chat.completions.create(model=MODEL, messages=template)
+                .choices[0]
+                .message.content
+            )
+
+            # Fix common Slack formatting issues
+            reply = fix_slack_formatting(reply)
+
+            # Validate the message contains required elements
+            is_valid = True
+            validation_errors = []
+
+            # Check for user mention
+            if user_id and f"<@{user_id}>" not in reply:
+                is_valid = False
+                validation_errors.append(f"Missing user mention <@{user_id}>")
+
+            # Check for channel mention
+            if "<!channel>" not in reply:
+                is_valid = False
+                validation_errors.append("Missing channel mention <!channel>")
+
+            # If validation passed, return the message
+            if is_valid:
+                logger.info(
+                    f"AI: Successfully generated birthday message (passed validation)"
+                )
+                return reply
+
+            # If validation failed and we have retries left, try again
+            if retry_count < max_retries:
+                error_msg = ", ".join(validation_errors)
+                logger.warning(
+                    f"AI_VALIDATION: Message failed validation: {error_msg}. Retrying..."
+                )
+                retry_count += 1
+
+                # Add clarification for the next attempt
+                template.append({"role": "assistant", "content": reply})
+                template.append(
+                    {
+                        "role": "user",
+                        "content": f"The message you provided is missing: {error_msg}. Please regenerate the message including both the user mention {user_mention} and channel mention <!channel> formats exactly as specified.",
+                    }
+                )
+            else:
+                # Log the failure but return the last generated message
+                logger.error(
+                    f"AI_VALIDATION: Message failed validation after {max_retries} retries. Using last generated message anyway."
+                )
+                return reply
+
+        except Exception as e:
+            logger.error(f"AI_ERROR: Failed to generate completion: {e}")
+
+            # Use one of our backup messages if the API call fails
+            random_message = random.choice(BACKUP_MESSAGES)
+
+            # Replace {name} with user mention if available
+            mention_text = user_mention if user_id else name
+            formatted_message = random_message.replace("{name}", mention_text)
+
+            logger.info(f"AI: Used fallback birthday message")
+            return formatted_message
+
+        # End of retry loop
+
+    # We should never get here due to the returns in the loop
+    logger.error("AI_ERROR: Unexpected flow in completion function")
+    return create_birthday_announcement(user_id, name, birth_date, birth_year)
+
+
+def fix_slack_formatting(text):
+    """
+    Fix common formatting issues in Slack messages:
+    - Replace **bold** with *bold* for Slack-compatible bold text
+    - Replace __italic__ with _italic_ for Slack-compatible italic text
+    - Fix markdown-style links to Slack-compatible format
+    - Ensure proper emoji format with colons
+    - Fix other formatting issues
+
+    Args:
+        text: The text to fix formatting in
+
+    Returns:
+        Fixed text with Slack-compatible formatting
+    """
+    import re
+
+    # Fix bold formatting: Replace **bold** with *bold*
+    text = re.sub(r"\*\*(.*?)\*\*", r"*\1*", text)
+
+    # Fix italic formatting: Replace __italic__ with _italic_
+    # and also _italic_ if it's not already correct
+    text = re.sub(r"__(.*?)__", r"_\1_", text)
+
+    # Fix markdown links: Replace [text](url) with <url|text>
+    text = re.sub(r"\[(.*?)\]\((.*?)\)", r"<\2|\1>", text)
+
+    # Fix emoji format: Ensure emoji codes have colons on both sides
+    text = re.sub(
+        r"(?<!\:)([a-z0-9_+-]+)(?!\:)",
+        lambda m: (
+            m.group(1)
+            if m.group(1)
+            in [
+                "and",
+                "the",
+                "to",
+                "for",
+                "with",
+                "in",
+                "of",
+                "on",
+                "at",
+                "by",
+                "from",
+                "as",
+            ]
+            else m.group(1)
+        ),
+        text,
     )
 
-    try:
-        logger.info(
-            f"AI: Requesting birthday message for {name} ({date}) using {current_personality_name} personality"
-        )
-        reply = (
-            client.chat.completions.create(model=MODEL, messages=template)
-            .choices[0]
-            .message.content
-        )
+    # Fix markdown headers with # to just bold text
+    text = re.sub(r"^(#{1,6})\s+(.*?)$", r"*\2*", text, flags=re.MULTILINE)
 
-        logger.info(f"AI: Successfully generated birthday message")
-        return reply
-    except Exception as e:
-        logger.error(f"AI_ERROR: Failed to generate completion: {e}")
+    # Remove HTML tags that might slip in
+    text = re.sub(r"<(?![@!#])(.*?)>", r"\1", text)
 
-        # Use one of our backup messages if the API call fails
-        random_message = random.choice(BACKUP_MESSAGES)
+    # Check for and fix incorrect code blocks
+    text = re.sub(r"```(.*?)```", r"`\1`", text, flags=re.DOTALL)
 
-        # Replace {name} with user mention if available
-        mention_text = user_mention if user_id else name
-        formatted_message = random_message.replace("{name}", mention_text)
+    # Fix blockquotes: replace markdown > with Slack's blockquote
+    text = re.sub(r"^>\s+(.*?)$", r">>>\1", text, flags=re.MULTILINE)
 
-        logger.info(f"AI: Used fallback birthday message")
-        return formatted_message
+    # # Fix Unicode emojis by adding a note if they exist
+    # if re.search(r"[^\x00-\x7F]+", text):
+    #     emoji_warning = "\n\n_Note: Some emoji characters may not display correctly in Slack. Please use Slack-formatted emojis with colons like :smile: instead._"
+    #     if emoji_warning not in text:
+    #         text += emoji_warning
+
+    logger.debug(f"AI_FORMAT: Fixed Slack formatting issues in message")
+    return text
 
 
 def test_fallback_messages(name="Test User", user_id="U123456789"):
