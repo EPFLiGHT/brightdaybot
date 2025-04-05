@@ -117,6 +117,69 @@ The bot will:
 - Check for today's birthdays at startup
 - Schedule daily birthday checks at 8:00 AM UTC
 
+## Deployment
+
+### Running as a System Service
+
+To run BrightDayBot as a persistent service that starts automatically after reboots:
+
+1. **Create a systemd service file**:
+
+   ```bash
+   sudo nano /etc/systemd/system/brightdaybot.service
+   ```
+
+   With content:
+
+   ```ini
+   [Unit]
+   Description=BrightDayBot Service
+   After=network.target
+
+   [Service]
+   Type=simple
+   ExecStart=/path/to/venv/bin/python /path/to/brightdaybot/app.py
+   WorkingDirectory=/path/to/brightdaybot
+   User=your_username
+   Group=your_group
+   Restart=always
+
+   [Install]
+   WantedBy=multi-user.target
+   ```
+
+2. **Enable and start the service**:
+
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl enable brightdaybot.service
+   sudo systemctl start brightdaybot.service
+   ```
+
+3. **Manage the bot service**:
+
+   ```bash
+   # Check status
+   sudo systemctl status brightdaybot.service
+   # Restart the bot
+   sudo systemctl restart brightdaybot.service
+   # View logs
+   sudo journalctl -u brightdaybot.service -f
+   ```
+
+### Updating the Bot
+
+When you update the code or configuration:
+
+```bash
+# Pull latest changes
+cd /path/to/brightdaybot
+git pull
+
+# Restart the service
+sudo systemctl restart brightdaybot.service
+```
+
 ## Usage
 
 ### User Commands
