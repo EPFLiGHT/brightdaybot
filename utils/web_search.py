@@ -2,7 +2,7 @@ from openai import OpenAI
 import json
 import os
 from datetime import datetime
-from config import get_logger, CACHE_DIR
+from config import get_logger, CACHE_DIR, WEB_SEARCH_CACHE_ENABLED
 import argparse
 import sys
 
@@ -24,8 +24,8 @@ def get_birthday_facts(date_str):
     """
     cache_file = os.path.join(CACHE_DIR, f"facts_{date_str.replace('/', '_')}.json")
 
-    # Check cache first
-    if os.path.exists(cache_file):
+    # Check cache first if caching is enabled
+    if WEB_SEARCH_CACHE_ENABLED and os.path.exists(cache_file):
         try:
             with open(cache_file, "r") as f:
                 cached_data = json.load(f)
@@ -74,11 +74,15 @@ def get_birthday_facts(date_str):
             "formatted_date": formatted_date,
         }
 
-        # Save results to cache before returning
-        if results:
+        # Save results to cache if caching is enabled
+        if WEB_SEARCH_CACHE_ENABLED and results:
             try:
+                # Ensure the cache directory exists
+                os.makedirs(CACHE_DIR, exist_ok=True)
+
                 with open(cache_file, "w") as f:
                     json.dump(results, f)
+                    logger.info(f"WEB_SEARCH: Cached results for {date_str}")
             except Exception as e:
                 logger.error(f"CACHE_ERROR: Failed to write to cache: {e}")
 
@@ -130,6 +134,50 @@ def process_facts_for_ludo(facts_text, formatted_date):
         return f"On this day, {formatted_date}, the cosmos aligned to welcome several notable souls to our realm."
 
 
+def clear_cache(date_str=None):
+    """
+    Clear web search cache
+
+    Args:
+        date_str: Optional specific date to clear (in DD/MM format)
+                 If None, clears all cache
+
+    Returns:
+        int: Number of files cleared
+    """
+    try:
+        if not os.path.exists(CACHE_DIR):
+            logger.info("CACHE: No cache directory exists")
+            return 0
+
+        cleared_count = 0
+
+        if date_str:
+            # Clear specific date
+            cache_file = os.path.join(
+                CACHE_DIR, f"facts_{date_str.replace('/', '_')}.json"
+            )
+            if os.path.exists(cache_file):
+                os.remove(cache_file)
+                logger.info(f"CACHE: Cleared cache for {date_str}")
+                cleared_count = 1
+        else:
+            # Clear all cache
+            for filename in os.listdir(CACHE_DIR):
+                if filename.startswith("facts_") and filename.endswith(".json"):
+                    os.remove(os.path.join(CACHE_DIR, filename))
+                    cleared_count += 1
+
+            if cleared_count > 0:
+                logger.info(f"CACHE: Cleared {cleared_count} cached files")
+
+        return cleared_count
+
+    except Exception as e:
+        logger.error(f"CACHE_ERROR: Failed to clear cache: {e}")
+        return 0
+
+
 def main():
     """Main function for testing the web search functionality"""
     parser = argparse.ArgumentParser(description="Test the birthday facts web search")
@@ -145,6 +193,21 @@ def main():
     parser.add_argument(
         "--sources", action="store_true", help="Show source URLs in the output"
     )
+    parser.add_argument(
+        "--clear-cache",
+        action="store_true",
+        help="Clear cached results before searching",
+    )
+    parser.add_argument(
+        "--clear-all-cache",
+        action="store_true",
+        help="Clear all cached results (no search)",
+    )
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="Disable using/writing cache for this request",
+    )
 
     # Configure console logging for testing
     import logging
@@ -159,6 +222,24 @@ def main():
 
     args = parser.parse_args()
 
+    # Handle cache clearing
+    if args.clear_all_cache:
+        count = clear_cache()
+        print(f"Cleared {count} cached files")
+        return
+
+    if args.clear_cache:
+        clear_cache(args.date)
+        print(f"Cleared cache for {args.date}")
+
+    # Temporarily override cache setting if requested
+    global WEB_SEARCH_CACHE_ENABLED
+    original_cache_setting = WEB_SEARCH_CACHE_ENABLED
+
+    if args.no_cache:
+        WEB_SEARCH_CACHE_ENABLED = False
+        print("Cache disabled for this request")
+
     try:
         # Validate date format
         day, month = map(int, args.date.split("/"))
@@ -170,6 +251,11 @@ def main():
         date_obj = datetime(2025, month, day)  # Year doesn't matter
         formatted_date = date_obj.strftime("%B %d")
         print(f"Searching for: {formatted_date}\n")
+
+        if WEB_SEARCH_CACHE_ENABLED:
+            print(f"Cache: ENABLED (set WEB_SEARCH_CACHE_ENABLED=false to disable)")
+        else:
+            print(f"Cache: DISABLED")
 
         # Call the function
         results = get_birthday_facts(args.date)
@@ -205,6 +291,9 @@ def main():
         print(f"Error: Date should be in DD/MM format (e.g., 25/12)")
     except Exception as e:
         print(f"Error: {e}")
+    finally:
+        # Restore original cache setting
+        WEB_SEARCH_CACHE_ENABLED = original_cache_setting
 
 
 if __name__ == "__main__":

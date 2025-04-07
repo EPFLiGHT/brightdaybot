@@ -8,7 +8,7 @@ from utils.storage import (
     cleanup_old_announcement_files,
 )
 from utils.slack_utils import get_username, send_message
-from llm_wrapper import completion, create_birthday_announcement
+from utils.message_generator import completion, create_birthday_announcement
 from config import BIRTHDAY_CHANNEL, get_logger
 
 logger = get_logger("birthday")

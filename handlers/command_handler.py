@@ -22,12 +22,12 @@ from utils.slack_utils import (
     send_message,
     is_admin,
 )
-from services.birthday import send_reminder_to_users
-from llm_wrapper import (
+from utils.message_generator import (
     completion,
     create_birthday_announcement,
     get_current_personality,
 )
+from services.birthday import send_reminder_to_users
 from config import (
     BIRTHDAY_CHANNEL,
     ADMIN_USERS,
@@ -38,6 +38,7 @@ from config import (
     set_current_personality,
 )
 from utils.config_storage import save_admins_to_file
+from utils.web_search import clear_cache
 
 logger = get_logger("commands")
 
@@ -90,6 +91,8 @@ def handle_dm_admin_help(say, user_id, app):
 *Data Management:*
 • `admin backup` - Create a manual backup of birthdays data
 • `admin restore latest` - Restore from the latest backup
+• `admin cache clear` - Clear all web search cache
+• `admin cache clear DD/MM` - Clear web search cache for a specific date
 
 *Bot Personality:*
 • `admin personality` - Show current bot personality
@@ -529,7 +532,6 @@ def handle_stats_command(user_id, say, app):
 *Missing Birthdays:* {total_members - total_birthdays} members
 """
     say(response)
-    logger.info(f"STATS: Generated birthday statistics")
 
 
 def handle_config_command(parts, user_id, say, app):
@@ -641,6 +643,46 @@ def handle_test_command(user_id, say, app):
         )
 
         say(announcement)
+
+
+def handle_cache_command(parts, user_id, say, app):
+    """Handle cache management commands"""
+    from utils.slack_utils import get_username
+
+    username = get_username(app, user_id)
+
+    if len(parts) < 2:
+        say(
+            "Usage: `admin cache clear [date]` - Clear cache (optionally for specific date)"
+        )
+        return
+
+    if parts[1] != "clear":
+        say("Unknown cache command. Available commands: `clear`")
+        return
+
+    # Check if a specific date was provided
+    specific_date = None
+    if len(parts) >= 3:
+        try:
+            # Basic validation - could be enhanced
+            if "/" in parts[2]:
+                specific_date = parts[2]
+        except:
+            say("Invalid date format. Please use DD/MM format (e.g., 25/12)")
+            return
+
+    # Clear the cache
+    count = clear_cache(specific_date)
+
+    if specific_date:
+        say(f"✅ Cleared web search cache for date: {specific_date}")
+    else:
+        say(f"✅ Cleared all web search cache ({count} files)")
+
+    logger.info(
+        f"ADMIN: {username} ({user_id}) cleared {'date-specific ' if specific_date else ''}web search cache"
+    )
 
 
 def handle_admin_command(subcommand, args, say, user_id, app):
@@ -790,6 +832,9 @@ def handle_admin_command(subcommand, args, say, user_id, app):
                 )
             else:
                 say(f"Failed to change personality to {new_personality}")
+
+    elif subcommand == "cache":
+        handle_cache_command(args, user_id, say, app)
 
     else:
         say(

@@ -7,6 +7,7 @@ A Slack bot that records and wishes Slack workspace members a happy birthday wit
 - **Birthday Recording**: Users can set their birthdays via DM to the bot
 - **Birthday Announcements**: Automatic birthday celebrations in a designated channel
 - **AI-Generated Messages**: Personalized birthday wishes using OpenAI
+- **Historical Date Facts**: Includes interesting scientific and historical facts about the birthday date
 - **Admin Commands**: Statistics, user management, and settings
 - **Reminders**: Automatically remind users who haven't set their birthday
 - **Data Management**: Automated backups and organized data storage
@@ -17,25 +18,27 @@ A Slack bot that records and wishes Slack workspace members a happy birthday wit
 
 ```plaintext
 brightdaybot/
-├── app.py                 # Main entry point
-├── config.py              # Configuration and environment settings
-├── llm_wrapper.py         # OpenAI integration for messages
-├── data/                  # Data directory
-│   ├── logs/              # Log files
-│   ├── storage/           # Birthday data and configuration
-│   ├── tracking/          # Announcement tracking
-│   └── backups/           # Backup files
-├── handlers/              # Slack event and command handlers
-│   ├── command_handler.py # Command processing logic
-│   └── event_handler.py   # Event handling logic
-├── services/              # Core functionality
-│   ├── birthday.py        # Birthday management logic
-│   └── scheduler.py       # Scheduling functionality
-└── utils/                 # Helper modules
-    ├── config_storage.py  # Configuration storage
-    ├── date_utils.py      # Date handling functions
-    ├── slack_utils.py     # Slack API wrapper functions
-    └── storage.py         # Birthday storage functions
+├── app.py                    # Main entry point
+├── config.py                 # Configuration and environment settings
+├── data/                     # Data directory
+│   ├── logs/                 # Log files
+│   ├── storage/              # Birthday data and configuration
+│   ├── tracking/             # Announcement tracking
+│   ├── cache/                # Cache for web search results
+│   └── backups/              # Backup files
+├── handlers/                 # Slack event and command handlers
+│   ├── command_handler.py    # Command processing logic
+│   └── event_handler.py      # Event handling logic
+├── services/                 # Core functionality
+│   ├── birthday.py           # Birthday management logic
+│   └── scheduler.py          # Scheduling functionality
+└── utils/                    # Helper modules
+    ├── config_storage.py     # Configuration storage
+    ├── date_utils.py         # Date handling functions
+    ├── message_generator.py  # Message generation using OpenAI
+    ├── web_search.py         # Web search for birthday facts
+    ├── slack_utils.py        # Slack API wrapper functions
+    └── storage.py            # Birthday storage functions
 ```
 
 ## Setup Instructions
@@ -97,6 +100,9 @@ CUSTOM_BOT_DESCRIPTION="a magical birthday celebration wizard"
 CUSTOM_BOT_STYLE="magical, whimsical, and full of enchantment"
 CUSTOM_FORMAT_INSTRUCTION="Create a magical spell-like birthday message"
 CUSTOM_BOT_TEMPLATE_EXTENSION="Your custom template extension here"
+
+# Optional: Web search caching (defaults to enabled)
+WEB_SEARCH_CACHE_ENABLED="true"  # Set to "false" to disable caching
 ```
 
 ### 4. Running the Bot
@@ -207,24 +213,43 @@ Or simply send a date in `DD/MM` or `DD/MM/YYYY` format.
 - `remind [message]` - Send reminders to users without birthdays
 - `config` - View command permissions
 - `config COMMAND true/false` - Change command permissions
+- `admin backup` - Create a manual backup of birthdays data
+- `admin restore latest` - Restore from the latest backup
+- `admin cache clear` - Clear all web search cache
+- `admin cache clear DD/MM` - Clear web search cache for a specific date
 
 ### Data Management Commands
 
 - `admin backup` - Create a manual backup of birthdays data
 - `admin restore latest` - Restore from the latest backup
+- `admin cache clear` - Clear all web search cache
+- `admin cache clear DD/MM` - Clear web search cache for a specific date
 
 ### Bot Personality
 
 The bot supports multiple personalities that change how birthday messages are written:
 
 - `standard` - Friendly, enthusiastic birthday bot (default)
-- `mystic_dog` - Ludo the Mystic Birthday Dog who provides cosmic predictions
+- `mystic_dog` - Ludo the Mystic Birthday Dog who provides cosmic predictions and historical date facts
 - `custom` - Customizable personality using environment variables or commands
 
 To change the personality:
 
 1. As an admin, use the command: `admin personality [name]`
 2. The selection persists across bot restarts
+
+#### Ludo the Mystic Birthday Dog
+
+Ludo's messages follow a specific structured format:
+
+1. A mystical greeting and request for celebratory GIFs
+2. Three insightful sections:
+   - **Cosmic Analysis**: Horoscope and numerological insights
+   - **Spirit Guide**: The person's spirit animal for the year
+   - **Celestial Date Legacy**: Scientific and historical facts about the birthday date, drawing from web searches
+3. A concluding message about the year ahead
+
+The Celestial Date Legacy section incorporates web-searched information about notable scientific figures born on that date and significant historical events.
 
 ### Persistent Configuration
 
@@ -257,7 +282,7 @@ Edit the templates in config.py to customize:
 - `BOT_PERSONALITIES` - Individual personality definitions
 - `template_extension` - Personality-specific additions to the base template
 
-Additional message components can be customized in llm_wrapper.py:
+Additional message components can be customized in utils/message_generator.py:
 
 - `BACKUP_MESSAGES` - Fallback templates when AI is unavailable
 - `BIRTHDAY_INTROS`, `BIRTHDAY_MIDDLES`, etc. - Components for template messages
@@ -273,6 +298,10 @@ The bot implements several data management features:
 - **Automatic Backups**: Creates timestamped backups of the birthdays file whenever it's modified
 - **Backup Rotation**: Maintains the 10 most recent backups to save space
 - **Auto-Recovery**: Tries to restore from backup if the main file is missing
+- **Web Search Caching**: Stores retrieved historical date facts to reduce API calls
+  - Cached data is stored in `data/cache/` directory
+  - Control caching with `WEB_SEARCH_CACHE_ENABLED` environment variable
+  - Clear cache with `admin cache clear` or manually delete cache files
 - **Administrative Control**: Provides commands for manual backup and restore operations
 - **Birthday Tracking**: Prevents duplicate announcements if the bot is restarted
 
@@ -281,6 +310,8 @@ The bot implements several data management features:
 - **Admin List Issues**: If admin commands aren't working properly, restart the bot and check the logs to verify admins are loading correctly.
 - **Personality Not Applying**: Use `admin personality` to check the current personality setting.
 - **Message Generation Fails**: The bot will automatically fall back to template messages if the AI service is unavailable.
+- **Missing Historical Facts**: If Ludo's messages don't include historical facts, check your OpenAI API key and ensure web search is working properly.
+- **Web Search Cache Issues**: Use `admin cache clear` to force fresh web searches or delete files in `data/cache/` manually.
 
 ## License
 

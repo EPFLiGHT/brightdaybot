@@ -15,6 +15,9 @@ TRACKING_DIR = os.path.join(DATA_DIR, "tracking")
 BACKUP_DIR = os.path.join(DATA_DIR, "backups")
 MAX_BACKUPS = 10  # Keep last 10 backups
 CACHE_DIR = os.path.join(DATA_DIR, "cache")
+WEB_SEARCH_CACHE_ENABLED = (
+    os.getenv("WEB_SEARCH_CACHE_ENABLED", "true").lower() == "true"
+)
 
 # File paths
 LOG_FILE = os.path.join(LOGS_DIR, "app.log")
