@@ -27,6 +27,7 @@ from utils.message_generator import (
     create_birthday_announcement,
     get_current_personality,
 )
+from utils.health_check import get_system_status, get_status_summary
 from services.birthday import send_reminder_to_users
 from config import (
     BIRTHDAY_CHANNEL,
@@ -36,6 +37,11 @@ from config import (
     BOT_PERSONALITIES,
     get_current_personality_name,
     set_current_personality,
+    DATA_DIR,
+    STORAGE_DIR,
+    CACHE_DIR,
+    BIRTHDAYS_FILE,
+    get_logger,
 )
 from utils.config_storage import save_admins_to_file
 from utils.web_search import clear_cache
@@ -84,6 +90,7 @@ def handle_dm_admin_help(say, user_id, app):
 • `list all` - List all birthdays organized by month
 • `stats` - View birthday statistics
 • `remind [message]` - Send reminders to users without birthdays
+• `admin status` - View system health and component status
 
 • `config` - View command permissions
 • `config COMMAND true/false` - Change command permissions
@@ -685,6 +692,52 @@ def handle_cache_command(parts, user_id, say, app):
     )
 
 
+def handle_status_command(parts, user_id, say, app):
+    """Handler for the status command"""
+    from utils.slack_utils import get_username
+    from utils.health_check import get_status_summary, get_system_status
+
+    username = get_username(app, user_id)
+    summary = get_status_summary()
+
+    # Check if the user wants detailed information
+    is_detailed = len(parts) > 1 and parts[1] == "detailed"
+
+    if is_detailed:
+        # Add detailed information for advanced users
+        status = get_system_status()
+
+        # Add system paths
+        detailed_info = [
+            "\n*System Paths:*",
+            f"• Data Directory: `{DATA_DIR}`",
+            f"• Storage Directory: `{STORAGE_DIR}`",
+            f"• Birthdays File: `{BIRTHDAYS_FILE}`",
+            f"• Cache Directory: `{CACHE_DIR}`",
+        ]
+
+        # Add cache statistics if available
+        if (
+            status["components"]["cache"]["status"] == "ok"
+            and status["components"]["cache"].get("file_count", 0) > 0
+        ):
+            detailed_info.extend(
+                [
+                    "\n*Cache Details:*",
+                    f"• Total Files: {status['components']['cache']['file_count']}",
+                    f"• Oldest Cache: {status['components']['cache'].get('oldest_cache', {}).get('file', 'N/A')} ({status['components']['cache'].get('oldest_cache', {}).get('date', 'N/A')})",
+                    f"• Newest Cache: {status['components']['cache'].get('newest_cache', {}).get('file', 'N/A')} ({status['components']['cache'].get('newest_cache', {}).get('date', 'N/A')})",
+                ]
+            )
+
+        summary += "\n" + "\n".join(detailed_info)
+
+    say(summary)
+    logger.info(
+        f"STATUS: {username} ({user_id}) requested system status {'with details' if is_detailed else ''}"
+    )
+
+
 def handle_admin_command(subcommand, args, say, user_id, app):
     """Handle admin-specific commands"""
     # Add global declaration
@@ -835,6 +888,18 @@ def handle_admin_command(subcommand, args, say, user_id, app):
 
     elif subcommand == "cache":
         handle_cache_command(args, user_id, say, app)
+
+    elif subcommand == "status":
+        # Check detailed flag
+        is_detailed = len(args) > 0 and args[0].lower() == "detailed"
+        handle_status_command(
+            [None, "detailed" if is_detailed else None], user_id, say, app
+        )
+
+        # Log the action
+        logger.info(
+            f"ADMIN: {username} ({user_id}) requested system status {'with details' if is_detailed else ''}"
+        )
 
     else:
         say(

@@ -9,8 +9,9 @@ A Slack bot that records and wishes Slack workspace members a happy birthday wit
 - **AI-Generated Messages**: Personalized birthday wishes using OpenAI
 - **Historical Date Facts**: Includes interesting scientific and historical facts about the birthday date
 - **Admin Commands**: Statistics, user management, and settings
+- **System Health Monitoring**: Built-in diagnostics for troubleshooting
+- **Data Management**: Automated backups and recovery options
 - **Reminders**: Automatically remind users who haven't set their birthday
-- **Data Management**: Automated backups and organized data storage
 - **Multiple Personalities**: Switch between different bot personalities with persistent settings
 - **Custom Templates**: Fully customizable message templates for each personality
 
@@ -210,6 +211,8 @@ Or simply send a date in `DD/MM` or `DD/MM/YYYY` format.
 - `list` - List upcoming birthdays
 - `list all` - List all birthdays by month
 - `stats` - View birthday statistics
+- `admin status` - Check system health and component status
+- `admin status detailed` - Get detailed system information
 - `remind [message]` - Send reminders to users without birthdays
 - `config` - View command permissions
 - `config COMMAND true/false` - Change command permissions
@@ -304,6 +307,26 @@ The bot implements several data management features:
   - Clear cache with `admin cache clear` or manually delete cache files
 - **Administrative Control**: Provides commands for manual backup and restore operations
 - **Birthday Tracking**: Prevents duplicate announcements if the bot is restarted
+
+## System Health Monitoring
+
+BrightDayBot includes a health check system to monitor the status of critical components:
+
+- **Storage Status**: Checks if birthday data is accessible and reports the number of birthdays
+- **Admin Configuration**: Verifies admin user configuration is properly loaded
+- **Web Search Cache**: Monitors cache status, size, and most recent updates
+- **API Configuration**: Validates that required API keys are configured
+
+To check system health:
+
+1. As an admin, use the command: `admin status`
+2. For detailed information including file paths and cache details: `admin status detailed`
+
+The health check helps diagnose issues quickly by showing the status of each component with visual indicators:
+
+- ✅ Component is working correctly
+- ℹ️ Component has a non-critical status
+- ❌ Component has a critical issue that needs attention
 
 ## Troubleshooting
 

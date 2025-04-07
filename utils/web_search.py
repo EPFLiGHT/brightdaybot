@@ -281,7 +281,7 @@ def main():
         print("-" * 60)
 
         # Show sources if requested
-        if args.sources and results["sources"]:
+        if args.sources and results.get("sources"):
             print("\nSOURCES:")
             for i, source in enumerate(results["sources"], 1):
                 print(f"{i}. {source.get('title', 'Unnamed Source')}")
@@ -291,6 +291,9 @@ def main():
         print(f"Error: Date should be in DD/MM format (e.g., 25/12)")
     except Exception as e:
         print(f"Error: {e}")
+        import traceback
+
+        print(traceback.format_exc())
     finally:
         # Restore original cache setting
         WEB_SEARCH_CACHE_ENABLED = original_cache_setting
