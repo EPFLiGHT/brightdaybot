@@ -15,6 +15,7 @@ from config import (
 
 from utils.date_utils import get_star_sign
 from utils.slack_utils import SAFE_SLACK_EMOJIS
+from utils.web_search import get_birthday_facts
 
 logger = get_logger("llm")
 
@@ -350,6 +351,21 @@ def completion(
     personality = get_current_personality()
     current_personality_name = get_current_personality_name()
 
+    # Get birthday facts for Ludo personality
+    birthday_facts_text = ""
+    if current_personality_name == "mystic_dog" and birth_date:
+        try:
+            birthday_facts = get_birthday_facts(birth_date)
+            if birthday_facts and birthday_facts["facts"]:
+                birthday_facts_text = f"\n\nIncorporate this cosmic information about their birthday date: {birthday_facts['facts']}"
+                # Add sources if available
+                if birthday_facts["sources"]:
+                    sources_text = "\n\nYou may reference this insight came from the cosmic archives without mentioning specific URLs."
+                    birthday_facts_text += sources_text
+        except Exception as e:
+            logger.error(f"AI_ERROR: Failed to get birthday facts: {e}")
+            # Continue without facts if there's an error
+
     user_content = f"""
         {name}'s birthday is on {date}.{star_sign_text}{age_text} Please write them a fun, enthusiastic birthday message for a workplace Slack channel.
         
@@ -361,6 +377,7 @@ def completion(
         5. DO NOT use custom emojis like :birthday_party_parrot: or :rave: as they won't work
         6. Remember to use Slack emoji format with colons (e.g., :cake:), not Unicode emojis (e.g., 🎂)
         7. Your name is {personality["name"]} and you are {personality["description"]}
+        {birthday_facts_text}
         
         Today is {datetime.now().strftime('%Y-%m-%d')}.
     """

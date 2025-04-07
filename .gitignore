@@ -260,9 +260,11 @@ data/logs/
 data/tracking/
 data/storage/
 data/backups/
+data/cache/
 
 # Keep the directories but ignore their contents
 !data/logs/.gitkeep
 !data/tracking/.gitkeep
 !data/storage/.gitkeep
 !data/backups/.gitkeep
+!data/cache/.gitkeep

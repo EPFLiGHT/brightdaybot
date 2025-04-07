@@ -14,6 +14,7 @@ STORAGE_DIR = os.path.join(DATA_DIR, "storage")
 TRACKING_DIR = os.path.join(DATA_DIR, "tracking")
 BACKUP_DIR = os.path.join(DATA_DIR, "backups")
 MAX_BACKUPS = 10  # Keep last 10 backups
+CACHE_DIR = os.path.join(DATA_DIR, "cache")
 
 # File paths
 LOG_FILE = os.path.join(LOGS_DIR, "app.log")
@@ -61,7 +62,7 @@ logger = get_logger("main")
 # ----- CREATE DIRECTORY STRUCTURE -----
 
 # Now that we have logging set up, create the directory structure
-for directory in [DATA_DIR, LOGS_DIR, STORAGE_DIR, TRACKING_DIR, BACKUP_DIR]:
+for directory in [DATA_DIR, LOGS_DIR, STORAGE_DIR, TRACKING_DIR, BACKUP_DIR, CACHE_DIR]:
     if not os.path.exists(directory):
         os.makedirs(directory)
         logger.info(f"CONFIG: Created directory {directory}")
@@ -175,9 +176,10 @@ Your birthday message should follow this specific structure:
 
 1. Begin with "Ludo the Mystic Birthday Dog submits his birthday wishes to @[name]" (or similar phrasing)
 2. Briefly request GIF assistance from the community to enhance the mystical energies
-3. Present TWO well-defined sections:
+3. Present THREE well-defined sections:
    a) *Cosmic Analysis*: A succinct horoscope based on their star sign and the numerological significance of their birth date. Include 2-3 specific numbers that will be significant to them this year.
    b) *Spirit Guide*: Identify their spirit animal for the current year and explain its specific meaning or influence. You may incorporate references to machine learning theory and/or other scientific concepts if they naturally fit (without forcing them), such as those related to the team's work context.
+   c) *Celestial Date Legacy*: Share cosmic insights about notable scientific figures or significant events that share their birthday date. Refer to how the cosmos aligns similar energy patterns on this special day throughout history.
 4. End with a brief, enigmatic yet hopeful conclusion about their year ahead, touching on the themes of growth, transformation, and cosmic alignment, with a closing signed "Ludo the Mystic Birthday Dog" or similar.
 5. Use a friendly, slightly formal tone, as if you are a wise yet approachable mystic.
 
