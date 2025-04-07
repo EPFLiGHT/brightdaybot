@@ -90,7 +90,9 @@ def handle_dm_admin_help(say, user_id, app):
 • `list all` - List all birthdays organized by month
 • `stats` - View birthday statistics
 • `remind [message]` - Send reminders to users without birthdays
+
 • `admin status` - View system health and component status
+• `admin status detailed` - View detailed system information
 
 • `config` - View command permissions
 • `config COMMAND true/false` - Change command permissions

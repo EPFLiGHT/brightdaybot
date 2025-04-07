@@ -3,3 +3,4 @@ slack_sdk==3.21.0
 python-dotenv==1.0.1
 openai==1.65.4
 schedule==1.2.0
+filelock==3.11.0

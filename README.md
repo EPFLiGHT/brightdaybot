@@ -330,11 +330,21 @@ The health check helps diagnose issues quickly by showing the status of each com
 
 ## Troubleshooting
 
-- **Admin List Issues**: If admin commands aren't working properly, restart the bot and check the logs to verify admins are loading correctly.
-- **Personality Not Applying**: Use `admin personality` to check the current personality setting.
-- **Message Generation Fails**: The bot will automatically fall back to template messages if the AI service is unavailable.
-- **Missing Historical Facts**: If Ludo's messages don't include historical facts, check your OpenAI API key and ensure web search is working properly.
-- **Web Search Cache Issues**: Use `admin cache clear` to force fresh web searches or delete files in `data/cache/` manually.
+If you encounter issues with BrightDayBot, follow these steps:
+
+1. Run the health check with `admin status` command in Slack
+2. Check for any ❌ indicators in the status report
+3. For more detailed diagnostics, use `admin status detailed`
+4. Verify all required environment variables are set correctly
+5. Ensure the bot has proper permissions in Slack
+6. Check that all required directories and files exist with proper permissions
+7. Review the log files in `data/logs/` for any error messages
+
+Common issues:
+
+- Missing API keys: Ensure `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, and `OPENAI_API_KEY` are set
+- Permission problems: Verify the bot has read/write permissions to the data directories
+- Invalid configuration: Check that the `BIRTHDAY_CHANNEL` is set to a valid Slack channel ID
 
 ## License
 
