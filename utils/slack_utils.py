@@ -37,6 +37,19 @@ def get_username(app, user_id):
     return f"<@{user_id}>"
 
 
+def get_user_mention(user_id):
+    """
+    Get a formatted mention for a user
+
+    Args:
+        user_id: User ID to format
+
+    Returns:
+        Formatted mention string
+    """
+    return f"<@{user_id}>" if user_id else "Unknown User"
+
+
 def is_admin(app, user_id):
     """
     Check if user is an admin (workspace admin or in ADMIN_USERS list)

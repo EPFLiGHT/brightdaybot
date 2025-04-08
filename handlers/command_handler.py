@@ -17,6 +17,7 @@ from utils.storage import (
 )
 from utils.slack_utils import (
     get_username,
+    get_user_mention,
     check_command_permission,
     get_channel_members,
     send_message,
@@ -314,6 +315,7 @@ def handle_list_command(parts, user_id, say, app):
             days_until = calculate_days_until_birthday(bdate, reference_date)
 
         username = get_username(app, uid)
+        user_mention = get_user_mention(uid)
 
         # Parse the date components
         day, month = map(int, bdate.split("/"))
@@ -342,7 +344,17 @@ def handle_list_command(parts, user_id, say, app):
         sort_key = days_until if days_until is not None else (month * 100 + day)
 
         birthday_list.append(
-            (uid, bdate, birth_year, username, sort_key, age_text, month, day)
+            (
+                uid,
+                bdate,
+                birth_year,
+                username,
+                sort_key,
+                age_text,
+                month,
+                day,
+                user_mention,
+            )
         )
 
     # Sort appropriately
@@ -371,6 +383,7 @@ def handle_list_command(parts, user_id, say, app):
             age_text,
             month,
             day,
+            user_mention,
         ) in birthday_list:
             # Add month header if it's a new month
             if month != current_month:
@@ -387,16 +400,24 @@ def handle_list_command(parts, user_id, say, app):
             # Format the year
             year_str = f" ({birth_year})" if birth_year else ""
 
-            # Add the entry
-            response += f"• {day_str}: {username}{year_str}\n"
+            # Add the entry with user mention
+            response += f"• {day_str}: {user_mention}{year_str}\n"
     else:
         # Standard "list" command - show next 10 birthdays with days until
-        for uid, bdate, birth_year, username, days, age_text, _, _ in birthday_list[
-            :10
-        ]:
+        for (
+            uid,
+            bdate,
+            birth_year,
+            username,
+            days,
+            age_text,
+            _,
+            _,
+            user_mention,
+        ) in birthday_list[:10]:
             date_words = date_to_words(bdate)
             days_text = "Today! 🎉" if days == 0 else f"in {days} days"
-            response += f"• {username} ({date_words}{age_text}): {days_text}\n"
+            response += f"• {user_mention} ({date_words}{age_text}): {days_text}\n"
 
     say(response)
     logger.info(f"LIST: Generated birthday list for {len(birthday_list)} users")
