@@ -1,7 +1,7 @@
 from slack_sdk.errors import SlackApiError
 
 from utils.date_utils import extract_date
-from utils.slack_utils import get_username, send_message
+from utils.slack_utils import get_username, send_message, get_user_mention
 from handlers.command_handler import handle_command, handle_dm_date
 from config import BIRTHDAY_CHANNEL, get_logger
 
@@ -57,7 +57,7 @@ def register_event_handlers(app):
         logger.info(f"JOIN: New user joined: {username} ({user})")
 
         welcome_message = (
-            f"Hello <@{user}>! Welcome to the team. I'm the birthday bot, "
+            f"Hello {get_user_mention(user)}! Welcome to the team. I'm the birthday bot, "
             f"responsible for remembering everyone's birthdays!"
         )
         send_message(app, user, welcome_message)

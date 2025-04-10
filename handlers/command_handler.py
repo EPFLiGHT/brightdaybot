@@ -813,7 +813,7 @@ def handle_admin_command(subcommand, args, say, user_id, app):
         current_admins = load_admins_from_file()
 
         if new_admin in current_admins:
-            say(f"User <@{new_admin}> is already an admin.")
+            say(f"User {get_user_mention(new_admin)} is already an admin.")
             return
 
         # Add to the list from the file
@@ -825,13 +825,13 @@ def handle_admin_command(subcommand, args, say, user_id, app):
             ADMIN_USERS[:] = current_admins
 
             new_admin_name = get_username(app, new_admin)
-            say(f"Added {new_admin_name} (<@{new_admin}>) as admin")
+            say(f"Added {new_admin_name} ({get_user_mention(new_admin)}) as admin")
             logger.info(
                 f"ADMIN: {username} ({user_id}) added {new_admin_name} ({new_admin}) as admin"
             )
         else:
             say(
-                f"Failed to add <@{new_admin}> as admin due to an error saving to file."
+                f"Failed to add {get_user_mention(new_admin)} as admin due to an error saving to file."
             )
 
     elif subcommand == "remove" and args:
@@ -844,7 +844,7 @@ def handle_admin_command(subcommand, args, say, user_id, app):
         current_admins = load_admins_from_file()
 
         if admin_to_remove not in current_admins:
-            say(f"User <@{admin_to_remove}> is not in the admin list.")
+            say(f"User {get_user_mention(admin_to_remove)} is not in the admin list.")
             return
 
         # Remove from the list
@@ -856,13 +856,15 @@ def handle_admin_command(subcommand, args, say, user_id, app):
             ADMIN_USERS[:] = current_admins
 
             removed_name = get_username(app, admin_to_remove)
-            say(f"Removed {removed_name} (<@{admin_to_remove}>) from admin list")
+            say(
+                f"Removed {removed_name} ({get_user_mention(admin_to_remove)}) from admin list"
+            )
             logger.info(
                 f"ADMIN: {username} ({user_id}) removed {removed_name} ({admin_to_remove}) from admin list"
             )
         else:
             say(
-                f"Failed to remove <@{admin_to_remove}> due to an error saving to file."
+                f"Failed to remove {get_user_mention(admin_to_remove)} due to an error saving to file."
             )
 
     elif subcommand == "backup":

@@ -332,7 +332,7 @@ def completion(
     template = get_template()
 
     # Create user mention format if user_id is provided
-    user_mention = f"{get_user_mention(user_id)}" if user_id else name
+    user_mention = get_user_mention(user_id) if user_id else name
 
     # Get star sign if possible
     star_sign = get_star_sign(birth_date) if birth_date else None
@@ -418,11 +418,9 @@ def completion(
             validation_errors = []
 
             # Check for user mention
-            if user_id and f"{get_user_mention(user_id)}" not in reply:
+            if user_id and get_user_mention(user_id) not in reply:
                 is_valid = False
-                validation_errors.append(
-                    f"Missing user mention {get_user_mention(user_id)}"
-                )
+                validation_errors.append(f"Missing user mention {user_mention}")
 
             # Check for channel mention
             if "<!channel>" not in reply:
@@ -563,7 +561,7 @@ def test_fallback_messages(name="Test User", user_id="U123456789"):
     """
     print(f"\n=== Testing Fallback Messages for {name} (ID: {user_id}) ===\n")
 
-    user_mention = f"{get_user_mention(user_id)}"
+    user_mention = get_user_mention(user_id)
 
     for i, message in enumerate(BACKUP_MESSAGES, 1):
         formatted = message.replace("{name}", user_mention)
@@ -664,7 +662,8 @@ def main():
 
             # Generate a fallback message manually for testing
             random_message = random.choice(BACKUP_MESSAGES)
-            user_mention = f"{get_user_mention(args.user_id)}"
+            user_mention = get_user_mention(args.user_id)
+            # Replace {name} with user mention if available
             formatted_message = random_message.replace("{name}", user_mention)
 
             print("-" * 60)

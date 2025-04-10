@@ -7,7 +7,7 @@ from utils.storage import (
     mark_birthday_announced,
     cleanup_old_announcement_files,
 )
-from utils.slack_utils import get_username, send_message
+from utils.slack_utils import get_username, send_message, get_user_mention
 from utils.message_generator import completion, create_birthday_announcement
 from config import BIRTHDAY_CHANNEL, get_logger
 
@@ -50,11 +50,11 @@ def send_reminder_to_users(app, users, custom_message=None):
             import random
 
             greetings = [
-                f"Hey there <@{user_id}>! :wave:",
-                f"Hello <@{user_id}>! :sunny:",
-                f"Greetings, <@{user_id}>! :sparkles:",
-                f"Hi <@{user_id}>! :smile:",
-                f"*Psst* <@{user_id}>! :eyes:",
+                f"Hey there {get_user_mention(user_id)}! :wave:",
+                f"Hello {get_user_mention(user_id)}! :sunny:",
+                f"Greetings, {get_user_mention(user_id)}! :sparkles:",
+                f"Hi {get_user_mention(user_id)}! :smile:",
+                f"*Psst* {get_user_mention(user_id)}! :eyes:",
             ]
 
             intros = [
@@ -97,8 +97,8 @@ def send_reminder_to_users(app, users, custom_message=None):
             )
         else:
             # Use custom message but ensure it includes the user's mention
-            if f"<@{user_id}>" not in custom_message:
-                message = f"<@{user_id}>, {custom_message}"
+            if f"{get_user_mention(user_id)}" not in custom_message:
+                message = f"{get_user_mention(user_id)}, {custom_message}"
             else:
                 message = custom_message
 

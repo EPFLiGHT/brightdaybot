@@ -34,7 +34,7 @@ def get_username(app, user_id):
         logger.error(f"API_ERROR: Slack error when getting profile for {user_id}: {e}")
 
     # Fallback to mention format
-    return f"<@{user_id}>"
+    return f"{get_user_mention(user_id)}"
 
 
 def get_user_mention(user_id):
