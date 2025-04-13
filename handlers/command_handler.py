@@ -681,24 +681,28 @@ def handle_cache_command(parts, user_id, say, app):
 
     username = get_username(app, user_id)
 
-    if len(parts) < 2:
+    # parts will be ['clear'] or ['clear', 'DD/MM']
+    if not parts or parts[0] != "clear":
         say(
-            "Usage: `admin cache clear [date]` - Clear cache (optionally for specific date)"
+            "Usage: `admin cache clear [DD/MM]` - Clear cache (optionally for specific date)"
         )
-        return
-
-    if parts[1] != "clear":
-        say("Unknown cache command. Available commands: `clear`")
         return
 
     # Check if a specific date was provided
     specific_date = None
-    if len(parts) >= 3:
+    if len(parts) >= 2:  # Check if there's a second part (the date)
         try:
             # Basic validation - could be enhanced
-            if "/" in parts[2]:
-                specific_date = parts[2]
-        except:
+            if "/" in parts[1]:  # Check the second part for the date format
+                specific_date = parts[1]  # Assign the second part as the date
+            else:
+                # Handle cases like "admin cache clear somethingelse"
+                say("Invalid date format. Please use DD/MM format (e.g., 25/12)")
+                return
+        except (
+            Exception
+        ) as e:  # Catch potential errors if parts[1] is not a string or other issues
+            logger.error(f"Error parsing cache date argument: {e}")
             say("Invalid date format. Please use DD/MM format (e.g., 25/12)")
             return
 
