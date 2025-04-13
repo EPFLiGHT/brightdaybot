@@ -249,7 +249,7 @@ def daily(app, moment):
             ),
             # Birthday twins
             (
-                f":twins: *Birthday {len(todays_birthday_users) > 2 and 'Triplets' or 'Twins'}!* :twins:\n\n"
+                f":twins_parrot: *Birthday {len(todays_birthday_users) > 2 and 'Triplets' or 'Twins'}!* :twins_parrot:\n\n"
                 f"<!channel> Plot twist! {mention_text} are celebrating birthdays on the same day!\n\n"
                 f"Let's make their special day twice as memorable! :gift: :balloon:"
             ),
