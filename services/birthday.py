@@ -140,6 +140,9 @@ def daily(app, moment):
     # Get already announced birthdays
     already_announced = get_announced_birthdays_today()
 
+    # Track today's birthdays for group acknowledgment
+    todays_birthday_users = []
+
     birthday_count = 0
     for user_id, birthday_data in birthdays.items():
         # Skip if already announced today
@@ -153,6 +156,9 @@ def daily(app, moment):
             username = get_username(app, user_id)
             logger.info(f"BIRTHDAY: Today is {username}'s ({user_id}) birthday!")
             birthday_count += 1
+
+            # Add to today's birthday list
+            todays_birthday_users.append({"user_id": user_id, "username": username})
 
             try:
                 # Try to get personalized AI message first
@@ -189,6 +195,75 @@ def daily(app, moment):
 
                 # Mark as announced
                 mark_birthday_announced(user_id)
+
+    # If multiple people have birthdays today, send a special message highlighting this
+    if len(todays_birthday_users) > 1:
+        # Create mentions for each birthday person
+        mentions = [
+            f"{get_user_mention(user['user_id'])}" for user in todays_birthday_users
+        ]
+
+        # Format the mention list with proper grammar
+        if len(mentions) == 2:
+            mention_text = f"{mentions[0]} and {mentions[1]}"
+        else:
+            mention_text = ", ".join(mentions[:-1]) + f", and {mentions[-1]}"
+
+        # Select a random variation of the shared birthday message
+        same_day_messages = [
+            # Original message
+            (
+                f":star2: *Wow! Birthday Twins!* :star2:\n\n"
+                f"<!channel> Did you notice? {mention_text} share the same birthday!\n\n"
+                f"What are the odds? :thinking_face: That calls for extra celebration! :tada:"
+            ),
+            # Cosmic connection
+            (
+                f":milky_way: *Cosmic Birthday Connection!* :milky_way:\n\n"
+                f"<!channel> The stars aligned for {mention_text}!\n\n"
+                f"Same birthday, same awesome cosmic energy! :crystal_ball: :sparkles:"
+            ),
+            # Birthday party
+            (
+                f":birthday: *Same-Day Birthday Party!* :birthday:\n\n"
+                f"<!channel> Double the cake, double the fun! {mention_text} are celebrating together!\n\n"
+                f"Time to make this joint celebration epic! :cake: :confetti_ball:"
+            ),
+            # Statistical wonder
+            (
+                f":chart_with_upwards_trend: *Birthday Statistics: AMAZING!* :open_mouth:\n\n"
+                f"<!channel> What are the chances?! {mention_text} share a birthday!\n\n"
+                f"The probability experts among us are freaking out right now! :exploding_head: :tada:"
+            ),
+            # Birthday squad
+            (
+                f":guardsman: *Birthday Squad Assemble!* :guardsman:\n\n"
+                f"<!channel> {mention_text} formed a birthday alliance today!\n\n"
+                f"Double the wishes, double the celebration! :rocket: :dizzy:"
+            ),
+            # Birthday multiverse
+            (
+                f":rotating_light: *Birthday Multiverse Alert* :rotating_light:\n\n"
+                f"<!channel> In this timeline, {mention_text} share the exact same birthday!\n\n"
+                f"Coincidence? We think not! :thinking_face: :magic_wand:"
+            ),
+            # Birthday twins
+            (
+                f":twins: *Birthday {len(todays_birthday_users) > 2 and 'Triplets' or 'Twins'}!* :twins:\n\n"
+                f"<!channel> Plot twist! {mention_text} are celebrating birthdays on the same day!\n\n"
+                f"Let's make their special day twice as memorable! :gift: :balloon:"
+            ),
+        ]
+
+        # Choose a random message variation
+        import random
+
+        same_day_message = random.choice(same_day_messages)
+
+        send_message(app, BIRTHDAY_CHANNEL, same_day_message)
+        logger.info(
+            f"BIRTHDAY: Sent shared birthday message for {len(todays_birthday_users)} users"
+        )
 
     if birthday_count == 0:
         logger.info("DAILY: No birthdays today")
