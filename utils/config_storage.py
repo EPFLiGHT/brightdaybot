@@ -1,12 +1,15 @@
 import os
 import json
-from config import STORAGE_DIR, get_logger
+from config import (
+    ADMINS_FILE,
+    PERSONALITY_FILE,
+    PERMISSIONS_FILE,
+    DEFAULT_ADMIN_USERS,
+    COMMAND_PERMISSIONS as DEFAULT_COMMAND_PERMISSIONS,
+    get_logger,
+)
 
 logger = get_logger("config_storage")
-
-# File paths
-ADMINS_FILE = os.path.join(STORAGE_DIR, "admins.json")
-PERSONALITY_FILE = os.path.join(STORAGE_DIR, "personality.json")
 
 
 def save_admins_to_file(admin_list):
@@ -130,3 +133,62 @@ def get_current_admins():
     """Get the current admin list from file"""
     # Always load fresh from the file to ensure we have the latest
     return load_admins_from_file()
+
+
+def load_permissions_from_file():
+    """
+    Load command permissions from file
+
+    Returns:
+        dict: Command permissions or None if file doesn't exist
+    """
+    try:
+        if os.path.exists(PERMISSIONS_FILE):
+            with open(PERMISSIONS_FILE, "r") as f:
+                permissions = json.load(f)
+                logger.info(f"CONFIG_STORAGE: Loaded permissions from file")
+                return permissions
+        return None
+    except Exception as e:
+        logger.error(f"CONFIG_STORAGE_ERROR: Failed to load permissions from file: {e}")
+        return None
+
+
+def save_permissions_to_file(permissions):
+    """
+    Save command permissions to file
+
+    Args:
+        permissions: Dictionary of command permissions
+
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        with open(PERMISSIONS_FILE, "w") as f:
+            json.dump(permissions, f, indent=2)
+            logger.info(f"CONFIG_STORAGE: Saved permissions to file")
+            return True
+    except Exception as e:
+        logger.error(f"CONFIG_STORAGE_ERROR: Failed to save permissions to file: {e}")
+        return False
+
+
+def set_command_permission(command, is_admin_only):
+    """
+    Set permission for a specific command and save to file
+
+    Args:
+        command: Command name
+        is_admin_only: Whether the command requires admin privileges
+
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    from config import COMMAND_PERMISSIONS
+
+    # Update permission in memory
+    COMMAND_PERMISSIONS[command] = is_admin_only
+
+    # Save to file
+    return save_permissions_to_file(COMMAND_PERMISSIONS)

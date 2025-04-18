@@ -171,6 +171,7 @@ def daily(app, moment):
                     user_id,
                     birthday_data["date"],
                     birthday_data.get("year"),
+                    app=app,  # Pass the Slack app instance to enable custom emoji fetching
                 )
                 logger.info(f"AI: Generated birthday message for {username}")
 
