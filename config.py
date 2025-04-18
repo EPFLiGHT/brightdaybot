@@ -92,7 +92,9 @@ DATE_FORMAT = "%d/%m"
 DATE_WITH_YEAR_FORMAT = "%d/%m/%Y"
 
 # Scheduling configuration
-DAILY_CHECK_TIME = "10:00"  # Time to run daily birthday checks (24-hour format)
+DAILY_CHECK_TIME = (
+    "10:00"  # Time to run daily birthday checks (24-hour format, in local system time)
+)
 
 # Message configuration
 DEFAULT_REMINDER_MESSAGE = None  # Set to None to use the dynamic message generator
