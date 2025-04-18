@@ -12,24 +12,105 @@ logger = get_logger("web_search")
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
-def get_birthday_facts(date_str):
+def process_facts_for_personality(facts_text, formatted_date, personality):
+    """
+    Process the facts to create a concise paragraph suitable for different bot personalities
+
+    Args:
+        facts_text: Raw facts from the web search
+        formatted_date: The date in "Month Day" format
+        personality: The bot personality to format facts for ("mystic_dog", "time_traveler", etc.)
+
+    Returns:
+        Processed facts paragraph
+    """
+    try:
+        system_content = ""
+        user_content = ""
+
+        if personality == "mystic_dog":
+            system_content = "You are Ludo the Mystic Birthday Dog, a cosmic canine whose powers reveal mystical insights about dates. Your task is to create a brief, mystical-sounding paragraph about the cosmic significance of a specific date, focusing on notable scientific figures born on this date and significant historical events. Use a mystical, slightly formal tone with cosmic metaphors. Include the year of those events."
+            user_content = f"Based on these raw facts about {formatted_date}, create a paragraph that highlights 4-5 most significant scientific birthdays or events for this date in a mystical tone:\n\n{facts_text}"
+
+        elif personality == "time_traveler":
+            system_content = "You are Chrono, a time-traveling birthday messenger from the future. You have extensive knowledge of historical timelines. Create a brief, time-travel themed paragraph about significant historical events that occurred on this date. Focus on how these events shaped the future and include 1-2 humorous 'future facts' that connect to real historical events."
+            user_content = f"Based on these historical facts about {formatted_date}, create a time-traveler's perspective of 3-4 significant events for this date in a lighthearted sci-fi tone:\n\n{facts_text}"
+
+        elif personality == "superhero":
+            system_content = "You are Captain Celebration, a birthday superhero. Create a brief, superhero-themed paragraph about notable achievements, discoveries, or heroic deeds that happened on this date. Use comic book style language, including bold exclamations and heroic metaphors."
+            user_content = f"Based on these facts about {formatted_date}, create a superhero-style paragraph highlighting 3-4 'heroic' achievements or discoveries for this date:\n\n{facts_text}"
+
+        elif personality == "pirate":
+            system_content = "You are Captain BirthdayBeard, a pirate birthday messenger. Create a brief, pirate-themed paragraph about naval history, explorations, or 'treasure' discoveries that happened on this date. Use pirate speech patterns and nautical references."
+            user_content = f"Based on these facts about {formatted_date}, create a pirate-style paragraph about 2-3 maritime events, explorations, or treasures discovered on this date:\n\n{facts_text}"
+
+        elif personality == "poet":
+            system_content = "You are The Verse-atile, a poetic birthday bard who creates lyrical birthday messages. Create a very brief poetic verse (4-6 lines) about historical events or notable people born on this date. Use elegant language, metaphors, and at least one clever rhyme. Focus on the beauty, significance, or wonder of these historical connections."
+            user_content = f"Based on these facts about {formatted_date}, create a short poetic verse (4-6 lines) that references 2-3 notable events or people connected to this date:\n\n{facts_text}"
+
+        elif personality == "tech_guru":
+            system_content = "You are CodeCake, a tech-savvy birthday bot. Create a brief paragraph about technological innovations, scientific discoveries, or notable tech pioneers connected to this date. Use programming metaphors and tech terminology. Include at least one clever tech joke or pun based on the historical facts."
+            user_content = f"Based on these facts about {formatted_date}, create a tech-themed paragraph highlighting 2-3 innovations, technological connections, or tech pioneers associated with this date:\n\n{facts_text}"
+
+        elif personality == "chef":
+            system_content = "You are Chef Confetti, a culinary birthday master. Create a brief, appetizing paragraph connecting this date to food history, culinary innovations, or 'recipe for success' stories that happened on this date. Use cooking metaphors and food-related terminology. Include at least one delicious food pun."
+            user_content = f"Based on these facts about {formatted_date}, create a culinary-themed paragraph highlighting 2-3 food-related facts or using cooking metaphors to describe important events on this date:\n\n{facts_text}"
+
+        elif personality == "standard":
+            system_content = "You are BrightDay, a friendly, enthusiastic birthday bot. Create a brief, fun paragraph about 2-3 interesting historical events or notable people connected to this date. Use a friendly, conversational tone that's slightly over-the-top with enthusiasm. Focus on surprising or delightful connections that would make a birthday feel special."
+            user_content = f"Based on these facts about {formatted_date}, create a brief, enthusiastic paragraph highlighting 2-3 fun or surprising facts about this date in history:\n\n{facts_text}"
+
+        else:
+            # Default to standard processing for other personalities
+            return f"On this day, {formatted_date}, several notable events occurred in history and remarkable individuals were born."
+
+        # Use OpenAI to reformat the facts in the appropriate personality style
+        response = client.chat.completions.create(
+            model="gpt-4.1",
+            messages=[
+                {"role": "system", "content": system_content},
+                {"role": "user", "content": user_content},
+            ],
+            max_tokens=300,  # Reduced for more concise outputs
+        )
+
+        processed_facts = response.choices[0].message.content.strip()
+        logger.info(
+            f"WEB_SEARCH: Successfully processed facts for {formatted_date} using {personality} personality"
+        )
+        return processed_facts
+
+    except Exception as e:
+        logger.error(
+            f"WEB_SEARCH_ERROR: Failed to process facts for {personality}: {e}"
+        )
+        # Return a simplified version of the original text if processing fails
+        return f"On this day, {formatted_date}, several notable events occurred in history and remarkable individuals were born."
+
+
+def get_birthday_facts(date_str, personality="mystic_dog"):
     """
     Get interesting facts about a specific date (like notable birthdays, especially in science)
 
     Args:
         date_str: Date in DD/MM format
+        personality: The bot personality to format facts for (default: "mystic_dog")
 
     Returns:
         Dictionary with interesting facts and sources
     """
-    cache_file = os.path.join(CACHE_DIR, f"facts_{date_str.replace('/', '_')}.json")
+    cache_file = os.path.join(
+        CACHE_DIR, f"facts_{date_str.replace('/', '_')}_{personality}.json"
+    )
 
     # Check cache first if caching is enabled
     if WEB_SEARCH_CACHE_ENABLED and os.path.exists(cache_file):
         try:
             with open(cache_file, "r") as f:
                 cached_data = json.load(f)
-                logger.info(f"WEB_SEARCH: Using cached results for {date_str}")
+                logger.info(
+                    f"WEB_SEARCH: Using cached results for {date_str} ({personality})"
+                )
                 return cached_data
         except Exception as e:
             logger.error(f"CACHE_ERROR: Failed to read cache: {e}")
@@ -40,38 +121,59 @@ def get_birthday_facts(date_str):
         search_date = datetime(2025, month, day)  # Year doesn't matter for the search
         formatted_date = search_date.strftime("%B %d")  # e.g. "April 15"
 
-        search_query = f"Notable people (especially scientists) born on {formatted_date} and significant historical events on this day"
+        # Customize search query based on personality
+        if personality == "pirate":
+            search_query = f"Naval history, maritime events, and exploration milestones that occurred on {formatted_date} throughout history"
+        elif personality == "time_traveler":
+            search_query = f"Significant historical events, technological milestones, and cultural shifts that occurred on {formatted_date} throughout history"
+        elif personality == "superhero":
+            search_query = f"Heroic achievements, scientific breakthroughs, and notable people born on {formatted_date} throughout history"
+        elif personality == "poet":
+            search_query = f"Literary figures, artistic achievements, and poetic events that occurred on {formatted_date} throughout history. Include poets born on this date."
+        elif personality == "tech_guru":
+            search_query = f"Technology inventions, computer science breakthroughs, and tech pioneers born on {formatted_date} throughout history"
+        elif personality == "chef":
+            search_query = f"Culinary history, food-related events, and famous chefs born on {formatted_date} throughout history. Also include any food discoveries or innovations."
+        elif personality == "standard":
+            search_query = f"Fun and interesting historical events and notable people born on {formatted_date} throughout history. Include surprising coincidences and remarkable achievements."
+        else:
+            # Default query for mystic_dog and others
+            search_query = f"Notable people (especially scientists) born on {formatted_date} and significant historical events on this day"
 
-        logger.info(f"WEB_SEARCH: Searching for facts about {formatted_date}")
+        logger.info(
+            f"WEB_SEARCH: Searching for facts about {formatted_date} for {personality}"
+        )
 
-        # Using gpt-4o-search-preview for web search capability
-        response = client.chat.completions.create(
-            model="gpt-4o-search-preview",
-            messages=[{"role": "user", "content": search_query}],
-            max_tokens=500,
+        # Using the new responses.create method with web_search_preview tool
+        response = client.responses.create(
+            model="gpt-4.1",
+            tools=[{"type": "web_search_preview"}],
+            input=search_query,
         )
 
         logger.info(f"WEB_SEARCH: Received response for {formatted_date}")
 
-        # Extract facts from the response - this is a ChatCompletion object
-        facts_text = response.choices[0].message.content
+        # Extract facts from the response
+        facts_text = response.output_text
 
-        # Since we're using search preview, sources are not directly available in the response
-        # We'll work with the content directly
+        # Since we're using the web search preview tool, sources might not be available in the same format
         sources = []
 
         if not facts_text:
             logger.warning(f"WEB_SEARCH: No facts found for {formatted_date}")
             return None
 
-        # Process the facts text to make it suitable for Ludo's message
-        processed_facts = process_facts_for_ludo(facts_text, formatted_date)
+        # Process the facts text to make it suitable for the specified personality
+        processed_facts = process_facts_for_personality(
+            facts_text, formatted_date, personality
+        )
 
         results = {
             "facts": processed_facts,
             "raw_facts": facts_text,  # Include the raw search results for testing
-            "sources": sources,  # This will be empty with the search preview model
+            "sources": sources,  # This will likely be empty with the web search preview tool
             "formatted_date": formatted_date,
+            "personality": personality,  # Store which personality was used
         }
 
         # Save results to cache if caching is enabled
@@ -82,7 +184,9 @@ def get_birthday_facts(date_str):
 
                 with open(cache_file, "w") as f:
                     json.dump(results, f)
-                    logger.info(f"WEB_SEARCH: Cached results for {date_str}")
+                    logger.info(
+                        f"WEB_SEARCH: Cached results for {date_str} ({personality})"
+                    )
             except Exception as e:
                 logger.error(f"CACHE_ERROR: Failed to write to cache: {e}")
 
@@ -94,44 +198,6 @@ def get_birthday_facts(date_str):
 
         logger.error(traceback.format_exc())
         return None
-
-
-def process_facts_for_ludo(facts_text, formatted_date):
-    """
-    Process the facts to create a concise, focused paragraph suitable for Ludo's mystical style
-
-    Args:
-        facts_text: Raw facts from the web search
-        formatted_date: The date in "Month Day" format
-
-    Returns:
-        Processed facts paragraph
-    """
-    try:
-        # Use OpenAI to reformat the facts in Ludo's style
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are Ludo the Mystic Birthday Dog, a cosmic canine whose powers reveal mystical insights about dates. Your task is to create a brief, mystical-sounding paragraph about the cosmic significance of a specific date, focusing on notable scientific figures born on this date and significant historical events. Use a mystical, slightly formal tone with cosmic metaphors. Include the year of those events.",
-                },
-                {
-                    "role": "user",
-                    "content": f"Based on these raw facts about {formatted_date}, create a paragraph that highlights 4-5 most significant scientific birthdays or events for this date in a mystical tone:\n\n{facts_text}",
-                },
-            ],
-            max_tokens=500,
-        )
-
-        processed_facts = response.choices[0].message.content.strip()
-        logger.info(f"WEB_SEARCH: Successfully processed facts for {formatted_date}")
-        return processed_facts
-
-    except Exception as e:
-        logger.error(f"WEB_SEARCH_ERROR: Failed to process facts: {e}")
-        # Return a simplified version of the original text if processing fails
-        return f"On this day, {formatted_date}, the cosmos aligned to welcome several notable souls to our realm."
 
 
 def clear_cache(date_str=None):
@@ -154,13 +220,11 @@ def clear_cache(date_str=None):
 
         if date_str:
             # Clear specific date
-            cache_file = os.path.join(
-                CACHE_DIR, f"facts_{date_str.replace('/', '_')}.json"
-            )
-            if os.path.exists(cache_file):
-                os.remove(cache_file)
-                logger.info(f"CACHE: Cleared cache for {date_str}")
-                cleared_count = 1
+            for filename in os.listdir(CACHE_DIR):
+                if filename.startswith(f"facts_{date_str.replace('/', '_')}"):
+                    os.remove(os.path.join(CACHE_DIR, filename))
+                    logger.info(f"CACHE: Cleared cache for {date_str}")
+                    cleared_count += 1
         else:
             # Clear all cache
             for filename in os.listdir(CACHE_DIR):
@@ -207,6 +271,12 @@ def main():
         "--no-cache",
         action="store_true",
         help="Disable using/writing cache for this request",
+    )
+    parser.add_argument(
+        "--personality",
+        required=False,
+        default="mystic_dog",
+        help="Personality for formatting facts (e.g., mystic_dog, time_traveler, superhero, pirate)",
     )
 
     # Configure console logging for testing
@@ -258,13 +328,13 @@ def main():
             print(f"Cache: DISABLED")
 
         # Call the function
-        results = get_birthday_facts(args.date)
+        results = get_birthday_facts(args.date, args.personality)
 
         if not results:
             print("❌ No results found or an error occurred.")
             return
 
-        print(f"\n=== Results for {formatted_date} ===\n")
+        print(f"\n=== Results for {formatted_date} ({args.personality}) ===\n")
 
         # Show raw results if requested
         if args.raw and "raw_facts" in results:
@@ -275,7 +345,7 @@ def main():
             print("\n")
 
         # Show processed facts
-        print("MYSTICAL FACTS FOR LUDO:")
+        print("FACTS:")
         print("-" * 60)
         print(results["facts"])
         print("-" * 60)

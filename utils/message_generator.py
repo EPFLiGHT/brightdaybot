@@ -6,7 +6,7 @@ import argparse
 import sys
 from datetime import datetime
 
-from config import get_logger
+from config import get_logger, USE_CUSTOM_EMOJIS
 from config import (
     BOT_PERSONALITIES,
     TEAM_NAME,
@@ -14,15 +14,19 @@ from config import (
 )
 
 from utils.date_utils import get_star_sign
-from utils.slack_utils import SAFE_SLACK_EMOJIS, get_user_mention
+from utils.slack_utils import (
+    SAFE_SLACK_EMOJIS,
+    get_user_mention,
+    get_all_emojis,
+    get_random_emojis,
+)
 from utils.web_search import get_birthday_facts
 
 logger = get_logger("llm")
 
 # Initialize OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
-
+MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1")
 
 # Birthday announcement formats
 BIRTHDAY_INTROS = [
@@ -85,17 +89,26 @@ def get_current_personality():
     return personality
 
 
-def build_template():
-    """Build the prompt template based on current personality settings"""
-    personality_name = get_current_personality_name()
-    personality = get_current_personality()
-
-    # Get the complete template including base + extension
+def build_template(override_personality=None):
+    """Build the prompt template based on current personality settings or override"""
+    global_personality = get_current_personality_name()
+    # Determine which personality to use
+    if global_personality == "random":
+        # use override if provided, else pick randomly
+        if override_personality:
+            persona = override_personality
+        else:
+            persona = get_random_personality_name()
+            logger.info(f"RANDOM: Using randomly selected personality: {persona}")
+    else:
+        persona = global_personality
+    # Get the complete template including base + extension for the chosen personality
     from config import get_full_template_for_personality
 
-    template_text = get_full_template_for_personality(personality_name)
+    template_text = get_full_template_for_personality(persona)
+    personality = BOT_PERSONALITIES.get(persona, BOT_PERSONALITIES["standard"])
 
-    # Format the template with the personality's details
+    # Format and return system prompt
     formatted_template = template_text.format(
         name=personality["name"],
         description=personality["description"],
@@ -104,16 +117,36 @@ def build_template():
         format_instruction=personality["format_instruction"],
     )
 
-    # Create the template structure for the OpenAI API
-    template = [{"role": "system", "content": formatted_template.strip()}]
-
-    return template
+    return [{"role": "system", "content": formatted_template.strip()}]
 
 
 # Replace the existing TEMPLATE with the dynamic version
 def get_template():
     """Get the current template based on personality configuration"""
     return build_template()
+
+
+def get_random_personality_name():
+    """
+    Get a random personality name from the available personalities (excluding 'random' and 'custom')
+
+    Returns:
+        str: Name of a randomly selected personality
+    """
+    # Get a list of all available personalities, excluding 'random' and 'custom'
+    available_personalities = [
+        name for name in BOT_PERSONALITIES.keys() if name not in ["random", "custom"]
+    ]
+
+    # Select a random personality
+    if available_personalities:
+        random_personality = random.choice(available_personalities)
+        logger.info(f"RANDOM: Selected '{random_personality}' personality randomly")
+        return random_personality
+    else:
+        # Fallback to standard if no other personalities are available
+        logger.warning("RANDOM: No personalities available, using standard")
+        return "standard"
 
 
 def create_birthday_announcement(
@@ -312,6 +345,7 @@ def completion(
     birth_date: str = None,
     birth_year: int = None,
     max_retries: int = 2,
+    app=None,  # Add app parameter to fetch custom emojis
 ) -> str:
     """
     Generate an enthusiastic, fun birthday message using OpenAI or fallback messages
@@ -324,12 +358,27 @@ def completion(
         birth_date: Original birth date in DD/MM format (for star sign)
         birth_year: Optional birth year for age-related content
         max_retries: Maximum number of retries if validation fails
+        app: Slack app instance for fetching custom emojis
 
     Returns:
         Fun birthday message with Slack-compatible formatting
     """
-    # Get the dynamic template based on current configuration
-    template = get_template()
+    # Get current personality info for the request
+    current_personality_name = get_current_personality_name()
+
+    # If using random personality, get the actual personality being used
+    if current_personality_name == "random":
+        selected_personality_name = get_random_personality_name()
+        # Use the selected personality's settings, not the "random" personality's settings
+        personality = BOT_PERSONALITIES.get(
+            selected_personality_name, BOT_PERSONALITIES["standard"]
+        )
+        logger.info(
+            f"RANDOM: Using personality '{selected_personality_name}' with name '{personality['name']}'"
+        )
+    else:
+        selected_personality_name = current_personality_name
+        personality = get_current_personality()
 
     # Create user mention format if user_id is provided
     user_mention = f"{get_user_mention(user_id)}" if user_id else name
@@ -344,26 +393,82 @@ def completion(
         age = datetime.now().year - birth_year
         age_text = f" They're turning {age} today!"
 
-    # Format list of safe emojis for the prompt
-    safe_emoji_examples = ", ".join(random.sample(SAFE_SLACK_EMOJIS, 20))
+    # Format list of emojis for the prompt (include custom ones if enabled)
+    emoji_list = SAFE_SLACK_EMOJIS
+    emoji_instruction = "ONLY USE STANDARD SLACK EMOJIS"
+    emoji_warning = "DO NOT use custom emojis like :birthday_party_parrot: or :rave: as they won't work"
 
-    # Get current personality info for the request
-    personality = get_current_personality()
-    current_personality_name = get_current_personality_name()
-
-    # Get birthday facts for Ludo personality
-    birthday_facts_text = ""
-    if current_personality_name == "mystic_dog" and birth_date:
+    # Get custom emojis if enabled and app is provided
+    if USE_CUSTOM_EMOJIS and app:
         try:
-            birthday_facts = get_birthday_facts(birth_date)
+            # Get all emojis including custom ones
+            all_emojis = get_all_emojis(app, include_custom=True)
+            if len(all_emojis) > len(SAFE_SLACK_EMOJIS):
+                emoji_list = all_emojis
+                custom_count = len(all_emojis) - len(SAFE_SLACK_EMOJIS)
+                emoji_instruction = f"USE STANDARD OR CUSTOM SLACK EMOJIS"
+                emoji_warning = (
+                    f"The workspace has {custom_count} custom emoji(s) that you can use"
+                )
+                logger.info(
+                    f"AI: Including {custom_count} custom emojis in message generation"
+                )
+        except Exception as e:
+            logger.error(f"AI_ERROR: Failed to get custom emojis: {e}")
+            # Fall back to standard emojis if there's an error
+
+    # Get a random sample of emojis to show as examples
+    emoji_sample_size = min(20, len(emoji_list))
+    safe_emoji_examples = ", ".join(random.sample(emoji_list, emoji_sample_size))
+
+    # Get birthday facts for personalities that use web search
+    birthday_facts_text = ""
+    personalities_using_web_search = [
+        "mystic_dog",
+        "time_traveler",
+        "superhero",
+        "pirate",
+        "poet",  # Adding the remaining personalities
+        "tech_guru",
+        "chef",
+        "standard",  # Even the standard personality can benefit from interesting facts!
+    ]
+
+    if selected_personality_name in personalities_using_web_search and birth_date:
+        try:
+            # Get facts formatted for this specific personality
+            birthday_facts = get_birthday_facts(birth_date, selected_personality_name)
+
             if birthday_facts and birthday_facts["facts"]:
-                birthday_facts_text = f"\n\nIncorporate this cosmic information about their birthday date: {birthday_facts['facts']}"
+                if selected_personality_name == "mystic_dog":
+                    birthday_facts_text = f"\n\nIncorporate this cosmic information about their birthday date: {birthday_facts['facts']}"
+                elif selected_personality_name == "time_traveler":
+                    birthday_facts_text = f"\n\nIncorporate these time-travel historical facts about their birthday date: {birthday_facts['facts']}"
+                elif selected_personality_name == "superhero":
+                    birthday_facts_text = f"\n\nIncorporate these 'heroic' events from their birthday date: {birthday_facts['facts']}"
+                elif selected_personality_name == "pirate":
+                    birthday_facts_text = f"\n\nIncorporate these maritime and exploration facts about their birthday date: {birthday_facts['facts']}"
+                elif selected_personality_name == "poet":
+                    birthday_facts_text = f"\n\nIncorporate this poetic verse about their birthday date in your poem: {birthday_facts['facts']}"
+                elif selected_personality_name == "tech_guru":
+                    birthday_facts_text = f"\n\nIncorporate these technological facts about their birthday date in your message, using tech terminology: {birthday_facts['facts']}"
+                elif selected_personality_name == "chef":
+                    birthday_facts_text = f"\n\nIncorporate these culinary-related facts or cooking metaphors about their birthday date: {birthday_facts['facts']}"
+                elif selected_personality_name == "standard":
+                    birthday_facts_text = f"\n\nIncorporate these fun and interesting facts about their birthday date: {birthday_facts['facts']}"
+
                 # Add sources if available
                 if birthday_facts["sources"]:
-                    sources_text = "\n\nYou may reference this insight came from the cosmic archives without mentioning specific URLs."
+                    sources_text = "\n\nYou may reference where this information came from in a way that fits your personality, without mentioning specific URLs."
                     birthday_facts_text += sources_text
+
+                logger.info(
+                    f"AI: Added {selected_personality_name}-specific facts for {birth_date}"
+                )
         except Exception as e:
-            logger.error(f"AI_ERROR: Failed to get birthday facts: {e}")
+            logger.error(
+                f"AI_ERROR: Failed to get birthday facts for {selected_personality_name}: {e}"
+            )
             # Continue without facts if there's an error
 
     user_content = f"""
@@ -373,8 +478,8 @@ def completion(
         1. Include their Slack mention "{user_mention}" somewhere in the message
         2. Make sure to address the entire channel with <!channel> to notify everyone
         3. Create a message that's lively and engaging with good structure and flow
-        4. ONLY USE STANDARD SLACK EMOJIS like: {safe_emoji_examples}
-        5. DO NOT use custom emojis like :birthday_party_parrot: or :rave: as they won't work
+        4. {emoji_instruction} like: {safe_emoji_examples}
+        5. {emoji_warning}
         6. Remember to use Slack emoji format with colons (e.g., :cake:), not Unicode emojis (e.g., 🎂)
         7. Your name is {personality["name"]} and you are {personality["description"]}
         {birthday_facts_text}
@@ -382,18 +487,8 @@ def completion(
         Today is {datetime.now().strftime('%Y-%m-%d')}.
     """
 
-    # Add extra emphasis for validation requirements
-    if max_retries > 0:
-        user_content += f"""
-        
-        CRITICAL: The message MUST contain both:
-        1. The exact user mention format: "{user_mention}"
-        2. The exact channel mention format: "<!channel>"
-        
-        Previous attempts failed to include these required mention formats. Please ensure they're included.
-        """
-
-    # Add user message to template
+    # Build system prompt with the selected personality to keep content and name in sync
+    template = build_template(selected_personality_name)
     template.append({"role": "user", "content": user_content})
 
     retry_count = 0
@@ -543,12 +638,6 @@ def fix_slack_formatting(text):
     # Fix blockquotes: replace markdown > with Slack's blockquote
     text = re.sub(r"^>\s+(.*?)$", r">>>\1", text, flags=re.MULTILINE)
 
-    # # Fix Unicode emojis by adding a note if they exist
-    # if re.search(r"[^\x00-\x7F]+", text):
-    #     emoji_warning = "\n\n_Note: Some emoji characters may not display correctly in Slack. Please use Slack-formatted emojis with colons like :smile: instead._"
-    #     if emoji_warning not in text:
-    #         text += emoji_warning
-
     logger.debug(f"AI_FORMAT: Fixed Slack formatting issues in message")
     return text
 
@@ -607,7 +696,18 @@ def main():
     )
     parser.add_argument(
         "--personality",
-        choices=["standard", "mystic_dog", "custom"],
+        choices=[
+            "standard",
+            "mystic_dog",
+            "poet",
+            "tech_guru",
+            "chef",
+            "superhero",
+            "time_traveler",
+            "pirate",
+            "custom",
+            "random",
+        ],
         help="Bot personality to use for testing",
     )
 
@@ -641,7 +741,15 @@ def main():
     test_logger.info(
         f"Testing with: Name='{args.name}', User ID='{args.user_id}', Date='{args.date}'"
     )
-    test_logger.info(f"Personality: {get_current_personality_name()}")
+
+    current_personality = get_current_personality_name()
+    if current_personality == "random":
+        test_logger.info(
+            f"Using random personality mode (will select a random personality for each message)"
+        )
+    else:
+        test_logger.info(f"Personality: {current_personality}")
+
     print("-" * 60)
 
     if args.fallback:

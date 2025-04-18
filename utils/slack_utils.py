@@ -267,3 +267,84 @@ SAFE_SLACK_EMOJIS = [
     ":pray:",
     ":clinking_glasses:",
 ]
+
+# Add a dictionary to store custom emojis
+CUSTOM_SLACK_EMOJIS = {}
+
+
+def fetch_custom_emojis(app):
+    """
+    Fetch custom emojis from the Slack workspace
+
+    Args:
+        app: Slack app instance
+
+    Returns:
+        Dictionary of custom emoji names mapped to their URLs
+    """
+    global CUSTOM_SLACK_EMOJIS
+
+    try:
+        response = app.client.emoji_list()
+        if response["ok"]:
+            CUSTOM_SLACK_EMOJIS = response["emoji"]
+            logger.info(
+                f"EMOJI: Fetched {len(CUSTOM_SLACK_EMOJIS)} custom emojis from workspace"
+            )
+            return CUSTOM_SLACK_EMOJIS
+        else:
+            logger.error(
+                f"API_ERROR: Failed to fetch custom emojis: {response.get('error', 'Unknown error')}"
+            )
+    except SlackApiError as e:
+        logger.error(f"API_ERROR: Slack error when fetching custom emojis: {e}")
+    except Exception as e:
+        logger.error(f"ERROR: Unexpected error when fetching custom emojis: {e}")
+
+    return {}
+
+
+def get_all_emojis(app, include_custom=True, refresh_custom=False):
+    """
+    Get a list of all available emojis including custom ones if requested
+
+    Args:
+        app: Slack app instance
+        include_custom: Whether to include custom emojis
+        refresh_custom: Whether to refresh the custom emoji cache
+
+    Returns:
+        List of emoji codes that can be used in messages
+    """
+    if include_custom and (refresh_custom or not CUSTOM_SLACK_EMOJIS):
+        fetch_custom_emojis(app)
+
+    if include_custom and CUSTOM_SLACK_EMOJIS:
+        # Filter out alias emojis (they start with "alias:")
+        custom_emojis = [
+            f":{name}:"
+            for name, url in CUSTOM_SLACK_EMOJIS.items()
+            if not str(url).startswith("alias:")
+        ]
+        return SAFE_SLACK_EMOJIS + custom_emojis
+    else:
+        return SAFE_SLACK_EMOJIS
+
+
+def get_random_emojis(app, count=5, include_custom=True):
+    """
+    Get random emoji codes for use in messages
+
+    Args:
+        app: Slack app instance
+        count: Number of emojis to return
+        include_custom: Whether to include custom emojis
+
+    Returns:
+        List of random emoji codes
+    """
+    import random
+
+    all_emojis = get_all_emojis(app, include_custom)
+    # Return at most 'count' random emojis, or all if count > available emojis
+    return random.sample(all_emojis, min(count, len(all_emojis)))

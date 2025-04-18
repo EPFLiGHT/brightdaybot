@@ -145,7 +145,7 @@ def handle_dm_date(say, user, result, app):
         username = get_username(app, user)
         try:
             # Try to get personalized AI message
-            ai_message = completion(username, date_words, user, date, year)
+            ai_message = completion(username, date_words, user, date, year, app=app)
             send_message(app, BIRTHDAY_CHANNEL, ai_message)
         except Exception as e:
             logger.error(
@@ -228,7 +228,9 @@ def handle_command(text, user_id, say, app):
 
             try:
                 # Try to get personalized AI message
-                ai_message = completion(username, date_words, user_id, date, year)
+                ai_message = completion(
+                    username, date_words, user_id, date, year, app=app
+                )
                 send_message(app, BIRTHDAY_CHANNEL, ai_message)
             except Exception as e:
                 logger.error(
@@ -620,13 +622,24 @@ def handle_config_command(parts, user_id, say, app):
     # Update setting
     username = get_username(app, user_id)
     old_setting = COMMAND_PERMISSIONS[cmd]
-    COMMAND_PERMISSIONS[cmd] = setting_str == "true"
-    say(
-        f"Updated: `{cmd}` command is now {'admin-only' if COMMAND_PERMISSIONS[cmd] else 'available to all users'}"
-    )
-    logger.info(
-        f"CONFIG: {username} ({user_id}) changed {cmd} permission from {old_setting} to {COMMAND_PERMISSIONS[cmd]}"
-    )
+    new_setting = setting_str == "true"
+
+    # Import the set_command_permission function
+    from utils.config_storage import set_command_permission
+
+    # Update and save the setting
+    if set_command_permission(cmd, new_setting):
+        say(
+            f"Updated: `{cmd}` command is now {'admin-only' if new_setting else 'available to all users'}"
+        )
+        logger.info(
+            f"CONFIG: {username} ({user_id}) changed {cmd} permission from {old_setting} to {new_setting}"
+        )
+    else:
+        say(f"Failed to update permission for `{cmd}`. Check logs for details.")
+        logger.error(
+            f"CONFIG_ERROR: Failed to save permission change for {cmd} by {username}"
+        )
 
 
 def handle_test_command(user_id, say, app):
@@ -651,7 +664,9 @@ def handle_test_command(user_id, say, app):
         say(f"Generating a test birthday message for you... this might take a moment.")
 
         # Try to get personalized AI message
-        test_message = completion(username, date_words, user_id, user_date, birth_year)
+        test_message = completion(
+            username, date_words, user_id, user_date, birth_year, app=app
+        )
 
         say(f"Here's what your birthday message would look like:\n\n{test_message}")
         logger.info(f"TEST: Generated test birthday message for {username} ({user_id})")

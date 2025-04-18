@@ -8,11 +8,12 @@ A Slack bot that records and wishes Slack workspace members a happy birthday wit
 - **Birthday Announcements**: Automatic birthday celebrations in a designated channel
 - **AI-Generated Messages**: Personalized birthday wishes using OpenAI
 - **Historical Date Facts**: Includes interesting scientific and historical facts about the birthday date
+- **Multiple Personalities**: 8 different bot personalities with unique message styles
 - **Admin Commands**: Statistics, user management, and settings
 - **System Health Monitoring**: Built-in diagnostics for troubleshooting
 - **Data Management**: Automated backups and recovery options
 - **Reminders**: Automatically remind users who haven't set their birthday
-- **Multiple Personalities**: Switch between different bot personalities with persistent settings
+- **Web Search Caching**: Store historical date facts to reduce API calls
 - **Custom Templates**: Fully customizable message templates for each personality
 
 ## Project Structure
@@ -36,6 +37,7 @@ brightdaybot/
 └── utils/                    # Helper modules
     ├── config_storage.py     # Configuration storage
     ├── date_utils.py         # Date handling functions
+    ├── health_check.py       # System diagnostics
     ├── message_generator.py  # Message generation using OpenAI
     ├── web_search.py         # Web search for birthday facts
     ├── slack_utils.py        # Slack API wrapper functions
@@ -93,7 +95,7 @@ SLACK_APP_TOKEN="xapp-your-app-token"
 SLACK_BOT_TOKEN="xoxb-your-bot-token"
 BIRTHDAY_CHANNEL_ID="C0123456789"
 OPENAI_API_KEY="sk-your-openai-api-key"
-OPENAI_MODEL="gpt-4o"  # Optional: defaults to gpt-4o
+OPENAI_MODEL="gpt-4.1"  # Optional: defaults to gpt-4.1
 
 # Optional: Custom bot personality settings
 CUSTOM_BOT_NAME="Birthday Wizard"
@@ -122,7 +124,7 @@ The bot will:
 - Store configuration in data/storage/\*.json files
 - Write logs to data/logs/app.log
 - Check for today's birthdays at startup
-- Schedule daily birthday checks at 8:00 AM UTC
+- Schedule daily birthday checks at 10:00 AM UTC (configurable in config.py)
 
 ## Deployment
 
@@ -216,10 +218,6 @@ Or simply send a date in `DD/MM` or `DD/MM/YYYY` format.
 - `remind [message]` - Send reminders to users without birthdays
 - `config` - View command permissions
 - `config COMMAND true/false` - Change command permissions
-- `admin backup` - Create a manual backup of birthdays data
-- `admin restore latest` - Restore from the latest backup
-- `admin cache clear` - Clear all web search cache
-- `admin cache clear DD/MM` - Clear web search cache for a specific date
 
 ### Data Management Commands
 
@@ -234,6 +232,12 @@ The bot supports multiple personalities that change how birthday messages are wr
 
 - `standard` - Friendly, enthusiastic birthday bot (default)
 - `mystic_dog` - Ludo the Mystic Birthday Dog who provides cosmic predictions and historical date facts
+- `poet` - The Verse-atile, a poetic birthday bard who creates lyrical birthday messages
+- `tech_guru` - CodeCake, a tech-savvy bot who speaks in programming metaphors
+- `chef` - Chef Confetti, a culinary master who creates food-themed messages
+- `superhero` - Captain Celebration, a superhero dedicated to making birthdays epic
+- `time_traveler` - Chrono, a time-traveling messenger from the future
+- `pirate` - Captain BirthdayBeard, a jolly pirate with nautical-themed messages
 - `custom` - Customizable personality using environment variables or commands
 
 To change the personality:
@@ -247,12 +251,12 @@ Ludo's messages follow a specific structured format:
 
 1. A mystical greeting and request for celebratory GIFs
 2. Three insightful sections:
-   - **Cosmic Analysis**: Horoscope and numerological insights
-   - **Spirit Guide**: The person's spirit animal for the year
-   - **Celestial Date Legacy**: Scientific and historical facts about the birthday date, drawing from web searches
+   - **Star Power**: Horoscope and numerological insights
+   - **Spirit Animal**: The person's spirit animal for the year
+   - **Cosmic Connection**: Scientific and historical facts about the birthday date, drawing from web searches
 3. A concluding message about the year ahead
 
-The Celestial Date Legacy section incorporates web-searched information about notable scientific figures born on that date and significant historical events.
+The Cosmic Connection section incorporates web-searched information about notable scientific figures born on that date and significant historical events.
 
 ### Persistent Configuration
 
@@ -292,7 +296,7 @@ Additional message components can be customized in utils/message_generator.py:
 
 ### Schedule Configuration
 
-Change when birthday checks run by modifying `DAILY_CHECK_TIME` in config.py.
+Change when birthday checks run by modifying `DAILY_CHECK_TIME` in config.py (default is "10:00" UTC).
 
 ## Data Management
 
