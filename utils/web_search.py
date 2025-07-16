@@ -99,9 +99,28 @@ def get_birthday_facts(date_str, personality="mystic_dog"):
     Returns:
         Dictionary with interesting facts and sources
     """
+    # Include current year in cache filename so each year gets fresh results
+    current_year = datetime.now().year
     cache_file = os.path.join(
-        CACHE_DIR, f"facts_{date_str.replace('/', '_')}_{personality}.json"
+        CACHE_DIR,
+        f"facts_{date_str.replace('/', '_')}_{personality}_{current_year}.json",
     )
+
+    # Periodically clean up old cache files (only once per day)
+    if WEB_SEARCH_CACHE_ENABLED:
+        cleanup_marker = os.path.join(
+            CACHE_DIR, f"cleanup_{datetime.now().strftime('%Y_%m_%d')}"
+        )
+        if not os.path.exists(cleanup_marker):
+            cleared = clear_old_cache_files()
+            if cleared > 0:
+                logger.info(f"CACHE: Auto-cleanup removed {cleared} old cache files")
+            # Create marker file to prevent multiple cleanups per day
+            try:
+                os.makedirs(CACHE_DIR, exist_ok=True)
+                open(cleanup_marker, "a").close()
+            except Exception:
+                pass  # Ignore cleanup marker creation errors
 
     # Check cache first if caching is enabled
     if WEB_SEARCH_CACHE_ENABLED and os.path.exists(cache_file):
@@ -200,6 +219,48 @@ def get_birthday_facts(date_str, personality="mystic_dog"):
         return None
 
 
+def clear_old_cache_files():
+    """
+    Clear web search cache files from previous years to prevent accumulation
+
+    Returns:
+        int: Number of old files cleared
+    """
+    try:
+        if not os.path.exists(CACHE_DIR):
+            return 0
+
+        current_year = datetime.now().year
+        cleared_count = 0
+
+        for filename in os.listdir(CACHE_DIR):
+            if filename.startswith("facts_") and filename.endswith(".json"):
+                # Try to extract year from filename
+                # Expected format: facts_DD_MM_personality_YYYY.json
+                parts = filename.replace(".json", "").split("_")
+                if len(parts) >= 4:
+                    try:
+                        file_year = int(parts[-1])  # Last part should be year
+                        if file_year < current_year:
+                            os.remove(os.path.join(CACHE_DIR, filename))
+                            logger.info(
+                                f"CACHE: Cleared old cache file from {file_year}: {filename}"
+                            )
+                            cleared_count += 1
+                    except ValueError:
+                        # Skip files that don't have year in expected format
+                        continue
+
+        if cleared_count > 0:
+            logger.info(f"CACHE: Cleared {cleared_count} old cache files")
+
+        return cleared_count
+
+    except Exception as e:
+        logger.error(f"CACHE_ERROR: Failed to clear old cache files: {e}")
+        return 0
+
+
 def clear_cache(date_str=None):
     """
     Clear web search cache
@@ -219,7 +280,7 @@ def clear_cache(date_str=None):
         cleared_count = 0
 
         if date_str:
-            # Clear specific date
+            # Clear specific date (all years and personalities)
             for filename in os.listdir(CACHE_DIR):
                 if filename.startswith(f"facts_{date_str.replace('/', '_')}"):
                     os.remove(os.path.join(CACHE_DIR, filename))
@@ -268,6 +329,11 @@ def main():
         help="Clear all cached results (no search)",
     )
     parser.add_argument(
+        "--clear-old-cache",
+        action="store_true",
+        help="Clear old cached results from previous years (no search)",
+    )
+    parser.add_argument(
         "--no-cache",
         action="store_true",
         help="Disable using/writing cache for this request",
@@ -296,6 +362,11 @@ def main():
     if args.clear_all_cache:
         count = clear_cache()
         print(f"Cleared {count} cached files")
+        return
+
+    if args.clear_old_cache:
+        count = clear_old_cache_files()
+        print(f"Cleared {count} old cached files from previous years")
         return
 
     if args.clear_cache:

@@ -5,16 +5,20 @@ A Slack bot that records and wishes Slack workspace members a happy birthday wit
 ## Features
 
 - **Birthday Recording**: Users can set their birthdays via DM to the bot
-- **Birthday Announcements**: Automatic birthday celebrations in a designated channel
-- **AI-Generated Messages**: Personalized birthday wishes using OpenAI
+- **Multi-Timezone Celebrations**: Celebrates birthdays at 9 AM in each user's local timezone
+- **AI-Generated Messages**: Personalized birthday wishes using OpenAI GPT-4.1
+- **AI Image Generation**: Creates personalized birthday images using OpenAI GPT-Image-1
+- **Enhanced Profile Integration**: Uses Slack profile data (job title, timezone, photos) for personalization
 - **Historical Date Facts**: Includes interesting scientific and historical facts about the birthday date
 - **Multiple Personalities**: 8 different bot personalities with unique message styles
+- **Smart Consolidation**: Single message for multiple birthdays on the same day to avoid spam
 - **Admin Commands**: Statistics, user management, and settings
 - **System Health Monitoring**: Built-in diagnostics for troubleshooting
 - **Data Management**: Automated backups and recovery options
 - **Reminders**: Automatically remind users who haven't set their birthday
 - **Web Search Caching**: Store historical date facts to reduce API calls
 - **Custom Templates**: Fully customizable message templates for each personality
+- **Startup Recovery**: Automatically catches missed birthday celebrations after server downtime
 
 ## Project Structure
 
@@ -39,6 +43,8 @@ brightdaybot/
     ├── date_utils.py         # Date handling functions
     ├── health_check.py       # System diagnostics
     ├── message_generator.py  # Message generation using OpenAI
+    ├── image_generator.py    # AI image generation using OpenAI GPT-Image-1
+    ├── timezone_utils.py     # Timezone handling utilities
     ├── web_search.py         # Web search for birthday facts
     ├── slack_utils.py        # Slack API wrapper functions
     └── storage.py            # Birthday storage functions
@@ -62,6 +68,7 @@ Follow these steps to set up BrightDayBot.
      - `chat:write`
      - `users:read`
      - `users.profile:read`
+     - `files:write`
      - `im:history`
      - `im:write`
      - `channels:read`
@@ -97,6 +104,9 @@ BIRTHDAY_CHANNEL_ID="C0123456789"
 OPENAI_API_KEY="sk-your-openai-api-key"
 OPENAI_MODEL="gpt-4.1"  # Optional: defaults to gpt-4.1
 
+# Optional: AI image generation settings
+AI_IMAGE_GENERATION_ENABLED="true"  # Set to "false" to disable image generation
+
 # Optional: Custom bot personality settings
 CUSTOM_BOT_NAME="Birthday Wizard"
 CUSTOM_BOT_DESCRIPTION="a magical birthday celebration wizard"
@@ -118,13 +128,14 @@ python app.py
 
 The bot will:
 
-- Create necessary data directories (logs, storage, tracking, backups)
+- Create necessary data directories (logs, storage, tracking, backups, cache)
 - Initialize configuration from storage or create default settings
 - Store birthdays in data/storage/birthdays.txt
 - Store configuration in data/storage/\*.json files
 - Write logs to data/logs/app.log
-- Check for today's birthdays at startup
-- Schedule daily birthday checks at 10:00 AM UTC (configurable in config.py)
+- Check for today's birthdays at startup with catch-up for missed celebrations
+- Schedule hourly timezone-aware birthday checks at :00 past each hour
+- Schedule daily safety net check at 10:00 AM in server local timezone (configurable in config.py)
 
 ## Deployment
 
@@ -215,6 +226,7 @@ Or simply send a date in `DD/MM` or `DD/MM/YYYY` format.
 - `stats` - View birthday statistics
 - `admin status` - Check system health and component status
 - `admin status detailed` - Get detailed system information
+- `admin timezone` - View birthday celebration schedule across timezones
 - `remind [message]` - Send reminders to users without birthdays
 - `config` - View command permissions
 - `config COMMAND true/false` - Change command permissions
@@ -225,6 +237,7 @@ Or simply send a date in `DD/MM` or `DD/MM/YYYY` format.
 - `admin restore latest` - Restore from the latest backup
 - `admin cache clear` - Clear all web search cache
 - `admin cache clear DD/MM` - Clear web search cache for a specific date
+- `admin test-upload` - Test the image upload functionality
 
 ### Bot Personality
 
@@ -296,7 +309,24 @@ Additional message components can be customized in utils/message_generator.py:
 
 ### Schedule Configuration
 
-Change when birthday checks run by modifying `DAILY_CHECK_TIME` in config.py (default is "10:00" UTC).
+The bot now uses a sophisticated multi-timezone celebration system:
+
+- **Hourly Checks**: Runs at :00 past each hour to check for 9 AM celebrations in different timezones
+- **Daily Safety Net**: Runs at 10:00 AM in server local timezone as a backup (configurable via `DAILY_CHECK_TIME` in config.py)
+- **Startup Recovery**: Automatically catches missed celebrations when the bot restarts after downtime
+- **Smart Consolidation**: When multiple people have birthdays on the same day, the first person hitting 9 AM triggers a single consolidated message for everyone
+
+### AI Image Generation
+
+The bot can generate personalized birthday images using OpenAI's GPT-Image-1 model:
+
+- **Personality-Themed Images**: Each bot personality generates images in its unique style
+- **Creative Randomness**: AI adds unexpected creative elements to make each image unique
+- **Profile Integration**: Uses user's job title for personalization
+- **Automatic Caching**: Images are saved to `data/cache/images/` directory
+- **Fallback Support**: Text-only messages if image generation fails
+
+Enable/disable with `AI_IMAGE_GENERATION_ENABLED` environment variable.
 
 ## Data Management
 
@@ -309,8 +339,13 @@ The bot implements several data management features:
   - Cached data is stored in `data/cache/` directory
   - Control caching with `WEB_SEARCH_CACHE_ENABLED` environment variable
   - Clear cache with `admin cache clear` or manually delete cache files
+- **Image Caching**: Auto-saves generated birthday images to `data/cache/images/`
+  - Automatic cleanup removes images older than 30 days
+  - Manual cleanup can be performed by deleting files from the cache directory
 - **Administrative Control**: Provides commands for manual backup and restore operations
-- **Birthday Tracking**: Prevents duplicate announcements if the bot is restarted
+- **Multi-Timezone Birthday Tracking**: Prevents duplicate announcements across different celebration methods
+  - Legacy tracking: `data/tracking/announced_YYYY-MM-DD.txt`
+  - Timezone tracking: `data/tracking/timezone_announced_YYYY-MM-DD.txt`
 
 ## System Health Monitoring
 
@@ -349,6 +384,9 @@ Common issues:
 - Missing API keys: Ensure `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, and `OPENAI_API_KEY` are set
 - Permission problems: Verify the bot has read/write permissions to the data directories
 - Invalid configuration: Check that the `BIRTHDAY_CHANNEL` is set to a valid Slack channel ID
+- Image generation issues: Verify OpenAI API key has access to GPT-Image-1 model
+- Timezone issues: Ensure users have set their timezone in their Slack profile settings
+- Missing dependencies: Run `pip install -r requirements.txt` to install all required packages including `pytz` and `Pillow`
 
 ## License
 

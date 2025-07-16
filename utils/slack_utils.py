@@ -1,8 +1,87 @@
 from slack_sdk.errors import SlackApiError
+from datetime import datetime
+import requests
 
-from config import username_cache, ADMIN_USERS, COMMAND_PERMISSIONS, get_logger
+from config import (
+    username_cache,
+    USERNAME_CACHE_MAX_SIZE,
+    ADMIN_USERS,
+    COMMAND_PERMISSIONS,
+    get_logger,
+)
 
 logger = get_logger("slack")
+
+
+def get_user_profile(app, user_id):
+    """
+    Get comprehensive user profile information including timezone, job title, and photos
+
+    Args:
+        app: Slack app instance
+        user_id: User ID to look up
+
+    Returns:
+        Dictionary with user profile data or None if failed
+    """
+    try:
+        # Get both profile and user info for complete data
+        profile_response = app.client.users_profile_get(user=user_id)
+        info_response = app.client.users_info(user=user_id)
+
+        if not (profile_response["ok"] and info_response["ok"]):
+            logger.error(
+                f"API_ERROR: Failed to get complete profile for user {user_id}"
+            )
+            return None
+
+        profile = profile_response["profile"]
+        user_info = info_response["user"]
+
+        # Extract comprehensive profile data
+        user_profile = {
+            "display_name": profile.get("display_name", ""),
+            "real_name": profile.get("real_name", ""),
+            "title": profile.get("title", ""),  # Job title
+            "phone": profile.get("phone", ""),
+            "email": profile.get("email", ""),
+            "timezone": user_info.get("tz", ""),  # e.g. "America/New_York"
+            "timezone_label": user_info.get(
+                "tz_label", ""
+            ),  # e.g. "Eastern Standard Time"
+            "timezone_offset": user_info.get("tz_offset", 0),  # seconds from UTC
+            "photo_24": profile.get("image_24", ""),
+            "photo_32": profile.get("image_32", ""),
+            "photo_48": profile.get("image_48", ""),
+            "photo_72": profile.get("image_72", ""),
+            "photo_192": profile.get("image_192", ""),
+            "photo_512": profile.get("image_512", ""),  # High resolution
+            "photo_original": profile.get("image_original", ""),
+            "status_text": profile.get("status_text", ""),
+            "status_emoji": profile.get("status_emoji", ""),
+            "pronouns": profile.get("pronouns", ""),
+            "start_date": profile.get("start_date", ""),
+        }
+
+        # Determine preferred name
+        preferred_name = (
+            user_profile["display_name"]
+            if user_profile["display_name"]
+            else user_profile["real_name"]
+        )
+        user_profile["preferred_name"] = preferred_name
+
+        logger.debug(
+            f"PROFILE: Retrieved comprehensive profile for {preferred_name} ({user_id})"
+        )
+        return user_profile
+
+    except SlackApiError as e:
+        logger.error(f"API_ERROR: Slack error when getting profile for {user_id}: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"ERROR: Unexpected error getting profile for {user_id}: {e}")
+        return None
 
 
 def get_username(app, user_id):
@@ -19,6 +98,14 @@ def get_username(app, user_id):
     # Check cache first
     if user_id in username_cache:
         return username_cache[user_id]
+
+    # Check if cache is getting too large
+    if len(username_cache) >= USERNAME_CACHE_MAX_SIZE:
+        # Remove oldest entries (simple FIFO strategy)
+        oldest_keys = list(username_cache.keys())[: USERNAME_CACHE_MAX_SIZE // 4]
+        for key in oldest_keys:
+            del username_cache[key]
+        logger.info(f"CACHE: Cleaned up {len(oldest_keys)} old username cache entries")
 
     try:
         response = app.client.users_profile_get(user=user_id)
@@ -158,6 +245,91 @@ def get_channel_members(app, channel_id):
     except SlackApiError as e:
         logger.error(f"API_ERROR: Failed to get channel members: {e}")
         return []
+
+
+def send_message_with_image(app, channel: str, text: str, image_data=None, blocks=None):
+    """
+    Send a message to a Slack channel with optional image attachment
+
+    Args:
+        app: Slack app instance
+        channel: Channel ID or user ID (for DMs)
+        text: Message text
+        image_data: Optional image data dict from image_generator
+        blocks: Optional blocks for rich formatting
+
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        if image_data and image_data.get("image_data"):
+            logger.info(f"IMAGE: Uploading birthday image with message to {channel}")
+
+            # Generate filename with proper extension
+            file_format = image_data.get("format", "png")
+            filename = f"birthday_{image_data.get('personality', 'standard')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{file_format}"
+
+            try:
+                # For DMs with user IDs, we need to get the DM channel ID first
+                target_channel = channel
+                if channel.startswith("U"):
+                    # Open a DM channel to get the proper channel ID
+                    dm_response = app.client.conversations_open(users=channel)
+                    if dm_response["ok"]:
+                        target_channel = dm_response["channel"]["id"]
+                        logger.debug(
+                            f"IMAGE: Opened DM channel {target_channel} for user {channel}"
+                        )
+                    else:
+                        logger.error(
+                            f"IMAGE_ERROR: Failed to open DM channel: {dm_response.get('error')}"
+                        )
+                        # Fallback to text-only message
+                        return send_message(app, channel, text, blocks)
+
+                # Use files_upload_v2 for both channels and DMs (now that we have proper channel ID)
+                upload_response = app.client.files_upload_v2(
+                    channel=target_channel,
+                    initial_comment=text,
+                    file=image_data["image_data"],
+                    filename=filename,
+                    title=f"🎂 Birthday Image - {image_data.get('personality', 'standard').title()} Style",
+                )
+
+                if upload_response["ok"]:
+                    logger.info(
+                        f"IMAGE: Successfully sent message with image to {target_channel}"
+                    )
+                    return True
+                else:
+                    logger.error(
+                        f"IMAGE_ERROR: Failed to upload file: {upload_response.get('error')}"
+                    )
+                    # Fallback to text-only message if upload fails
+                    return send_message(app, channel, text, blocks)
+
+            except SlackApiError as e:
+                logger.error(f"IMAGE_ERROR: Error during upload process: {e}")
+                # Fallback for older slack client versions or other issues
+                return send_message(app, channel, text, blocks)
+            except Exception as upload_error:
+                logger.error(
+                    f"IMAGE_ERROR: Unexpected error during upload process: {upload_error}"
+                )
+                return send_message(app, channel, text, blocks)
+
+        else:
+            # No image, send regular message
+            return send_message(app, channel, text, blocks)
+
+    except SlackApiError as e:
+        logger.error(f"API_ERROR: Failed to send message with image to {channel}: {e}")
+        # Fall back to text-only message
+        return send_message(app, channel, text, blocks)
+    except Exception as e:
+        logger.error(f"ERROR: Unexpected error sending message with image: {e}")
+        # Fall back to text-only message
+        return send_message(app, channel, text, blocks)
 
 
 def send_message(app, channel: str, text: str, blocks=None):

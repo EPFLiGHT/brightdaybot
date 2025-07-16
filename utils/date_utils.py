@@ -23,6 +23,15 @@ def extract_date(message: str) -> dict:
         date_with_year = year_match.group(1)
         try:
             date_obj = datetime.strptime(date_with_year, DATE_WITH_YEAR_FORMAT)
+
+            # Validate reasonable year range (1900-2024)
+            current_year = datetime.now().year
+            if date_obj.year < 1900 or date_obj.year > current_year:
+                logger.error(
+                    f"DATE_ERROR: Year out of valid range (1900-{current_year}): {date_obj.year}"
+                )
+                return {"status": "invalid_date", "date": None, "year": None}
+
             # Split into date and year
             date = date_obj.strftime(DATE_FORMAT)
             year = date_obj.year

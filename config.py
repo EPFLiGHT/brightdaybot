@@ -24,6 +24,10 @@ WEB_SEARCH_CACHE_ENABLED = (
 )
 # Use custom emojis in birthday messages
 USE_CUSTOM_EMOJIS = os.getenv("USE_CUSTOM_EMOJIS", "true").lower() == "true"
+# Enable AI image generation for birthday messages
+AI_IMAGE_GENERATION_ENABLED = (
+    os.getenv("AI_IMAGE_GENERATION_ENABLED", "true").lower() == "true"
+)
 
 # File paths
 LOG_FILE = os.path.join(LOGS_DIR, "app.log")
@@ -93,7 +97,9 @@ DATE_WITH_YEAR_FORMAT = "%d/%m/%Y"
 
 # Scheduling configuration
 DAILY_CHECK_TIME = (
-    "10:00"  # Time to run daily birthday checks (24-hour format, in local system time)
+    "10:00"  # Time to run daily birthday checks (24-hour format, in SERVER LOCAL TIME)
+    # NOTE: This uses the server's local timezone, NOT UTC
+    # If you need UTC scheduling, modify services/scheduler.py
 )
 
 # Message configuration
@@ -120,6 +126,7 @@ COMMAND_PERMISSIONS = {
 
 # Cache for username lookups to reduce API calls
 username_cache = {}
+USERNAME_CACHE_MAX_SIZE = 1000  # Maximum number of cached usernames
 
 # ----- BOT PERSONALITY CUSTOMIZATION -----
 
