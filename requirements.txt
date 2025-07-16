@@ -1,6 +1,9 @@
 filelock==3.18.0
-openai==1.75.0
-python-dotenv==1.1.0
-schedule==1.2.0
+openai==1.96.1
+Pillow==11.3.0
+python-dotenv==1.1.1
+pytz==2025.2
+Requests==2.32.4
+schedule==1.2.2
 slack_bolt==1.22.0
-slack_sdk==3.35.0
+slack_sdk==3.34.0

@@ -268,3 +268,4 @@ data/cache/
 !data/storage/.gitkeep
 !data/backups/.gitkeep
 !data/cache/.gitkeep
+CLAUDE.md

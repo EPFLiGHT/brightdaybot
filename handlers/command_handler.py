@@ -14,6 +14,7 @@ from utils.storage import (
     load_birthdays,
     create_backup,
     restore_latest_backup,
+    mark_birthday_announced,
 )
 from utils.slack_utils import (
     get_username,
@@ -26,6 +27,7 @@ from utils.slack_utils import (
 from utils.message_generator import (
     completion,
     create_birthday_announcement,
+    create_consolidated_birthday_announcement,
     get_current_personality,
 )
 from utils.health_check import get_system_status, get_status_summary
@@ -42,12 +44,61 @@ from config import (
     STORAGE_DIR,
     CACHE_DIR,
     BIRTHDAYS_FILE,
-    get_logger,
 )
 from utils.config_storage import save_admins_to_file
 from utils.web_search import clear_cache
 
 logger = get_logger("commands")
+
+
+def send_immediate_birthday_announcement(
+    user_id, username, date, year, date_words, age_text, say, app
+):
+    """
+    Send immediate birthday announcement when someone adds their birthday on their actual birthday.
+    This function ensures the announcement is tracked to prevent duplicates during daily checks.
+
+    NOTE: This handles single-person immediate announcements. The daily check uses
+    create_consolidated_birthday_announcement() for multiple people, but immediate
+    announcements are typically single-person events.
+
+    Args:
+        user_id: User ID of the birthday person
+        username: Display name of the birthday person
+        date: Birthday date in DD/MM format
+        year: Optional birth year
+        date_words: Formatted date string for display
+        age_text: Formatted age text for display
+        say: Slack say function for user feedback
+        app: Slack app instance
+    """
+    say(
+        f"It's your birthday today! {date_words}{age_text} - I'll send an announcement to the birthday channel right away!"
+    )
+
+    try:
+        # Try to get personalized AI message
+        ai_message = completion(username, date_words, user_id, date, year, app=app)
+        send_message(app, BIRTHDAY_CHANNEL, ai_message)
+        logger.info(
+            f"IMMEDIATE_BIRTHDAY: Sent AI-generated announcement for {username} ({user_id})"
+        )
+    except Exception as e:
+        logger.error(
+            f"AI_ERROR: Failed to generate immediate birthday message for {username}: {e}"
+        )
+        # Fallback to generated announcement if AI fails
+        announcement = create_birthday_announcement(user_id, username, date, year)
+        send_message(app, BIRTHDAY_CHANNEL, announcement)
+        logger.info(
+            f"IMMEDIATE_BIRTHDAY: Sent fallback announcement for {username} ({user_id})"
+        )
+
+    # CRITICAL: Mark birthday as announced to prevent duplicate announcements during daily check
+    mark_birthday_announced(user_id)
+    logger.info(
+        f"IMMEDIATE_BIRTHDAY: Marked {username} ({user_id}) as announced to prevent duplicates"
+    )
 
 
 def handle_dm_help(say):
@@ -94,6 +145,7 @@ def handle_dm_admin_help(say, user_id, app):
 
 • `admin status` - View system health and component status
 • `admin status detailed` - View detailed system information
+• `admin timezone` - View birthday celebration schedule across timezones
 
 • `config` - View command permissions
 • `config COMMAND true/false` - Change command permissions
@@ -103,6 +155,7 @@ def handle_dm_admin_help(say, user_id, app):
 • `admin restore latest` - Restore from the latest backup
 • `admin cache clear` - Clear all web search cache
 • `admin cache clear DD/MM` - Clear web search cache for a specific date
+• `admin test-upload` - Test the image upload functionality
 
 *Bot Personality:*
 • `admin personality` - Show current bot personality
@@ -138,22 +191,10 @@ def handle_dm_date(say, user, result, app):
 
     # Check if birthday is today and send announcement if so
     if check_if_birthday_today(date):
-        say(
-            f"It's your birthday today! {date_words}{age_text} - I'll send an announcement to the birthday channel right away!"
-        )
-
         username = get_username(app, user)
-        try:
-            # Try to get personalized AI message
-            ai_message = completion(username, date_words, user, date, year, app=app)
-            send_message(app, BIRTHDAY_CHANNEL, ai_message)
-        except Exception as e:
-            logger.error(
-                f"AI_ERROR: Failed to generate immediate birthday message: {e}"
-            )
-            # Fallback to generated announcement if AI fails
-            announcement = create_birthday_announcement(user, username, date, year)
-            send_message(app, BIRTHDAY_CHANNEL, announcement)
+        send_immediate_birthday_announcement(
+            user, username, date, year, date_words, age_text, say, app
+        )
     else:
         if updated:
             say(
@@ -220,27 +261,11 @@ def handle_command(text, user_id, say, app):
             date_words = date_to_words(date)
             age_text = ""
 
-        # Check if birthday is today and send announcement if so - ADD THIS BLOCK
+        # Check if birthday is today and send announcement if so
         if check_if_birthday_today(date):
-            say(
-                f"It's your birthday today! {date_words}{age_text} - I'll send an announcement to the birthday channel right away!"
+            send_immediate_birthday_announcement(
+                user_id, username, date, year, date_words, age_text, say, app
             )
-
-            try:
-                # Try to get personalized AI message
-                ai_message = completion(
-                    username, date_words, user_id, date, year, app=app
-                )
-                send_message(app, BIRTHDAY_CHANNEL, ai_message)
-            except Exception as e:
-                logger.error(
-                    f"AI_ERROR: Failed to generate immediate birthday message: {e}"
-                )
-                # Fallback to generated announcement if AI fails
-                announcement = create_birthday_announcement(
-                    user_id, username, date, year
-                )
-                send_message(app, BIRTHDAY_CHANNEL, announcement)
         else:
             if updated:
                 say(f"Your birthday has been updated to {date_words}{age_text}")
@@ -663,12 +688,69 @@ def handle_test_command(user_id, say, app):
 
         say(f"Generating a test birthday message for you... this might take a moment.")
 
-        # Try to get personalized AI message
-        test_message = completion(
-            username, date_words, user_id, user_date, birth_year, app=app
+        # Get enhanced profile data for personalization
+        from utils.slack_utils import get_user_profile
+        from config import AI_IMAGE_GENERATION_ENABLED
+
+        user_profile = get_user_profile(app, user_id)
+
+        # Try to get personalized AI message with profile data and optional image
+        result = completion(
+            username,
+            date_words,
+            user_id,
+            user_date,
+            birth_year,
+            app=app,
+            user_profile=user_profile,
+            include_image=AI_IMAGE_GENERATION_ENABLED,
         )
 
-        say(f"Here's what your birthday message would look like:\n\n{test_message}")
+        if isinstance(result, tuple) and AI_IMAGE_GENERATION_ENABLED:
+            test_message, image_data = result
+            if image_data:
+                # Send the message with image in one go (no duplicate message)
+                try:
+                    from utils.slack_utils import send_message_with_image
+
+                    # Send the test message with the generated image
+                    if send_message_with_image(
+                        app,
+                        user_id,
+                        f"Here's what your birthday message would look like:\n\n{test_message}",
+                        image_data,
+                    ):
+                        logger.info(
+                            f"TEST: Successfully sent test message with image to {username} ({user_id})"
+                        )
+                    else:
+                        # Fallback to text-only if image upload fails
+                        say(
+                            f"Here's what your birthday message would look like:\n\n{test_message}"
+                        )
+                        say(
+                            "Note: Image was generated but couldn't be sent. Check the logs for details."
+                        )
+                except Exception as e:
+                    logger.error(
+                        f"IMAGE_ERROR: Failed to send test image to user {user_id}: {e}"
+                    )
+                    say(
+                        f"Here's what your birthday message would look like:\n\n{test_message}"
+                    )
+                    say(
+                        "Note: Image was generated but couldn't be sent. Check the logs for details."
+                    )
+            else:
+                say(
+                    f"Here's what your birthday message would look like:\n\n{test_message}"
+                )
+                say(
+                    "Note: Image generation was attempted but failed. Check the logs for details."
+                )
+        else:
+            test_message = result
+            say(f"Here's what your birthday message would look like:\n\n{test_message}")
         logger.info(f"TEST: Generated test birthday message for {username} ({user_id})")
 
     except Exception as e:
@@ -688,6 +770,46 @@ def handle_test_command(user_id, say, app):
         )
 
         say(announcement)
+
+
+def handle_test_upload_command(user_id, say, app):
+    """Handles the admin test-upload command."""
+    say("Attempting to upload a test image to you via DM...")
+    try:
+        from PIL import Image, ImageDraw
+        import io
+        from utils.slack_utils import send_message_with_image
+
+        # Create a dummy image
+        img = Image.new("RGB", (200, 50), color="blue")
+        d = ImageDraw.Draw(img)
+        d.text((10, 10), "Test Upload", fill="white")
+
+        buffer = io.BytesIO()
+        img.save(buffer, format="PNG")
+        image_bytes = buffer.getvalue()
+
+        image_data = {"image_data": image_bytes, "personality": "test", "format": "png"}
+
+        if send_message_with_image(
+            app,
+            user_id,
+            "This is a test upload from the `admin test-upload` command.",
+            image_data=image_data,
+        ):
+            say("Test image uploaded successfully to your DMs!")
+        else:
+            say("Test image upload failed. Check logs for details.")
+    except ImportError:
+        logger.error(
+            "TEST_UPLOAD: Pillow library is not installed. Cannot create a test image."
+        )
+        say(
+            "I can't create a test image because the `Pillow` library is not installed. Please install it (`pip install Pillow`) and try again."
+        )
+    except Exception as e:
+        logger.error(f"TEST_UPLOAD: Failed to execute test upload command: {e}")
+        say(f"An error occurred during the test upload: {e}")
 
 
 def handle_cache_command(parts, user_id, say, app):
@@ -944,6 +1066,23 @@ def handle_admin_command(subcommand, args, say, user_id, app):
         logger.info(
             f"ADMIN: {username} ({user_id}) requested system status {'with details' if is_detailed else ''}"
         )
+
+    elif subcommand == "timezone":
+        # Show timezone celebration schedule
+        from utils.timezone_utils import format_timezone_schedule
+
+        try:
+            schedule_info = format_timezone_schedule(app)
+            say(schedule_info)
+            logger.info(f"ADMIN: {username} ({user_id}) requested timezone schedule")
+        except Exception as e:
+            say(f"Failed to get timezone schedule: {e}")
+            logger.error(
+                f"ADMIN_ERROR: Failed to get timezone schedule for {username}: {e}"
+            )
+
+    elif subcommand == "test-upload":
+        handle_test_upload_command(user_id, say, app)
 
     else:
         say(

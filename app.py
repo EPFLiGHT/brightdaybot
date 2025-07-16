@@ -37,8 +37,8 @@ if __name__ == "__main__":
         # Set up the scheduler before starting the app
         setup_scheduler(run_daily)
 
-        # Check for today's birthdays at startup
-        run_now()
+        # Check for today's birthdays at startup and catch up on missed celebrations
+        run_now(app)
 
         # Start the app
         handler.start()

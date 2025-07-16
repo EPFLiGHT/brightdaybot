@@ -1,15 +1,23 @@
 from datetime import datetime, timezone
 
-from utils.date_utils import check_if_birthday_today, date_to_words, get_star_sign
+from utils.date_utils import check_if_birthday_today, date_to_words
 from utils.storage import (
     load_birthdays,
-    get_announced_birthdays_today,
-    mark_birthday_announced,
-    cleanup_old_announcement_files,
+    mark_timezone_birthday_announced,
+    cleanup_timezone_announcement_files,
+    is_user_celebrated_today,
 )
-from utils.slack_utils import get_username, send_message, get_user_mention
-from utils.message_generator import completion, create_birthday_announcement
-from config import BIRTHDAY_CHANNEL, get_logger
+from utils.slack_utils import (
+    get_username,
+    send_message,
+    send_message_with_image,
+    get_user_mention,
+    get_user_profile,
+)
+from utils.message_generator import (
+    create_consolidated_birthday_announcement,
+)
+from config import BIRTHDAY_CHANNEL, AI_IMAGE_GENERATION_ENABLED, get_logger
 
 logger = get_logger("birthday")
 
@@ -117,9 +125,136 @@ def send_reminder_to_users(app, users, custom_message=None):
     return results
 
 
+def timezone_aware_check(app, moment):
+    """
+    Run timezone-aware birthday checks - consolidates ALL birthdays for the day when first person hits 9 AM
+
+    To avoid spamming colleagues, when the first person's timezone hits 9:00 AM, we celebrate
+    ALL people with birthdays today in one consolidated message:
+    - Alice (Tokyo UTC+9): 9:00 AM JST = 00:00 UTC (triggers check)
+    - Bob (New York UTC-5): would be 9:00 AM EST = 14:00 UTC
+    - Carol (London UTC+0): would be 9:00 AM GMT = 09:00 UTC
+
+    Result: One message at 00:00 UTC: "Happy Birthday Alice, Bob, and Carol! 🎉"
+
+    Args:
+        app: Slack app instance
+        moment: Current datetime with timezone info
+    """
+    from utils.timezone_utils import is_celebration_time_for_user
+
+    # Ensure moment has timezone info
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+
+    logger.info(
+        f"TIMEZONE: Running timezone-aware birthday checks at {moment.strftime('%Y-%m-%d %H:%M')} (UTC)"
+    )
+
+    birthdays = load_birthdays()
+
+    # Clean up old timezone announcement files
+    cleanup_timezone_announcement_files()
+
+    # First, check if any birthdays have already been celebrated today
+    already_celebrated_today = False
+    for user_id, birthday_data in birthdays.items():
+        if check_if_birthday_today(
+            birthday_data["date"], moment
+        ) and is_user_celebrated_today(user_id):
+            already_celebrated_today = True
+            break
+
+    if already_celebrated_today:
+        logger.debug("TIMEZONE: Birthdays already celebrated today, skipping")
+        return
+
+    # Find who's hitting 9 AM right now (the trigger)
+    trigger_people = []
+    all_birthday_people_today = []
+
+    for user_id, birthday_data in birthdays.items():
+        # Check if it's their birthday today
+        if check_if_birthday_today(birthday_data["date"], moment):
+            # Get user profile for timezone info
+            user_profile = get_user_profile(app, user_id)
+            user_timezone = (
+                user_profile.get("timezone", "UTC") if user_profile else "UTC"
+            )
+            username = get_username(app, user_id)
+
+            date_words = date_to_words(birthday_data["date"], birthday_data.get("year"))
+
+            birthday_person = {
+                "user_id": user_id,
+                "username": username,
+                "date": birthday_data["date"],
+                "year": birthday_data.get("year"),
+                "date_words": date_words,
+                "profile": user_profile,
+                "timezone": user_timezone,
+            }
+
+            # Add to all birthday people for today
+            all_birthday_people_today.append(birthday_person)
+
+            # Check if this person is hitting 9 AM right now (the trigger)
+            if is_celebration_time_for_user(user_timezone):
+                trigger_people.append(birthday_person)
+                logger.info(
+                    f"TIMEZONE: It's 9 AM in {user_timezone} for {username} - triggering celebration for all today's birthdays!"
+                )
+
+    # If someone is hitting 9 AM, celebrate EVERYONE with birthdays today
+    if trigger_people and all_birthday_people_today:
+        logger.info(
+            f"TIMEZONE: Celebrating all {len(all_birthday_people_today)} birthdays today (triggered by {len(trigger_people)} person(s) hitting 9 AM)"
+        )
+
+        try:
+            # Create consolidated message for ALL birthday people today
+            result = create_consolidated_birthday_announcement(
+                all_birthday_people_today,
+                app=app,
+                include_image=AI_IMAGE_GENERATION_ENABLED,
+            )
+
+            if isinstance(result, tuple) and AI_IMAGE_GENERATION_ENABLED:
+                message, image_data = result
+                send_message_with_image(app, BIRTHDAY_CHANNEL, message, image_data)
+            else:
+                message = result
+                send_message(app, BIRTHDAY_CHANNEL, message)
+
+            # Mark ALL birthday people as celebrated to prevent duplicate celebrations
+            for person in all_birthday_people_today:
+                mark_timezone_birthday_announced(person["user_id"], person["timezone"])
+
+            names = [p["username"] for p in all_birthday_people_today]
+            logger.info(
+                f"TIMEZONE: Successfully celebrated all birthdays today: {', '.join(names)}"
+            )
+
+        except Exception as e:
+            logger.error(
+                f"TIMEZONE_ERROR: Failed to celebrate consolidated birthdays: {e}"
+            )
+
+            # Fallback: mark as celebrated to prevent retry loops
+            for person in all_birthday_people_today:
+                mark_timezone_birthday_announced(person["user_id"], person["timezone"])
+
+    elif all_birthday_people_today:
+        logger.debug(
+            f"TIMEZONE: Found {len(all_birthday_people_today)} birthdays today, but none hitting 9 AM right now"
+        )
+    else:
+        logger.debug("TIMEZONE: No birthdays to celebrate today")
+
+
 def daily(app, moment):
     """
-    Run daily tasks like birthday messages
+    Run daily tasks like birthday messages - now only timezone-aware checks
 
     Args:
         app: Slack app instance
@@ -130,143 +265,11 @@ def daily(app, moment):
         moment = moment.replace(tzinfo=timezone.utc)
 
     logger.info(
-        f"DAILY: Running birthday checks for {moment.strftime('%Y-%m-%d')} (UTC)"
+        f"DAILY: Running timezone-aware birthday checks for {moment.strftime('%Y-%m-%d')} (UTC)"
     )
-    birthdays = load_birthdays()
 
-    # Clean up old announcement files
-    cleanup_old_announcement_files()
+    # Run timezone-aware checks only
+    timezone_aware_check(app, moment)
 
-    # Get already announced birthdays
-    already_announced = get_announced_birthdays_today()
-
-    # Track today's birthdays for group acknowledgment
-    todays_birthday_users = []
-
-    birthday_count = 0
-    for user_id, birthday_data in birthdays.items():
-        # Skip if already announced today
-        if user_id in already_announced:
-            logger.info(f"BIRTHDAY: Skipping already announced birthday for {user_id}")
-            birthday_count += 1
-            continue
-
-        # Use our accurate date checking function instead of string comparison
-        if check_if_birthday_today(birthday_data["date"], moment):
-            username = get_username(app, user_id)
-            logger.info(f"BIRTHDAY: Today is {username}'s ({user_id}) birthday!")
-            birthday_count += 1
-
-            # Add to today's birthday list
-            todays_birthday_users.append({"user_id": user_id, "username": username})
-
-            try:
-                # Try to get personalized AI message first
-                date_words = date_to_words(
-                    birthday_data["date"], birthday_data.get("year")
-                )
-                ai_message = completion(
-                    username,
-                    date_words,
-                    user_id,
-                    birthday_data["date"],
-                    birthday_data.get("year"),
-                    app=app,  # Pass the Slack app instance to enable custom emoji fetching
-                )
-                logger.info(f"AI: Generated birthday message for {username}")
-
-                # Send the AI-generated message
-                send_message(app, BIRTHDAY_CHANNEL, ai_message)
-
-                # Mark as announced
-                mark_birthday_announced(user_id)
-
-            except Exception as e:
-                logger.error(f"AI_ERROR: Failed to generate message: {e}")
-
-                # Fallback to generated announcement if AI fails
-                announcement = create_birthday_announcement(
-                    user_id,
-                    username,
-                    birthday_data["date"],
-                    birthday_data.get("year"),
-                    get_star_sign(birthday_data["date"]),
-                )
-                send_message(app, BIRTHDAY_CHANNEL, announcement)
-
-                # Mark as announced
-                mark_birthday_announced(user_id)
-
-    # If multiple people have birthdays today, send a special message highlighting this
-    if len(todays_birthday_users) > 1:
-        # Create mentions for each birthday person
-        mentions = [
-            f"{get_user_mention(user['user_id'])}" for user in todays_birthday_users
-        ]
-
-        # Format the mention list with proper grammar
-        if len(mentions) == 2:
-            mention_text = f"{mentions[0]} and {mentions[1]}"
-        else:
-            mention_text = ", ".join(mentions[:-1]) + f", and {mentions[-1]}"
-
-        # Select a random variation of the shared birthday message
-        same_day_messages = [
-            # Original message
-            (
-                f":star2: *Wow! Birthday Twins!* :star2:\n\n"
-                f"<!channel> Did you notice? {mention_text} share the same birthday!\n\n"
-                f"What are the odds? :thinking_face: That calls for extra celebration! :tada:"
-            ),
-            # Cosmic connection
-            (
-                f":milky_way: *Cosmic Birthday Connection!* :milky_way:\n\n"
-                f"<!channel> The stars aligned for {mention_text}!\n\n"
-                f"Same birthday, same awesome cosmic energy! :crystal_ball: :sparkles:"
-            ),
-            # Birthday party
-            (
-                f":birthday: *Same-Day Birthday Party!* :birthday:\n\n"
-                f"<!channel> Double the cake, double the fun! {mention_text} are celebrating together!\n\n"
-                f"Time to make this joint celebration epic! :cake: :confetti_ball:"
-            ),
-            # Statistical wonder
-            (
-                f":chart_with_upwards_trend: *Birthday Statistics: AMAZING!* :open_mouth:\n\n"
-                f"<!channel> What are the chances?! {mention_text} share a birthday!\n\n"
-                f"The probability experts among us are freaking out right now! :exploding_head: :tada:"
-            ),
-            # Birthday squad
-            (
-                f":guardsman: *Birthday Squad Assemble!* :guardsman:\n\n"
-                f"<!channel> {mention_text} formed a birthday alliance today!\n\n"
-                f"Double the wishes, double the celebration! :rocket: :dizzy:"
-            ),
-            # Birthday multiverse
-            (
-                f":rotating_light: *Birthday Multiverse Alert* :rotating_light:\n\n"
-                f"<!channel> In this timeline, {mention_text} share the exact same birthday!\n\n"
-                f"Coincidence? We think not! :thinking_face: :magic_wand:"
-            ),
-            # Birthday twins
-            (
-                f":twins_parrot: *Birthday {len(todays_birthday_users) > 2 and 'Triplets' or 'Twins'}!* :twins_parrot:\n\n"
-                f"<!channel> Plot twist! {mention_text} are celebrating birthdays on the same day!\n\n"
-                f"Let's make their special day twice as memorable! :gift: :balloon:"
-            ),
-        ]
-
-        # Choose a random message variation
-        import random
-
-        same_day_message = random.choice(same_day_messages)
-
-        send_message(app, BIRTHDAY_CHANNEL, same_day_message)
-        logger.info(
-            f"BIRTHDAY: Sent shared birthday message for {len(todays_birthday_users)} users"
-        )
-
-    if birthday_count == 0:
-        logger.info("DAILY: No birthdays today")
-
-    return birthday_count
+    # Legacy daily check removed - timezone-aware checks handle everything
+    return 0  # Return count for compatibility
