@@ -33,7 +33,7 @@ BIRTHDAY_INTROS = [
     ":birthday: ATTENTION WONDERFUL HUMANS! :tada:",
     ":loudspeaker: :sparkles: SPECIAL ANNOUNCEMENT FOR EVERYONE! :sparkles: :loudspeaker:",
     ":rotating_light: BIRTHDAY ALERT! BIRTHDAY ALERT! :rotating_light:",
-    ":mega: HEY <!channel>! STOP WHAT YOU'RE DOING! :mega:",
+    ":mega: HEY <!here>! STOP WHAT YOU'RE DOING! :mega:",
     ":siren: URGENT: CAKE NEEDED IN THE CHAT! :siren:",
 ]
 
@@ -235,7 +235,7 @@ def create_birthday_announcement(
 
 {ending}
 
-<!channel> Let's celebrate together!
+<!here> Let's celebrate together!
 """
     return message.strip()
 
@@ -245,7 +245,7 @@ BACKUP_MESSAGES = [
     """
 :birthday: HAPPY BIRTHDAY {name}!!! :tada:
 
-<!channel> We've got a birthday to celebrate! 
+<!here> We've got a birthday to celebrate! 
 
 :cake: :cake: :cake: :cake: :cake: :cake: :cake:
 
@@ -262,7 +262,7 @@ Any special celebration plans for your big day? :sparkles:
 :point_down: Drop your birthday wishes below! :point_down:
     """,
     """
-:rotating_light: ATTENTION <!channel> :rotating_light:
+:rotating_light: ATTENTION <!here> :rotating_light:
 
 IT'S {name}'s BIRTHDAY!!! :birthday: 
 
@@ -282,7 +282,7 @@ So... how are you planning to celebrate? :thinking_face:
     """
 :alarm_clock: *Birthday Alert* :alarm_clock:
 
-<!channel> Everyone drop what you're doing because...
+<!here> Everyone drop what you're doing because...
 
 {name} is having a BIRTHDAY today! :birthday:
 
@@ -300,7 +300,7 @@ What's on the birthday agenda today? :calendar:
     """
 Whoop whoop! :tada: 
 
-:loudspeaker: <!channel> Announcement! :loudspeaker:
+:loudspeaker: <!here> Announcement! :loudspeaker:
 
 It's {name}'s special day! :birthday:
 
@@ -318,7 +318,7 @@ How are you celebrating this year? :cake:
     """
 :rotating_light: SPECIAL BIRTHDAY ANNOUNCEMENT :rotating_light:
 
-<!channel> HEY EVERYONE! 
+<!here> HEY EVERYONE! 
 
 :arrow_down: :arrow_down: :arrow_down:
 It's {name}'s birthday!
@@ -485,8 +485,8 @@ def completion(
         profile_details = []
         if title:
             profile_details.append(f"job title: {title}")
-        if timezone_label:
-            profile_details.append(f"timezone: {timezone_label}")
+        # if timezone_label:
+        #     profile_details.append(f"timezone: {timezone_label}")
 
         if profile_details:
             profile_context = f"\n\nPersonalize the message using this information about them: {', '.join(profile_details)}."
@@ -517,7 +517,7 @@ def completion(
         
         IMPORTANT REQUIREMENTS:
         1. Include their Slack mention "{user_mention}" somewhere in the message
-        2. Make sure to address the entire channel with <!channel> to notify everyone
+        2. Make sure to address active members with <!here> to notify those currently online
         3. Create a message that's lively and engaging with good structure and flow
         4. {emoji_instruction} like: {safe_emoji_examples}
         5. {emoji_warning}
@@ -561,9 +561,9 @@ def completion(
                 )
 
             # Check for channel mention
-            if "<!channel>" not in reply:
+            if "<!here>" not in reply:
                 is_valid = False
-                validation_errors.append("Missing channel mention <!channel>")
+                validation_errors.append("Missing here mention <!here>")
 
             # If validation passed, return the message
             if is_valid:
@@ -587,7 +587,7 @@ def completion(
                 template.append(
                     {
                         "role": "user",
-                        "content": f"The message you provided is missing: {error_msg}. Please regenerate the message including both the user mention {user_mention} and channel mention <!channel> formats exactly as specified.",
+                        "content": f"The message you provided is missing: {error_msg}. Please regenerate the message including both the user mention {user_mention} and here mention <!here> formats exactly as specified.",
                     }
                 )
             else:
@@ -776,8 +776,8 @@ def _generate_ai_consolidated_message(birthday_people, app=None, include_image=F
             profile_details = []
             if profile.get("title"):
                 profile_details.append(f"job: {profile['title']}")
-            if profile.get("timezone_label"):
-                profile_details.append(f"timezone: {profile['timezone_label']}")
+            # if profile.get("timezone_label"):
+            #     profile_details.append(f"timezone: {profile['timezone_label']}")
             if profile_details:
                 profile_info = f" [{', '.join(profile_details)}]"
 
@@ -850,7 +850,7 @@ BIRTHDAY PEOPLE:
 
 FORMATTING REQUIREMENTS:
 - Include {mention_text} in the message
-- Include <!channel> to notify everyone
+- Include <!here> to notify active members
 - Use this exact format for mentions: {mention_text}
 - Keep the message to 8-12 lines maximum
 - {emoji_instruction}
@@ -947,7 +947,7 @@ FORMATTING INSTRUCTION: {personality['format_instruction']}
 SLACK FORMATTING RULES:
 - Use *bold* (single asterisks) NOT **double asterisks**
 - Use _italic_ (single underscores) NOT __double underscores__
-- Use <!channel> exactly as written to notify everyone
+- Use <!here> exactly as written to notify active members
 - Use provided user mentions exactly as given
 - Use :emoji_name: format for emojis
 
@@ -1080,8 +1080,8 @@ def _validate_consolidated_message(message, required_mentions):
             return False
 
     # Check for channel notification
-    if "<!channel>" not in message:
-        logger.warning("VALIDATION: Missing <!channel> notification")
+    if "<!here>" not in message:
+        logger.warning("VALIDATION: Missing <!here> notification")
         return False
 
     # Check minimum length
@@ -1108,7 +1108,7 @@ def _generate_fallback_consolidated_message(birthday_people):
 
     # Simple but elegant fallback
     message = f":star2: *{title} Alert!* :star2:\n\n"
-    message += f"<!channel> What are the odds?! {mention_text} are all celebrating birthdays today!\n\n"
+    message += f"<!here> What are the odds?! {mention_text} are all celebrating birthdays today!\n\n"
     message += f"This calls for an extra special celebration! :birthday: :tada:\n\n"
     message += f"Let's make their shared special day absolutely amazing! :sparkles:"
 
