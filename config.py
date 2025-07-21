@@ -173,7 +173,7 @@ SLACK FORMATTING RULES - VERY IMPORTANT:
 2. For italic text, use _single underscores_ NOT *asterisks* or __double underscores__
 3. For strikethrough, use ~tildes~ around text
 4. For links use <URL|text> format NOT [text](URL)
-5. To mention a channel use <!channel> exactly as written
+5. To mention active members use <!here> exactly as written
 6. To mention a user use <@USER_ID> exactly as provided to you
 
 CONTENT GUIDELINES:
@@ -182,7 +182,7 @@ CONTENT GUIDELINES:
 3. Include the person's name and at least 2-3 emoji for visual appeal
 4. Reference their star sign or age if provided (but keep it short)
 5. {{format_instruction}} 
-6. ALWAYS include both the user mention and <!channel> mention
+6. ALWAYS include both the user mention and <!here> mention
 7. End with a brief question about celebration plans
 8. Don't mention that you're an AI
 
