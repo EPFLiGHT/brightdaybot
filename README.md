@@ -26,11 +26,12 @@ A Slack bot that records and wishes Slack workspace members a happy birthday wit
 brightdaybot/
 ├── app.py                    # Main entry point
 ├── config.py                 # Configuration and environment settings
+├── personality_config.py     # 🆕 NEW: Centralized personality configurations
 ├── data/                     # Data directory
 │   ├── logs/                 # Log files
 │   ├── storage/              # Birthday data and configuration
 │   ├── tracking/             # Announcement tracking
-│   ├── cache/                # Cache for web search results
+│   ├── cache/                # Cache for web search results and images
 │   └── backups/              # Backup files
 ├── handlers/                 # Slack event and command handlers
 │   ├── command_handler.py    # Command processing logic
@@ -132,7 +133,7 @@ The bot will:
 - Initialize configuration from storage or create default settings
 - Store birthdays in data/storage/birthdays.txt
 - Store configuration in data/storage/\*.json files
-- Write logs to data/logs/app.log
+- Write comprehensive logs to data/logs/ with component-specific files
 - Check for today's birthdays at startup with catch-up for missed celebrations
 - Schedule hourly timezone-aware birthday checks at :00 past each hour
 - Schedule daily safety net check at 10:00 AM in server local timezone (configurable in config.py)
@@ -218,6 +219,7 @@ Or simply send a date in `DD/MM` or `DD/MM/YYYY` format.
 
 ### Admin Commands
 
+- `admin help` - View complete admin command reference with all available personalities
 - `admin list` - List configured admin users
 - `admin add USER_ID` - Add a user as admin
 - `admin remove USER_ID` - Remove admin privileges
@@ -227,6 +229,7 @@ Or simply send a date in `DD/MM` or `DD/MM/YYYY` format.
 - `admin status` - Check system health and component status
 - `admin status detailed` - Get detailed system information
 - `admin timezone` - View birthday celebration schedule across timezones
+- `admin test @user` - **NEW**: Generate test birthday message & image for a user (stays in DM)
 - `remind [message]` - Send reminders to users without birthdays
 - `config` - View command permissions
 - `config COMMAND true/false` - Change command permissions
@@ -241,7 +244,9 @@ Or simply send a date in `DD/MM` or `DD/MM/YYYY` format.
 
 ### Bot Personality
 
-The bot supports multiple personalities that change how birthday messages are written:
+**Enhanced Personality System** 🎭
+
+The bot supports multiple personalities that change birthday messages, images, and web search formatting. All personalities are now defined in `personality_config.py`:
 
 - `standard` - Friendly, enthusiastic birthday bot (default)
 - `mystic_dog` - Ludo the Mystic Birthday Dog who provides cosmic predictions and historical date facts
@@ -251,12 +256,17 @@ The bot supports multiple personalities that change how birthday messages are wr
 - `superhero` - Captain Celebration, a superhero dedicated to making birthdays epic
 - `time_traveler` - Chrono, a time-traveling messenger from the future
 - `pirate` - Captain BirthdayBeard, a jolly pirate with nautical-themed messages
-- `custom` - Customizable personality using environment variables or commands
+- `random` - Randomly selects a different personality for each birthday
+- `custom` - Fully customizable personality
 
-To change the personality:
+**Managing Personalities:**
+1. View current: `admin personality`
+2. Change personality: `admin personality [name]`
+3. Test personality: `admin test @user`
+4. View all options: `admin help`
 
-1. As an admin, use the command: `admin personality [name]`
-2. The selection persists across bot restarts
+**Adding Custom Personalities:**
+Edit `personality_config.py` and add a new entry with all required fields. The new personality will automatically be available.
 
 #### Ludo the Mystic Birthday Dog
 
@@ -296,16 +306,25 @@ The bot maintains persistent configuration across restarts:
 
 ### Changing Birthday Message Style
 
-Edit the templates in config.py to customize:
+**NEW: Centralized Personality Configuration** 🎨
 
-- `BASE_TEMPLATE` - The core template all personalities share
-- `BOT_PERSONALITIES` - Individual personality definitions
-- `template_extension` - Personality-specific additions to the base template
+All personality configurations are now centralized in `personality_config.py` for easy management:
 
-Additional message components can be customized in utils/message_generator.py:
+- **`personality_config.py`** - Complete personality definitions including:
+  - Basic info (name, description, style)
+  - Message generation templates and prompts
+  - Image generation prompts
+  - Web search formatting
+  - Consolidated message prompts
 
-- `BACKUP_MESSAGES` - Fallback templates when AI is unavailable
-- `BIRTHDAY_INTROS`, `BIRTHDAY_MIDDLES`, etc. - Components for template messages
+**Adding a New Personality:**
+1. Add a new entry to the `PERSONALITIES` dictionary in `personality_config.py`
+2. Define all required fields (see existing personalities as examples)
+3. The new personality will automatically be available in all bot functions
+
+**Legacy Configuration:**
+- `BASE_TEMPLATE` - The core template all personalities share (in config.py)
+- `BACKUP_MESSAGES` - Fallback templates when AI is unavailable (in utils/message_generator.py)
 
 ### Schedule Configuration
 
@@ -318,13 +337,19 @@ The bot now uses a sophisticated multi-timezone celebration system:
 
 ### AI Image Generation
 
-The bot can generate personalized birthday images using OpenAI's GPT-Image-1 model:
+**Enhanced Image Generation** 🖼️
 
-- **Personality-Themed Images**: Each bot personality generates images in its unique style
+The bot can generate personalized birthday images using OpenAI's GPT-Image-1 model with new advanced features:
+
+- **Personality-Themed Images**: Each bot personality generates images in its unique style (configured in `personality_config.py`)
+- **Message Context Integration**: Images now incorporate themes from the generated birthday message
+- **Profile Photo Face Detection**: Automatically includes the person's face in the image if they have a profile photo
 - **Creative Randomness**: AI adds unexpected creative elements to make each image unique
-- **Profile Integration**: Uses user's job title for personalization
-- **Automatic Caching**: Images are saved to `data/cache/images/` directory
+- **Profile Integration**: Uses user's job title and profile information for personalization
+- **Automatic Caching**: Images are saved to `data/cache/images/` directory with automatic cleanup
 - **Fallback Support**: Text-only messages if image generation fails
+
+**Testing**: Admins can use `admin test @user` to generate test birthday messages and images.
 
 Enable/disable with `AI_IMAGE_GENERATION_ENABLED` environment variable.
 
@@ -347,13 +372,40 @@ The bot implements several data management features:
   - Legacy tracking: `data/tracking/announced_YYYY-MM-DD.txt`
   - Timezone tracking: `data/tracking/timezone_announced_YYYY-MM-DD.txt`
 
+## Enhanced Logging System
+
+**NEW: Component-Specific Logging** 📝
+
+BrightDayBot now features an advanced multi-file logging system that organizes logs by component for easier debugging and monitoring:
+
+### Log Files Structure
+
+- **`main.log`** - Core application startup, configuration, and general operations
+- **`commands.log`** - User commands, admin actions, and command processing
+- **`events.log`** - Slack events like direct messages and team joins
+- **`birthday.log`** - Birthday service logic, celebrations, and scheduling
+- **`ai.log`** - AI/LLM interactions (OpenAI API calls, message/image generation)
+- **`slack.log`** - Slack API interactions and user profile operations
+- **`storage.log`** - Data storage operations, file access, and backups
+- **`system.log`** - System utilities, health checks, and date operations
+- **`scheduler.log`** - Background scheduling and periodic tasks
+
+### Features
+
+- **Automatic Rotation**: Log files rotate when they reach 10MB (keeping 5 backup files)
+- **Component Routing**: Each module logs to its appropriate file automatically
+- **Health Monitoring**: The `admin status` command monitors all log files
+- **Size Management**: Prevents logs from consuming excessive disk space
+- **Structured Format**: Consistent timestamped format across all components
+
 ## System Health Monitoring
 
-BrightDayBot includes a health check system to monitor the status of critical components:
+BrightDayBot includes a comprehensive health check system to monitor the status of critical components:
 
 - **Storage Status**: Checks if birthday data is accessible and reports the number of birthdays
 - **Admin Configuration**: Verifies admin user configuration is properly loaded
 - **Web Search Cache**: Monitors cache status, size, and most recent updates
+- **Log Files**: Monitors all component log files for size, activity, and potential issues
 - **API Configuration**: Validates that required API keys are configured
 
 To check system health:
@@ -377,7 +429,16 @@ If you encounter issues with BrightDayBot, follow these steps:
 4. Verify all required environment variables are set correctly
 5. Ensure the bot has proper permissions in Slack
 6. Check that all required directories and files exist with proper permissions
-7. Review the log files in `data/logs/` for any error messages
+7. Review the component-specific log files in `data/logs/` for error messages:
+   - `main.log` - Core application logs
+   - `commands.log` - User commands and admin actions
+   - `events.log` - Slack events
+   - `birthday.log` - Birthday service logic
+   - `ai.log` - AI/LLM interactions
+   - `slack.log` - Slack API interactions
+   - `storage.log` - Data storage operations
+   - `system.log` - System utilities and health checks
+   - `scheduler.log` - Scheduling and background tasks
 
 Common issues:
 

@@ -20,6 +20,7 @@ def generate_birthday_image(
     date_str=None,
     enable_transparency=False,
     save_to_file=True,
+    birthday_message=None,
 ):
     """
     Generate a personalized birthday image using GPT-Image-1
@@ -30,6 +31,7 @@ def generate_birthday_image(
         date_str: Date string in DD/MM format (optional, for caching)
         enable_transparency: Whether to enable transparent background (requires response_format="b64_json")
         save_to_file: Whether to automatically save the generated image to disk (default: True)
+        birthday_message: Optional birthday announcement message to incorporate into the image
 
     Returns:
         Dictionary with image URL and metadata, or None if failed
@@ -40,7 +42,9 @@ def generate_birthday_image(
         title = user_profile.get("title", "")
 
         # Create personality-specific prompts
-        prompt = create_image_prompt(name, title, personality)
+        prompt = create_image_prompt(
+            name, title, personality, user_profile, birthday_message
+        )
 
         logger.info(
             f"IMAGE_GEN: Generating birthday image for {name} in {personality} style"
@@ -124,7 +128,9 @@ def generate_birthday_image(
         return None
 
 
-def create_image_prompt(name, title, personality):
+def create_image_prompt(
+    name, title, personality, user_profile=None, birthday_message=None
+):
     """
     Create personality-specific prompts for GPT-Image-1 generation with randomness for creativity
 
@@ -132,6 +138,8 @@ def create_image_prompt(name, title, personality):
         name: User's name
         title: User's job title for personalization
         personality: Bot personality
+        user_profile: Full user profile data (includes photo URLs)
+        birthday_message: Optional birthday announcement message to incorporate
 
     Returns:
         String prompt for DALL-E
@@ -145,19 +153,44 @@ def create_image_prompt(name, title, personality):
     else:
         multiple_context = ""
 
-    base_prompts = {
-        "mystic_dog": f"A mystical birthday celebration for {name}{title_context}{multiple_context}. Cosmic scene with a wise golden retriever wearing a wizard hat, surrounded by swirling galaxies, birthday cake with candles that look like stars, magical sparkles, and celestial birthday decorations. Add 2-3 creative, unexpected magical elements that would make this celebration truly special and unique. Ethereal lighting with deep purples, blues, and gold. Fantasy art style.",
-        "time_traveler": f"A futuristic birthday party for {name}{title_context}{multiple_context}. Sci-fi celebration with holographic birthday cake, floating presents, time portals in the background, robotic party decorations, neon lighting, and futuristic cityscape. Add 2-3 creative, unexpected futuristic elements that would make this celebration truly special and unique. Cyberpunk aesthetic with bright blues, purples, and electric colors.",
-        "superhero": f"A superhero-themed birthday celebration for {name}{title_context}{multiple_context}. Comic book style party with a caped birthday hero, dynamic action poses, 'HAPPY BIRTHDAY' in bold comic lettering, colorful balloons shaped like superhero symbols, explosive background with 'POW!' and 'BOOM!' effects. Add 2-3 creative, unexpected superhero elements that would make this celebration truly special and unique. Bright primary colors and comic book art style.",
-        "pirate": f"A pirate birthday adventure for {name}{title_context}{multiple_context}. Treasure island celebration with a birthday treasure chest overflowing with gold and birthday presents, pirate ship in the background, palm trees with birthday decorations, compass pointing to 'BIRTHDAY', and tropical sunset. Add 2-3 creative, unexpected nautical elements that would make this celebration truly special and unique. Rich browns, golds, and ocean blues.",
-        "poet": f"An elegant literary birthday celebration for {name}{title_context}{multiple_context}. Romantic scene with birthday cake surrounded by floating books, quill pens writing 'Happy Birthday' in calligraphy, vintage library setting, rose petals, candles, and soft lighting. Add 2-3 creative, unexpected literary elements that would make this celebration truly special and unique. Warm sepia tones with golden highlights.",
-        "tech_guru": f"A high-tech birthday celebration for {name}{title_context}{multiple_context}. Digital party with holographic birthday cake made of code, binary numbers floating in air spelling 'HAPPY BIRTHDAY', computer screens showing birthday animations, circuit board decorations, and glowing tech elements. Add 2-3 creative, unexpected tech elements that would make this celebration truly special and unique. Electric blues, greens, and silver.",
-        "chef": f"A culinary birthday feast for {name}{title_context}{multiple_context}. Gourmet kitchen scene with an elaborate multi-tier birthday cake, chef's hat decorations, colorful ingredients artistically arranged, cooking utensils as party decorations, and steam rising appetizingly. Add 2-3 creative, unexpected culinary elements that would make this celebration truly special and unique. Warm kitchen lighting with rich food colors.",
-        "standard": f"A joyful birthday celebration for {name}{title_context}{multiple_context}. Cheerful party scene with a beautiful birthday cake with lit candles, colorful balloons, confetti falling, wrapped presents, and festive decorations. Add 2-3 creative, unexpected party elements that would make this celebration truly special and unique. Bright, happy colors with warm lighting and celebratory atmosphere.",
-    }
+    # Check if user has a profile picture with a face
+    face_context = ""
+    if user_profile:
+        # Check if user has a high-res profile photo
+        if user_profile.get("photo_512") or user_profile.get("photo_original"):
+            face_context = f" IMPORTANT: Include a representation of {name}'s face in the image, making them the central focus of the celebration."
+            logger.info(
+                f"IMAGE_PROMPT: Including face context for {name} (has profile photo)"
+            )
 
-    # Default to standard if personality not found
-    return base_prompts.get(personality, base_prompts["standard"])
+    # Include birthday message context if provided
+    message_context = ""
+    if birthday_message:
+        # Extract key themes from the birthday message
+        message_context = f" Incorporate elements that reflect the birthday announcement message's themes and personality."
+        logger.info(f"IMAGE_PROMPT: Including message context for {name}")
+
+    # Get image prompt from centralized configuration
+    from personality_config import get_personality_config
+
+    personality_config = get_personality_config(personality)
+    prompt_template = personality_config.get("image_prompt", "")
+
+    if not prompt_template:
+        # Fallback to standard if no template found
+        standard_config = get_personality_config("standard")
+        prompt_template = standard_config["image_prompt"]
+
+    # Format the template with the context variables
+    formatted_prompt = prompt_template.format(
+        name=name,
+        title_context=title_context,
+        multiple_context=multiple_context,
+        face_context=face_context,
+        message_context=message_context,
+    )
+
+    return formatted_prompt
 
 
 def download_image(image_url):
@@ -212,19 +245,39 @@ def test_image_generation():
     """
     Test function for image generation
     """
-    # Mock user profile for testing
-    test_profile = {"preferred_name": "Alex", "title": "Software Engineer"}
+    # Mock user profile for testing with profile photo
+    test_profile = {
+        "preferred_name": "Alex",
+        "title": "Software Engineer",
+        "photo_512": "https://example.com/photo.jpg",  # Simulating profile photo
+        "photo_original": "https://example.com/photo_original.jpg",
+    }
+
+    # Mock birthday message
+    test_message = "🎉 Hey <@U123456>, happy birthday! The stars have aligned perfectly for your special day! 🌟"
 
     personalities = ["mystic_dog", "superhero", "pirate", "tech_guru"]
 
+    print("=== Testing image generation with profile photos and birthday messages ===")
+
     for personality in personalities:
-        print(f"\n=== Testing {personality} personality ===")
-        result = generate_birthday_image(test_profile, personality)
+        print(f"\n--- Testing {personality} personality ---")
+        result = generate_birthday_image(
+            test_profile, personality, birthday_message=test_message
+        )
 
         if result:
             print(f"✅ Generated image for {personality}")
             print(f"URL: {result['image_url']}")
-            print(f"Prompt: {result['prompt_used']}")
+            print(f"Prompt excerpt: {result['prompt_used'][:200]}...")
+
+            # Check if face context was included
+            if "face" in result["prompt_used"].lower():
+                print("✓ Face context included in prompt")
+
+            # Check if message context was included
+            if "message" in result["prompt_used"].lower():
+                print("✓ Message context included in prompt")
 
             # Check if image was automatically saved
             if result.get("saved_file_path"):
@@ -233,6 +286,19 @@ def test_image_generation():
                 print("Image data available but not saved to file")
         else:
             print(f"❌ Failed to generate image for {personality}")
+
+    # Test without profile photo
+    print("\n\n--- Testing without profile photo ---")
+    test_profile_no_photo = {"preferred_name": "Bob", "title": "Designer"}
+    result = generate_birthday_image(
+        test_profile_no_photo, "standard", birthday_message=test_message
+    )
+
+    if result:
+        if "face" not in result["prompt_used"].lower():
+            print("✓ Face context correctly NOT included when no profile photo")
+        else:
+            print("❌ Face context incorrectly included without profile photo")
 
 
 def cleanup_old_images(days_to_keep=30):

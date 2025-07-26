@@ -28,41 +28,31 @@ def process_facts_for_personality(facts_text, formatted_date, personality):
         system_content = ""
         user_content = ""
 
-        if personality == "mystic_dog":
-            system_content = "You are Ludo the Mystic Birthday Dog, a cosmic canine whose powers reveal mystical insights about dates. Your task is to create a brief, mystical-sounding paragraph about the cosmic significance of a specific date, focusing on notable scientific figures born on this date and significant historical events. Use a mystical, slightly formal tone with cosmic metaphors. Include the year of those events."
-            user_content = f"Based on these raw facts about {formatted_date}, create a paragraph that highlights 4-5 most significant scientific birthdays or events for this date in a mystical tone:\n\n{facts_text}"
+        # Get web search configuration from centralized personality config
+        from personality_config import get_personality_config
 
-        elif personality == "time_traveler":
-            system_content = "You are Chrono, a time-traveling birthday messenger from the future. You have extensive knowledge of historical timelines. Create a brief, time-travel themed paragraph about significant historical events that occurred on this date. Focus on how these events shaped the future and include 1-2 humorous 'future facts' that connect to real historical events."
-            user_content = f"Based on these historical facts about {formatted_date}, create a time-traveler's perspective of 3-4 significant events for this date in a lighthearted sci-fi tone:\n\n{facts_text}"
+        personality_config = get_personality_config(personality)
 
-        elif personality == "superhero":
-            system_content = "You are Captain Celebration, a birthday superhero. Create a brief, superhero-themed paragraph about notable achievements, discoveries, or heroic deeds that happened on this date. Use comic book style language, including bold exclamations and heroic metaphors."
-            user_content = f"Based on these facts about {formatted_date}, create a superhero-style paragraph highlighting 3-4 'heroic' achievements or discoveries for this date:\n\n{facts_text}"
+        system_content = personality_config.get("web_search_system", "")
+        user_template = personality_config.get("web_search_user", "")
 
-        elif personality == "pirate":
-            system_content = "You are Captain BirthdayBeard, a pirate birthday messenger. Create a brief, pirate-themed paragraph about naval history, explorations, or 'treasure' discoveries that happened on this date. Use pirate speech patterns and nautical references."
-            user_content = f"Based on these facts about {formatted_date}, create a pirate-style paragraph about 2-3 maritime events, explorations, or treasures discovered on this date:\n\n{facts_text}"
-
-        elif personality == "poet":
-            system_content = "You are The Verse-atile, a poetic birthday bard who creates lyrical birthday messages. Create a very brief poetic verse (4-6 lines) about historical events or notable people born on this date. Use elegant language, metaphors, and at least one clever rhyme. Focus on the beauty, significance, or wonder of these historical connections."
-            user_content = f"Based on these facts about {formatted_date}, create a short poetic verse (4-6 lines) that references 2-3 notable events or people connected to this date:\n\n{facts_text}"
-
-        elif personality == "tech_guru":
-            system_content = "You are CodeCake, a tech-savvy birthday bot. Create a brief paragraph about technological innovations, scientific discoveries, or notable tech pioneers connected to this date. Use programming metaphors and tech terminology. Include at least one clever tech joke or pun based on the historical facts."
-            user_content = f"Based on these facts about {formatted_date}, create a tech-themed paragraph highlighting 2-3 innovations, technological connections, or tech pioneers associated with this date:\n\n{facts_text}"
-
-        elif personality == "chef":
-            system_content = "You are Chef Confetti, a culinary birthday master. Create a brief, appetizing paragraph connecting this date to food history, culinary innovations, or 'recipe for success' stories that happened on this date. Use cooking metaphors and food-related terminology. Include at least one delicious food pun."
-            user_content = f"Based on these facts about {formatted_date}, create a culinary-themed paragraph highlighting 2-3 food-related facts or using cooking metaphors to describe important events on this date:\n\n{facts_text}"
-
-        elif personality == "standard":
-            system_content = "You are BrightDay, a friendly, enthusiastic birthday bot. Create a brief, fun paragraph about 2-3 interesting historical events or notable people connected to this date. Use a friendly, conversational tone that's slightly over-the-top with enthusiasm. Focus on surprising or delightful connections that would make a birthday feel special."
-            user_content = f"Based on these facts about {formatted_date}, create a brief, enthusiastic paragraph highlighting 2-3 fun or surprising facts about this date in history:\n\n{facts_text}"
-
+        if system_content and user_template:
+            user_content = user_template.format(
+                formatted_date=formatted_date, facts_text=facts_text
+            )
         else:
-            # Default to standard processing for other personalities
-            return f"On this day, {formatted_date}, several notable events occurred in history and remarkable individuals were born."
+            # Fallback to standard if no web search config found
+            standard_config = get_personality_config("standard")
+            system_content = standard_config.get("web_search_system", "")
+            user_template = standard_config.get("web_search_user", "")
+
+            if system_content and user_template:
+                user_content = user_template.format(
+                    formatted_date=formatted_date, facts_text=facts_text
+                )
+            else:
+                # Ultimate fallback
+                return f"On this day, {formatted_date}, several notable events occurred in history and remarkable individuals were born."
 
         # Use OpenAI to reformat the facts in the appropriate personality style
         response = client.chat.completions.create(
