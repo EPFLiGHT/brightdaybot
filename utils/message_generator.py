@@ -150,7 +150,13 @@ def get_random_personality_name():
 
 
 def create_birthday_announcement(
-    user_id, name, date_str, birth_year=None, star_sign=None
+    user_id,
+    name,
+    date_str,
+    birth_year=None,
+    star_sign=None,
+    test_mode=False,
+    quality=None,
 ):
     """
     Create a fun, vertically expansive birthday announcement
@@ -348,6 +354,8 @@ def completion(
     app=None,  # Add app parameter to fetch custom emojis
     user_profile: dict = None,  # Enhanced profile data
     include_image: bool = False,  # Whether to generate AI image
+    test_mode: bool = False,  # Use low-cost mode for testing
+    quality: str = None,  # Override image quality ("low", "medium", "high", "auto")
 ) -> str:
     """
     Generate an enthusiastic, fun birthday message using OpenAI or fallback messages
@@ -562,6 +570,8 @@ def completion(
                             selected_personality_name,
                             birth_date,
                             birthday_message=reply,  # Pass the generated message
+                            test_mode=test_mode,
+                            quality=quality,
                         )
 
                         if generated_image:
@@ -618,6 +628,8 @@ def completion(
                             selected_personality_name,
                             birth_date,
                             birthday_message=reply,  # Pass the generated message
+                            test_mode=test_mode,
+                            quality=quality,
                         )
 
                         if generated_image:
@@ -664,6 +676,8 @@ def completion(
                         selected_personality_name,
                         birth_date,
                         birthday_message=formatted_message,  # Pass the fallback message
+                        test_mode=test_mode,
+                        quality=quality,
                     )
 
                     if generated_image:
@@ -682,7 +696,9 @@ def completion(
 
     # We should never get here due to the returns in the loop
     logger.error("AI_ERROR: Unexpected flow in completion function")
-    return create_birthday_announcement(user_id, name, birth_date, birth_year)
+    return create_birthday_announcement(
+        user_id, name, birth_date, birth_year, test_mode=test_mode, quality=quality
+    )
 
 
 def fix_slack_formatting(text):
@@ -754,7 +770,7 @@ def fix_slack_formatting(text):
 
 
 def create_consolidated_birthday_announcement(
-    birthday_people, app=None, include_image=False
+    birthday_people, app=None, include_image=False, test_mode=False, quality=None
 ):
     """
     Create a single AI-powered consolidated birthday announcement for one or more people
@@ -973,6 +989,8 @@ Generate an amazing consolidated birthday message that celebrates all of them to
                     selected_personality_name,
                     enable_transparency=False,  # Keep simple for multiple birthdays
                     birthday_message=message,  # Pass the generated consolidated message
+                    test_mode=test_mode,
+                    quality=quality,
                 )
 
                 if generated_image:
@@ -1147,7 +1165,9 @@ def test_announcement(
     """
     print(f"\n=== Testing Birthday Announcement for {name} (ID: {user_id}) ===\n")
 
-    announcement = create_birthday_announcement(user_id, name, birth_date, birth_year)
+    announcement = create_birthday_announcement(
+        user_id, name, birth_date, birth_year, test_mode=False, quality=None
+    )
     print(announcement)
     print("\n" + "-" * 60)
 
@@ -1213,7 +1233,9 @@ def test_consolidated_announcement():
 
         print(f"\n--- Birthday Twins with {personality} personality ---")
         try:
-            twins_message = create_consolidated_birthday_announcement(birthday_twins)
+            twins_message = create_consolidated_birthday_announcement(
+                birthday_twins, test_mode=False, quality=None
+            )
             print(twins_message)
         except Exception as e:
             print(f"ERROR: {e}")
@@ -1221,7 +1243,7 @@ def test_consolidated_announcement():
         print(f"\n--- Birthday Triplets with {personality} personality ---")
         try:
             triplets_message = create_consolidated_birthday_announcement(
-                birthday_triplets
+                birthday_triplets, test_mode=False, quality=None
             )
             print(triplets_message)
         except Exception as e:
