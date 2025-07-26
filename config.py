@@ -36,39 +36,129 @@ ADMINS_FILE = os.path.join(STORAGE_DIR, "admins.json")
 PERSONALITY_FILE = os.path.join(STORAGE_DIR, "personality.json")
 PERMISSIONS_FILE = os.path.join(STORAGE_DIR, "permissions.json")
 
-# ----- LOGGING CONFIGURATION -----
+# ----- ENHANCED LOGGING CONFIGURATION -----
 
-# Set up logging formatter
-log_formatter = logging.Formatter("%(asctime)s - [%(levelname)s] %(name)s: %(message)s")
+import logging.handlers
 
-# Create the parent directory for log file if it doesn't exist
+# Enhanced logging with separate files for different components
+LOG_FILES = {
+    "main": os.path.join(LOGS_DIR, "main.log"),  # Core application
+    "commands": os.path.join(
+        LOGS_DIR, "commands.log"
+    ),  # User commands and admin actions
+    "events": os.path.join(LOGS_DIR, "events.log"),  # Slack events
+    "birthday": os.path.join(LOGS_DIR, "birthday.log"),  # Birthday service logic
+    "ai": os.path.join(LOGS_DIR, "ai.log"),  # AI/LLM interactions
+    "slack": os.path.join(LOGS_DIR, "slack.log"),  # Slack API interactions
+    "storage": os.path.join(LOGS_DIR, "storage.log"),  # Data storage operations
+    "system": os.path.join(LOGS_DIR, "system.log"),  # System health, config, utils
+    "scheduler": os.path.join(
+        LOGS_DIR, "scheduler.log"
+    ),  # Scheduling and background tasks
+}
+
+# Legacy main log file for compatibility
+LOG_FILE = LOG_FILES["main"]
+
+# Component to log file mapping
+COMPONENT_LOG_MAPPING = {
+    "main": "main",
+    "config": "main",
+    "app": "main",
+    "commands": "commands",
+    "command_handler": "commands",
+    "events": "events",
+    "event_handler": "events",
+    "birthday": "birthday",
+    "llm": "ai",
+    "message_generator": "ai",
+    "image_generator": "ai",
+    "web_search": "ai",
+    "slack": "slack",
+    "slack_utils": "slack",
+    "storage": "storage",
+    "config_storage": "storage",
+    "health_check": "system",
+    "date": "system",
+    "date_utils": "system",
+    "timezone_utils": "system",
+    "scheduler": "scheduler",
+}
+
+# Set up logging formatter with more detailed info
+log_formatter = logging.Formatter(
+    "%(asctime)s - [%(levelname)s] %(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+)
+
+# Create the parent directory for log files if it doesn't exist
 os.makedirs(LOGS_DIR, exist_ok=True)
 
-# Set up file handler
-file_handler = logging.FileHandler(LOG_FILE)
-file_handler.setFormatter(log_formatter)
+# Set up file handlers with rotation for each log file
+log_handlers = {}
+for log_type, log_file in LOG_FILES.items():
+    # Use RotatingFileHandler to prevent files from getting too large
+    handler = logging.handlers.RotatingFileHandler(
+        log_file,
+        maxBytes=10 * 1024 * 1024,  # 10MB per file
+        backupCount=5,  # Keep 5 backup files
+        encoding="utf-8",
+    )
+    handler.setFormatter(log_formatter)
+    log_handlers[log_type] = handler
 
 # Configure root logger
 root_logger = logging.getLogger("birthday_bot")
 root_logger.setLevel(logging.INFO)
-root_logger.addHandler(file_handler)
+
+# Add all handlers to root logger for comprehensive logging
+for handler in log_handlers.values():
+    root_logger.addHandler(handler)
 
 
-# Function to get child loggers
 def get_logger(name):
     """
-    Get a properly configured logger that inherits from the root logger
-    without adding duplicate handlers.
+    Get a properly configured logger with component-specific file routing.
+
+    This enhanced version routes logs to appropriate files based on component:
+    - Commands and admin actions -> commands.log
+    - Slack events -> events.log
+    - Birthday logic -> birthday.log
+    - AI/LLM operations -> ai.log
+    - Slack API calls -> slack.log
+    - Storage operations -> storage.log
+    - System utilities -> system.log
+    - Scheduler tasks -> scheduler.log
+    - Main application -> main.log
 
     Args:
-        name: Logger name suffix (e.g., 'date' becomes 'birthday_bot.date')
+        name: Logger name/component (e.g., 'commands', 'slack', 'birthday')
 
     Returns:
-        Configured logger instance
+        Configured logger instance with appropriate file routing
     """
     if not name.startswith("birthday_bot."):
-        name = f"birthday_bot.{name}"
-    return logging.getLogger(name)
+        full_name = f"birthday_bot.{name}"
+    else:
+        full_name = name
+        name = name.replace("birthday_bot.", "")
+
+    # Get the logger
+    logger = logging.getLogger(full_name)
+
+    # Prevent duplicate handlers
+    if logger.hasHandlers():
+        return logger
+
+    # Determine which log file this component should use
+    log_type = COMPONENT_LOG_MAPPING.get(name, "system")  # Default to system.log
+
+    # Add only the specific handler for this component
+    if log_type in log_handlers:
+        logger.addHandler(log_handlers[log_type])
+        logger.setLevel(logging.INFO)
+        logger.propagate = False  # Don't propagate to parent to avoid duplicate logs
+
+    return logger
 
 
 # Create the main logger
@@ -193,184 +283,11 @@ Create a message that is brief but impactful!
 # For backward compatibility
 BASE_TEMPLATE = get_base_template()
 
-# Personality templates
-BOT_PERSONALITIES = {
-    "standard": {
-        "name": BOT_NAME,
-        "description": "a friendly, enthusiastic birthday bot",
-        "style": "fun, upbeat, and slightly over-the-top with enthusiasm",
-        "format_instruction": "Create a lively message with multiple line breaks that stands out",
-        "template_extension": "",  # No additional instructions for standard
-    },
-    "mystic_dog": {
-        "name": "Ludo",
-        "description": "the Mystic Birthday Dog with cosmic insight and astrological wisdom",
-        "style": "mystical yet playful, with touches of cosmic wonder",
-        "format_instruction": "Create a brief mystical reading that's both whimsical and insightful",
-        "template_extension": """
-Create a concise mystical birthday message with:
+# Import centralized personality configurations
+from personality_config import PERSONALITIES
 
-1. A brief greeting from "Ludo the Mystic Birthday Dog" to the birthday person (using their mention)
-2. THREE very short mystical insights (1-2 sentences each):
-   a) *Star Power*: A quick horoscope based on their star sign with ONE lucky number
-   b) *Spirit Animal*: Their cosmic animal guide for the year and its meaning
-   c) *Cosmic Connection*: A short fact about a notable event/person born on their day
-3. End with a 1-line mystical prediction for their year ahead
-4. Sign off as "Ludo, Cosmic Canine" or similar
-
-Keep it playful, mystical, and BRIEF - no more than 8-10 lines total including spacing.
-Include the channel mention and a question about celebration plans.
-""",
-    },
-    "poet": {
-        "name": "The Verse-atile",
-        "description": "a poetic birthday bard who creates lyrical birthday messages",
-        "style": "poetic, lyrical, and witty with thoughtful metaphors",
-        "format_instruction": "Format as a short poem or verse with a rhyme scheme",
-        "template_extension": """
-Your message should take the form of a short, celebratory poem:
-
-1. Start with a greeting to the birthday person using their user mention
-2. Create a short poem (4-8 lines max) that includes:
-   - Their name woven into the verses
-   - A birthday theme with positive imagery
-   - At least one clever rhyme
-3. Keep the language accessible but elegant
-4. Sign off with "Poetically yours, The Verse-atile"
-5. Remember to notify the channel and ask about celebration plans
-
-Keep the poem concise but impactful, focusing on quality over quantity.
-""",
-    },
-    "tech_guru": {
-        "name": "CodeCake",
-        "description": "a tech-savvy birthday bot who speaks in programming metaphors",
-        "style": "techy, geeky, and full of programming humor and references",
-        "format_instruction": "Include tech terminology and programming jokes",
-        "template_extension": """
-Your birthday message should be structured like this:
-
-1. Start with a "system alert" style greeting
-2. Format the birthday message using tech terminology, for example:
-   - Reference "upgrading" to a new version (their new age)
-   - Compare their qualities to programming concepts or tech features
-   - Use terms like debug, deploy, launch, upgrade, etc.
-3. Include at least one programming joke or pun
-4. End with a "console command" style question about celebration plans
-5. Sign off with "// End of birthday.js" or similar coding-style comment
-
-Remember to:
-- Keep technical references accessible and fun (not too complex)
-- Balance tech terminology with warmth and celebration
-- Include the proper user and channel mentions
-""",
-    },
-    "chef": {
-        "name": "Chef Confetti",
-        "description": "a culinary master who creates birthday messages with a food theme",
-        "style": "warm, appetizing, and full of culinary puns and food references",
-        "format_instruction": "Use cooking and food metaphors throughout the message",
-        "template_extension": """
-Create a birthday message with a delicious culinary theme:
-
-1. Start with a "chef's announcement" greeting to the channel
-2. Craft a birthday message that:
-   - Uses cooking/baking metaphors for life and celebration
-   - Includes at least one food pun related to their name if possible
-   - References a birthday "recipe" with ingredients for happiness
-3. Keep it light, fun, and appetizing
-4. End with a food-related question about their celebration plans
-5. Sign off as "Chef Confetti" with a cooking emoji, along with "Bon Appétit!"
-
-Keep the entire message under 8 lines and make it tastefully delightful!
-""",
-    },
-    "superhero": {
-        "name": "Captain Celebration",
-        "description": "a superhero dedicated to making birthdays epic and legendary",
-        "style": "bold, heroic, and slightly over-dramatic with comic book energy",
-        "format_instruction": "Use superhero catchphrases and comic book style formatting",
-        "template_extension": """
-Create a superhero-themed birthday announcement:
-
-1. Start with a dramatic hero entrance announcement
-2. Address the birthday person as if they are the hero of the day
-3. Include:
-   - At least one superhero catchphrase modified for birthdays
-   - A mention of their "birthday superpowers"
-   - A reference to this being their "origin story" for another great year
-4. Use comic book style formatting (*POW!* *ZOOM!*)
-5. End with a heroic call to the channel to celebrate
-6. Ask about celebration plans in superhero style
-7. Sign off with "Captain Celebration, away!" or similar
-
-Keep it energetic, heroic and concise - maximum 8 lines total!
-""",
-    },
-    "time_traveler": {
-        "name": "Chrono",
-        "description": "a time-traveling birthday messenger from the future",
-        "style": "mysterious, slightly futuristic, with humorous predictions",
-        "format_instruction": "Include references to time travel and amusing future predictions",
-        "template_extension": """
-Create a time-travel themed birthday greeting:
-
-1. Start with a greeting that mentions arriving from the future
-2. Reference the birthday person's timeline and their special day
-3. Include:
-   - A humorous "future fact" about the birthday person
-   - A playful prediction for their coming year
-   - A reference to how birthdays are celebrated in the future
-4. Keep it light and mysterious with a touch of sci-fi
-5. End with a question about how they'll celebrate in "this time period"
-6. Sign off with "Returning to the future, Chrono" or similar
-
-Use time travel jokes, paradox references, and keep it under 8 lines total.
-Remember to include the channel mention and proper user mention.
-""",
-    },
-    "pirate": {
-        "name": "Captain BirthdayBeard",
-        "description": "a jolly pirate captain who celebrates birthdays with nautical flair",
-        "style": "swashbuckling, playful, and full of pirate slang and nautical references",
-        "format_instruction": "Use pirate speech patterns and maritime metaphors",
-        "template_extension": """
-Create a pirate-themed birthday message:
-
-1. Start with a hearty pirate greeting to the crew (channel)
-2. Address the birthday person as a valued crew member
-3. Include:
-   - At least one pirate phrase or expression
-   - A reference to treasure, sailing, or nautical themes
-   - Liberal use of pirate slang (arr, matey, ye, etc.)
-4. Keep it jolly and adventurous
-5. End with a question about how they'll celebrate their "special day on the high seas"
-6. Sign off as "Captain BirthdayBeard" with a pirate emoji
-
-Keep the entire message playful and brief - no more than 6-8 lines total.
-Include proper user and channel mentions.
-""",
-    },
-    "custom": {
-        "name": os.getenv("CUSTOM_BOT_NAME", BOT_NAME),
-        "description": os.getenv(
-            "CUSTOM_BOT_DESCRIPTION", "a customizable birthday celebration assistant"
-        ),
-        "style": os.getenv("CUSTOM_BOT_STYLE", "personalized based on configuration"),
-        "format_instruction": os.getenv(
-            "CUSTOM_FORMAT_INSTRUCTION",
-            "Create a message that matches the configured personality",
-        ),
-        "template_extension": os.getenv("CUSTOM_BOT_TEMPLATE_EXTENSION", ""),
-    },
-    "random": {
-        "name": "RandomBot",
-        "description": "a bot that randomly selects a personality for each message",
-        "style": "unpredictable and surprising",
-        "format_instruction": "Create a message using a randomly selected personality",
-        "template_extension": "",  # This will be handled by the get_random_personality function
-    },
-}
+# For backward compatibility, reference the centralized configurations
+BOT_PERSONALITIES = PERSONALITIES
 
 
 def get_current_personality_name():
