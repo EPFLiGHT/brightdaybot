@@ -19,9 +19,11 @@ from utils.storage import (
 from utils.slack_utils import (
     get_username,
     get_user_mention,
+    get_user_profile,
     check_command_permission,
     get_channel_members,
     send_message,
+    send_message_with_image,
     is_admin,
 )
 from utils.message_generator import (
@@ -89,7 +91,9 @@ def send_immediate_birthday_announcement(
             f"AI_ERROR: Failed to generate immediate birthday message for {username}: {e}"
         )
         # Fallback to generated announcement if AI fails
-        announcement = create_birthday_announcement(user_id, username, date, year)
+        announcement = create_birthday_announcement(
+            user_id, username, date, year, test_mode=False, quality=None
+        )
         send_message(app, BIRTHDAY_CHANNEL, announcement)
         logger.info(
             f"IMMEDIATE_BIRTHDAY: Sent fallback announcement for {username} ({user_id})"
@@ -315,7 +319,18 @@ def handle_command(text, user_id, say, app):
         handle_config_command(parts, user_id, say, app)
 
     elif command == "test":
-        handle_test_command(user_id, say, app)
+        # Extract quality parameter if provided: "test [quality]"
+        quality = None
+        if len(parts) > 1:
+            quality_arg = parts[1].lower()
+            if quality_arg in ["low", "medium", "high", "auto"]:
+                quality = quality_arg
+            else:
+                say(
+                    f"Invalid quality '{parts[1]}'. Valid options: low, medium, high, auto"
+                )
+                return
+        handle_test_command(user_id, say, app, quality)
 
     else:
         # Unknown command
@@ -687,7 +702,7 @@ def handle_config_command(parts, user_id, say, app):
         )
 
 
-def handle_test_command(user_id, say, app):
+def handle_test_command(user_id, say, app, quality=None):
     # Generate a test birthday message for the user
     birthdays = load_birthdays()
     today = datetime.now()
@@ -787,6 +802,8 @@ def handle_test_command(user_id, say, app):
             username,
             user_date if user_id in birthdays else date_str,
             birth_year,
+            test_mode=True,  # Use low-cost mode for testing
+            quality=quality,  # Allow quality override
         )
 
         say(announcement)
@@ -833,18 +850,34 @@ def handle_test_upload_command(user_id, say, app):
 
 
 def handle_test_birthday_command(args, user_id, say, app):
-    """Handles the admin test @user command to generate test birthday message and image."""
+    """Handles the admin test @user [quality] command to generate test birthday message and image."""
     if not args:
-        say("Please specify a user: `admin test @user`")
+        say(
+            "Please specify a user: `admin test @user [quality]`\nQuality options: low, medium, high, auto"
+        )
         return
 
     # Extract user ID from mention
     test_user_id = None
     if args[0].startswith("<@") and args[0].endswith(">"):
         test_user_id = args[0][2:-1].split("|")[0]
+        # Ensure user ID is fully uppercase (Slack standard)
+        test_user_id = test_user_id.upper()
+        logger.info(f"TEST_COMMAND: Extracted user ID: {test_user_id}")
     else:
         say("Please mention a user with @username")
         return
+
+    # Extract quality parameter if provided
+    quality = None
+    if len(args) > 1:
+        quality_arg = args[1].lower()
+        if quality_arg in ["low", "medium", "high", "auto"]:
+            quality = quality_arg
+            logger.info(f"TEST_COMMAND: Using quality: {quality}")
+        else:
+            say(f"Invalid quality '{args[1]}'. Valid options: low, medium, high, auto")
+            return
 
     # Get user profile and information
     from utils.date_utils import date_to_words
@@ -889,6 +922,8 @@ def handle_test_birthday_command(args, user_id, say, app):
             app=app,
             user_profile=user_profile,
             include_image=AI_IMAGE_GENERATION_ENABLED,
+            test_mode=True,  # Use low-cost mode for admin testing
+            quality=quality,  # Allow quality override
         )
 
         if isinstance(result, tuple) and AI_IMAGE_GENERATION_ENABLED:

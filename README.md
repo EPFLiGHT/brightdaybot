@@ -213,7 +213,7 @@ DM the bot with any of these commands:
 - `remove` - Remove your birthday
 - `check` - Check your saved birthday
 - `check @user` - Check someone else's birthday
-- `test` - See a test birthday message
+- `test [quality]` - See a test birthday message with optional quality (low, medium, high, auto)
 
 Or simply send a date in `DD/MM` or `DD/MM/YYYY` format.
 
@@ -229,7 +229,7 @@ Or simply send a date in `DD/MM` or `DD/MM/YYYY` format.
 - `admin status` - Check system health and component status
 - `admin status detailed` - Get detailed system information
 - `admin timezone` - View birthday celebration schedule across timezones
-- `admin test @user` - **NEW**: Generate test birthday message & image for a user (stays in DM)
+- `admin test @user [quality]` - **NEW**: Generate test birthday message & image with quality control (stays in DM)
 - `remind [message]` - Send reminders to users without birthdays
 - `config` - View command permissions
 - `config COMMAND true/false` - Change command permissions
@@ -337,19 +337,33 @@ The bot now uses a sophisticated multi-timezone celebration system:
 
 ### AI Image Generation
 
-**Enhanced Image Generation** 🖼️
+**🚀 REVOLUTIONARY: Reference Photo Generation** 🖼️
 
-The bot can generate personalized birthday images using OpenAI's GPT-Image-1 model with new advanced features:
+The bot now generates face-accurate birthday images using OpenAI's GPT-Image-1 model with breakthrough reference photo technology:
 
-- **Personality-Themed Images**: Each bot personality generates images in its unique style (configured in `personality_config.py`)
-- **Message Context Integration**: Images now incorporate themes from the generated birthday message
-- **Profile Photo Face Detection**: Automatically includes the person's face in the image if they have a profile photo
-- **Creative Randomness**: AI adds unexpected creative elements to make each image unique
-- **Profile Integration**: Uses user's job title and profile information for personalization
-- **Automatic Caching**: Images are saved to `data/cache/images/` directory with automatic cleanup
-- **Fallback Support**: Text-only messages if image generation fails
+**NEW: Face-Accurate Images**
+- **Reference Photo Mode**: Automatically uses user's Slack profile photo as reference
+- **High Input Fidelity**: GPT-Image-1 preserves facial features and expressions accurately
+- **Smart Dual-Mode**: Reference-based when photos available, text-only fallback
+- **Quality Control**: Configurable quality settings for cost optimization
 
-**Testing**: Admins can use `admin test @user` to generate test birthday messages and images.
+**Advanced Features**
+- **Profile Photo Pipeline**: Downloads, processes, and prepares user photos automatically
+- **Personality-Themed Styles**: Each personality generates images in its unique style
+- **Message Context Integration**: Incorporates themes from the generated birthday message
+- **Cost Optimization**: Test commands use lower quality for reduced costs
+- **Automatic Cleanup**: Profile photos cleaned after 7 days, images after 30 days
+
+**Quality Settings**
+- `test [quality]` - User test with optional quality (low, medium, high, auto)
+- `admin test @user [quality]` - Admin test with quality control
+- Production birthdays automatically use high quality
+
+**Technical Details**
+- Uses GPT-Image-1's `images.edit` API for reference-based generation
+- `input_fidelity="high"` for optimal face preservation
+- Supports 1024x1024, 1536x1024, 1024x1536 image sizes
+- Automatic fallback when profile photos unavailable
 
 Enable/disable with `AI_IMAGE_GENERATION_ENABLED` environment variable.
 
@@ -366,6 +380,7 @@ The bot implements several data management features:
   - Clear cache with `admin cache clear` or manually delete cache files
 - **Image Caching**: Auto-saves generated birthday images to `data/cache/images/`
   - Automatic cleanup removes images older than 30 days
+  - Profile photos cleaned after 7 days to save space
   - Manual cleanup can be performed by deleting files from the cache directory
 - **Administrative Control**: Provides commands for manual backup and restore operations
 - **Multi-Timezone Birthday Tracking**: Prevents duplicate announcements across different celebration methods

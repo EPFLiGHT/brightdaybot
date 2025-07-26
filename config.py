@@ -110,9 +110,8 @@ for log_type, log_file in LOG_FILES.items():
 root_logger = logging.getLogger("birthday_bot")
 root_logger.setLevel(logging.INFO)
 
-# Add all handlers to root logger for comprehensive logging
-for handler in log_handlers.values():
-    root_logger.addHandler(handler)
+# Don't add all handlers to root - this causes all messages to go to all files
+# Individual component loggers will get their specific handlers in get_logger()
 
 
 def get_logger(name):
