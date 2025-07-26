@@ -445,22 +445,17 @@ def completion(
             birthday_facts = get_birthday_facts(birth_date, selected_personality_name)
 
             if birthday_facts and birthday_facts["facts"]:
-                if selected_personality_name == "mystic_dog":
-                    birthday_facts_text = f"\n\nIncorporate this cosmic information about their birthday date: {birthday_facts['facts']}"
-                elif selected_personality_name == "time_traveler":
-                    birthday_facts_text = f"\n\nIncorporate these time-travel historical facts about their birthday date: {birthday_facts['facts']}"
-                elif selected_personality_name == "superhero":
-                    birthday_facts_text = f"\n\nIncorporate these 'heroic' events from their birthday date: {birthday_facts['facts']}"
-                elif selected_personality_name == "pirate":
-                    birthday_facts_text = f"\n\nIncorporate these maritime and exploration facts about their birthday date: {birthday_facts['facts']}"
-                elif selected_personality_name == "poet":
-                    birthday_facts_text = f"\n\nIncorporate this poetic verse about their birthday date in your poem: {birthday_facts['facts']}"
-                elif selected_personality_name == "tech_guru":
-                    birthday_facts_text = f"\n\nIncorporate these technological facts about their birthday date in your message, using tech terminology: {birthday_facts['facts']}"
-                elif selected_personality_name == "chef":
-                    birthday_facts_text = f"\n\nIncorporate these culinary-related facts or cooking metaphors about their birthday date: {birthday_facts['facts']}"
-                elif selected_personality_name == "standard":
-                    birthday_facts_text = f"\n\nIncorporate these fun and interesting facts about their birthday date: {birthday_facts['facts']}"
+                # Get birthday facts text from centralized configuration
+                from personality_config import get_personality_config
+
+                personality_config = get_personality_config(selected_personality_name)
+                facts_template = personality_config.get(
+                    "birthday_facts_text",
+                    "Incorporate these interesting facts about their birthday date: {facts}",
+                )
+                birthday_facts_text = (
+                    f"\n\n{facts_template.format(facts=birthday_facts['facts'])}"
+                )
 
                 # Add sources if available
                 if birthday_facts["sources"]:
@@ -491,26 +486,10 @@ def completion(
         if profile_details:
             profile_context = f"\n\nPersonalize the message using this information about them: {', '.join(profile_details)}."
 
-    # Generate AI image if requested
+    # Note: Image will be generated after the message is created
     image_context = ""
-    generated_image = None
     if include_image and user_profile:
-        try:
-            from utils.image_generator import generate_birthday_image
-
-            logger.info(f"IMAGE: Generating birthday image for {name}")
-            generated_image = generate_birthday_image(
-                user_profile, selected_personality_name, birth_date
-            )
-
-            if generated_image:
-                image_context = f"\n\nNote: A personalized birthday image has been generated for them in {selected_personality_name} style. You may reference this visual celebration in your message."
-                logger.info(f"IMAGE: Successfully generated image for {name}")
-            else:
-                logger.warning(f"IMAGE: Failed to generate image for {name}")
-
-        except Exception as e:
-            logger.error(f"IMAGE_ERROR: Failed to generate birthday image: {e}")
+        image_context = f"\n\nNote: A personalized birthday image will be generated for them in {selected_personality_name} style. You may reference this visual celebration in your message."
 
     user_content = f"""
         {name}'s birthday is on {date}.{star_sign_text}{age_text} Please write them a fun, enthusiastic birthday message for a workplace Slack channel.
@@ -565,11 +544,40 @@ def completion(
                 is_valid = False
                 validation_errors.append("Missing here mention <!here>")
 
-            # If validation passed, return the message
+            # If validation passed, generate image if requested and return
             if is_valid:
                 logger.info(
                     f"AI: Successfully generated birthday message (passed validation)"
                 )
+
+                # Generate AI image if requested (after message is created)
+                generated_image = None
+                if include_image and user_profile:
+                    try:
+                        from utils.image_generator import generate_birthday_image
+
+                        logger.info(f"IMAGE: Generating birthday image for {name}")
+                        generated_image = generate_birthday_image(
+                            user_profile,
+                            selected_personality_name,
+                            birth_date,
+                            birthday_message=reply,  # Pass the generated message
+                        )
+
+                        if generated_image:
+                            logger.info(
+                                f"IMAGE: Successfully generated image for {name}"
+                            )
+                        else:
+                            logger.warning(
+                                f"IMAGE: Failed to generate image for {name}"
+                            )
+
+                    except Exception as e:
+                        logger.error(
+                            f"IMAGE_ERROR: Failed to generate birthday image: {e}"
+                        )
+
                 if include_image:
                     return reply, generated_image
                 return reply
@@ -595,6 +603,37 @@ def completion(
                 logger.error(
                     f"AI_VALIDATION: Message failed validation after {max_retries} retries. Using last generated message anyway."
                 )
+
+                # Generate AI image if requested (after message is created)
+                generated_image = None
+                if include_image and user_profile:
+                    try:
+                        from utils.image_generator import generate_birthday_image
+
+                        logger.info(
+                            f"IMAGE: Generating birthday image for {name} (fallback case)"
+                        )
+                        generated_image = generate_birthday_image(
+                            user_profile,
+                            selected_personality_name,
+                            birth_date,
+                            birthday_message=reply,  # Pass the generated message
+                        )
+
+                        if generated_image:
+                            logger.info(
+                                f"IMAGE: Successfully generated image for {name}"
+                            )
+                        else:
+                            logger.warning(
+                                f"IMAGE: Failed to generate image for {name}"
+                            )
+
+                    except Exception as e:
+                        logger.error(
+                            f"IMAGE_ERROR: Failed to generate birthday image: {e}"
+                        )
+
                 if include_image:
                     return reply, generated_image
                 return reply
@@ -610,6 +649,31 @@ def completion(
             formatted_message = random_message.replace("{name}", mention_text)
 
             logger.info(f"AI: Used fallback birthday message")
+
+            # Generate AI image if requested (after message is created)
+            generated_image = None
+            if include_image and user_profile:
+                try:
+                    from utils.image_generator import generate_birthday_image
+
+                    logger.info(
+                        f"IMAGE: Generating birthday image for {name} (error fallback)"
+                    )
+                    generated_image = generate_birthday_image(
+                        user_profile,
+                        selected_personality_name,
+                        birth_date,
+                        birthday_message=formatted_message,  # Pass the fallback message
+                    )
+
+                    if generated_image:
+                        logger.info(f"IMAGE: Successfully generated image for {name}")
+                    else:
+                        logger.warning(f"IMAGE: Failed to generate image for {name}")
+
+                except Exception as e:
+                    logger.error(f"IMAGE_ERROR: Failed to generate birthday image: {e}")
+
             if include_image:
                 return formatted_message, generated_image
             return formatted_message
@@ -908,6 +972,7 @@ Generate an amazing consolidated birthday message that celebrates all of them to
                     consolidated_profile,
                     selected_personality_name,
                     enable_transparency=False,  # Keep simple for multiple birthdays
+                    birthday_message=message,  # Pass the generated consolidated message
                 )
 
                 if generated_image:
@@ -958,76 +1023,13 @@ CONSOLIDATED MESSAGE GOALS:
 - Create excitement and encourage team participation
 - Keep it concise but impactful (8-12 lines max)"""
 
-    # Add personality-specific extensions
-    if personality_name == "mystic_dog":
-        base_prompt += """
+    # Add personality-specific extensions from centralized configuration
+    from personality_config import get_personality_config
 
-LUDO'S SPECIAL CONSOLIDATED POWERS:
-- Reference the cosmic significance of multiple people sharing a birthday
-- Include mystical predictions about their combined energy
-- Mention spirit animals or cosmic connections
-- Use crystal ball, star, and mystical emojis
-- Create a sense of destiny and magical alignment"""
-
-    elif personality_name == "superhero":
-        base_prompt += """
-
-CAPTAIN CELEBRATION'S TEAM PROTOCOLS:
-- Treat multiple birthdays as a superhero team formation
-- Reference their combined birthday powers
-- Use action-packed language and superhero terminology
-- Include mission briefings or alerts
-- Encourage the team to "assemble" for celebration"""
-
-    elif personality_name == "pirate":
-        base_prompt += """
-
-CAPTAIN BIRTHDAYBEARD'S CREW INSTRUCTIONS:
-- Treat multiple birthdays as a birthday crew or fleet
-- Use naval/maritime terminology and references
-- Reference treasure, adventure, and crew dynamics
-- Include pirate speech patterns (Ahoy, Arrr, etc.)
-- Make it feel like an exciting voyage or discovery"""
-
-    elif personality_name == "tech_guru":
-        base_prompt += """
-
-CODECAKE'S SYSTEM ARCHITECTURE:
-- Reference the probability/statistics of shared birthdays
-- Use programming terminology (arrays, synchronized events, etc.)
-- Include tech metaphors for celebration coordination
-- Reference system alerts, deployments, or version updates
-- Make it feel like a remarkable system event"""
-
-    elif personality_name == "chef":
-        base_prompt += """
-
-CHEF CONFETTI'S KITCHEN COORDINATION:
-- Reference multiple birthday cakes, shared recipes, or cooking together
-- Use culinary terminology for celebration preparation
-- Include food metaphors for friendship and sharing
-- Reference ingredients, flavors, or cooking techniques
-- Make it feel like a grand feast preparation"""
-
-    elif personality_name == "time_traveler":
-        base_prompt += """
-
-CHRONO'S TIMELINE ANALYSIS:
-- Reference the timeline convergence of multiple birthdays
-- Include time travel metaphors and future predictions
-- Mention probability across different timelines
-- Use sci-fi terminology for the birthday coincidence
-- Make it feel like a significant temporal event"""
-
-    elif personality_name == "poet":
-        base_prompt += """
-
-THE VERSE-ATILE'S COMPOSITION GUIDELINES:
-- Create lyrical, rhythmic language celebrating shared birthdays
-- Include metaphors about harmony, synchronicity, or shared melodies
-- Use elegant language with subtle rhymes or rhythm
-- Reference musical or artistic concepts of coordination
-- Make it feel like a beautiful composition or symphony"""
+    personality_config = get_personality_config(personality_name)
+    consolidated_prompt = personality_config.get("consolidated_prompt", "")
+    if consolidated_prompt:
+        base_prompt += consolidated_prompt
 
     return base_prompt
 

@@ -44,6 +44,7 @@ from config import (
     STORAGE_DIR,
     CACHE_DIR,
     BIRTHDAYS_FILE,
+    AI_IMAGE_GENERATION_ENABLED,
 )
 from utils.config_storage import save_admins_to_file
 from utils.web_search import clear_cache
@@ -131,7 +132,11 @@ def handle_dm_admin_help(say, user_id, app):
         say("You don't have permission to view admin commands.")
         return
 
-    admin_help = """
+    # Get all available personalities
+    personalities = list(BOT_PERSONALITIES.keys())
+    personality_list = ", ".join([f"`{p}`" for p in personalities])
+
+    admin_help = f"""
 *Admin Commands:*
 
 • `admin list` - List configured admin users
@@ -146,6 +151,7 @@ def handle_dm_admin_help(say, user_id, app):
 • `admin status` - View system health and component status
 • `admin status detailed` - View detailed system information
 • `admin timezone` - View birthday celebration schedule across timezones
+• `admin test @user` - Generate test birthday message & image for a user (stays in DM)
 
 • `config` - View command permissions
 • `config COMMAND true/false` - Change command permissions
@@ -160,7 +166,21 @@ def handle_dm_admin_help(say, user_id, app):
 *Bot Personality:*
 • `admin personality` - Show current bot personality
 • `admin personality [name]` - Change bot personality
-  Available options: standard, mystic_dog, custom
+  
+*Available Personalities:*
+{personality_list}
+
+*Personality Descriptions:*
+• `standard` - Friendly, enthusiastic birthday bot
+• `mystic_dog` - Ludo the cosmic birthday dog with mystical predictions
+• `poet` - Lyrical birthday messages in verse
+• `tech_guru` - Programming-themed birthday messages
+• `chef` - Culinary-themed birthday celebrations
+• `superhero` - Comic book style birthday announcements
+• `time_traveler` - Futuristic birthday messages from Chrono
+• `pirate` - Nautical-themed celebrations from Captain BirthdayBeard
+• `random` - Randomly selects a personality for each birthday
+• `custom` - Fully customizable personality
   
 *Custom Personality:*
 • `admin custom name [value]` - Set custom bot name
@@ -812,6 +832,94 @@ def handle_test_upload_command(user_id, say, app):
         say(f"An error occurred during the test upload: {e}")
 
 
+def handle_test_birthday_command(args, user_id, say, app):
+    """Handles the admin test @user command to generate test birthday message and image."""
+    if not args:
+        say("Please specify a user: `admin test @user`")
+        return
+
+    # Extract user ID from mention
+    test_user_id = None
+    if args[0].startswith("<@") and args[0].endswith(">"):
+        test_user_id = args[0][2:-1].split("|")[0]
+    else:
+        say("Please mention a user with @username")
+        return
+
+    # Get user profile and information
+    from utils.date_utils import date_to_words
+    from utils.storage import load_birthdays
+    from datetime import datetime
+
+    test_username = get_username(app, test_user_id)
+    user_profile = get_user_profile(app, test_user_id)
+
+    if not user_profile:
+        say(f"Could not retrieve profile for {test_username}")
+        return
+
+    # Check if user has a birthday saved
+    birthdays = load_birthdays()
+    birthday_data = birthdays.get(test_user_id)
+
+    if birthday_data:
+        birth_date = birthday_data["date"]
+        birth_year = birthday_data.get("year")
+        date_words = date_to_words(birth_date, birth_year)
+    else:
+        # Use today's date as a test birthday
+        today = datetime.now()
+        birth_date = f"{today.day:02d}/{today.month:02d}"
+        birth_year = None
+        date_words = date_to_words(birth_date, birth_year)
+        say(
+            f"Note: {test_username} doesn't have a birthday saved. Using today's date ({birth_date}) for testing."
+        )
+
+    say(f"Generating test birthday message and image for {test_username}...")
+
+    try:
+        # Generate birthday message with AI and image
+        result = completion(
+            test_username,
+            date_words,
+            test_user_id,
+            birth_date,
+            birth_year,
+            app=app,
+            user_profile=user_profile,
+            include_image=AI_IMAGE_GENERATION_ENABLED,
+        )
+
+        if isinstance(result, tuple) and AI_IMAGE_GENERATION_ENABLED:
+            message, image_data = result
+
+            # Send the message with image in DM
+            if image_data:
+                send_message_with_image(
+                    app,
+                    user_id,
+                    f"*Test Birthday Message for {test_username}:*\n\n{message}",
+                    image_data,
+                )
+            else:
+                say(
+                    f"*Test Birthday Message for {test_username}:*\n\n{message}\n\n⚠️ Image generation failed."
+                )
+        else:
+            # Just the message without image
+            message = result
+            say(f"*Test Birthday Message for {test_username}:*\n\n{message}")
+
+        logger.info(
+            f"ADMIN_TEST: Generated test birthday for {test_username} by {get_username(app, user_id)}"
+        )
+
+    except Exception as e:
+        logger.error(f"ADMIN_TEST_ERROR: Failed to generate test birthday: {e}")
+        say(f"Error generating test birthday message: {e}")
+
+
 def handle_cache_command(parts, user_id, say, app):
     """Handle cache management commands"""
     from utils.slack_utils import get_username
@@ -1083,6 +1191,9 @@ def handle_admin_command(subcommand, args, say, user_id, app):
 
     elif subcommand == "test-upload":
         handle_test_upload_command(user_id, say, app)
+
+    elif subcommand == "test":
+        handle_test_birthday_command(args, user_id, say, app)
 
     else:
         say(

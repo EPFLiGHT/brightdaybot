@@ -13,6 +13,8 @@ from config import (
     WEB_SEARCH_CACHE_ENABLED,
     BIRTHDAY_CHANNEL,
     get_logger,
+    LOG_FILES,
+    LOGS_DIR,
 )
 from utils.config_storage import ADMINS_FILE, PERSONALITY_FILE
 
@@ -132,6 +134,90 @@ def check_json_file(file_path):
     except Exception as e:
         logger.error(f"Unexpected error checking file {file_path}: {e}")
         return {"status": STATUS_ERROR, "file": file_path, "error": str(e)}
+
+
+def check_log_files():
+    """
+    Check all log files for existence, size, and recent activity
+
+    Returns:
+        dict: Status information about log files
+    """
+    try:
+        log_status = {
+            "status": STATUS_OK,
+            "logs_directory": LOGS_DIR,
+            "log_files": {},
+            "total_files": 0,
+            "total_size_mb": 0,
+        }
+
+        # Check if logs directory exists
+        if not os.path.exists(LOGS_DIR):
+            return {
+                "status": STATUS_MISSING,
+                "logs_directory": LOGS_DIR,
+                "error": "Logs directory does not exist",
+            }
+
+        has_issues = False
+        total_size = 0
+
+        for log_type, log_file in LOG_FILES.items():
+            file_info = {
+                "path": log_file,
+                "exists": os.path.exists(log_file),
+            }
+
+            if file_info["exists"]:
+                try:
+                    stat = os.stat(log_file)
+                    file_size = stat.st_size
+                    file_info.update(
+                        {
+                            "size_bytes": file_size,
+                            "size_mb": round(file_size / (1024 * 1024), 2),
+                            "last_modified": format_timestamp(stat.st_mtime),
+                            "status": STATUS_OK,
+                        }
+                    )
+                    total_size += file_size
+
+                    # Check for very large files (>50MB might indicate an issue)
+                    if file_size > 50 * 1024 * 1024:
+                        file_info["warning"] = (
+                            f"Large log file ({file_info['size_mb']}MB)"
+                        )
+                        file_info["status"] = "warning"
+
+                    # Check if file has been written to recently (within last hour)
+                    import time
+
+                    if time.time() - stat.st_mtime > 3600:  # 1 hour
+                        file_info["note"] = "No recent activity (>1 hour)"
+
+                except Exception as e:
+                    file_info.update({"status": STATUS_ERROR, "error": str(e)})
+                    has_issues = True
+            else:
+                file_info["status"] = STATUS_MISSING
+                file_info["note"] = "Log file will be created when component is used"
+
+            log_status["log_files"][log_type] = file_info
+
+        log_status["total_files"] = len(
+            [f for f in log_status["log_files"].values() if f["exists"]]
+        )
+        log_status["total_size_mb"] = round(total_size / (1024 * 1024), 2)
+
+        if has_issues:
+            log_status["status"] = STATUS_ERROR
+
+        return log_status
+
+    except Exception as e:
+        logger.error(f"Error checking log files: {e}")
+        return {"status": STATUS_ERROR, "logs_directory": LOGS_DIR, "error": str(e)}
 
 
 def get_system_status():
@@ -307,6 +393,13 @@ def get_system_status():
 
         status["components"]["cache"] = cache_status
 
+        # Check log files status
+        log_status = check_log_files()
+        status["components"]["log_files"] = log_status
+
+        if log_status.get("status") == STATUS_ERROR:
+            has_critical_issue = True
+
         # Check birthday channel configuration
         status["components"]["birthday_channel"] = {
             "status": STATUS_OK if BIRTHDAY_CHANNEL else STATUS_NOT_CONFIGURED,
@@ -463,6 +556,23 @@ def get_status_summary():
             )
             if "error" in cache_status:
                 summary_lines.append(f"   Error: {cache_status['error']}")
+
+        # Log files summary
+        log_status = status["components"].get("log_files", {})
+        if log_status.get("status") == STATUS_OK:
+            total_files = log_status.get("total_files", 0)
+            total_size = log_status.get("total_size_mb", 0)
+            summary_lines.append(
+                f"✅ *Log Files*: {total_files} active log files ({total_size} MB total)"
+            )
+        elif log_status.get("status") == STATUS_ERROR:
+            summary_lines.append(
+                f"❌ *Log Files*: {log_status.get('error', 'Unknown error')}"
+            )
+        else:
+            summary_lines.append(
+                f"ℹ️ *Log Files*: {log_status.get('status', 'UNKNOWN').upper()}"
+            )
 
         # Birthday channel
         birthday_channel = status["components"].get("birthday_channel", {})
