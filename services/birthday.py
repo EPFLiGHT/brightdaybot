@@ -217,6 +217,8 @@ def timezone_aware_check(app, moment):
                 all_birthday_people_today,
                 app=app,
                 include_image=AI_IMAGE_GENERATION_ENABLED,
+                test_mode=False,  # Real birthdays use high quality
+                quality=None,  # Use default quality logic
             )
 
             if isinstance(result, tuple) and AI_IMAGE_GENERATION_ENABLED:
