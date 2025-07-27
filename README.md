@@ -213,7 +213,7 @@ DM the bot with any of these commands:
 - `remove` - Remove your birthday
 - `check` - Check your saved birthday
 - `check @user` - Check someone else's birthday
-- `test [quality]` - See a test birthday message with optional quality (low, medium, high, auto)
+- `test [quality] [size]` - See a test birthday message with optional quality and image size (quality: low/medium/high/auto, size: auto/1024x1024/1536x1024/1024x1536)
 
 Or simply send a date in `DD/MM` or `DD/MM/YYYY` format.
 
@@ -229,7 +229,7 @@ Or simply send a date in `DD/MM` or `DD/MM/YYYY` format.
 - `admin status` - Check system health and component status
 - `admin status detailed` - Get detailed system information
 - `admin timezone` - View birthday celebration schedule across timezones
-- `admin test @user [quality]` - **NEW**: Generate test birthday message & image with quality control (stays in DM)
+- `admin test @user [quality] [size]` - **NEW**: Generate test birthday message & image with quality and size control (stays in DM)
 - `remind [message]` - Send reminders to users without birthdays
 - `config` - View command permissions
 - `config COMMAND true/false` - Change command permissions
@@ -244,7 +244,7 @@ Or simply send a date in `DD/MM` or `DD/MM/YYYY` format.
 
 ### Bot Personality
 
-**Enhanced Personality System** 🎭
+#### Enhanced Personality System 🎭
 
 The bot supports multiple personalities that change birthday messages, images, and web search formatting. All personalities are now defined in `personality_config.py`:
 
@@ -259,13 +259,15 @@ The bot supports multiple personalities that change birthday messages, images, a
 - `random` - Randomly selects a different personality for each birthday
 - `custom` - Fully customizable personality
 
-**Managing Personalities:**
+#### Managing Personalities
+
 1. View current: `admin personality`
 2. Change personality: `admin personality [name]`
 3. Test personality: `admin test @user`
 4. View all options: `admin help`
 
-**Adding Custom Personalities:**
+#### Adding Custom Personalities
+
 Edit `personality_config.py` and add a new entry with all required fields. The new personality will automatically be available.
 
 #### Ludo the Mystic Birthday Dog
@@ -306,7 +308,7 @@ The bot maintains persistent configuration across restarts:
 
 ### Changing Birthday Message Style
 
-**NEW: Centralized Personality Configuration** 🎨
+#### NEW: Centralized Personality Configuration 🎨
 
 All personality configurations are now centralized in `personality_config.py` for easy management:
 
@@ -317,12 +319,14 @@ All personality configurations are now centralized in `personality_config.py` fo
   - Web search formatting
   - Consolidated message prompts
 
-**Adding a New Personality:**
+#### Adding a New Personality
+
 1. Add a new entry to the `PERSONALITIES` dictionary in `personality_config.py`
 2. Define all required fields (see existing personalities as examples)
 3. The new personality will automatically be available in all bot functions
 
-**Legacy Configuration:**
+#### Legacy Configuration
+
 - `BASE_TEMPLATE` - The core template all personalities share (in config.py)
 - `BACKUP_MESSAGES` - Fallback templates when AI is unavailable (in utils/message_generator.py)
 
@@ -337,32 +341,37 @@ The bot now uses a sophisticated multi-timezone celebration system:
 
 ### AI Image Generation
 
-**🚀 REVOLUTIONARY: Reference Photo Generation** 🖼️
+#### 🚀 REVOLUTIONARY: Reference Photo Generation 🖼️
 
 The bot now generates face-accurate birthday images using OpenAI's GPT-Image-1 model with breakthrough reference photo technology:
 
-**NEW: Face-Accurate Images**
+#### NEW: Face-Accurate Images
+
 - **Reference Photo Mode**: Automatically uses user's Slack profile photo as reference
 - **High Input Fidelity**: GPT-Image-1 preserves facial features and expressions accurately
 - **Smart Dual-Mode**: Reference-based when photos available, text-only fallback
 - **Quality Control**: Configurable quality settings for cost optimization
 
-**Advanced Features**
+#### Advanced Features
+
 - **Profile Photo Pipeline**: Downloads, processes, and prepares user photos automatically
 - **Personality-Themed Styles**: Each personality generates images in its unique style
 - **Message Context Integration**: Incorporates themes from the generated birthday message
 - **Cost Optimization**: Test commands use lower quality for reduced costs
 - **Automatic Cleanup**: Profile photos cleaned after 7 days, images after 30 days
 
-**Quality Settings**
-- `test [quality]` - User test with optional quality (low, medium, high, auto)
-- `admin test @user [quality]` - Admin test with quality control
-- Production birthdays automatically use high quality
+#### Quality & Size Settings
 
-**Technical Details**
+- `test [quality] [size]` - User test with optional quality and image size control
+- `admin test @user [quality] [size]` - Admin test with quality and size control
+- Production birthdays automatically use high quality and auto sizing
+- **NEW**: Default image size is now "auto" for optimal sizing
+
+#### Technical Details
+
 - Uses GPT-Image-1's `images.edit` API for reference-based generation
 - `input_fidelity="high"` for optimal face preservation
-- Supports 1024x1024, 1536x1024, 1024x1536 image sizes
+- Supports auto, 1024x1024, 1536x1024, 1024x1536 image sizes
 - Automatic fallback when profile photos unavailable
 
 Enable/disable with `AI_IMAGE_GENERATION_ENABLED` environment variable.
@@ -389,11 +398,11 @@ The bot implements several data management features:
 
 ## Enhanced Logging System
 
-**NEW: Component-Specific Logging** 📝
+### NEW: Component-Specific Logging 📝
 
 BrightDayBot now features an advanced multi-file logging system that organizes logs by component for easier debugging and monitoring:
 
-### Log Files Structure
+#### Log Files Structure
 
 - **`main.log`** - Core application startup, configuration, and general operations
 - **`commands.log`** - User commands, admin actions, and command processing
@@ -405,7 +414,7 @@ BrightDayBot now features an advanced multi-file logging system that organizes l
 - **`system.log`** - System utilities, health checks, and date operations
 - **`scheduler.log`** - Background scheduling and periodic tasks
 
-### Features
+#### Features
 
 - **Automatic Rotation**: Log files rotate when they reach 10MB (keeping 5 backup files)
 - **Component Routing**: Each module logs to its appropriate file automatically

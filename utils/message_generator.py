@@ -157,6 +157,7 @@ def create_birthday_announcement(
     star_sign=None,
     test_mode=False,
     quality=None,
+    image_size=None,
 ):
     """
     Create a fun, vertically expansive birthday announcement
@@ -356,6 +357,7 @@ def completion(
     include_image: bool = False,  # Whether to generate AI image
     test_mode: bool = False,  # Use low-cost mode for testing
     quality: str = None,  # Override image quality ("low", "medium", "high", "auto")
+    image_size: str = None,  # Override image size ("auto", "1024x1024", "1536x1024", "1024x1536")
 ) -> str:
     """
     Generate an enthusiastic, fun birthday message using OpenAI or fallback messages
@@ -497,7 +499,7 @@ def completion(
     # Note: Image will be generated after the message is created
     image_context = ""
     if include_image and user_profile:
-        image_context = f"\n\nNote: A personalized birthday image will be generated for them in {selected_personality_name} style. You may reference this visual celebration in your message."
+        image_context = f"\n\nNote: A personalized birthday image will be generated for them in {selected_personality_name} style. Do NOT mention the image in your message as it will be sent automatically with your text."
 
     user_content = f"""
         {name}'s birthday is on {date}.{star_sign_text}{age_text} Please write them a fun, enthusiastic birthday message for a workplace Slack channel.
@@ -572,6 +574,7 @@ def completion(
                             birthday_message=reply,  # Pass the generated message
                             test_mode=test_mode,
                             quality=quality,
+                            image_size=image_size,
                         )
 
                         if generated_image:
@@ -630,6 +633,7 @@ def completion(
                             birthday_message=reply,  # Pass the generated message
                             test_mode=test_mode,
                             quality=quality,
+                            image_size=image_size,
                         )
 
                         if generated_image:
@@ -678,6 +682,7 @@ def completion(
                         birthday_message=formatted_message,  # Pass the fallback message
                         test_mode=test_mode,
                         quality=quality,
+                        image_size=image_size,
                     )
 
                     if generated_image:
@@ -770,7 +775,12 @@ def fix_slack_formatting(text):
 
 
 def create_consolidated_birthday_announcement(
-    birthday_people, app=None, include_image=False, test_mode=False, quality=None
+    birthday_people,
+    app=None,
+    include_image=False,
+    test_mode=False,
+    quality=None,
+    image_size=None,
 ):
     """
     Create a single AI-powered consolidated birthday announcement for one or more people
@@ -779,6 +789,9 @@ def create_consolidated_birthday_announcement(
         birthday_people: List of dicts with keys: user_id, username, date, year, date_words, profile
         app: Optional Slack app instance for custom emoji fetching
         include_image: Whether to generate AI image for multiple birthdays
+        test_mode: If True, uses lower quality/smaller size to reduce costs for testing
+        quality: Override image quality ("low", "medium", "high", or "auto"). If None, uses test_mode logic
+        image_size: Override image size ("auto", "1024x1024", "1536x1024", "1024x1536"). If None, defaults to "auto"
 
     Returns:
         If include_image is True and multiple people: tuple of (message, image_data)
@@ -814,7 +827,9 @@ def create_consolidated_birthday_announcement(
 
     # Multiple birthdays - use AI to create creative consolidated message
     try:
-        return _generate_ai_consolidated_message(birthday_people, app, include_image)
+        return _generate_ai_consolidated_message(
+            birthday_people, app, include_image, test_mode, quality, image_size
+        )
     except Exception as e:
         logger.error(f"AI_ERROR: Failed to generate AI consolidated message: {e}")
         # Fallback to static template for multiple birthdays
@@ -823,7 +838,14 @@ def create_consolidated_birthday_announcement(
         return _generate_fallback_consolidated_message(birthday_people)
 
 
-def _generate_ai_consolidated_message(birthday_people, app=None, include_image=False):
+def _generate_ai_consolidated_message(
+    birthday_people,
+    app=None,
+    include_image=False,
+    test_mode=False,
+    quality=None,
+    image_size=None,
+):
     """
     Generate AI-powered consolidated birthday message for multiple people
 
@@ -831,6 +853,9 @@ def _generate_ai_consolidated_message(birthday_people, app=None, include_image=F
         birthday_people: List of birthday person dicts
         app: Optional Slack app instance
         include_image: Whether to generate AI image for multiple birthdays
+        test_mode: If True, uses lower quality/smaller size to reduce costs for testing
+        quality: Override image quality ("low", "medium", "high", or "auto"). If None, uses test_mode logic
+        image_size: Override image size ("auto", "1024x1024", "1536x1024", "1024x1536"). If None, defaults to "auto"
 
     Returns:
         If include_image is True: tuple of (message, image_data)
@@ -991,6 +1016,7 @@ Generate an amazing consolidated birthday message that celebrates all of them to
                     birthday_message=message,  # Pass the generated consolidated message
                     test_mode=test_mode,
                     quality=quality,
+                    image_size=image_size,
                 )
 
                 if generated_image:
@@ -1234,7 +1260,7 @@ def test_consolidated_announcement():
         print(f"\n--- Birthday Twins with {personality} personality ---")
         try:
             twins_message = create_consolidated_birthday_announcement(
-                birthday_twins, test_mode=False, quality=None
+                birthday_twins, test_mode=False, quality=None, image_size=None
             )
             print(twins_message)
         except Exception as e:
@@ -1243,7 +1269,7 @@ def test_consolidated_announcement():
         print(f"\n--- Birthday Triplets with {personality} personality ---")
         try:
             triplets_message = create_consolidated_birthday_announcement(
-                birthday_triplets, test_mode=False, quality=None
+                birthday_triplets, test_mode=False, quality=None, image_size=None
             )
             print(triplets_message)
         except Exception as e:

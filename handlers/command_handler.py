@@ -122,7 +122,7 @@ Here's how you can interact with me:
    • `help` - Show this help message
    • `check` - Check your saved birthday
    • `check @user` - Check someone else's birthday
-   • `test` - See a test birthday message for yourself
+   • `test [quality] [size]` - See a test birthday message for yourself (quality: low/medium/high/auto, size: auto/1024x1024/1536x1024/1024x1536)
 
 Admin commands are also available. Type `admin help` for more information.
 """
@@ -319,8 +319,10 @@ def handle_command(text, user_id, say, app):
         handle_config_command(parts, user_id, say, app)
 
     elif command == "test":
-        # Extract quality parameter if provided: "test [quality]"
+        # Extract quality and image_size parameters if provided: "test [quality] [size]"
         quality = None
+        image_size = None
+
         if len(parts) > 1:
             quality_arg = parts[1].lower()
             if quality_arg in ["low", "medium", "high", "auto"]:
@@ -330,7 +332,18 @@ def handle_command(text, user_id, say, app):
                     f"Invalid quality '{parts[1]}'. Valid options: low, medium, high, auto"
                 )
                 return
-        handle_test_command(user_id, say, app, quality)
+
+        if len(parts) > 2:
+            size_arg = parts[2].lower()
+            if size_arg in ["auto", "1024x1024", "1536x1024", "1024x1536"]:
+                image_size = size_arg
+            else:
+                say(
+                    f"Invalid size '{parts[2]}'. Valid options: auto, 1024x1024, 1536x1024, 1024x1536"
+                )
+                return
+
+        handle_test_command(user_id, say, app, quality, image_size)
 
     else:
         # Unknown command
@@ -702,7 +715,7 @@ def handle_config_command(parts, user_id, say, app):
         )
 
 
-def handle_test_command(user_id, say, app, quality=None):
+def handle_test_command(user_id, say, app, quality=None, image_size=None):
     # Generate a test birthday message for the user
     birthdays = load_birthdays()
     today = datetime.now()
@@ -739,6 +752,9 @@ def handle_test_command(user_id, say, app, quality=None):
             app=app,
             user_profile=user_profile,
             include_image=AI_IMAGE_GENERATION_ENABLED,
+            test_mode=True,  # Use low-cost mode for user testing
+            quality=quality,  # Allow quality override
+            image_size=image_size,  # Allow image size override
         )
 
         if isinstance(result, tuple) and AI_IMAGE_GENERATION_ENABLED:
@@ -850,10 +866,10 @@ def handle_test_upload_command(user_id, say, app):
 
 
 def handle_test_birthday_command(args, user_id, say, app):
-    """Handles the admin test @user [quality] command to generate test birthday message and image."""
+    """Handles the admin test @user [quality] [size] command to generate test birthday message and image."""
     if not args:
         say(
-            "Please specify a user: `admin test @user [quality]`\nQuality options: low, medium, high, auto"
+            "Please specify a user: `admin test @user [quality] [size]`\nQuality options: low, medium, high, auto\nSize options: auto, 1024x1024, 1536x1024, 1024x1536"
         )
         return
 
@@ -868,8 +884,10 @@ def handle_test_birthday_command(args, user_id, say, app):
         say("Please mention a user with @username")
         return
 
-    # Extract quality parameter if provided
+    # Extract quality and image_size parameters if provided
     quality = None
+    image_size = None
+
     if len(args) > 1:
         quality_arg = args[1].lower()
         if quality_arg in ["low", "medium", "high", "auto"]:
@@ -877,6 +895,17 @@ def handle_test_birthday_command(args, user_id, say, app):
             logger.info(f"TEST_COMMAND: Using quality: {quality}")
         else:
             say(f"Invalid quality '{args[1]}'. Valid options: low, medium, high, auto")
+            return
+
+    if len(args) > 2:
+        size_arg = args[2].lower()
+        if size_arg in ["auto", "1024x1024", "1536x1024", "1024x1536"]:
+            image_size = size_arg
+            logger.info(f"TEST_COMMAND: Using image size: {image_size}")
+        else:
+            say(
+                f"Invalid size '{args[2]}'. Valid options: auto, 1024x1024, 1536x1024, 1024x1536"
+            )
             return
 
     # Get user profile and information
@@ -924,6 +953,7 @@ def handle_test_birthday_command(args, user_id, say, app):
             include_image=AI_IMAGE_GENERATION_ENABLED,
             test_mode=True,  # Use low-cost mode for admin testing
             quality=quality,  # Allow quality override
+            image_size=image_size,  # Allow image size override
         )
 
         if isinstance(result, tuple) and AI_IMAGE_GENERATION_ENABLED:

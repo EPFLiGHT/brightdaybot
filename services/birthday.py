@@ -219,6 +219,7 @@ def timezone_aware_check(app, moment):
                 include_image=AI_IMAGE_GENERATION_ENABLED,
                 test_mode=False,  # Real birthdays use high quality
                 quality=None,  # Use default quality logic
+                image_size=None,  # Use default auto sizing
             )
 
             if isinstance(result, tuple) and AI_IMAGE_GENERATION_ENABLED:
