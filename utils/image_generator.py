@@ -25,6 +25,7 @@ def generate_birthday_image(
     birthday_message=None,
     test_mode=False,
     quality=None,
+    image_size=None,
 ):
     """
     Generate a personalized birthday image using GPT-Image-1
@@ -38,6 +39,7 @@ def generate_birthday_image(
         birthday_message: Optional birthday announcement message to incorporate into the image
         test_mode: If True, uses lower quality/smaller size to reduce costs for testing
         quality: Override quality setting ("low", "medium", "high", or "auto"). If None, uses test_mode logic
+        image_size: Override image size ("auto", "1024x1024", "1536x1024", "1024x1536"). If None, defaults to "auto"
 
     Returns:
         Dictionary with image URL and metadata, or None if failed
@@ -80,7 +82,12 @@ def generate_birthday_image(
             cost_mode = "low-cost test" if test_mode else "full quality"
 
         input_fidelity = "high"  # Always use high fidelity for face preservation
-        image_size = "1024x1024"  # Standard size (auto, 1024x1024, 1536x1024, 1024x1536 are valid)
+
+        # Determine image size - allow override via image_size parameter
+        if image_size is not None:
+            final_image_size = image_size
+        else:
+            final_image_size = "auto"  # Default to auto for optimal size selection
 
         logger.info(
             f"IMAGE_GEN: Generating birthday image for {name} in {personality} style ({'reference-based' if use_reference_mode else 'text-only'}, {cost_mode})"
@@ -95,7 +102,7 @@ def generate_birthday_image(
                         model="gpt-image-1",
                         image=image_file,
                         prompt=prompt,
-                        size=image_size,
+                        size=final_image_size,
                         input_fidelity=input_fidelity,
                         quality=image_quality,
                     )
@@ -118,7 +125,7 @@ def generate_birthday_image(
             generation_params = {
                 "model": "gpt-image-1",
                 "prompt": prompt,
-                "size": image_size,
+                "size": final_image_size,
                 "quality": image_quality,
             }
 
@@ -155,7 +162,7 @@ def generate_birthday_image(
             "generation_mode": "reference_photo" if use_reference_mode else "text_only",
             "used_profile_photo": profile_photo_path is not None,
             "test_mode": test_mode,
-            "image_size": image_size,
+            "image_size": final_image_size,
             "image_quality": image_quality,
             "input_fidelity": input_fidelity if use_reference_mode else None,
         }
