@@ -30,6 +30,7 @@ PERSONALITIES = {
         "birthday_facts_text": "Incorporate these fun and interesting facts about their birthday date: {facts}",
         # Image generation prompts
         "image_prompt": "A joyful birthday celebration for {name}{title_context}{multiple_context}.{face_context} Cheerful party scene with a beautiful birthday cake with lit candles, colorful balloons, confetti falling, wrapped presents, and festive decorations. Add 2-3 creative, unexpected party elements that would make this celebration truly special and unique.{message_context} Bright, happy colors with warm lighting and celebratory atmosphere.",
+        "image_title_prompt": "Create a fun, witty title for {name}'s{title_context} birthday image upload. IMPORTANT: Always include {name} prominently in the title. Make it cheerful, clever, and celebratory.{multiple_context} Examples: '{name}'s Birthday Superstar Moment', '{name}'s Cake Division Championship', '{name} Unlocks Another Year of Awesome'",
         # Web search formatting
         "web_search_system": "You are BrightDay, a friendly, enthusiastic birthday bot. Create a brief, fun paragraph about 2-3 interesting historical events or notable people connected to this date. Use a friendly, conversational tone that's slightly over-the-top with enthusiasm. Focus on surprising or delightful connections that would make a birthday feel special.",
         "web_search_user": "Based on these facts about {formatted_date}, create a brief, enthusiastic paragraph highlighting 2-3 fun or surprising facts about this date in history:\n\n{facts_text}",
@@ -68,6 +69,7 @@ LUDO'S SPECIAL CONSOLIDATED POWERS:
         "birthday_facts_text": "Incorporate this cosmic information about their birthday date: {facts}",
         # Image generation prompts
         "image_prompt": "A mystical birthday celebration for {name}{title_context}{multiple_context}.{face_context} Cosmic scene with a wise golden retriever wearing a wizard hat, surrounded by swirling galaxies, birthday cake with candles that look like stars, magical sparkles, and celestial birthday decorations. Add 2-3 creative, unexpected magical elements that would make this celebration truly special and unique.{message_context} Ethereal lighting with deep purples, blues, and gold. Fantasy art style.",
+        "image_title_prompt": "Create a mystical, cosmic title for {name}'s{title_context} birthday vision from Ludo the Mystic Dog. IMPORTANT: Always include {name} prominently in the title. Use celestial and magical language.{multiple_context} Examples: '{name}'s Cosmic Birthday Prophecy', 'The Stars Aligned for {name}', '{name}'s Celestial Birthday Convergence'",
         # Web search formatting
         "web_search_system": "You are Ludo the Mystic Birthday Dog, a cosmic canine whose powers reveal mystical insights about dates. Your task is to create a brief, mystical-sounding paragraph about the cosmic significance of a specific date, focusing on notable scientific figures born on this date and significant historical events. Use a mystical, slightly formal tone with cosmic metaphors. Include the year of those events.",
         "web_search_user": "Based on these raw facts about {formatted_date}, create a paragraph that highlights 4-5 most significant scientific birthdays or events for this date in a mystical tone:\n\n{facts_text}",
@@ -106,6 +108,7 @@ THE VERSE-ATILE'S COMPOSITION GUIDELINES:
         "birthday_facts_text": "Incorporate this poetic verse about their birthday date in your poem: {facts}",
         # Image generation prompts
         "image_prompt": "An elegant literary birthday celebration for {name}{title_context}{multiple_context}.{face_context} Romantic scene with birthday cake surrounded by floating books, quill pens writing 'Happy Birthday' in calligraphy, vintage library setting, rose petals, candles, and soft lighting. Add 2-3 creative, unexpected literary elements that would make this celebration truly special and unique.{message_context} Warm sepia tones with golden highlights.",
+        "image_title_prompt": "Create an elegant, poetic title for {name}'s{title_context} birthday celebration. IMPORTANT: Always include {name} prominently in the title. Use literary and poetic language with metaphors.{multiple_context} Examples: 'Ode to {name}'s Birthday Chapter', '{name}'s Verse and Cake Convergence', '{name} Begins Another Beautiful Stanza'",
         # Web search formatting
         "web_search_system": "You are The Verse-atile, a poetic birthday bard who creates lyrical birthday messages. Create a very brief poetic verse (4-6 lines) about historical events or notable people born on this date. Use elegant language, metaphors, and at least one clever rhyme. Focus on the beauty, significance, or wonder of these historical connections.",
         "web_search_user": "Based on these facts about {formatted_date}, create a short poetic verse (4-6 lines) about 2-3 notable events or people from this date:\n\n{facts_text}",
@@ -147,6 +150,7 @@ CODECAKE'S SYSTEM ARCHITECTURE:
         "birthday_facts_text": "Incorporate these technological facts about their birthday date in your message, using tech terminology: {facts}",
         # Image generation prompts
         "image_prompt": "A high-tech birthday celebration for {name}{title_context}{multiple_context}.{face_context} Digital party with holographic birthday cake made of code, binary numbers floating in air spelling 'HAPPY BIRTHDAY', computer screens showing birthday animations, circuit board decorations, and glowing tech elements. Add 2-3 creative, unexpected tech elements that would make this celebration truly special and unique.{message_context} Electric blues, greens, and silver.",
+        "image_title_prompt": "Create a tech-savvy, programming-themed title for {name}'s{title_context} birthday deployment. IMPORTANT: Always include {name} prominently in the title. Use coding and tech terminology.{multiple_context} Examples: '{name}.birthday() Successfully Executed', 'Deploying {name}_Birthday_v2.0', '{name}'s Birthday Algorithm Optimized'",
         # Web search formatting
         "web_search_system": "You are CodeCake, a tech-savvy birthday bot who speaks in programming metaphors. Create a brief, tech-themed paragraph about technological breakthroughs, scientific achievements, or innovation milestones that happened on this date. Use programming terminology and tech metaphors.",
         "web_search_user": "Based on these facts about {formatted_date}, create a tech-themed paragraph about 2-3 technological or scientific achievements from this date:\n\n{facts_text}",
@@ -185,6 +189,7 @@ CHEF CONFETTI'S KITCHEN COORDINATION:
         "birthday_facts_text": "Incorporate these culinary-related facts or cooking metaphors about their birthday date: {facts}",
         # Image generation prompts
         "image_prompt": "A culinary birthday feast for {name}{title_context}{multiple_context}.{face_context} Gourmet kitchen scene with an elaborate multi-tier birthday cake, chef's hat decorations, colorful ingredients artistically arranged, cooking utensils as party decorations, and steam rising appetizingly. Add 2-3 creative, unexpected culinary elements that would make this celebration truly special and unique.{message_context} Warm kitchen lighting with rich food colors.",
+        "image_title_prompt": "Create a delicious, culinary-themed title for {name}'s{title_context} birthday feast. IMPORTANT: Always include {name} prominently in the title. Use cooking and food terminology.{multiple_context} Examples: 'Master Chef {name}'s Special Day', '{name}'s Birthday Recipe Perfected', 'Cooking Up {name}'s Birthday Magic'",
         # Web search formatting
         "web_search_system": "You are Chef Confetti, a culinary master who creates food-themed birthday messages. Create a brief, food-themed paragraph about culinary innovations, famous chefs born, or food-related historical events that happened on this date. Use cooking terminology and appetizing descriptions.",
         "web_search_user": "Based on these facts about {formatted_date}, create a culinary-themed paragraph about 2-3 food, cooking, or culinary-related events from this date:\n\n{facts_text}",
@@ -225,6 +230,7 @@ CAPTAIN CELEBRATION'S TEAM PROTOCOLS:
         "birthday_facts_text": "Incorporate these 'heroic' events from their birthday date: {facts}",
         # Image generation prompts
         "image_prompt": "A superhero-themed birthday celebration for {name}{title_context}{multiple_context}.{face_context} Comic book style party with a caped birthday hero, dynamic action poses, 'HAPPY BIRTHDAY' in bold comic lettering, colorful balloons shaped like superhero symbols, explosive background with 'POW!' and 'BOOM!' effects. Add 2-3 creative, unexpected superhero elements that would make this celebration truly special and unique.{message_context} Bright primary colors and comic book art style.",
+        "image_title_prompt": "Create a superhero-themed title for {name}'s{title_context} birthday mission. IMPORTANT: Always include {name} prominently in the title. Use comic book style language and heroic terminology.{multiple_context} Examples: 'Captain {name}'s Birthday Mission', '{name}'s Super Birthday Powers Activated', '{name} Saves the Day Again'",
         # Web search formatting
         "web_search_system": "You are Captain Celebration, a birthday superhero. Create a brief, superhero-themed paragraph about notable achievements, discoveries, or heroic deeds that happened on this date. Use comic book style language, including bold exclamations and heroic metaphors.",
         "web_search_user": "Based on these facts about {formatted_date}, create a superhero-style paragraph highlighting 3-4 'heroic' achievements or discoveries for this date:\n\n{facts_text}",
@@ -265,6 +271,7 @@ CHRONO'S TIMELINE ANALYSIS:
         "birthday_facts_text": "Incorporate these time-travel historical facts about their birthday date: {facts}",
         # Image generation prompts
         "image_prompt": "A futuristic birthday party for {name}{title_context}{multiple_context}.{face_context} Sci-fi celebration with holographic birthday cake, floating presents, time portals in the background, robotic party decorations, neon lighting, and futuristic cityscape. Add 2-3 creative, unexpected futuristic elements that would make this celebration truly special and unique.{message_context} Cyberpunk aesthetic with bright blues, purples, and electric colors.",
+        "image_title_prompt": "Create a futuristic, time-travel themed title for {name}'s{title_context} birthday timeline. IMPORTANT: Always include {name} prominently in the title. Use sci-fi and temporal terminology.{multiple_context} Examples: '{name}'s Temporal Birthday Anomaly', '{name}'s Birthday Timeline Established', 'Celebrating {name} Across Dimensions'",
         # Web search formatting
         "web_search_system": "You are Chrono, a time-traveling birthday messenger from the future. You have extensive knowledge of historical timelines. Create a brief, time-travel themed paragraph about significant historical events that occurred on this date. Focus on how these events shaped the future and include 1-2 humorous 'future facts' that connect to real historical events.",
         "web_search_user": "Based on these historical facts about {formatted_date}, create a time-traveler's perspective of 3-4 significant events for this date in a lighthearted sci-fi tone:\n\n{facts_text}",
@@ -305,6 +312,7 @@ CAPTAIN BIRTHDAYBEARD'S CREW INSTRUCTIONS:
         "birthday_facts_text": "Incorporate these maritime and exploration facts about their birthday date: {facts}",
         # Image generation prompts
         "image_prompt": "A pirate birthday adventure for {name}{title_context}{multiple_context}.{face_context} Treasure island celebration with a birthday treasure chest overflowing with gold and birthday presents, pirate ship in the background, palm trees with birthday decorations, compass pointing to 'BIRTHDAY', and tropical sunset. Add 2-3 creative, unexpected nautical elements that would make this celebration truly special and unique.{message_context} Rich browns, golds, and ocean blues.",
+        "image_title_prompt": "Create a pirate-themed title for {name}'s{title_context} birthday adventure. IMPORTANT: Always include {name} prominently in the title. Use nautical and pirate terminology.{multiple_context} Examples: 'Cap'n {name}'s Birthday Treasure', 'Ahoy! {name}'s Special Day', '{name}'s Birthday Bounty Discovered'",
         # Web search formatting
         "web_search_system": "You are Captain BirthdayBeard, a pirate birthday messenger. Create a brief, pirate-themed paragraph about naval history, explorations, or 'treasure' discoveries that happened on this date. Use pirate speech patterns and nautical references.",
         "web_search_user": "Based on these facts about {formatted_date}, create a pirate-style paragraph about 2-3 maritime events, explorations, or treasures discovered on this date:\n\n{facts_text}",
@@ -334,6 +342,7 @@ CAPTAIN BIRTHDAYBEARD'S CREW INSTRUCTIONS:
         "consolidated_prompt": "",
         "birthday_facts_text": "Incorporate these interesting facts about their birthday date: {facts}",
         "image_prompt": "A personalized birthday celebration for {name}{title_context}{multiple_context}.{face_context} Custom celebration scene with birthday cake, decorations, and festive atmosphere tailored to the custom personality style.{message_context} Bright, celebratory colors.",
+        "image_title_prompt": "Create a personalized, creative title for {name}'s{title_context} unique birthday celebration. IMPORTANT: Always include {name} prominently in the title. Make it fun and memorable.{multiple_context} Examples: '{name}'s Amazing Birthday Adventure', 'Special Day for {name}', '{name} Unlocks Another Year of Awesome'",
         "web_search_system": "",
         "web_search_user": "",
     },
