@@ -165,6 +165,7 @@ def generate_birthday_image(
             "image_size": final_image_size,
             "image_quality": image_quality,
             "input_fidelity": input_fidelity if use_reference_mode else None,
+            "user_profile": user_profile,  # Include user profile for title generation
         }
 
         # Automatically save image to file if requested and image data is available

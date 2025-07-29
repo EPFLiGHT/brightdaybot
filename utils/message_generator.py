@@ -28,6 +28,7 @@ logger = get_logger("llm")
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1")
 
+
 # Birthday announcement formats
 BIRTHDAY_INTROS = [
     ":birthday: ATTENTION WONDERFUL HUMANS! :tada:",
@@ -1162,6 +1163,318 @@ def _generate_fallback_consolidated_message(birthday_people):
         f"FALLBACK: Generated template consolidated message for {len(birthday_people)} people"
     )
     return message
+
+
+def generate_birthday_image_title(
+    name,
+    personality="standard",
+    user_profile=None,
+    birthday_message=None,
+    is_multiple_people=False,
+):
+    """
+    Generate a funny, personalized title for birthday image uploads using OpenAI API
+
+    Args:
+        name: Person's name or "Alice and Bob" for multiple people
+        personality: Bot personality for styling the title
+        user_profile: Optional user profile data for personalization
+        birthday_message: Optional birthday message for context
+        is_multiple_people: Whether this is for multiple birthday people
+
+    Returns:
+        AI-generated title string, or fallback title if AI fails
+    """
+    try:
+        # Get personality-specific title prompt
+        from personality_config import get_personality_config
+
+        personality_config = get_personality_config(personality)
+        title_prompt_template = personality_config.get("image_title_prompt")
+
+        if not title_prompt_template:
+            # Fallback to standard personality if no title prompt found
+            standard_config = get_personality_config("standard")
+            title_prompt_template = standard_config.get("image_title_prompt", "")
+
+        # Extract context from user profile
+        title_context = ""
+        if user_profile and user_profile.get("title"):
+            title_context = f", who works as a {user_profile['title']}"
+
+        # Format the prompt
+        formatted_prompt = title_prompt_template.format(
+            name=name,
+            title_context=title_context,
+            multiple_context=(
+                " This is for multiple people celebrating together!"
+                if is_multiple_people
+                else ""
+            ),
+        )
+
+        logger.info(f"TITLE_GEN: Generating AI title for {name} in {personality} style")
+
+        # Generate title using OpenAI with name validation and retry logic
+        max_retries = 2
+        for attempt in range(max_retries + 1):
+            try:
+                response = client.chat.completions.create(
+                    model=MODEL,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are a creative title generator for birthday image uploads. Generate funny, witty, and personalized titles that are 2-8 words long. CRITICAL: You MUST include the person's name(s) prominently in every title. Be creative but keep it workplace appropriate. Do not include emojis - they will be added separately.",
+                        },
+                        {"role": "user", "content": formatted_prompt},
+                    ],
+                    max_tokens=50,
+                    temperature=0.8,  # Higher creativity for titles
+                )
+
+                ai_title = response.choices[0].message.content.strip()
+
+                # Clean up the title (remove quotes, extra punctuation)
+                ai_title = ai_title.strip("\"'").rstrip(".!?")
+
+                # Validate title length
+                if len(ai_title) > 100 or len(ai_title) < 3:
+                    if attempt < max_retries:
+                        logger.warning(
+                            f"TITLE_GEN: Title length invalid ({len(ai_title)} chars), retrying..."
+                        )
+                        continue
+                    raise ValueError(
+                        f"Title length invalid: {len(ai_title)} characters"
+                    )
+
+                # Validate that the title contains the name(s) - critical for personalization
+                name_validation_passed = _validate_title_contains_names(
+                    ai_title, name, is_multiple_people
+                )
+
+                if not name_validation_passed:
+                    if attempt < max_retries:
+                        logger.warning(
+                            f"TITLE_GEN: Title missing names, retrying... (attempt {attempt + 1})"
+                        )
+                        continue
+                    else:
+                        logger.warning(
+                            f"TITLE_GEN: Title still missing names after {max_retries} retries, using anyway: '{ai_title}'"
+                        )
+
+                logger.info(
+                    f"TITLE_GEN: Successfully generated title for {name}: '{ai_title}'"
+                )
+                return ai_title
+
+            except Exception as e:
+                if attempt < max_retries:
+                    logger.warning(
+                        f"TITLE_GEN: API error on attempt {attempt + 1}, retrying: {e}"
+                    )
+                    continue
+                else:
+                    # If all retries failed, re-raise the exception to trigger fallback
+                    raise e
+
+    except Exception as e:
+        logger.error(f"TITLE_GEN_ERROR: Failed to generate AI title for {name}: {e}")
+        # Fallback to personality-appropriate static title
+        return get_fallback_title(name, personality, is_multiple_people)
+
+
+def _format_multiple_names(name):
+    """
+    Format multiple names for title display (e.g., "Alice & Bob" or "Alice, Bob & Charlie")
+
+    Args:
+        name: Full name string like "Alice Johnson and Bob Smith"
+
+    Returns:
+        Formatted names like "Alice & Bob"
+    """
+    import re
+
+    # Handle common name formats more carefully
+    # First, replace ", and " with ", " to normalize
+    normalized_name = re.sub(r",\s*and\s+", ", ", name)
+    # Then split on commas and "and"
+    names_parts = re.split(r"\s*,\s*|\s+and\s+", normalized_name)
+
+    # Extract first names only
+    first_names = []
+    for part in names_parts:
+        part = part.strip()
+        if part:  # Skip empty parts
+            first_name = part.split()[0]
+            # Filter out any remaining connecting words
+            if (
+                first_name
+                and len(first_name) > 1
+                and first_name.lower() not in ["and", "or", "the"]
+            ):
+                first_names.append(first_name)
+
+    # Format based on count
+    if len(first_names) == 2:
+        return f"{first_names[0]} & {first_names[1]}"
+    elif len(first_names) == 3:
+        return f"{first_names[0]}, {first_names[1]} & {first_names[2]}"
+    elif len(first_names) > 3:
+        return f"{first_names[0]}, {first_names[1]} & {len(first_names)-2} others"
+    else:
+        # Fallback - shouldn't happen but just in case
+        return name.split()[0] if name else "Team"
+
+
+def _validate_title_contains_names(title, name, is_multiple_people):
+    """
+    Validate that the AI-generated title contains the person's name(s)
+
+    Args:
+        title: The AI-generated title to validate
+        name: The name(s) to check for (e.g., "Alice" or "Alice and Bob")
+        is_multiple_people: Whether this is for multiple people
+
+    Returns:
+        bool: True if title contains names, False otherwise
+    """
+    title_lower = title.lower()
+
+    if is_multiple_people:
+        # For multiple people, extract individual names
+        # Handle formats like "Alice and Bob", "Alice, Bob, and Charlie"
+        import re
+
+        # Handle common name formats more carefully
+        # First, replace ", and " with ", " to normalize
+        normalized_name = re.sub(r",\s*and\s+", ", ", name)
+        # Then split on commas and "and"
+        names_parts = re.split(r"\s*,\s*|\s+and\s+", normalized_name)
+        individual_names = []
+
+        for part in names_parts:
+            part = part.strip()
+            if part:  # Skip empty parts
+                # Extract first names (assume first word is the first name)
+                first_name = part.split()[0]
+                # Filter out any remaining connecting words
+                if (
+                    first_name
+                    and len(first_name) > 1
+                    and first_name.lower() not in ["and", "or", "the"]
+                ):
+                    individual_names.append(first_name.lower())
+
+        # Check if at least one name appears in the title
+        names_found = sum(
+            1 for name_part in individual_names if name_part in title_lower
+        )
+
+        # For multiple people, we want at least 50% of names to appear, or at least 1 name
+        required_names = max(1, len(individual_names) // 2)
+        return names_found >= required_names
+
+    else:
+        # For single person, extract first name
+        first_name = name.strip().split()[0].lower()
+        if len(first_name) > 1:  # Avoid single letters
+            return first_name in title_lower
+
+    return True  # If we can't validate properly, assume it's okay
+
+
+def get_fallback_title(name, personality="standard", is_multiple_people=False):
+    """
+    Generate fallback titles when AI generation fails
+
+    Args:
+        name: Person's name
+        personality: Bot personality
+        is_multiple_people: Whether this is for multiple people
+
+    Returns:
+        Fallback title string
+    """
+    # Personality-specific fallback titles
+    fallback_titles = {
+        "mystic_dog": [
+            f"{name}'s Cosmic Birthday Vision",
+            f"The Stars Aligned for {name}",
+            f"Mystical Birthday Prophecy",
+            f"{name}'s Celestial Celebration",
+        ],
+        "superhero": [
+            f"Captain {name}'s Birthday Mission",
+            f"Super Birthday Powers Activated",
+            f"{name} Saves the Day Again",
+            f"Birthday Hero in Action",
+        ],
+        "pirate": [
+            f"Cap'n {name}'s Birthday Treasure",
+            f"Ahoy! {name}'s Special Day",
+            f"Birthday Bounty for {name}",
+            f"Sailing into Another Year",
+        ],
+        "tech_guru": [
+            f"{name}.birthday() Successfully Executed",
+            f"Deploying Birthday v{random.randint(1,9)}.0",
+            f"Birthday Algorithm Optimized",
+            f"{name}'s Annual System Update",
+        ],
+        "chef": [
+            f"{name}'s Birthday Recipe",
+            f"Master Chef {name}'s Special Day",
+            f"Birthday Feast in Progress",
+            f"Cooking Up Birthday Magic",
+        ],
+        "poet": [
+            f"Ode to {name}'s Birthday",
+            f"Birthday Verses for {name}",
+            f"A Poetic Birthday Celebration",
+            f"{name}'s Birthday Sonnet",
+        ],
+        "time_traveler": [
+            f"{name}'s Temporal Birthday Anomaly",
+            f"Birthday Timeline Established",
+            f"Celebrating Across Dimensions",
+            f"{name}'s Space-Time Birthday",
+        ],
+        "standard": [
+            f"{name}'s Amazing Birthday",
+            f"Birthday Celebration Mode",
+            f"Special Day for {name}",
+            f"Another Year of Awesome",
+        ],
+    }
+
+    # Modify for multiple people - include names!
+    if is_multiple_people:
+        # Create smart name formatting for multiple people
+        formatted_names = _format_multiple_names(name)
+
+        if personality == "mystic_dog":
+            return f"{formatted_names}'s Cosmic Birthday Convergence"
+        elif personality == "superhero":
+            return f"{formatted_names}'s Super Birthday Team Assembly"
+        elif personality == "pirate":
+            return f"{formatted_names}'s Birthday Crew Celebration"
+        elif personality == "tech_guru":
+            return f"{formatted_names}'s Multi-User Birthday Deployment"
+        elif personality == "chef":
+            return f"{formatted_names}'s Group Birthday Feast"
+        elif personality == "poet":
+            return f"{formatted_names}'s Birthday Harmony in Verse"
+        elif personality == "time_traveler":
+            return f"{formatted_names}'s Synchronized Birthday Timeline"
+        else:
+            return f"{formatted_names}'s Birthday Celebration Squad"
+
+    # Single person fallback
+    personality_titles = fallback_titles.get(personality, fallback_titles["standard"])
+    return random.choice(personality_titles)
 
 
 def test_fallback_messages(name="Test User", user_id="U123456789"):
