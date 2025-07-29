@@ -287,13 +287,45 @@ def send_message_with_image(app, channel: str, text: str, image_data=None, block
                         # Fallback to text-only message
                         return send_message(app, channel, text, blocks)
 
+                # Generate AI-powered title for the image
+                try:
+                    from utils.message_generator import generate_birthday_image_title
+
+                    # Extract name and context from image_data
+                    name = image_data.get("generated_for", "Birthday Person")
+                    personality = image_data.get("personality", "standard")
+                    user_profile = image_data.get(
+                        "user_profile"
+                    )  # This will need to be added to image_data
+                    is_multiple = (
+                        " and " in name or " , " in name
+                    )  # Detect multiple people
+
+                    ai_title = generate_birthday_image_title(
+                        name=name,
+                        personality=personality,
+                        user_profile=user_profile,
+                        is_multiple_people=is_multiple,
+                    )
+
+                    # Add emoji prefix to AI title
+                    final_title = f"🎂 {ai_title}"
+                    logger.info(
+                        f"IMAGE_TITLE: Generated AI title for {name}: '{ai_title}'"
+                    )
+
+                except Exception as e:
+                    logger.error(f"IMAGE_TITLE_ERROR: Failed to generate AI title: {e}")
+                    # Fallback to original static title
+                    final_title = f"🎂 Birthday Image - {image_data.get('personality', 'standard').title()} Style"
+
                 # Use files_upload_v2 for both channels and DMs (now that we have proper channel ID)
                 upload_response = app.client.files_upload_v2(
                     channel=target_channel,
                     initial_comment=text,
                     file=image_data["image_data"],
                     filename=filename,
-                    title=f"🎂 Birthday Image - {image_data.get('personality', 'standard').title()} Style",
+                    title=final_title,
                 )
 
                 if upload_response["ok"]:
