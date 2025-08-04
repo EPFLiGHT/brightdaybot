@@ -2,7 +2,7 @@ from openai import OpenAI
 import json
 import os
 from datetime import datetime
-from config import get_logger, CACHE_DIR, WEB_SEARCH_CACHE_ENABLED
+from config import get_logger, CACHE_DIR, WEB_SEARCH_CACHE_ENABLED, DATE_FORMAT
 import argparse
 import sys
 
@@ -125,9 +125,10 @@ def get_birthday_facts(date_str, personality="mystic_dog"):
             logger.error(f"CACHE_ERROR: Failed to read cache: {e}")
 
     try:
-        # Parse the date
-        day, month = map(int, date_str.split("/"))
-        search_date = datetime(2025, month, day)  # Year doesn't matter for the search
+        # Parse the date using datetime for proper validation
+        date_obj = datetime.strptime(date_str, DATE_FORMAT)
+        # Use any year for search formatting - year doesn't matter for historical events
+        search_date = datetime(2025, date_obj.month, date_obj.day)
         formatted_date = search_date.strftime("%B %d")  # e.g. "April 15"
 
         # Customize search query based on personality
@@ -372,15 +373,13 @@ def main():
         print("Cache disabled for this request")
 
     try:
-        # Validate date format
-        day, month = map(int, args.date.split("/"))
-        if not (1 <= day <= 31 and 1 <= month <= 12):
-            print(f"Error: Invalid date {args.date}. Day must be 1-31 and month 1-12.")
-            return
+        # Validate date format using datetime parsing
+        date_obj = datetime.strptime(args.date, DATE_FORMAT)
 
         print(f"\n=== Searching for facts about {args.date} ===")
-        date_obj = datetime(2025, month, day)  # Year doesn't matter
-        formatted_date = date_obj.strftime("%B %d")
+        # Use any year for formatting - year doesn't matter for historical facts
+        formatted_date_obj = datetime(2025, date_obj.month, date_obj.day)
+        formatted_date = formatted_date_obj.strftime("%B %d")
         print(f"Searching for: {formatted_date}\n")
 
         if WEB_SEARCH_CACHE_ENABLED:
@@ -418,8 +417,11 @@ def main():
                 print(f"{i}. {source.get('title', 'Unnamed Source')}")
                 print(f"   {source.get('url', 'No URL')}")
 
-    except ValueError:
-        print(f"Error: Date should be in DD/MM format (e.g., 25/12)")
+    except ValueError as e:
+        print(
+            f"Error: Invalid date format '{args.date}'. Please use DD/MM format (e.g., 25/12)"
+        )
+        print(f"Details: {e}")
     except Exception as e:
         print(f"Error: {e}")
         import traceback

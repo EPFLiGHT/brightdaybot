@@ -1,7 +1,8 @@
 from slack_sdk.errors import SlackApiError
 
 from utils.date_utils import extract_date
-from utils.slack_utils import get_username, send_message, get_user_mention
+from utils.slack_utils import get_username, send_message
+from utils.slack_formatting import get_user_mention
 from handlers.command_handler import handle_command, handle_dm_date
 from config import BIRTHDAY_CHANNEL, get_logger
 
@@ -49,32 +50,44 @@ def register_event_handlers(app):
                     "I didn't recognize a valid date format or command. Please send your birthday as DD/MM (e.g., 25/12) or DD/MM/YYYY (e.g., 25/12/1990).\n\nType `help` to see more options."
                 )
 
-    @app.event("team_join")
-    def handle_team_join(body, client, logger):
-        """Welcome new team members and invite them to the birthday channel"""
-        user = body["event"]["user"]
-        username = get_username(app, user)
-        logger.info(f"JOIN: New user joined: {username} ({user})")
+    # team_join event handler removed - users only receive welcome when joining birthday channel
+    # This eliminates redundant notifications since new members are automatically added to birthday channel
 
-        welcome_message = (
-            f"Hello {get_user_mention(user)}! Welcome to the team. I'm the birthday bot, "
-            f"responsible for remembering everyone's birthdays!"
-        )
-        send_message(app, user, welcome_message)
+    @app.event("member_joined_channel")
+    def handle_member_joined_channel(body, client, logger):
+        """Handle member joined channel events with birthday channel welcome"""
+        event = body.get("event", {})
+        user = event.get("user")
+        channel = event.get("channel")
 
-        invite_message = "I'll send you an invite to join the birthday channel where we celebrate everyone's birthdays!"
-        send_message(app, user, invite_message)
+        logger.debug(f"CHANNEL_JOIN: User {user} joined channel {channel}")
 
-        try:
-            client.conversations_invite(channel=BIRTHDAY_CHANNEL, users=[user])
-            logger.info(f"CHANNEL: Invited {username} ({user}) to birthday channel")
-        except SlackApiError as e:
-            logger.error(
-                f"API_ERROR: Failed to invite {username} ({user}) to birthday channel: {e}"
+        # Send welcome message if they joined the birthday channel
+        if channel == BIRTHDAY_CHANNEL:
+            try:
+                username = get_username(app, user)
+
+                welcome_msg = f"""🎉 Welcome to the birthday channel, {get_user_mention(user)}!
+
+Here I celebrate everyone's birthdays with personalized messages and AI-generated images!
+
+📅 *To add your birthday:* Send me a DM with your date in DD/MM format (e.g., 25/12) or DD/MM/YYYY format (e.g., 25/12/1990)
+
+💡 *Commands:* Type `help` in a DM to see all available options
+
+Hope to celebrate your special day soon! 🎂"""
+
+                send_message(app, user, welcome_msg)
+                logger.info(
+                    f"BIRTHDAY_CHANNEL: Welcomed {username} ({user}) to birthday channel"
+                )
+
+            except Exception as e:
+                logger.error(
+                    f"BIRTHDAY_CHANNEL: Failed to send welcome message to {user}: {e}"
+                )
+        else:
+            # Log non-birthday channel joins for debugging
+            logger.debug(
+                f"CHANNEL_JOIN: User {user} joined non-birthday channel {channel} - no action taken"
             )
-
-        instructions = (
-            "To add your birthday, just send me a direct message with your birthday date in the format DD/MM (e.g., 25/12) "
-            "or with the year DD/MM/YYYY (e.g., 25/12/1990).\n\nYou can also type `help` to see all available commands."
-        )
-        send_message(app, user, instructions)

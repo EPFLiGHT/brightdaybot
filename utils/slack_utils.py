@@ -1,14 +1,19 @@
 from slack_sdk.errors import SlackApiError
 from datetime import datetime
 import requests
+import random
+import os
 
 from config import (
     username_cache,
     USERNAME_CACHE_MAX_SIZE,
-    ADMIN_USERS,
     COMMAND_PERMISSIONS,
     get_logger,
 )
+from utils.config_storage import get_current_admins
+from utils.constants import SAFE_SLACK_EMOJIS, CUSTOM_SLACK_EMOJIS
+from utils.slack_formatting import get_user_mention
+from utils.message_generator import generate_birthday_image_title
 
 logger = get_logger("slack")
 
@@ -61,6 +66,11 @@ def get_user_profile(app, user_id):
             "status_emoji": profile.get("status_emoji", ""),
             "pronouns": profile.get("pronouns", ""),
             "start_date": profile.get("start_date", ""),
+            # Account status fields
+            "is_deleted": user_info.get("deleted", False),
+            "is_active": not user_info.get("deleted", False),  # Convenience field
+            "is_bot": user_info.get("is_bot", False),
+            "is_restricted": user_info.get("is_restricted", False),  # Guest users
         }
 
         # Determine preferred name
@@ -124,17 +134,85 @@ def get_username(app, user_id):
     return f"{get_user_mention(user_id)}"
 
 
-def get_user_mention(user_id):
+def get_user_status_and_info(app, user_id):
     """
-    Get a formatted mention for a user
+    Get user status (active/bot/deleted) and basic info in one API call
 
     Args:
-        user_id: User ID to format
+        app: Slack app instance
+        user_id: User ID to check
 
     Returns:
-        Formatted mention string
+        tuple: (is_active, is_bot, is_deleted, username)
     """
-    return f"<@{user_id}>" if user_id else "Unknown User"
+    try:
+        # Get both user info and profile in one call
+        user_info = app.client.users_info(user=user_id)
+        if user_info.get("ok"):
+            user = user_info.get("user", {})
+            profile = user.get("profile", {})
+
+            is_deleted = user.get("deleted", False)
+            is_bot = user.get("is_bot", False)
+            is_active = not is_deleted and not is_bot
+
+            # Get username from profile
+            display_name = profile.get("display_name", "")
+            real_name = profile.get("real_name", "")
+            username = display_name if display_name else real_name
+
+            # Cache the username if active
+            if is_active and username and user_id not in username_cache:
+                if len(username_cache) >= USERNAME_CACHE_MAX_SIZE:
+                    # Remove oldest entries
+                    oldest_keys = list(username_cache.keys())[
+                        : USERNAME_CACHE_MAX_SIZE // 4
+                    ]
+                    for key in oldest_keys:
+                        del username_cache[key]
+                username_cache[user_id] = username
+
+            return is_active, is_bot, is_deleted, username
+        else:
+            logger.error(f"API_ERROR: Failed to get user info for {user_id}")
+            return False, False, False, f"<@{user_id}>"
+    except SlackApiError as e:
+        logger.error(f"API_ERROR: Slack error getting user info for {user_id}: {e}")
+        return False, False, False, f"<@{user_id}>"
+    except Exception as e:
+        logger.error(f"ERROR: Unexpected error getting user info for {user_id}: {e}")
+        return False, False, False, f"<@{user_id}>"
+
+
+def check_profile_completeness(user_profile):
+    """
+    Check if a user profile is complete for optimal birthday celebrations
+
+    Args:
+        user_profile: User profile dictionary from get_user_profile()
+
+    Returns:
+        tuple: (is_complete, missing_items) where missing_items is a list of what's missing
+    """
+    missing_items = []
+
+    if not user_profile:
+        return False, ["profile data"]
+
+    # Check for profile photo
+    if not user_profile.get("photo_512") and not user_profile.get("photo_original"):
+        missing_items.append("profile photo")
+
+    # Check for job title
+    if not user_profile.get("title"):
+        missing_items.append("job title")
+
+    # Check for timezone
+    if not user_profile.get("timezone"):
+        missing_items.append("timezone")
+
+    is_complete = len(missing_items) == 0
+    return is_complete, missing_items
 
 
 def is_admin(app, user_id):
@@ -149,8 +227,6 @@ def is_admin(app, user_id):
         True if user is admin, False otherwise
     """
     # Get the current admin list from config
-    from utils.config_storage import get_current_admins
-
     current_admins = get_current_admins()
 
     # First, check if user is in the manually configured admin list
@@ -289,8 +365,6 @@ def send_message_with_image(app, channel: str, text: str, image_data=None, block
 
                 # Generate AI-powered title for the image
                 try:
-                    from utils.message_generator import generate_birthday_image_title
-
                     # Extract name and context from image_data
                     name = image_data.get("generated_for", "Birthday Person")
                     personality = image_data.get("personality", "standard")
@@ -396,84 +470,71 @@ def send_message(app, channel: str, text: str, blocks=None):
         return False
 
 
-# Common Slack emojis that are safe to use
-SAFE_SLACK_EMOJIS = [
-    ":tada:",
-    ":birthday:",
-    ":cake:",
-    ":balloon:",
-    ":gift:",
-    ":confetti_ball:",
-    ":sparkles:",
-    ":star:",
-    ":star2:",
-    ":dizzy:",
-    ":heart:",
-    ":hearts:",
-    ":champagne:",
-    ":clap:",
-    ":raised_hands:",
-    ":thumbsup:",
-    ":muscle:",
-    ":crown:",
-    ":trophy:",
-    ":medal:",
-    ":first_place_medal:",
-    ":mega:",
-    ":loudspeaker:",
-    ":partying_face:",
-    ":smile:",
-    ":grinning:",
-    ":joy:",
-    ":sunglasses:",
-    ":rainbow:",
-    ":fire:",
-    ":boom:",
-    ":zap:",
-    ":bulb:",
-    ":art:",
-    ":musical_note:",
-    ":notes:",
-    ":rocket:",
-    ":100:",
-    ":pizza:",
-    ":hamburger:",
-    ":sushi:",
-    ":ice_cream:",
-    ":beers:",
-    ":cocktail:",
-    ":wine_glass:",
-    ":tumbler_glass:",
-    ":drum_with_drumsticks:",
-    ":guitar:",
-    ":microphone:",
-    ":headphones:",
-    ":game_die:",
-    ":dart:",
-    ":bowling:",
-    ":soccer:",
-    ":basketball:",
-    ":football:",
-    ":baseball:",
-    ":tennis:",
-    ":8ball:",
-    ":table_tennis_paddle_and_ball:",
-    ":eyes:",
-    ":wave:",
-    ":point_up:",
-    ":point_down:",
-    ":point_left:",
-    ":point_right:",
-    ":ok_hand:",
-    ":v:",
-    ":handshake:",
-    ":writing_hand:",
-    ":pray:",
-    ":clinking_glasses:",
-]
+def send_message_with_file(app, channel: str, text: str, file_path: str):
+    """
+    Send a message to a Slack channel with file attachment
 
-# Add a dictionary to store custom emojis
-CUSTOM_SLACK_EMOJIS = {}
+    Args:
+        app: Slack app instance
+        channel: Channel ID or user ID to send to
+        text: Message text
+        file_path: Path to file to upload
+
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        # For DMs with user IDs, we need to get the DM channel ID first
+        target_channel = channel
+        if channel.startswith("U"):
+            # Open a DM channel to get the proper channel ID
+            dm_response = app.client.conversations_open(users=channel)
+            if dm_response["ok"]:
+                target_channel = dm_response["channel"]["id"]
+                logger.debug(
+                    f"FILE_UPLOAD: Opened DM channel {target_channel} for user {channel}"
+                )
+            else:
+                logger.error(
+                    f"FILE_UPLOAD_ERROR: Failed to open DM channel: {dm_response.get('error')}"
+                )
+                return False
+
+        # Upload file with message
+        with open(file_path, "rb") as file_content:
+            response = app.client.files_upload_v2(
+                channel=target_channel,
+                file=file_content,
+                filename=os.path.basename(file_path),
+                initial_comment=text,
+            )
+
+        if not response.get("ok", False):
+            logger.error(f"FILE_UPLOAD_ERROR: API returned not ok: {response}")
+            return False
+
+        # Log successful send (use original channel ID for user-friendly logging)
+        if channel.startswith("U"):
+            recipient = get_username(app, channel)
+            logger.info(
+                f"MESSAGE: Sent file to {recipient} ({channel}): {os.path.basename(file_path)}"
+            )
+        else:
+            logger.info(
+                f"MESSAGE: Sent file to channel {channel}: {os.path.basename(file_path)}"
+            )
+
+        return True
+
+    except SlackApiError as e:
+        logger.error(f"API_ERROR: Failed to send file to {channel}: {e}")
+        return False
+    except FileNotFoundError:
+        logger.error(f"FILE_ERROR: File not found: {file_path}")
+        return False
+    except Exception as e:
+        logger.error(f"UPLOAD_ERROR: Unexpected error sending file to {channel}: {e}")
+        return False
 
 
 def fetch_custom_emojis(app):
@@ -547,7 +608,6 @@ def get_random_emojis(app, count=5, include_custom=True):
     Returns:
         List of random emoji codes
     """
-    import random
 
     all_emojis = get_all_emojis(app, include_custom)
     # Return at most 'count' random emojis, or all if count > available emojis
