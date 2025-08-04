@@ -6,7 +6,7 @@ import argparse
 import sys
 from datetime import datetime
 
-from config import get_logger, USE_CUSTOM_EMOJIS
+from config import get_logger, USE_CUSTOM_EMOJIS, DATE_FORMAT
 from config import (
     BOT_PERSONALITIES,
     TEAM_NAME,
@@ -14,12 +14,8 @@ from config import (
 )
 
 from utils.date_utils import get_star_sign
-from utils.slack_utils import (
-    SAFE_SLACK_EMOJIS,
-    get_user_mention,
-    get_all_emojis,
-    get_random_emojis,
-)
+from utils.constants import SAFE_SLACK_EMOJIS
+from utils.slack_formatting import get_user_mention, fix_slack_formatting
 from utils.web_search import get_birthday_facts
 
 logger = get_logger("llm")
@@ -173,13 +169,15 @@ def create_birthday_announcement(
     Returns:
         Formatted announcement text
     """
-    # Parse the date
+    # Parse the date using datetime for proper validation
     try:
-        day, month = map(int, date_str.split("/"))
-        date_obj = datetime(2025, month, day)  # Using current year just for formatting
-        month_name_str = date_obj.strftime("%B")
-        day_num = date_obj.day
-    except:
+        date_obj = datetime.strptime(date_str, DATE_FORMAT)
+        # Use current year for formatting but preserve the parsed month/day
+        formatted_date_obj = datetime(2025, date_obj.month, date_obj.day)
+        month_name_str = formatted_date_obj.strftime("%B")
+        day_num = formatted_date_obj.day
+    except ValueError as e:
+        logger.error(f"Invalid date format in birthday announcement: {date_str} - {e}")
         month_name_str = "Unknown Month"
         day_num = "??"
 
@@ -418,6 +416,8 @@ def completion(
     if USE_CUSTOM_EMOJIS and app:
         try:
             # Get all emojis including custom ones
+            from utils.slack_utils import get_all_emojis
+
             all_emojis = get_all_emojis(app, include_custom=True)
             if len(all_emojis) > len(SAFE_SLACK_EMOJIS):
                 emoji_list = all_emojis
@@ -707,74 +707,6 @@ def completion(
     )
 
 
-def fix_slack_formatting(text):
-    """
-    Fix common formatting issues in Slack messages:
-    - Replace **bold** with *bold* for Slack-compatible bold text
-    - Replace __italic__ with _italic_ for Slack-compatible italic text
-    - Fix markdown-style links to Slack-compatible format
-    - Ensure proper emoji format with colons
-    - Fix other formatting issues
-
-    Args:
-        text: The text to fix formatting in
-
-    Returns:
-        Fixed text with Slack-compatible formatting
-    """
-    import re
-
-    # Fix bold formatting: Replace **bold** with *bold*
-    text = re.sub(r"\*\*(.*?)\*\*", r"*\1*", text)
-
-    # Fix italic formatting: Replace __italic__ with _italic_
-    # and also _italic_ if it's not already correct
-    text = re.sub(r"__(.*?)__", r"_\1_", text)
-
-    # Fix markdown links: Replace [text](url) with <url|text>
-    text = re.sub(r"\[(.*?)\]\((.*?)\)", r"<\2|\1>", text)
-
-    # Fix emoji format: Ensure emoji codes have colons on both sides
-    text = re.sub(
-        r"(?<!\:)([a-z0-9_+-]+)(?!\:)",
-        lambda m: (
-            m.group(1)
-            if m.group(1)
-            in [
-                "and",
-                "the",
-                "to",
-                "for",
-                "with",
-                "in",
-                "of",
-                "on",
-                "at",
-                "by",
-                "from",
-                "as",
-            ]
-            else m.group(1)
-        ),
-        text,
-    )
-
-    # Fix markdown headers with # to just bold text
-    text = re.sub(r"^(#{1,6})\s+(.*?)$", r"*\2*", text, flags=re.MULTILINE)
-
-    # Remove HTML tags that might slip in
-    text = re.sub(r"<(?![@!#])(.*?)>", r"\1", text)
-
-    # Check for and fix incorrect code blocks
-    text = re.sub(r"```(.*?)```", r"`\1`", text, flags=re.DOTALL)
-
-    # Fix blockquotes: replace markdown > with Slack's blockquote
-    text = re.sub(r"^>\s+(.*?)$", r">>>\1", text, flags=re.MULTILINE)
-
-    logger.debug(f"AI_FORMAT: Fixed Slack formatting issues in message")
-    return text
-
-
 def create_consolidated_birthday_announcement(
     birthday_people,
     app=None,
@@ -929,6 +861,8 @@ def _generate_ai_consolidated_message(
 
     if USE_CUSTOM_EMOJIS and app:
         try:
+            from utils.slack_utils import get_all_emojis
+
             all_emojis = get_all_emojis(app)
             if all_emojis:
                 emoji_list = all_emojis

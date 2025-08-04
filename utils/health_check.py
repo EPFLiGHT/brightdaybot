@@ -15,6 +15,8 @@ from config import (
     get_logger,
     LOG_FILES,
     LOGS_DIR,
+    DAILY_CHECK_TIME,
+    TIMEZONE_CELEBRATION_TIME,
 )
 from utils.config_storage import ADMINS_FILE, PERSONALITY_FILE
 
@@ -393,6 +395,57 @@ def get_system_status():
 
         status["components"]["cache"] = cache_status
 
+        # Check timezone settings
+        timezone_status = {"status": STATUS_OK}
+        try:
+            from utils.config_storage import load_timezone_settings
+
+            timezone_enabled, check_interval = load_timezone_settings()
+
+            timezone_status.update(
+                {
+                    "enabled": timezone_enabled,
+                    "mode": "timezone-aware" if timezone_enabled else "simple",
+                    "check_interval_hours": (
+                        check_interval if timezone_enabled else "N/A"
+                    ),
+                    "description": (
+                        f"Users receive birthday announcements at {TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')} in their timezone"
+                        if timezone_enabled
+                        else f"All birthdays announced at {DAILY_CHECK_TIME.strftime('%H:%M')} server time"
+                    ),
+                }
+            )
+
+            # Calculate next check time
+            now = datetime.now()
+            if timezone_enabled:
+                # Next hourly check
+                next_hour = now.replace(minute=0, second=0, microsecond=0)
+                if now.minute > 0:
+                    next_hour = next_hour.replace(hour=now.hour + 1)
+                timezone_status["next_check"] = format_timestamp(next_hour.timestamp())
+            else:
+                # Next daily check
+                from datetime import time
+
+                check_hour, check_minute = (
+                    DAILY_CHECK_TIME.hour,
+                    DAILY_CHECK_TIME.minute,
+                )
+                next_check = now.replace(
+                    hour=check_hour, minute=check_minute, second=0, microsecond=0
+                )
+                if now.time() > time(check_hour, check_minute):
+                    next_check = next_check.replace(day=now.day + 1)
+                timezone_status["next_check"] = format_timestamp(next_check.timestamp())
+
+        except Exception as e:
+            logger.error(f"Error checking timezone settings: {e}")
+            timezone_status = {"status": STATUS_ERROR, "error": str(e)}
+
+        status["components"]["timezone_settings"] = timezone_status
+
         # Check log files status
         log_status = check_log_files()
         status["components"]["log_files"] = log_status
@@ -411,7 +464,7 @@ def get_system_status():
 
         # API key checks
         # OpenAI API key check
-        openai_key = os.environ.get("OPENAI_API_KEY")
+        openai_key = os.getenv("OPENAI_API_KEY")
         if openai_key:
             status["components"]["openai_api"] = {
                 "status": STATUS_OK,
@@ -427,7 +480,7 @@ def get_system_status():
             has_critical_issue = True
 
         # Slack Bot Token check
-        slack_token = os.environ.get("SLACK_BOT_TOKEN")
+        slack_token = os.getenv("SLACK_BOT_TOKEN")
         if slack_token:
             status["components"]["slack_bot_token"] = {
                 "status": STATUS_OK,
@@ -442,7 +495,7 @@ def get_system_status():
             has_critical_issue = True
 
         # Slack App Token check
-        slack_app_token = os.environ.get("SLACK_APP_TOKEN")
+        slack_app_token = os.getenv("SLACK_APP_TOKEN")
         if slack_app_token:
             status["components"]["slack_app_token"] = {
                 "status": STATUS_OK,
@@ -572,6 +625,25 @@ def get_status_summary():
         else:
             summary_lines.append(
                 f"ℹ️ *Log Files*: {log_status.get('status', 'UNKNOWN').upper()}"
+            )
+
+        # Timezone settings
+        timezone_settings = status["components"].get("timezone_settings", {})
+        if timezone_settings.get("status") == STATUS_OK:
+            mode = timezone_settings.get("mode", "unknown")
+            enabled_text = (
+                "ENABLED" if timezone_settings.get("enabled", True) else "DISABLED"
+            )
+            summary_lines.append(
+                f"✅ *Timezone Settings*: {mode.title()} mode ({enabled_text})"
+            )
+            if timezone_settings.get("next_check"):
+                summary_lines.append(
+                    f"   Next check: {timezone_settings['next_check']}"
+                )
+        else:
+            summary_lines.append(
+                f"❌ *Timezone Settings*: {timezone_settings.get('error', 'Unknown error')}"
             )
 
         # Birthday channel

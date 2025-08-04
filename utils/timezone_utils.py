@@ -4,8 +4,8 @@ from config import get_logger
 
 logger = get_logger("timezone_utils")
 
-# Default celebration hour (9 AM local time)
-CELEBRATION_HOUR = 9
+# Import celebration time from config
+from config import TIMEZONE_CELEBRATION_TIME
 
 
 def get_timezone_object(timezone_str):
@@ -27,16 +27,18 @@ def get_timezone_object(timezone_str):
         return pytz.UTC
 
 
-def is_celebration_time_for_user(user_timezone_str, target_hour=CELEBRATION_HOUR):
+def is_celebration_time_for_user(
+    user_timezone_str, target_time=TIMEZONE_CELEBRATION_TIME
+):
     """
-    Check if it's celebration time (9 AM by default) in the user's timezone
+    Check if it's celebration time (09:00 by default) in the user's timezone
 
     Args:
         user_timezone_str: User's timezone string (e.g., "America/New_York")
-        target_hour: Hour to celebrate (default: 9 AM)
+        target_time: Time to celebrate as datetime.time object (default: time(9, 0))
 
     Returns:
-        True if it's currently the celebration hour in user's timezone
+        True if it's currently the celebration time in user's timezone
     """
     try:
         user_tz = get_timezone_object(user_timezone_str)
@@ -44,14 +46,17 @@ def is_celebration_time_for_user(user_timezone_str, target_hour=CELEBRATION_HOUR
         # Get current time in user's timezone
         current_user_time = datetime.now(user_tz)
 
-        # Check if current hour matches target celebration hour
-        is_celebration_hour = current_user_time.hour == target_hour
-
-        logger.debug(
-            f"TIMEZONE: User timezone {user_timezone_str}, current hour: {current_user_time.hour}, target: {target_hour}, match: {is_celebration_hour}"
+        # Check if current time matches target celebration time
+        is_celebration_time = (
+            current_user_time.hour == target_time.hour
+            and current_user_time.minute == target_time.minute
         )
 
-        return is_celebration_hour
+        logger.debug(
+            f"TIMEZONE: User timezone {user_timezone_str}, current time: {current_user_time.hour:02d}:{current_user_time.minute:02d}, target: {target_time.hour:02d}:{target_time.minute:02d}, match: {is_celebration_time}"
+        )
+
+        return is_celebration_time
 
     except Exception as e:
         logger.error(
@@ -94,7 +99,8 @@ def format_timezone_schedule(app=None):
     # Get birthdays data to find users in each timezone
     try:
         from utils.storage import load_birthdays
-        from utils.slack_utils import get_user_profile, get_user_mention
+        from utils.slack_utils import get_user_profile
+        from utils.slack_formatting import get_user_mention
 
         birthdays = load_birthdays()
         timezone_users = {}
@@ -138,19 +144,25 @@ def format_timezone_schedule(app=None):
                 tz = data["timezone_obj"]
                 current_time = datetime.now(tz)
 
-                # Calculate next 9 AM in this timezone
-                if current_time.hour >= CELEBRATION_HOUR:
-                    # Tomorrow at 9 AM
+                # Calculate next celebration time in this timezone
+                if current_time.hour >= TIMEZONE_CELEBRATION_TIME.hour:
+                    # Tomorrow at celebration time
                     next_celebration = current_time.replace(
-                        hour=CELEBRATION_HOUR, minute=0, second=0, microsecond=0
+                        hour=TIMEZONE_CELEBRATION_TIME.hour,
+                        minute=TIMEZONE_CELEBRATION_TIME.minute,
+                        second=0,
+                        microsecond=0,
                     )
                     next_celebration = next_celebration.replace(
                         day=next_celebration.day + 1
                     )
                 else:
-                    # Today at 9 AM
+                    # Today at celebration time
                     next_celebration = current_time.replace(
-                        hour=CELEBRATION_HOUR, minute=0, second=0, microsecond=0
+                        hour=TIMEZONE_CELEBRATION_TIME.hour,
+                        minute=TIMEZONE_CELEBRATION_TIME.minute,
+                        second=0,
+                        microsecond=0,
                     )
 
                 celebration_times[offset_hours] = {
@@ -206,7 +218,9 @@ def format_timezone_schedule(app=None):
             f"• *{utc_time.strftime('%H:%M')} UTC* ({offset_display}) {user_mentions}"
         )
 
-    lines.append(f"\n_Celebrations happen at 9:00 AM local time in each timezone_")
+    lines.append(
+        f"\n_Celebrations happen at {TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')} local time in each timezone_"
+    )
 
     return "\n".join(lines)
 

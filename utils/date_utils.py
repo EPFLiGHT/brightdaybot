@@ -1,5 +1,5 @@
 import re
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from calendar import month_name
 
 from config import DATE_FORMAT, DATE_WITH_YEAR_FORMAT, get_logger
@@ -110,10 +110,20 @@ def check_if_birthday_today(date_str, reference_date=None):
     if not reference_date:
         reference_date = datetime.now(timezone.utc)
 
-    day, month = map(int, date_str.split("/"))
+    try:
+        # Use datetime for proper date parsing and validation
+        date_obj = datetime.strptime(date_str, DATE_FORMAT)
 
-    # Compare just the day and month
-    return day == reference_date.day and month == reference_date.month
+        # Compare just the day and month
+        return (
+            date_obj.day == reference_date.day
+            and date_obj.month == reference_date.month
+        )
+    except ValueError as e:
+        logger.error(
+            f"Invalid date format in check_if_birthday_today: {date_str} - {e}"
+        )
+        return False
 
 
 def calculate_days_until_birthday(date_str, reference_date=None):
@@ -125,7 +135,7 @@ def calculate_days_until_birthday(date_str, reference_date=None):
         reference_date: Optional reference date, defaults to today in UTC
 
     Returns:
-        Number of days until the next birthday from reference date
+        Number of days until the next birthday from reference date, or None if date is invalid
     """
     if not reference_date:
         reference_date = datetime.now(timezone.utc)
@@ -138,7 +148,16 @@ def calculate_days_until_birthday(date_str, reference_date=None):
         tzinfo=timezone.utc,
     )
 
-    day, month = map(int, date_str.split("/"))
+    try:
+        # Use datetime for proper date parsing and validation
+        date_obj = datetime.strptime(date_str, DATE_FORMAT)
+        month = date_obj.month
+        day = date_obj.day
+    except ValueError as e:
+        logger.error(
+            f"Invalid date format in calculate_days_until_birthday: {date_str} - {e}"
+        )
+        return None
 
     # First try this year's birthday
     try:
@@ -174,38 +193,85 @@ def calculate_days_until_birthday(date_str, reference_date=None):
         return days_until
 
 
-# Star sign mapping
+# Zodiac sign lookup table with date ranges
+ZODIAC_SIGNS = [
+    # (start_month, start_day, end_month, end_day, sign_name)
+    (1, 20, 2, 18, "Aquarius"),
+    (2, 19, 3, 20, "Pisces"),
+    (3, 21, 4, 19, "Aries"),
+    (4, 20, 5, 20, "Taurus"),
+    (5, 21, 6, 20, "Gemini"),
+    (6, 21, 7, 22, "Cancer"),
+    (7, 23, 8, 22, "Leo"),
+    (8, 23, 9, 22, "Virgo"),
+    (9, 23, 10, 22, "Libra"),
+    (10, 23, 11, 21, "Scorpio"),
+    (11, 22, 12, 21, "Sagittarius"),
+    (12, 22, 1, 19, "Capricorn"),  # Capricorn spans year boundary
+]
+
+
 def get_star_sign(date_str):
-    """Get star sign from a date string in DD/MM format"""
+    """
+    Get zodiac star sign from a date string in DD/MM format
+
+    Uses datetime for proper date validation and a lookup table for efficient
+    zodiac sign determination.
+
+    Args:
+        date_str: Date in DD/MM format
+
+    Returns:
+        str: Zodiac sign name, or None if date is invalid
+    """
     try:
-        day, month = map(int, date_str.split("/"))
+        # Use datetime for robust parsing and validation
+        date_obj = datetime.strptime(date_str, DATE_FORMAT)
+        month = date_obj.month
+        day = date_obj.day
 
-        # Simple date ranges for star signs
-        if (month == 1 and day >= 20) or (month == 2 and day <= 18):
-            return "Aquarius"
-        elif (month == 2 and day >= 19) or (month == 3 and day <= 20):
-            return "Pisces"
-        elif (month == 3 and day >= 21) or (month == 4 and day <= 19):
-            return "Aries"
-        elif (month == 4 and day >= 20) or (month == 5 and day <= 20):
-            return "Taurus"
-        elif (month == 5 and day >= 21) or (month == 6 and day <= 20):
-            return "Gemini"
-        elif (month == 6 and day >= 21) or (month == 7 and day <= 22):
-            return "Cancer"
-        elif (month == 7 and day >= 23) or (month == 8 and day <= 22):
-            return "Leo"
-        elif (month == 8 and day >= 23) or (month == 9 and day <= 22):
-            return "Virgo"
-        elif (month == 9 and day >= 23) or (month == 10 and day <= 22):
-            return "Libra"
-        elif (month == 10 and day >= 23) or (month == 11 and day <= 21):
-            return "Scorpio"
-        elif (month == 11 and day >= 22) or (month == 12 and day <= 21):
-            return "Sagittarius"
-        else:  # (month == 12 and day >= 22) or (month == 1 and day <= 19)
-            return "Capricorn"
+        # Check each zodiac range
+        for start_month, start_day, end_month, end_day, sign in ZODIAC_SIGNS:
+            if _is_date_in_zodiac_range(
+                month, day, start_month, start_day, end_month, end_day
+            ):
+                return sign
 
-    except Exception as e:
-        logger.error(f"Failed to determine star sign: {e}")
+        # This should never happen given our complete zodiac coverage
+        logger.warning(f"No zodiac sign found for date {date_str} ({month}/{day})")
         return None
+
+    except ValueError as e:
+        logger.error(f"Invalid date format for star sign calculation: {date_str} - {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error determining star sign for {date_str}: {e}")
+        return None
+
+
+def _is_date_in_zodiac_range(month, day, start_month, start_day, end_month, end_day):
+    """
+    Check if a date falls within a zodiac sign's date range.
+    Handles ranges that span across year boundaries (like Capricorn).
+
+    Args:
+        month, day: Date to check
+        start_month, start_day: Range start
+        end_month, end_day: Range end
+
+    Returns:
+        bool: True if date is in range
+    """
+    # Handle ranges that span year boundary (end_month < start_month)
+    if end_month < start_month:
+        # Date is in range if it's after start date OR before end date
+        return (month > start_month or (month == start_month and day >= start_day)) or (
+            month < end_month or (month == end_month and day <= end_day)
+        )
+    else:
+        # Normal range within same year
+        return (
+            (start_month < month < end_month)
+            or (month == start_month and day >= start_day)
+            or (month == end_month and day <= end_day)
+        )

@@ -1,9 +1,13 @@
 import os
 from dotenv import load_dotenv
 import logging
+from datetime import time
 
 # Load environment variables first - this should be at the very top
-load_dotenv()
+# Get the directory where this config.py file is located
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Load .env from the project root (same directory as config.py)
+load_dotenv(os.path.join(BASE_DIR, ".env"), override=True)
 
 # ----- FILE STRUCTURE CONFIGURATION -----
 
@@ -28,6 +32,14 @@ USE_CUSTOM_EMOJIS = os.getenv("USE_CUSTOM_EMOJIS", "true").lower() == "true"
 AI_IMAGE_GENERATION_ENABLED = (
     os.getenv("AI_IMAGE_GENERATION_ENABLED", "true").lower() == "true"
 )
+# Enable external backup system (sends backups to admin DMs)
+EXTERNAL_BACKUP_ENABLED = os.getenv("EXTERNAL_BACKUP_ENABLED", "true").lower() == "true"
+# Send backup files to admin users via DM
+BACKUP_TO_ADMINS = os.getenv("BACKUP_TO_ADMINS", "true").lower() == "true"
+# Optional dedicated backup channel ID
+BACKUP_CHANNEL_ID = os.getenv("BACKUP_CHANNEL_ID")
+# Send backup on every change vs. batched/daily digest
+BACKUP_ON_EVERY_CHANGE = os.getenv("BACKUP_ON_EVERY_CHANGE", "true").lower() == "true"
 
 # File paths
 LOG_FILE = os.path.join(LOGS_DIR, "app.log")
@@ -185,11 +197,13 @@ DATE_FORMAT = "%d/%m"
 DATE_WITH_YEAR_FORMAT = "%d/%m/%Y"
 
 # Scheduling configuration
-DAILY_CHECK_TIME = (
-    "10:00"  # Time to run daily birthday checks (24-hour format, in SERVER LOCAL TIME)
-    # NOTE: This uses the server's local timezone, NOT UTC
-    # If you need UTC scheduling, modify services/scheduler.py
-)
+DAILY_CHECK_TIME = time(10, 0)  # Time to run daily birthday checks (SERVER LOCAL TIME)
+# NOTE: This uses the server's local timezone, NOT UTC
+# If you need UTC scheduling, modify services/scheduler.py
+
+TIMEZONE_CELEBRATION_TIME = time(
+    9, 0
+)  # Time to celebrate birthdays in timezone-aware mode (USER'S local time)
 
 # Message configuration
 DEFAULT_REMINDER_MESSAGE = None  # Set to None to use the dynamic message generator
@@ -198,7 +212,7 @@ DEFAULT_REMINDER_MESSAGE = None  # Set to None to use the dynamic message genera
 
 # Default admin users list - will be overridden by file-based storage
 DEFAULT_ADMIN_USERS = [
-    "U079Q4V8AJE",  # Example admin user
+    "U1234567890",  # Example admin user
     # Add more UIDs here
 ]
 

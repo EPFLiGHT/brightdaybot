@@ -1,3 +1,4 @@
+import random
 from datetime import datetime, timezone
 
 from utils.date_utils import check_if_birthday_today, date_to_words
@@ -6,23 +7,25 @@ from utils.storage import (
     mark_timezone_birthday_announced,
     cleanup_timezone_announcement_files,
     is_user_celebrated_today,
+    mark_birthday_announced,
 )
 from utils.slack_utils import (
-    get_username,
     send_message,
     send_message_with_image,
-    get_user_mention,
     get_user_profile,
+    get_user_status_and_info,
 )
+from utils.slack_formatting import get_user_mention
 from utils.message_generator import (
     create_consolidated_birthday_announcement,
 )
+from utils.timezone_utils import is_celebration_time_for_user
 from config import BIRTHDAY_CHANNEL, AI_IMAGE_GENERATION_ENABLED, get_logger
 
 logger = get_logger("birthday")
 
 
-def send_reminder_to_users(app, users, custom_message=None):
+def send_reminder_to_users(app, users, custom_message=None, reminder_type="new"):
     """
     Send reminder message to multiple users
 
@@ -30,6 +33,7 @@ def send_reminder_to_users(app, users, custom_message=None):
         app: Slack app instance
         users: List of user IDs
         custom_message: Optional custom message provided by admin
+        reminder_type: Type of reminder - "new" for new users, "update" for profile updates
 
     Returns:
         Dictionary with successful and failed sends
@@ -39,70 +43,102 @@ def send_reminder_to_users(app, users, custom_message=None):
     logger.info(f"REMINDER: Starting to send {len(users)} reminders")
 
     for user_id in users:
-        # Skip bots
-        try:
-            user_info = app.client.users_info(user=user_id)
-            if user_info.get("user", {}).get("is_bot", False):
+        # Get user status and info in one efficient API call
+        is_active, is_bot, is_deleted, username = get_user_status_and_info(app, user_id)
+
+        # Skip bots and inactive users
+        if not is_active:
+            if is_bot:
                 results["skipped_bots"] += 1
-                continue
-        except Exception as e:
-            logger.error(f"API_ERROR: Failed to check if {user_id} is a bot: {e}")
-            # Assume not a bot and try to send anyway
+            elif is_deleted:
+                results.setdefault("skipped_inactive", 0)
+                results["skipped_inactive"] += 1
+                logger.info(f"REMINDER: Skipped inactive/deleted user {user_id}")
+            continue
 
-        # Get username for personalization
-        username = get_username(app, user_id)
-
-        # Create lively personalized message if no custom message provided
+        # Create personalized message if no custom message provided
         if not custom_message:
-            # Pick random elements for variety
-            import random
+            if reminder_type == "new":
+                # Simplified message for new users
 
-            greetings = [
-                f"Hey there {get_user_mention(user_id)}! :wave:",
-                f"Hello {get_user_mention(user_id)}! :sunny:",
-                f"Greetings, {get_user_mention(user_id)}! :sparkles:",
-                f"Hi {get_user_mention(user_id)}! :smile:",
-                f"*Psst* {get_user_mention(user_id)}! :eyes:",
-            ]
+                greetings = [
+                    f"Hey {get_user_mention(user_id)}! 👋",
+                    f"Hi {get_user_mention(user_id)}! 🌟",
+                    f"Hello {get_user_mention(user_id)}! 😊",
+                ]
 
-            intros = [
-                "Looks like we don't have your birthday on record yet!",
-                "I noticed your birthday isn't in our celebration calendar!",
-                "We're missing an important date - YOUR birthday!",
-                "The birthday list has a person-shaped hole that looks just like you!",
-                "Our birthday celebration squad is missing some info about you!",
-            ]
+                instructions = [
+                    "Just send me your birthday as DD/MM (like `14/02`) or DD/MM/YYYY (like `14/02/1990`).",
+                    "Reply with your birthday in DD/MM format (example: `25/12`) or DD/MM/YYYY (example: `25/12/1995`).",
+                ]
 
-            reasons = [
-                "We'd love to celebrate your special day with you! :birthday:",
-                "We want to make sure your day gets the celebration it deserves! :tada:",
-                "Everyone deserves a little birthday recognition! :cake:",
-                "Our team celebrations wouldn't be complete without yours! :gift:",
-                "We don't want to miss the chance to celebrate you! :confetti_ball:",
-            ]
+                outros = [
+                    "Thanks! 🎉",
+                    "Looking forward to celebrating with you! 🎂",
+                ]
 
-            instructions = [
-                "Just send me your birthday in DD/MM format (like `14/02`), or include the year with DD/MM/YYYY (like `14/02/1990`).",
-                "Simply reply with your birthday as DD/MM (example: `25/12`) or with the year DD/MM/YYYY (example: `25/12/1990`).",
-                "Drop me a quick message with your birthday in DD/MM format (like `31/10`) or with the year DD/MM/YYYY (like `31/10/1985`).",
-                "Just type your birthday as DD/MM (like `01/04`) or include the year with DD/MM/YYYY (like `01/04/1988`).",
-                "Send your birthday as DD/MM (example: `19/07`) or with the year if you'd like DD/MM/YYYY (example: `19/07/1995`).",
-            ]
+                message = (
+                    f"{random.choice(greetings)}\n\n"
+                    f"We'd love to celebrate your birthday! 🎂\n"
+                    f"{random.choice(instructions)}\n\n"
+                    f"{random.choice(outros)}"
+                )
 
-            outros = [
-                "Thanks! :star:",
-                "Can't wait to celebrate with you! :raised_hands:",
-                "Looking forward to it! :sparkles:",
-                "Your birthday will be awesome! :rocket:",
-                "Thanks for helping us make our workplace more fun! :party-blob:",
-            ]
+            elif reminder_type == "update":
+                # Profile update reminder
+                user_profile = get_user_profile(app, user_id)
+                missing_items = []
 
-            message = (
-                f"{random.choice(greetings)}\n\n"
-                f"{random.choice(intros)} {random.choice(reasons)}\n\n"
-                f"{random.choice(instructions)}\n\n"
-                f"{random.choice(outros)}"
-            )
+                if not user_profile:
+                    # Couldn't get profile, send generic update message
+                    message = (
+                        f"Hi {get_user_mention(user_id)}! 👋\n\n"
+                        f"Please update your Slack profile for better birthday celebrations:\n"
+                        f"• Add a profile photo → Better AI-generated birthday images\n"
+                        f"• Add your job title → More personalized messages\n\n"
+                        f"You can update these in your Slack profile settings. Thanks! 🎨"
+                    )
+                else:
+                    # Check what's missing
+                    if not user_profile.get("photo_512") and not user_profile.get(
+                        "photo_original"
+                    ):
+                        missing_items.append(
+                            "• Profile photo → Better AI-generated birthday images"
+                        )
+                    if not user_profile.get("title"):
+                        missing_items.append(
+                            "• Job title → More personalized birthday messages"
+                        )
+                    if not user_profile.get("timezone"):
+                        missing_items.append(
+                            "• Timezone → Birthday announcements at the right time"
+                        )
+
+                    if missing_items:
+                        missing_text = "\n".join(missing_items)
+                        message = (
+                            f"Hi {get_user_mention(user_id)}! 👋\n\n"
+                            f"I noticed your profile could use an update for better birthday celebrations:\n"
+                            f"{missing_text}\n\n"
+                            f"You can update these in your Slack profile settings. Thanks! 🎨"
+                        )
+                    else:
+                        # Profile is complete
+                        message = (
+                            f"Hi {get_user_mention(user_id)}! 👋\n\n"
+                            f"Great news - your profile is complete! 🎉\n"
+                            f"You're all set for amazing birthday celebrations. Thanks!"
+                        )
+
+            else:
+                # Default to new user message
+                message = (
+                    f"Hey {get_user_mention(user_id)}! 👋\n\n"
+                    f"We'd love to celebrate your birthday! 🎂\n"
+                    f"Just send me your birthday as DD/MM (like `14/02`) or DD/MM/YYYY (like `14/02/1990`).\n\n"
+                    f"Thanks! 🎉"
+                )
         else:
             # Use custom message but ensure it includes the user's mention
             if f"{get_user_mention(user_id)}" not in custom_message:
@@ -120,9 +156,77 @@ def send_reminder_to_users(app, users, custom_message=None):
             results["failed"] += 1
 
     logger.info(
-        f"REMINDER: Completed sending reminders - {results['successful']} successful, {results['failed']} failed, {results['skipped_bots']} bots skipped"
+        f"REMINDER: Completed sending reminders - {results['successful']} successful, "
+        f"{results['failed']} failed, {results['skipped_bots']} bots skipped, "
+        f"{results.get('skipped_inactive', 0)} inactive users skipped"
     )
     return results
+
+
+def send_channel_announcement(app, announcement_type="general", custom_message=None):
+    """
+    Send feature announcements to the birthday channel
+
+    Args:
+        app: Slack app instance
+        announcement_type: Type of announcement (general, image_feature, etc.)
+        custom_message: Optional custom announcement message
+
+    Returns:
+        bool: True if successful
+    """
+    try:
+        # Define announcement templates
+        announcements = {
+            "image_feature": (
+                "🎉 *Exciting BrightDayBot Update!* 🎉\n\n"
+                "Great news <!here>! BrightDayBot now creates personalized AI-generated birthday images! 🎨\n\n"
+                "*What's New:*\n"
+                "• 🖼️ AI-generated birthday images using your Slack profile photo\n"
+                "• 🎯 Personalized messages based on your job title\n"
+                "• ✨ Face-accurate birthday artwork in various fun styles\n\n"
+                "*How to Get the Best Experience:*\n"
+                "• Add a profile photo → Better AI-generated birthday images\n"
+                "• Add your job title → More personalized birthday messages\n\n"
+                "Just update your Slack profile and you're all set! "
+                "Your next birthday celebration will be even more special. 🎂\n\n"
+                "Try it out with the `test` command in DM!"
+            ),
+            "general": (
+                "📢 *BrightDayBot Update* 📢\n\n"
+                "<!here> {message}\n\n"
+                "Questions? Feel free to DM me. Thanks! 🎉"
+            ),
+        }
+
+        # Select the appropriate announcement
+        if announcement_type == "image_feature":
+            message = announcements["image_feature"]
+        elif announcement_type == "general" and custom_message:
+            message = announcements["general"].format(message=custom_message)
+        else:
+            logger.error(
+                f"ANNOUNCEMENT_ERROR: Invalid announcement type or missing custom message"
+            )
+            return False
+
+        # Send to birthday channel
+        success = send_message(app, BIRTHDAY_CHANNEL, message)
+
+        if success:
+            logger.info(
+                f"ANNOUNCEMENT: Sent {announcement_type} announcement to birthday channel"
+            )
+        else:
+            logger.error(
+                f"ANNOUNCEMENT_ERROR: Failed to send {announcement_type} announcement"
+            )
+
+        return success
+
+    except Exception as e:
+        logger.error(f"ANNOUNCEMENT_ERROR: Failed to send channel announcement: {e}")
+        return False
 
 
 def timezone_aware_check(app, moment):
@@ -141,8 +245,8 @@ def timezone_aware_check(app, moment):
         app: Slack app instance
         moment: Current datetime with timezone info
     """
-    from utils.timezone_utils import is_celebration_time_for_user
-
+    # Profile cache for this check to reduce API calls
+    profile_cache = {}
     # Ensure moment has timezone info
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=timezone.utc)
@@ -156,18 +260,8 @@ def timezone_aware_check(app, moment):
     # Clean up old timezone announcement files
     cleanup_timezone_announcement_files()
 
-    # First, check if any birthdays have already been celebrated today
-    already_celebrated_today = False
-    for user_id, birthday_data in birthdays.items():
-        if check_if_birthday_today(
-            birthday_data["date"], moment
-        ) and is_user_celebrated_today(user_id):
-            already_celebrated_today = True
-            break
-
-    if already_celebrated_today:
-        logger.debug("TIMEZONE: Birthdays already celebrated today, skipping")
-        return
+    # Note: We don't exit early if some birthdays were celebrated today
+    # We need to process each person individually to catch any missed celebrations
 
     # Find who's hitting 9 AM right now (the trigger)
     trigger_people = []
@@ -176,12 +270,28 @@ def timezone_aware_check(app, moment):
     for user_id, birthday_data in birthdays.items():
         # Check if it's their birthday today
         if check_if_birthday_today(birthday_data["date"], moment):
-            # Get user profile for timezone info
-            user_profile = get_user_profile(app, user_id)
+            # Skip if this user was already celebrated today
+            if is_user_celebrated_today(user_id):
+                logger.debug(f"TIMEZONE: {user_id} already celebrated today, skipping")
+                continue
+
+            # Get user status and profile info efficiently
+            _, is_bot, is_deleted, username = get_user_status_and_info(app, user_id)
+
+            # Skip deleted/deactivated users or bots
+            if is_deleted or is_bot:
+                logger.info(
+                    f"SKIP: User {user_id} is {'deleted' if is_deleted else 'a bot'}, skipping birthday announcement"
+                )
+                continue
+
+            # Get full user profile for timezone info (with caching)
+            if user_id not in profile_cache:
+                profile_cache[user_id] = get_user_profile(app, user_id)
+            user_profile = profile_cache[user_id]
             user_timezone = (
                 user_profile.get("timezone", "UTC") if user_profile else "UTC"
             )
-            username = get_username(app, user_id)
 
             date_words = date_to_words(birthday_data["date"], birthday_data.get("year"))
 
@@ -255,24 +365,208 @@ def timezone_aware_check(app, moment):
         logger.debug("TIMEZONE: No birthdays to celebrate today")
 
 
-def daily(app, moment):
+def simple_daily_check(app, moment):
     """
-    Run daily tasks like birthday messages - now only timezone-aware checks
+    Run simple daily birthday check - announces all birthdays at once
+
+    This is used when timezone-aware announcements are disabled.
+    All birthdays for today are announced together regardless of user timezones.
 
     Args:
         app: Slack app instance
         moment: Current datetime with timezone info
     """
+    # Profile cache for this check to reduce API calls
+    profile_cache = {}
     # Ensure moment has timezone info
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=timezone.utc)
 
     logger.info(
-        f"DAILY: Running timezone-aware birthday checks for {moment.strftime('%Y-%m-%d')} (UTC)"
+        f"SIMPLE_DAILY: Running simple birthday check for {moment.strftime('%Y-%m-%d')} (UTC)"
     )
 
-    # Run timezone-aware checks only
-    timezone_aware_check(app, moment)
+    birthdays = load_birthdays()
+    birthday_people_today = []
 
-    # Legacy daily check removed - timezone-aware checks handle everything
-    return 0  # Return count for compatibility
+    # Find all birthdays for today
+    for user_id, birthday_data in birthdays.items():
+        if check_if_birthday_today(birthday_data["date"], moment):
+            # Get user status and profile info efficiently
+            _, is_bot, is_deleted, username = get_user_status_and_info(app, user_id)
+
+            # Skip deleted/deactivated users or bots
+            if is_deleted or is_bot:
+                logger.info(
+                    f"SKIP: User {user_id} is {'deleted' if is_deleted else 'a bot'}, skipping birthday announcement"
+                )
+                continue
+
+            # Get full user profile for additional data (with caching)
+            if user_id not in profile_cache:
+                profile_cache[user_id] = get_user_profile(app, user_id)
+            user_profile = profile_cache[user_id]
+            date_words = date_to_words(birthday_data["date"], birthday_data.get("year"))
+
+            birthday_person = {
+                "user_id": user_id,
+                "username": username,
+                "date": birthday_data["date"],
+                "year": birthday_data.get("year"),
+                "date_words": date_words,
+                "profile": user_profile,
+            }
+
+            birthday_people_today.append(birthday_person)
+
+    if birthday_people_today:
+        logger.info(
+            f"SIMPLE_DAILY: Found {len(birthday_people_today)} birthdays to celebrate today"
+        )
+
+        try:
+            # Create consolidated message for all birthday people
+            result = create_consolidated_birthday_announcement(
+                birthday_people_today,
+                app=app,
+                include_image=AI_IMAGE_GENERATION_ENABLED,
+                test_mode=False,
+                quality=None,
+                image_size=None,
+            )
+
+            if isinstance(result, tuple) and AI_IMAGE_GENERATION_ENABLED:
+                message, image_data = result
+                send_message_with_image(app, BIRTHDAY_CHANNEL, message, image_data)
+            else:
+                message = result
+                send_message(app, BIRTHDAY_CHANNEL, message)
+
+            # Mark all as announced
+            for person in birthday_people_today:
+                mark_birthday_announced(person["user_id"])
+
+            names = [p["username"] for p in birthday_people_today]
+            logger.info(
+                f"SIMPLE_DAILY: Successfully announced birthdays for: {', '.join(names)}"
+            )
+
+        except Exception as e:
+            logger.error(f"SIMPLE_DAILY_ERROR: Failed to announce birthdays: {e}")
+    else:
+        logger.info("SIMPLE_DAILY: No birthdays to celebrate today")
+
+
+def celebrate_missed_birthdays(app):
+    """
+    Celebrate birthdays that were missed due to system downtime.
+
+    This function is the single source of truth for missed birthday detection.
+    It simply checks: if it's someone's birthday today AND they haven't been
+    celebrated yet, then celebrate them. No complex timezone logic needed.
+
+    This works for both simple and timezone-aware modes and ensures that no
+    matter how long the system was down, missed birthdays are always celebrated.
+
+    Args:
+        app: Slack app instance
+    """
+    logger.info("MISSED_BIRTHDAYS: Starting check for missed birthday celebrations")
+
+    # Profile cache for this check to reduce API calls
+    profile_cache = {}
+
+    try:
+        # Load all birthdays
+        birthdays = load_birthdays()
+        if not birthdays:
+            logger.info("MISSED_BIRTHDAYS: No birthdays stored in system")
+            return
+
+        # Find all people with birthdays today who haven't been announced
+        birthday_people_today = []
+
+        for user_id, birthday_data in birthdays.items():
+            date_str = birthday_data["date"]
+
+            # Check if it's their birthday today
+            if check_if_birthday_today(date_str):
+                # Check if they've already been celebrated today
+                if not is_user_celebrated_today(user_id):
+                    # Get user status and profile info efficiently (same as timezone_aware_check)
+                    _, is_bot, is_deleted, username = get_user_status_and_info(
+                        app, user_id
+                    )
+
+                    # Skip deleted/deactivated users or bots
+                    if is_deleted or is_bot:
+                        logger.info(
+                            f"MISSED_BIRTHDAYS: User {user_id} is {'deleted' if is_deleted else 'a bot'}, skipping"
+                        )
+                        continue
+
+                    # Get full user profile for additional data (with caching)
+                    if user_id not in profile_cache:
+                        profile_cache[user_id] = get_user_profile(app, user_id)
+                    user_profile = profile_cache[user_id]
+
+                    # Parse year if available
+                    year = birthday_data.get("year")
+                    date_words = date_to_words(date_str, year)
+
+                    birthday_people_today.append(
+                        {
+                            "user_id": user_id,
+                            "username": username,
+                            "date": date_str,
+                            "year": year,
+                            "date_words": date_words,
+                            "profile": user_profile,
+                        }
+                    )
+
+                    logger.info(
+                        f"MISSED_BIRTHDAYS: Found missed celebration for {username}"
+                    )
+
+        # If we found missed birthdays, celebrate them now
+        if birthday_people_today:
+            logger.info(
+                f"MISSED_BIRTHDAYS: Celebrating {len(birthday_people_today)} missed birthdays"
+            )
+
+            # Use the same consolidated announcement logic as timezone_aware_check
+            result = create_consolidated_birthday_announcement(
+                birthday_people_today,
+                app=app,
+                include_image=AI_IMAGE_GENERATION_ENABLED,
+            )
+
+            # Send the message
+            if isinstance(result, tuple) and AI_IMAGE_GENERATION_ENABLED:
+                message, image_data = result
+                send_message_with_image(app, BIRTHDAY_CHANNEL, message, image_data)
+            else:
+                message = result
+                send_message(app, BIRTHDAY_CHANNEL, message)
+
+            # Mark all as announced to prevent duplicates
+            # Use the same marking logic as the regular celebration functions
+            for person in birthday_people_today:
+                # For missed birthdays, we use simple marking since we don't know
+                # which mode triggered the miss. is_user_celebrated_today() will
+                # check both simple and timezone-aware tracking methods.
+                mark_birthday_announced(person["user_id"])
+
+            names = [p["username"] for p in birthday_people_today]
+            logger.info(
+                f"MISSED_BIRTHDAYS: Successfully announced missed birthdays for: {', '.join(names)}"
+            )
+
+        else:
+            logger.info("MISSED_BIRTHDAYS: No missed birthday celebrations found")
+
+    except Exception as e:
+        logger.error(
+            f"MISSED_BIRTHDAYS_ERROR: Failed to celebrate missed birthdays: {e}"
+        )

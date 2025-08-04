@@ -18,7 +18,6 @@ from utils.storage import (
 )
 from utils.slack_utils import (
     get_username,
-    get_user_mention,
     get_user_profile,
     check_command_permission,
     get_channel_members,
@@ -26,6 +25,7 @@ from utils.slack_utils import (
     send_message_with_image,
     is_admin,
 )
+from utils.slack_formatting import get_user_mention
 from utils.message_generator import (
     completion,
     create_birthday_announcement,
@@ -44,9 +44,13 @@ from config import (
     set_current_personality,
     DATA_DIR,
     STORAGE_DIR,
+    DATE_FORMAT,
     CACHE_DIR,
     BIRTHDAYS_FILE,
     AI_IMAGE_GENERATION_ENABLED,
+    DAILY_CHECK_TIME,
+    TIMEZONE_CELEBRATION_TIME,
+    EXTERNAL_BACKUP_ENABLED,
 )
 from utils.config_storage import save_admins_to_file
 from utils.web_search import clear_cache
@@ -150,15 +154,23 @@ def handle_dm_admin_help(say, user_id, app):
 • `list` - List upcoming birthdays
 • `list all` - List all birthdays organized by month
 • `stats` - View birthday statistics
-• `remind [message]` - Send reminders to users without birthdays
+• `remind` or `remind new` - Send reminders to users without birthdays
+• `remind update` - Send profile update reminders to users with birthdays
+• `remind new [message]` - Send custom reminder to new users
+• `remind update [message]` - Send custom profile update reminder
 
 • `admin status` - View system health and component status
 • `admin status detailed` - View detailed system information
 • `admin timezone` - View birthday celebration schedule across timezones
 • `admin test @user` - Generate test birthday message & image for a user (stays in DM)
+• `admin test-join [@user]` - Test birthday channel welcome message
 
 • `config` - View command permissions
 • `config COMMAND true/false` - Change command permissions
+
+*Announcements:*
+• `admin announce image` - Announce AI image generation feature to birthday channel
+• `admin announce [message]` - Send custom announcement to birthday channel
 
 *Data Management:*
 • `admin backup` - Create a manual backup of birthdays data
@@ -166,6 +178,8 @@ def handle_dm_admin_help(say, user_id, app):
 • `admin cache clear` - Clear all web search cache
 • `admin cache clear DD/MM` - Clear web search cache for a specific date
 • `admin test-upload` - Test the image upload functionality
+• `admin test-file-upload` - Test text file upload functionality (like backup files)
+• `admin test-external-backup` - Test the external backup system with detailed diagnostics
 
 *Bot Personality:*
 • `admin personality` - Show current bot personality
@@ -211,23 +225,74 @@ def handle_dm_date(say, user, result, app):
         date_words = date_to_words(date)
         age_text = ""
 
-    updated = save_birthday(date, user, year, get_username(app, user))
+    username = get_username(app, user)
+    updated = save_birthday(date, user, year, username)
 
     # Check if birthday is today and send announcement if so
     if check_if_birthday_today(date):
-        username = get_username(app, user)
         send_immediate_birthday_announcement(
             user, username, date, year, date_words, age_text, say, app
         )
     else:
-        if updated:
-            say(
-                f"Birthday updated to {date_words}{age_text}. If this is incorrect, please try again with the correct date."
+        # Enhanced confirmation messages with emojis and safe formatting
+        try:
+            if updated:
+                confirmation_msg = f"✅ *Birthday Updated!*\nYour birthday has been updated to {date_words}{age_text}\n\nIf this is incorrect, please send the correct date."
+                say(confirmation_msg)
+                logger.info(
+                    f"BIRTHDAY_UPDATE: Successfully notified {username} ({user}) of birthday update to {date_words} via date input"
+                )
+            else:
+                confirmation_msg = f"🎉 *Birthday Saved!*\nYour birthday ({date_words}{age_text}) has been saved successfully!\n\nIf this is incorrect, please send the correct date."
+                say(confirmation_msg)
+                logger.info(
+                    f"BIRTHDAY_ADD: Successfully notified {username} ({user}) of new birthday {date_words} via date input"
+                )
+        except Exception as e:
+            logger.error(
+                f"NOTIFICATION_ERROR: Failed to send birthday confirmation to {username} ({user}) via date input: {e}"
             )
-        else:
-            say(
-                f"{date_words}{age_text} has been saved as your birthday. If this is incorrect, please try again."
-            )
+            # Fallback to simple message without formatting
+            try:
+                if updated:
+                    say(
+                        f"Birthday updated to {date_words}{age_text}. If this is incorrect, please try again with the correct date."
+                    )
+                else:
+                    say(
+                        f"{date_words}{age_text} has been saved as your birthday. If this is incorrect, please try again."
+                    )
+                logger.info(
+                    f"BIRTHDAY_FALLBACK: Sent fallback confirmation to {username} ({user}) via date input"
+                )
+            except Exception as fallback_error:
+                logger.error(
+                    f"NOTIFICATION_CRITICAL: Complete failure to notify {username} ({user}) via date input: {fallback_error}"
+                )
+
+    # Send external backup after user confirmation to avoid API conflicts
+    try:
+        from utils.storage import send_external_backup
+        from config import EXTERNAL_BACKUP_ENABLED, BACKUP_ON_EVERY_CHANGE
+
+        if EXTERNAL_BACKUP_ENABLED and BACKUP_ON_EVERY_CHANGE:
+            # Get the most recent backup file
+            from config import BACKUP_DIR
+            import os
+
+            backup_files = [
+                os.path.join(BACKUP_DIR, f)
+                for f in os.listdir(BACKUP_DIR)
+                if f.startswith("birthdays_") and f.endswith(".txt")
+            ]
+            if backup_files:
+                latest_backup = max(backup_files, key=lambda x: os.path.getmtime(x))
+                change_type = "update" if updated else "add"
+                send_external_backup(latest_backup, change_type, username, app)
+    except Exception as backup_error:
+        logger.error(
+            f"EXTERNAL_BACKUP_ERROR: Failed to send external backup after birthday save: {backup_error}"
+        )
 
 
 def handle_command(text, user_id, say, app):
@@ -237,6 +302,9 @@ def handle_command(text, user_id, say, app):
     username = get_username(app, user_id)
 
     logger.info(f"COMMAND: {username} ({user_id}) used DM command: {text}")
+
+    # Debug logging for say function
+    logger.debug(f"COMMAND_DEBUG: say function type: {type(say)}, user_id: {user_id}")
 
     if command == "help":
         handle_dm_help(say)
@@ -291,17 +359,121 @@ def handle_command(text, user_id, say, app):
                 user_id, username, date, year, date_words, age_text, say, app
             )
         else:
-            if updated:
-                say(f"Your birthday has been updated to {date_words}{age_text}")
-            else:
-                say(f"Your birthday ({date_words}{age_text}) has been saved!")
+            # Enhanced confirmation messages with emojis and safe formatting
+            try:
+                if updated:
+                    confirmation_msg = f"✅ *Birthday Updated!*\nYour birthday has been updated to {date_words}{age_text}"
+                    say(confirmation_msg)
+                    logger.info(
+                        f"BIRTHDAY_UPDATE: Successfully notified {username} ({user_id}) of birthday update to {date_words}"
+                    )
+                else:
+                    confirmation_msg = f"🎉 *Birthday Saved!*\nYour birthday ({date_words}{age_text}) has been saved successfully!"
+                    say(confirmation_msg)
+                    logger.info(
+                        f"BIRTHDAY_ADD: Successfully notified {username} ({user_id}) of new birthday {date_words}"
+                    )
+            except Exception as e:
+                logger.error(
+                    f"NOTIFICATION_ERROR: Failed to send birthday confirmation to {username} ({user_id}): {e}"
+                )
+                # Fallback to simple message without formatting
+                try:
+                    if updated:
+                        say(f"Your birthday has been updated to {date_words}{age_text}")
+                    else:
+                        say(f"Your birthday ({date_words}{age_text}) has been saved!")
+                    logger.info(
+                        f"BIRTHDAY_FALLBACK: Sent fallback confirmation to {username} ({user_id})"
+                    )
+                except Exception as fallback_error:
+                    logger.error(
+                        f"NOTIFICATION_CRITICAL: Complete failure to notify {username} ({user_id}): {fallback_error}"
+                    )
+
+        # Send external backup after user confirmation to avoid API conflicts
+        try:
+            from utils.storage import send_external_backup
+            from config import EXTERNAL_BACKUP_ENABLED, BACKUP_ON_EVERY_CHANGE
+
+            if EXTERNAL_BACKUP_ENABLED and BACKUP_ON_EVERY_CHANGE:
+                # Get the most recent backup file
+                from config import BACKUP_DIR
+                import os
+
+                backup_files = [
+                    os.path.join(BACKUP_DIR, f)
+                    for f in os.listdir(BACKUP_DIR)
+                    if f.startswith("birthdays_") and f.endswith(".txt")
+                ]
+                if backup_files:
+                    latest_backup = max(backup_files, key=lambda x: os.path.getmtime(x))
+                    change_type = "update" if updated else "add"
+                    send_external_backup(latest_backup, change_type, username, app)
+        except Exception as backup_error:
+            logger.error(
+                f"EXTERNAL_BACKUP_ERROR: Failed to send external backup after birthday add: {backup_error}"
+            )
 
     elif command == "remove":
         removed = remove_birthday(user_id, username)
+        # Enhanced confirmation messages with emojis and safe formatting
+        try:
+            if removed:
+                confirmation_msg = f"🗑️ *Birthday Removed*\nYour birthday has been successfully removed from our records."
+                say(confirmation_msg)
+                logger.info(
+                    f"BIRTHDAY_REMOVE: Successfully notified {username} ({user_id}) of birthday removal"
+                )
+            else:
+                confirmation_msg = f"ℹ️ *No Birthday Found*\nYou don't currently have a birthday saved in our records.\n\nUse `add DD/MM` or `add DD/MM/YYYY` to save your birthday."
+                say(confirmation_msg)
+                logger.info(
+                    f"BIRTHDAY_REMOVE: Notified {username} ({user_id}) that no birthday was found to remove"
+                )
+        except Exception as e:
+            logger.error(
+                f"NOTIFICATION_ERROR: Failed to send birthday removal confirmation to {username} ({user_id}): {e}"
+            )
+            # Fallback to simple message without formatting
+            try:
+                if removed:
+                    say("Your birthday has been removed from our records")
+                else:
+                    say("You don't have a birthday saved in our records")
+                logger.info(
+                    f"BIRTHDAY_REMOVE_FALLBACK: Sent fallback confirmation to {username} ({user_id})"
+                )
+            except Exception as fallback_error:
+                logger.error(
+                    f"NOTIFICATION_CRITICAL: Complete failure to notify {username} ({user_id}) about removal: {fallback_error}"
+                )
+
+        # Send external backup after user confirmation (only if birthday was actually removed)
         if removed:
-            say("Your birthday has been removed from our records")
-        else:
-            say("You don't have a birthday saved in our records")
+            try:
+                from utils.storage import send_external_backup
+                from config import EXTERNAL_BACKUP_ENABLED, BACKUP_ON_EVERY_CHANGE
+
+                if EXTERNAL_BACKUP_ENABLED and BACKUP_ON_EVERY_CHANGE:
+                    # Get the most recent backup file
+                    from config import BACKUP_DIR
+                    import os
+
+                    backup_files = [
+                        os.path.join(BACKUP_DIR, f)
+                        for f in os.listdir(BACKUP_DIR)
+                        if f.startswith("birthdays_") and f.endswith(".txt")
+                    ]
+                    if backup_files:
+                        latest_backup = max(
+                            backup_files, key=lambda x: os.path.getmtime(x)
+                        )
+                        send_external_backup(latest_backup, "remove", username, app)
+            except Exception as backup_error:
+                logger.error(
+                    f"EXTERNAL_BACKUP_ERROR: Failed to send external backup after birthday removal: {backup_error}"
+                )
 
     elif command == "list":
         handle_list_command(parts, user_id, say, app)
@@ -392,8 +564,13 @@ def handle_list_command(parts, user_id, say, app):
         username = get_username(app, uid)
         user_mention = get_user_mention(uid)
 
-        # Parse the date components
-        day, month = map(int, bdate.split("/"))
+        # Parse the date components using datetime for validation
+        try:
+            date_obj = datetime.strptime(bdate, DATE_FORMAT)
+            day, month = date_obj.day, date_obj.month
+        except ValueError as e:
+            logger.error(f"Invalid date format in list command: {bdate} - {e}")
+            continue  # Skip this invalid birthday entry
 
         age_text = ""
         if birth_year:
@@ -533,7 +710,7 @@ def handle_check_command(parts, user_id, say, app):
 
 
 def handle_remind_command(parts, user_id, say, app):
-    # Send reminders to users without birthdays
+    # Send reminders to users
     if not check_command_permission(app, user_id, "remind"):
         say(
             "You don't have permission to send reminders. This command is restricted to admins."
@@ -544,8 +721,20 @@ def handle_remind_command(parts, user_id, say, app):
         )
         return
 
-    # Check if custom message is provided
-    custom_message = " ".join(parts[1:]) if len(parts) > 1 else None
+    # Parse subcommand and message
+    reminder_type = "new"  # Default
+    custom_message = None
+
+    if len(parts) > 1:
+        subcommand = parts[1].lower()
+        if subcommand in ["new", "update", "all"]:
+            reminder_type = subcommand
+            # Custom message starts after the subcommand
+            if len(parts) > 2:
+                custom_message = " ".join(parts[2:])
+        else:
+            # No subcommand, assume it's all custom message
+            custom_message = " ".join(parts[1:])
 
     # Get all users in the birthday channel
     channel_members = get_channel_members(app, BIRTHDAY_CHANNEL)
@@ -557,28 +746,59 @@ def handle_remind_command(parts, user_id, say, app):
     birthdays = load_birthdays()
     users_with_birthdays = set(birthdays.keys())
 
-    # Find users without birthdays
-    users_missing_birthdays = [
-        user for user in channel_members if user not in users_with_birthdays
-    ]
+    if reminder_type == "new" or reminder_type == "all":
+        # Find users without birthdays
+        users_missing_birthdays = [
+            user for user in channel_members if user not in users_with_birthdays
+        ]
 
-    if not users_missing_birthdays:
-        say(
-            "Good news! All members of the birthday channel already have their birthdays saved. 🎉"
+        if not users_missing_birthdays:
+            say(
+                "Good news! All members of the birthday channel already have their birthdays saved. 🎉"
+            )
+            return
+
+        # Send reminders to users without birthdays
+        results = send_reminder_to_users(
+            app, users_missing_birthdays, custom_message, reminder_type="new"
         )
-        return
 
-    # Send reminders to users without birthdays
-    results = send_reminder_to_users(app, users_missing_birthdays, custom_message)
+        # Prepare response message
+        response_message = f"New user reminder sent to {results['successful']} users"
+        if results["failed"] > 0:
+            response_message += f" (failed to send to {results['failed']} users)"
+        if results["skipped_bots"] > 0:
+            response_message += f" (skipped {results['skipped_bots']} bots)"
 
-    # Prepare response message
-    response_message = f"Reminder sent to {results['successful']} users"
-    if results["failed"] > 0:
-        response_message += f" (failed to send to {results['failed']} users)"
-    if results["skipped_bots"] > 0:
-        response_message += f" (skipped {results['skipped_bots']} bots)"
+        say(response_message)
 
-    say(response_message)
+    elif reminder_type == "update":
+        # Find users with birthdays for profile updates
+        users_for_update = list(users_with_birthdays)
+
+        if not users_for_update:
+            say("No users with birthdays found for profile update reminders.")
+            return
+
+        # Send profile update reminders
+        results = send_reminder_to_users(
+            app, users_for_update, custom_message, reminder_type="update"
+        )
+
+        # Prepare response message
+        response_message = (
+            f"Profile update reminder sent to {results['successful']} users"
+        )
+        if results["failed"] > 0:
+            response_message += f" (failed to send to {results['failed']} users)"
+        if results["skipped_bots"] > 0:
+            response_message += f" (skipped {results['skipped_bots']} bots)"
+        if results.get("skipped_inactive", 0) > 0:
+            response_message += (
+                f" (skipped {results['skipped_inactive']} inactive users)"
+            )
+
+        say(response_message)
 
 
 def handle_stats_command(user_id, say, app):
@@ -612,10 +832,13 @@ def handle_stats_command(user_id, say, app):
     months = [0] * 12
     for data in birthdays.values():
         try:
-            month = int(data["date"].split("/")[1]) - 1  # Convert from 1-12 to 0-11
+            # Use datetime for proper date parsing and validation
+            date_obj = datetime.strptime(data["date"], DATE_FORMAT)
+            month = date_obj.month - 1  # Convert from 1-12 to 0-11
             months[month] += 1
-        except (IndexError, ValueError):
-            pass
+        except ValueError as e:
+            logger.error(f"Invalid date format in statistics: {data['date']} - {e}")
+            # Skip invalid date entries
 
     # Format month distribution
     month_names = [month_name[i][:3] for i in range(1, 13)]
@@ -715,38 +938,68 @@ def handle_config_command(parts, user_id, say, app):
         )
 
 
-def handle_test_command(user_id, say, app, quality=None, image_size=None):
-    # Generate a test birthday message for the user
+def handle_test_command(
+    user_id, say, app, quality=None, image_size=None, target_user_id=None
+):
+    """
+    Generate a test birthday message for a user
+
+    Args:
+        user_id: The user who requested the test (for permissions check)
+        say: Slack say function
+        app: Slack app instance
+        quality: Optional quality setting for image generation
+        image_size: Optional image size setting
+        target_user_id: The user to test (defaults to user_id if not provided)
+    """
+    # If no target specified, test the requesting user
+    if target_user_id is None:
+        target_user_id = user_id
+        is_admin_test = False
+    else:
+        is_admin_test = True
+
+    # Generate a test birthday message for the target user
     birthdays = load_birthdays()
     today = datetime.now()
     date_str = today.strftime("%d/%m")
-    birth_year = birthdays.get(user_id, {}).get("year")
-    username = get_username(app, user_id)
+    birth_year = birthdays.get(target_user_id, {}).get("year")
+    username = get_username(app, target_user_id)
 
     try:
         # First try to get the user's actual birthday if available
-        if user_id in birthdays:
-            user_date = birthdays[user_id]["date"]
-            birth_year = birthdays[user_id]["year"]
+        if target_user_id in birthdays:
+            user_date = birthdays[target_user_id]["date"]
+            birth_year = birthdays[target_user_id]["year"]
             date_words = date_to_words(user_date, birth_year)
         else:
             # If no birthday is saved, use today's date
             user_date = date_str
             date_words = "today"
 
-        say(f"Generating a test birthday message for you... this might take a moment.")
+        if is_admin_test:
+            say(
+                f"Generating a test birthday message for {username}... this might take a moment."
+            )
+        else:
+            say(
+                f"Generating a test birthday message for you... this might take a moment."
+            )
+
+        # Log quality and image size if provided
+        if quality:
+            logger.info(f"TEST_COMMAND: Using quality: {quality}")
+        if image_size:
+            logger.info(f"TEST_COMMAND: Using image size: {image_size}")
 
         # Get enhanced profile data for personalization
-        from utils.slack_utils import get_user_profile
-        from config import AI_IMAGE_GENERATION_ENABLED
-
-        user_profile = get_user_profile(app, user_id)
+        user_profile = get_user_profile(app, target_user_id)
 
         # Try to get personalized AI message with profile data and optional image
         result = completion(
             username,
             date_words,
-            user_id,
+            target_user_id,
             user_date,
             birth_year,
             app=app,
@@ -762,61 +1015,77 @@ def handle_test_command(user_id, say, app, quality=None, image_size=None):
             if image_data:
                 # Send the message with image in one go (no duplicate message)
                 try:
-                    from utils.slack_utils import send_message_with_image
-
                     # Send the test message with the generated image
                     if send_message_with_image(
                         app,
                         user_id,
-                        f"Here's what your birthday message would look like:\n\n{test_message}",
+                        (
+                            f"Here's what {username}'s birthday message would look like:\n\n{test_message}"
+                            if is_admin_test
+                            else f"Here's what your birthday message would look like:\n\n{test_message}"
+                        ),
                         image_data,
                     ):
                         logger.info(
-                            f"TEST: Successfully sent test message with image to {username} ({user_id})"
+                            f"TEST: Successfully sent test message with image to {username} ({target_user_id})"
                         )
                     else:
                         # Fallback to text-only if image upload fails
                         say(
-                            f"Here's what your birthday message would look like:\n\n{test_message}"
+                            f"Here's what {username}'s birthday message would look like:\n\n{test_message}"
+                            if is_admin_test
+                            else f"Here's what your birthday message would look like:\n\n{test_message}"
                         )
                         say(
                             "Note: Image was generated but couldn't be sent. Check the logs for details."
                         )
                 except Exception as e:
                     logger.error(
-                        f"IMAGE_ERROR: Failed to send test image to user {user_id}: {e}"
+                        f"IMAGE_ERROR: Failed to send test image to user {target_user_id}: {e}"
                     )
                     say(
-                        f"Here's what your birthday message would look like:\n\n{test_message}"
+                        f"Here's what {username}'s birthday message would look like:\n\n{test_message}"
+                        if is_admin_test
+                        else f"Here's what your birthday message would look like:\n\n{test_message}"
                     )
                     say(
                         "Note: Image was generated but couldn't be sent. Check the logs for details."
                     )
             else:
                 say(
-                    f"Here's what your birthday message would look like:\n\n{test_message}"
+                    f"Here's what {username}'s birthday message would look like:\n\n{test_message}"
+                    if is_admin_test
+                    else f"Here's what your birthday message would look like:\n\n{test_message}"
                 )
                 say(
                     "Note: Image generation was attempted but failed. Check the logs for details."
                 )
         else:
             test_message = result
-            say(f"Here's what your birthday message would look like:\n\n{test_message}")
-        logger.info(f"TEST: Generated test birthday message for {username} ({user_id})")
+            say(
+                f"Here's what {username}'s birthday message would look like:\n\n{test_message}"
+                if is_admin_test
+                else f"Here's what your birthday message would look like:\n\n{test_message}"
+            )
+        logger.info(
+            f"TEST: Generated test birthday message for {username} ({target_user_id})"
+        )
 
     except Exception as e:
         logger.error(f"AI_ERROR: Failed to generate test message: {e}")
 
         # Fallback to announcement
         say(
-            "I couldn't generate a custom message, but here's a template of what your birthday message would look like:"
+            f"I couldn't generate a custom message, but here's a template of what {username}'s birthday message would look like:"
+            if is_admin_test
+            else "I couldn't generate a custom message, but here's a template of what your birthday message would look like:"
         )
 
         # Create a test announcement using the user's data or today's date
         announcement = create_birthday_announcement(
-            user_id,
+            target_user_id,
             username,
-            user_date if user_id in birthdays else date_str,
+            user_date if target_user_id in birthdays else date_str,
             birth_year,
             test_mode=True,  # Use low-cost mode for testing
             quality=quality,  # Allow quality override
@@ -825,13 +1094,68 @@ def handle_test_command(user_id, say, app, quality=None, image_size=None):
         say(announcement)
 
 
+def handle_announce_command(args, user_id, say, app):
+    """Handle announcement commands to birthday channel"""
+    username = get_username(app, user_id)
+
+    if not args:
+        # Show help for announce command
+        help_text = (
+            "*Announcement Commands:*\n\n"
+            "• `admin announce image` - Announce AI image generation feature\n"
+            "• `admin announce [message]` - Send custom announcement to birthday channel\n\n"
+            "Announcements will notify active users (!here) in the birthday channel."
+        )
+        say(help_text)
+        logger.info(f"ADMIN: {username} ({user_id}) requested announce help")
+        return
+
+    # Import here to avoid circular import
+    from services.birthday import send_channel_announcement
+
+    # Check what type of announcement
+    if args[0].lower() == "image":
+        # Send image feature announcement directly with simple confirmation
+        say("Sending image feature announcement to birthday channel...")
+
+        success = send_channel_announcement(app, "image_feature")
+        if success:
+            say("✅ Image feature announcement sent successfully!")
+            logger.info(
+                f"ADMIN: {username} ({user_id}) sent image feature announcement"
+            )
+        else:
+            say("❌ Failed to send announcement. Check logs for details.")
+            logger.error(
+                f"ADMIN_ERROR: {username} ({user_id}) failed to send image announcement"
+            )
+
+    else:
+        # Custom announcement
+        custom_message = " ".join(args)
+
+        # Show preview and send
+        say(f"Sending custom announcement to birthday channel:\n\n_{custom_message}_")
+
+        success = send_channel_announcement(app, "general", custom_message)
+        if success:
+            say("✅ Custom announcement sent successfully!")
+            logger.info(
+                f"ADMIN: {username} ({user_id}) sent custom announcement: {custom_message}"
+            )
+        else:
+            say("❌ Failed to send announcement. Check logs for details.")
+            logger.error(
+                f"ADMIN_ERROR: {username} ({user_id}) failed to send custom announcement"
+            )
+
+
 def handle_test_upload_command(user_id, say, app):
     """Handles the admin test-upload command."""
     say("Attempting to upload a test image to you via DM...")
     try:
         from PIL import Image, ImageDraw
         import io
-        from utils.slack_utils import send_message_with_image
 
         # Create a dummy image
         img = Image.new("RGB", (200, 50), color="blue")
@@ -865,6 +1189,303 @@ def handle_test_upload_command(user_id, say, app):
         say(f"An error occurred during the test upload: {e}")
 
 
+def handle_test_file_upload_command(user_id, say, app):
+    """Handles the admin test-file-upload command to test text file uploads."""
+    import tempfile
+    import os
+    from datetime import datetime
+    from utils.slack_utils import send_message_with_file, get_username
+
+    username = get_username(app, user_id)
+    say("📄 Creating and uploading a test text file to you via DM...")
+
+    temp_file_path = None
+    try:
+        # Create a temporary test file with sample birthday data
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        test_content = f"""# BrightDayBot Test File Upload
+# Generated: {timestamp}
+# Command: admin test-file-upload
+# Requested by: {username} ({user_id})
+
+## Sample Birthday Data Format:
+U1234567890,15/05,1990
+U0987654321,25/12
+U1122334455,01/01,1995
+U5566778899,31/10
+
+## Test Information:
+- Total sample entries: 4
+- Entries with birth year: 2
+- Entries without birth year: 2
+- File format: CSV (user_id,DD/MM[,YYYY])
+
+## Notes:
+This is a test file to verify the text file upload functionality.
+If you received this file, the external backup system should work correctly.
+
+---
+End of test file
+"""
+
+        # Create temporary file
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            suffix="_test_upload.txt",
+            prefix="brightday_",
+            delete=False,
+            encoding="utf-8",
+        ) as temp_file:
+            temp_file_path = temp_file.name
+            temp_file.write(test_content)
+            logger.info(
+                f"TEST_FILE_UPLOAD: Created temporary test file: {temp_file_path}"
+            )
+
+        # Prepare upload message
+        file_size = os.path.getsize(temp_file_path)
+        file_size_kb = round(file_size / 1024, 2)
+        filename = os.path.basename(temp_file_path)
+
+        upload_message = f"""📄 *Test File Upload* - {timestamp}
+
+🧪 *Test Details:*
+• File: {filename} ({file_size_kb} KB)
+• Content: Sample birthday data format
+• Purpose: Verify text file upload functionality
+
+This test file contains sample birthday data in the same format used by the external backup system. If you received this file successfully, the backup delivery system should work correctly."""
+
+        # Attempt to upload the file
+        if send_message_with_file(app, user_id, upload_message, temp_file_path):
+            say(
+                "✅ *Test file uploaded successfully!*\nCheck your DMs for the test file. If you received it, the external backup system is working correctly."
+            )
+            logger.info(
+                f"TEST_FILE_UPLOAD: Successfully sent test file to {username} ({user_id})"
+            )
+        else:
+            say(
+                "❌ *Test file upload failed.*\nCheck the logs for details. This may indicate issues with the external backup system."
+            )
+            logger.error(
+                f"TEST_FILE_UPLOAD: Failed to send test file to {username} ({user_id})"
+            )
+
+    except Exception as e:
+        logger.error(f"TEST_FILE_UPLOAD: Error creating or uploading test file: {e}")
+        say(
+            f"❌ *Test file upload failed with error:* {e}\n\nThis may indicate issues with file creation or the upload system."
+        )
+
+    finally:
+        # Clean up temporary file
+        if temp_file_path and os.path.exists(temp_file_path):
+            try:
+                os.unlink(temp_file_path)
+                logger.debug(
+                    f"TEST_FILE_UPLOAD: Cleaned up temporary file: {temp_file_path}"
+                )
+            except Exception as cleanup_error:
+                logger.warning(
+                    f"TEST_FILE_UPLOAD: Failed to clean up temporary file {temp_file_path}: {cleanup_error}"
+                )
+
+
+def handle_test_external_backup_command(user_id, say, app):
+    """Handles the admin test-external-backup command to test the external backup system."""
+    from utils.slack_utils import get_username
+    from utils.storage import send_external_backup
+    from datetime import datetime
+    import os
+    import glob
+
+    username = get_username(app, user_id)
+    say(
+        "🔄 *Testing External Backup System*\nChecking configuration and attempting to send the latest backup file..."
+    )
+
+    # Check environment variables
+    from config import (
+        EXTERNAL_BACKUP_ENABLED,
+        BACKUP_TO_ADMINS,
+        BACKUP_ON_EVERY_CHANGE,
+        BACKUP_CHANNEL_ID,
+    )
+
+    config_status = f"""📋 *External Backup Configuration:*
+• `EXTERNAL_BACKUP_ENABLED`: {EXTERNAL_BACKUP_ENABLED}
+• `BACKUP_TO_ADMINS`: {BACKUP_TO_ADMINS}
+• `BACKUP_ON_EVERY_CHANGE`: {BACKUP_ON_EVERY_CHANGE}
+• `BACKUP_CHANNEL_ID`: {BACKUP_CHANNEL_ID or 'Not set'}"""
+
+    say(config_status)
+    logger.info(f"TEST_EXTERNAL_BACKUP: Configuration check by {username} ({user_id})")
+
+    # Check admin configuration
+    from utils.config_storage import get_current_admins
+
+    current_admins = get_current_admins()
+
+    admin_status = f"""👥 *Admin Configuration:*
+• Bot admins configured: {len(current_admins)}
+• Admin list: {current_admins}"""
+
+    say(admin_status)
+
+    if not current_admins:
+        say(
+            "❌ *No bot admins configured!* Use `admin add @username` to add admins who should receive backup files."
+        )
+        return
+
+    # Find the latest backup file
+    backup_dir = "data/backups"
+    backup_files = glob.glob(os.path.join(backup_dir, "birthdays_*.txt"))
+
+    if not backup_files:
+        say(
+            "❌ *No backup files found!* Try creating a backup first with `admin backup`."
+        )
+        return
+
+    # Sort by modification time (newest first)
+    backup_files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+    latest_backup = backup_files[0]
+
+    backup_info = f"""📁 *Latest Backup File:*
+• File: {os.path.basename(latest_backup)}
+• Size: {round(os.path.getsize(latest_backup) / 1024, 1)} KB
+• Modified: {datetime.fromtimestamp(os.path.getmtime(latest_backup)).strftime('%Y-%m-%d %H:%M:%S')}"""
+
+    say(backup_info)
+
+    # Test the external backup system
+    try:
+        say("🚀 *Testing external backup delivery...*")
+        logger.info(
+            f"TEST_EXTERNAL_BACKUP: Triggering manual external backup test by {username} ({user_id})"
+        )
+
+        # Call the external backup function directly
+        send_external_backup(latest_backup, "manual", username, app)
+
+        say(
+            "✅ *External backup test completed!* Check the logs and your DMs for results. If successful, you should have received the backup file."
+        )
+        logger.info(f"TEST_EXTERNAL_BACKUP: Test completed by {username} ({user_id})")
+
+    except Exception as e:
+        say(f"❌ *External backup test failed:* {e}")
+        logger.error(
+            f"TEST_EXTERNAL_BACKUP: Test failed for {username} ({user_id}): {e}"
+        )
+
+
+def handle_test_join_command(args, user_id, say, app):
+    """Handles the admin test-join [@user] command to simulate birthday channel welcome."""
+    from utils.slack_utils import get_username
+    from config import BIRTHDAY_CHANNEL
+
+    username = get_username(app, user_id)
+
+    # Determine target user - default to requesting admin if no user specified
+    test_user_id = user_id
+    if args and args[0].startswith("<@") and args[0].endswith(">"):
+        # Extract user ID from mention
+        test_user_id = args[0][2:-1].split("|")[0].upper()
+        logger.info(f"TEST_JOIN: Extracted user ID: {test_user_id}")
+
+    test_username = get_username(app, test_user_id)
+
+    # Show what we're testing
+    if test_user_id == user_id:
+        say(
+            f"🧪 *Testing Birthday Channel Welcome for Yourself*\nSimulating member_joined_channel event..."
+        )
+    else:
+        say(
+            f"🧪 *Testing Birthday Channel Welcome for {test_username}*\nSimulating member_joined_channel event..."
+        )
+
+    logger.info(
+        f"TEST_JOIN: {username} ({user_id}) testing birthday channel welcome for {test_username} ({test_user_id})"
+    )
+
+    try:
+        # Create a mock event body for member_joined_channel
+        member_joined_body = {
+            "event": {
+                "type": "member_joined_channel",
+                "user": test_user_id,
+                "channel": BIRTHDAY_CHANNEL,
+                "channel_type": "C",
+                "team": "TEST_TEAM",
+                "inviter": user_id,
+            },
+            "team_id": "TEST_TEAM",
+            "event_id": f"test_member_joined_{test_user_id}",
+            "event_time": int(datetime.now().timestamp()),
+        }
+
+        # Test member_joined_channel event
+        say("📝 *Testing birthday channel welcome...*")
+
+        # Simulate member_joined_channel handler behavior directly
+        event = member_joined_body.get("event", {})
+        event_user = event.get("user")
+        channel = event.get("channel")
+
+        logger.debug(f"TEST_CHANNEL_JOIN: User {event_user} joined channel {channel}")
+
+        # Send welcome message if they joined the birthday channel
+        if channel == BIRTHDAY_CHANNEL:
+            try:
+                event_username = get_username(app, event_user)
+
+                welcome_msg = f"""🎉 Welcome to the birthday channel, {get_user_mention(event_user)}!
+
+Here I celebrate everyone's birthdays with personalized messages and AI-generated images!
+
+📅 *To add your birthday:* Send me a DM with your date in DD/MM format (e.g., 25/12) or DD/MM/YYYY format (e.g., 25/12/1990)
+
+💡 *Commands:* Type `help` in a DM to see all available options
+
+Hope to celebrate your special day soon! 🎂"""
+
+                send_message(app, event_user, welcome_msg)
+                logger.info(
+                    f"TEST_BIRTHDAY_CHANNEL: Welcomed {event_username} ({event_user}) to birthday channel"
+                )
+
+            except Exception as e:
+                logger.error(
+                    f"TEST_BIRTHDAY_CHANNEL: Failed to send welcome message to {event_user}: {e}"
+                )
+
+        say(
+            "✅ *Birthday channel welcome simulated* - Check your DMs for the welcome message"
+        )
+
+        say(
+            f"🎉 *Birthday Channel Welcome Test Complete!*\n\n{test_username} should have received the birthday channel welcome message with instructions.\n\nCheck the logs for detailed event processing information."
+        )
+
+        logger.info(
+            f"TEST_JOIN: Successfully completed birthday channel welcome test for {test_username} ({test_user_id})"
+        )
+
+    except Exception as e:
+        say(f"❌ *Birthday channel welcome test failed:* {e}")
+        logger.error(
+            f"TEST_JOIN: Failed to simulate birthday channel welcome for {test_user_id}: {e}"
+        )
+        import traceback
+
+        logger.error(traceback.format_exc())
+
+
 def handle_test_birthday_command(args, user_id, say, app):
     """Handles the admin test @user [quality] [size] command to generate test birthday message and image."""
     if not args:
@@ -892,7 +1513,6 @@ def handle_test_birthday_command(args, user_id, say, app):
         quality_arg = args[1].lower()
         if quality_arg in ["low", "medium", "high", "auto"]:
             quality = quality_arg
-            logger.info(f"TEST_COMMAND: Using quality: {quality}")
         else:
             say(f"Invalid quality '{args[1]}'. Valid options: low, medium, high, auto")
             return
@@ -901,88 +1521,16 @@ def handle_test_birthday_command(args, user_id, say, app):
         size_arg = args[2].lower()
         if size_arg in ["auto", "1024x1024", "1536x1024", "1024x1536"]:
             image_size = size_arg
-            logger.info(f"TEST_COMMAND: Using image size: {image_size}")
         else:
             say(
                 f"Invalid size '{args[2]}'. Valid options: auto, 1024x1024, 1536x1024, 1024x1536"
             )
             return
 
-    # Get user profile and information
-    from utils.date_utils import date_to_words
-    from utils.storage import load_birthdays
-    from datetime import datetime
-
-    test_username = get_username(app, test_user_id)
-    user_profile = get_user_profile(app, test_user_id)
-
-    if not user_profile:
-        say(f"Could not retrieve profile for {test_username}")
-        return
-
-    # Check if user has a birthday saved
-    birthdays = load_birthdays()
-    birthday_data = birthdays.get(test_user_id)
-
-    if birthday_data:
-        birth_date = birthday_data["date"]
-        birth_year = birthday_data.get("year")
-        date_words = date_to_words(birth_date, birth_year)
-    else:
-        # Use today's date as a test birthday
-        today = datetime.now()
-        birth_date = f"{today.day:02d}/{today.month:02d}"
-        birth_year = None
-        date_words = date_to_words(birth_date, birth_year)
-        say(
-            f"Note: {test_username} doesn't have a birthday saved. Using today's date ({birth_date}) for testing."
-        )
-
-    say(f"Generating test birthday message and image for {test_username}...")
-
-    try:
-        # Generate birthday message with AI and image
-        result = completion(
-            test_username,
-            date_words,
-            test_user_id,
-            birth_date,
-            birth_year,
-            app=app,
-            user_profile=user_profile,
-            include_image=AI_IMAGE_GENERATION_ENABLED,
-            test_mode=True,  # Use low-cost mode for admin testing
-            quality=quality,  # Allow quality override
-            image_size=image_size,  # Allow image size override
-        )
-
-        if isinstance(result, tuple) and AI_IMAGE_GENERATION_ENABLED:
-            message, image_data = result
-
-            # Send the message with image in DM
-            if image_data:
-                send_message_with_image(
-                    app,
-                    user_id,
-                    f"*Test Birthday Message for {test_username}:*\n\n{message}",
-                    image_data,
-                )
-            else:
-                say(
-                    f"*Test Birthday Message for {test_username}:*\n\n{message}\n\n⚠️ Image generation failed."
-                )
-        else:
-            # Just the message without image
-            message = result
-            say(f"*Test Birthday Message for {test_username}:*\n\n{message}")
-
-        logger.info(
-            f"ADMIN_TEST: Generated test birthday for {test_username} by {get_username(app, user_id)}"
-        )
-
-    except Exception as e:
-        logger.error(f"ADMIN_TEST_ERROR: Failed to generate test birthday: {e}")
-        say(f"Error generating test birthday message: {e}")
+    # Use the unified test command handler
+    handle_test_command(
+        user_id, say, app, quality, image_size, target_user_id=test_user_id
+    )
 
 
 def handle_cache_command(parts, user_id, say, app):
@@ -1055,15 +1603,15 @@ def handle_status_command(parts, user_id, say, app):
 
         # Add cache statistics if available
         if (
-            status["components"]["cache"]["status"] == "ok"
-            and status["components"]["cache"].get("file_count", 0) > 0
+            status["components"].get("cache", {}).get("status") == "ok"
+            and status["components"].get("cache", {}).get("file_count", 0) > 0
         ):
             detailed_info.extend(
                 [
                     "\n*Cache Details:*",
-                    f"• Total Files: {status['components']['cache']['file_count']}",
-                    f"• Oldest Cache: {status['components']['cache'].get('oldest_cache', {}).get('file', 'N/A')} ({status['components']['cache'].get('oldest_cache', {}).get('date', 'N/A')})",
-                    f"• Newest Cache: {status['components']['cache'].get('newest_cache', {}).get('file', 'N/A')} ({status['components']['cache'].get('newest_cache', {}).get('date', 'N/A')})",
+                    f"• Total Files: {status['components'].get('cache', {}).get('file_count', 0)}",
+                    f"• Oldest Cache: {status['components'].get('cache', {}).get('oldest_cache', {}).get('file', 'N/A')} ({status['components'].get('cache', {}).get('oldest_cache', {}).get('date', 'N/A')})",
+                    f"• Newest Cache: {status['components'].get('cache', {}).get('newest_cache', {}).get('file', 'N/A')} ({status['components'].get('cache', {}).get('newest_cache', {}).get('date', 'N/A')})",
                 ]
             )
 
@@ -1182,8 +1730,13 @@ def handle_admin_command(subcommand, args, say, user_id, app):
             )
 
     elif subcommand == "backup":
-        create_backup()
-        say("Manual backup of birthdays file created successfully.")
+        backup_path = create_backup("manual", username, app)
+        if backup_path:
+            say("Manual backup of birthdays file created successfully.")
+            if EXTERNAL_BACKUP_ENABLED:
+                say("📤 External backup also sent to admin users.")
+        else:
+            say("Failed to create backup. Check logs for details.")
         logger.info(f"ADMIN: {username} ({user_id}) triggered manual backup")
 
     elif subcommand == "restore":
@@ -1241,24 +1794,115 @@ def handle_admin_command(subcommand, args, say, user_id, app):
         )
 
     elif subcommand == "timezone":
-        # Show timezone celebration schedule
+        # Handle timezone-aware announcement settings
+        from utils.config_storage import save_timezone_settings, load_timezone_settings
         from utils.timezone_utils import format_timezone_schedule
 
-        try:
-            schedule_info = format_timezone_schedule(app)
-            say(schedule_info)
-            logger.info(f"ADMIN: {username} ({user_id}) requested timezone schedule")
-        except Exception as e:
-            say(f"Failed to get timezone schedule: {e}")
-            logger.error(
-                f"ADMIN_ERROR: Failed to get timezone schedule for {username}: {e}"
+        # Get current settings
+        current_enabled, current_interval = load_timezone_settings()
+
+        if not args:
+            # No arguments - show current status
+            status_msg = f"*Timezone-Aware Announcements Status:*\n\n"
+            status_msg += f"• Status: {'ENABLED' if current_enabled else 'DISABLED'}\n"
+            if current_enabled:
+                status_msg += f"• Check Interval: Every {current_interval} hour(s)\n"
+                status_msg += f"• Mode: Users receive birthday announcements at {TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')} in their timezone\n"
+            else:
+                status_msg += f"• Mode: All birthdays announced at {DAILY_CHECK_TIME.strftime('%H:%M')} server time\n"
+
+            status_msg += f"\nUse `admin timezone enable` or `admin timezone disable` to change settings."
+
+            # If enabled, also show the schedule
+            if current_enabled:
+                try:
+                    schedule_info = format_timezone_schedule(app)
+                    status_msg += f"\n\n{schedule_info}"
+                except Exception as e:
+                    logger.error(f"ADMIN_ERROR: Failed to get timezone schedule: {e}")
+
+            say(status_msg)
+            logger.info(
+                f"ADMIN: {username} ({user_id}) checked timezone settings status"
+            )
+
+        elif args[0].lower() == "enable":
+            # Enable timezone-aware announcements
+            if save_timezone_settings(enabled=True):
+                say(
+                    f"✅ Timezone-aware announcements ENABLED\n\n"
+                    f"Birthday announcements will now be sent at {TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')} in each user's timezone. "
+                    f"The scheduler will check hourly for birthdays.\n\n"
+                    f"*Note:* This change will take effect on the next scheduler restart."
+                )
+                logger.info(
+                    f"ADMIN: {username} ({user_id}) ENABLED timezone-aware announcements"
+                )
+            else:
+                say(
+                    "❌ Failed to enable timezone-aware announcements. Check logs for details."
+                )
+
+        elif args[0].lower() == "disable":
+            # Disable timezone-aware announcements
+            if save_timezone_settings(enabled=False):
+                say(
+                    f"✅ Timezone-aware announcements DISABLED\n\n"
+                    f"All birthday announcements will now be sent at {DAILY_CHECK_TIME.strftime('%H:%M')} server time, "
+                    f"regardless of user timezones.\n\n"
+                    f"*Note:* This change will take effect on the next scheduler restart."
+                )
+                logger.info(
+                    f"ADMIN: {username} ({user_id}) DISABLED timezone-aware announcements"
+                )
+            else:
+                say(
+                    "❌ Failed to disable timezone-aware announcements. Check logs for details."
+                )
+
+        elif args[0].lower() == "status":
+            # Detailed status with schedule
+            status_msg = f"*Timezone-Aware Announcements Status:*\n\n"
+            status_msg += f"• Status: {'ENABLED' if current_enabled else 'DISABLED'}\n"
+            if current_enabled:
+                status_msg += f"• Check Interval: Every {current_interval} hour(s)\n"
+                status_msg += f"• Mode: Users receive birthday announcements at {TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')} in their timezone\n\n"
+                try:
+                    schedule_info = format_timezone_schedule(app)
+                    status_msg += schedule_info
+                except Exception as e:
+                    status_msg += f"Failed to get timezone schedule: {e}"
+                    logger.error(f"ADMIN_ERROR: Failed to get timezone schedule: {e}")
+            else:
+                status_msg += f"• Mode: All birthdays announced at {DAILY_CHECK_TIME.strftime('%H:%M')} server time\n"
+
+            say(status_msg)
+            logger.info(
+                f"ADMIN: {username} ({user_id}) requested detailed timezone status"
+            )
+
+        else:
+            say(
+                "Invalid timezone command. Use: `admin timezone [enable|disable|status]`"
             )
 
     elif subcommand == "test-upload":
         handle_test_upload_command(user_id, say, app)
 
+    elif subcommand == "test-file-upload":
+        handle_test_file_upload_command(user_id, say, app)
+
+    elif subcommand == "test-external-backup":
+        handle_test_external_backup_command(user_id, say, app)
+
     elif subcommand == "test":
         handle_test_birthday_command(args, user_id, say, app)
+
+    elif subcommand == "test-join":
+        handle_test_join_command(args, user_id, say, app)
+
+    elif subcommand == "announce":
+        handle_announce_command(args, user_id, say, app)
 
     else:
         say(

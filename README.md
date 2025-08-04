@@ -12,10 +12,12 @@ A Slack bot that records and wishes Slack workspace members a happy birthday wit
 - **Historical Date Facts**: Includes interesting scientific and historical facts about the birthday date
 - **Multiple Personalities**: 8 different bot personalities with unique message styles
 - **Smart Consolidation**: Single message for multiple birthdays on the same day to avoid spam
+- **Streamlined User Experience**: Single welcome message per user (birthday channel only, no team-wide notifications)
 - **Admin Commands**: Statistics, user management, and settings
 - **System Health Monitoring**: Built-in diagnostics for troubleshooting
 - **Data Management**: Automated backups and recovery options
 - **Reminders**: Automatically remind users who haven't set their birthday
+- **Announcement System**: Broadcast feature updates and important messages to all users
 - **Web Search Caching**: Store historical date facts to reduce API calls
 - **Custom Templates**: Fully customizable message templates for each personality
 - **Startup Recovery**: Automatically catches missed birthday celebrations after server downtime
@@ -117,6 +119,12 @@ CUSTOM_BOT_TEMPLATE_EXTENSION="Your custom template extension here"
 
 # Optional: Web search caching (defaults to enabled)
 WEB_SEARCH_CACHE_ENABLED="true"  # Set to "false" to disable caching
+
+# Optional: External backup system (defaults to enabled)
+EXTERNAL_BACKUP_ENABLED="true"  # Set to "false" to disable external backups
+BACKUP_TO_ADMINS="true"  # Send backup files to admin users via DM
+BACKUP_CHANNEL_ID=""  # Optional: dedicated backup channel ID
+BACKUP_ON_EVERY_CHANGE="true"  # Send backup on every change vs. batched
 ```
 
 ### 4. Running the Bot
@@ -203,6 +211,17 @@ sudo systemctl restart brightdaybot.service
 
 ## Usage
 
+### Welcome Experience
+
+When new users join your workspace:
+
+1. **Automatic Birthday Channel Access**: New members are automatically added to the birthday channel
+2. **Single Welcome Message**: Users receive one comprehensive welcome message when they join the birthday channel (no duplicate team-wide notifications)
+3. **Clear Instructions**: The welcome message includes instructions for setting birthdays and using commands
+4. **Proper Slack Formatting**: All messages use correct Slack formatting (`*bold*` instead of `**bold**`)
+
+**Note**: The bot no longer sends general team welcome messages - users only receive the birthday channel welcome, eliminating notification spam.
+
 ### User Commands
 
 DM the bot with any of these commands:
@@ -230,7 +249,11 @@ Or simply send a date in `DD/MM` or `DD/MM/YYYY` format.
 - `admin status detailed` - Get detailed system information
 - `admin timezone` - View birthday celebration schedule across timezones
 - `admin test @user [quality] [size]` - **NEW**: Generate test birthday message & image with quality and size control (stays in DM)
-- `remind [message]` - Send reminders to users without birthdays
+- `admin test-join [@user]` - **NEW**: Test birthday channel welcome message flow
+- `remind` or `remind new` - Send reminders to users without birthdays
+- `remind update` - Send profile update reminders to users with birthdays
+- `remind new [message]` - Send custom reminder to new users
+- `remind update [message]` - Send custom profile update reminder
 - `config` - View command permissions
 - `config COMMAND true/false` - Change command permissions
 
@@ -241,6 +264,15 @@ Or simply send a date in `DD/MM` or `DD/MM/YYYY` format.
 - `admin cache clear` - Clear all web search cache
 - `admin cache clear DD/MM` - Clear web search cache for a specific date
 - `admin test-upload` - Test the image upload functionality
+- `admin test-file-upload` - Test text file upload functionality (like backup files)
+- `admin test-external-backup` - Test the external backup system with detailed diagnostics
+
+### Announcement Commands
+
+- `admin announce image` - Announce AI image generation feature to birthday channel
+- `admin announce [message]` - Send custom announcement to birthday channel
+
+**Note**: Announcements use `@here` mentions for better timezone consideration.
 
 ### Bot Personality
 
@@ -414,7 +446,7 @@ BrightDayBot now features an advanced multi-file logging system that organizes l
 - **`system.log`** - System utilities, health checks, and date operations
 - **`scheduler.log`** - Background scheduling and periodic tasks
 
-#### Features
+#### Features for Enhanced Logging
 
 - **Automatic Rotation**: Log files rotate when they reach 10MB (keeping 5 backup files)
 - **Component Routing**: Each module logs to its appropriate file automatically
@@ -472,6 +504,26 @@ Common issues:
 - Image generation issues: Verify OpenAI API key has access to GPT-Image-1 model
 - Timezone issues: Ensure users have set their timezone in their Slack profile settings
 - Missing dependencies: Run `pip install -r requirements.txt` to install all required packages including `pytz` and `Pillow`
+
+## Slack Message Formatting
+
+BrightDayBot follows proper Slack formatting guidelines for optimal display:
+
+### Text Formatting
+
+- **Bold text**: Use `*bold*` (single asterisks) ✅
+- **Avoid**: `**bold**` (double asterisks) ❌ - This doesn't work properly in Slack
+- **Italics**: Use `_italic_` (underscores)
+- **Code**: Use `code` (backticks)
+
+### Message Structure
+
+- Uses proper Slack mentions: `<@USER_ID>`
+- Includes appropriate emojis and formatting for readability
+- Follows consistent structure across all personalities
+- Properly formatted line breaks and spacing
+
+**Note**: All messages have been updated to use correct Slack formatting as of the latest version.
 
 ## License
 

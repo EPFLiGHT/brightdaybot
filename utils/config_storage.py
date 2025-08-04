@@ -1,5 +1,6 @@
 import os
 import json
+from datetime import datetime
 from config import (
     ADMINS_FILE,
     PERSONALITY_FILE,
@@ -10,6 +11,11 @@ from config import (
 )
 
 logger = get_logger("config_storage")
+
+# Define timezone settings file path
+TIMEZONE_SETTINGS_FILE = os.path.join(
+    os.path.dirname(ADMINS_FILE), "timezone_settings.json"
+)
 
 
 def save_admins_to_file(admin_list):
@@ -192,3 +198,64 @@ def set_command_permission(command, is_admin_only):
 
     # Save to file
     return save_permissions_to_file(COMMAND_PERMISSIONS)
+
+
+def save_timezone_settings(enabled=True, check_interval_hours=1):
+    """
+    Save timezone-aware announcement settings
+
+    Args:
+        enabled: Whether timezone-aware announcements are enabled
+        check_interval_hours: How often to check (only used if enabled)
+
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        data = {
+            "timezone_aware_enabled": enabled,
+            "check_interval_hours": check_interval_hours,
+            "updated_at": datetime.now().isoformat(),
+        }
+
+        with open(TIMEZONE_SETTINGS_FILE, "w") as f:
+            json.dump(data, f, indent=2)
+
+        logger.info(
+            f"CONFIG_STORAGE: Saved timezone settings - enabled: {enabled}, "
+            f"interval: {check_interval_hours}h"
+        )
+        return True
+    except Exception as e:
+        logger.error(f"CONFIG_STORAGE_ERROR: Failed to save timezone settings: {e}")
+        return False
+
+
+def load_timezone_settings():
+    """
+    Load timezone settings from file
+
+    Returns:
+        tuple: (enabled, check_interval_hours), defaults to (True, 1)
+    """
+    try:
+        if not os.path.exists(TIMEZONE_SETTINGS_FILE):
+            logger.info(
+                f"CONFIG_STORAGE: Timezone settings file not found, using defaults "
+                f"(enabled: True, interval: 1h)"
+            )
+            return True, 1  # Default: timezone-aware enabled, hourly checks
+
+        with open(TIMEZONE_SETTINGS_FILE, "r") as f:
+            data = json.load(f)
+            enabled = data.get("timezone_aware_enabled", True)
+            interval = data.get("check_interval_hours", 1)
+
+            logger.info(
+                f"CONFIG_STORAGE: Loaded timezone settings - enabled: {enabled}, "
+                f"interval: {interval}h"
+            )
+            return enabled, interval
+    except Exception as e:
+        logger.error(f"CONFIG_STORAGE_ERROR: Failed to load timezone settings: {e}")
+        return True, 1  # Default to enabled on error
