@@ -24,6 +24,19 @@ def get_user_mention(user_id):
     return f"<@{user_id}>" if user_id else "Unknown User"
 
 
+def get_channel_mention(channel_id):
+    """
+    Get a formatted mention for a channel
+
+    Args:
+        channel_id: Channel ID to format
+
+    Returns:
+        Formatted channel mention string
+    """
+    return f"<#{channel_id}>" if channel_id else "Unknown Channel"
+
+
 def fix_slack_formatting(text):
     """
     Fix common formatting issues in Slack messages:
