@@ -2,23 +2,29 @@ from slack_sdk.errors import SlackApiError
 
 from utils.date_utils import extract_date
 from utils.slack_utils import get_username, send_message
-from utils.slack_formatting import get_user_mention
+from utils.slack_formatting import get_user_mention, get_channel_mention
 from handlers.command_handler import handle_command, handle_dm_date
 from config import BIRTHDAY_CHANNEL, get_logger
 
-logger = get_logger("events")
+events_logger = get_logger("events")
 
 
 def register_event_handlers(app):
     @app.event("message")
-    def handle_message(body, say, client, logger):
+    def handle_message(event, say, client, logger):
         """Handle direct message events"""
         # Only respond to direct messages that aren't from bots
-        if body["event"].get("channel_type") != "im" or body["event"].get("bot_id"):
+        if event.get("channel_type") != "im" or event.get("bot_id"):
             return
 
-        text = body["event"].get("text", "").lower()
-        user = body["event"]["user"]
+        text = event.get("text", "").lower()
+        user = event["user"]
+
+        # Use our custom logger for events.log
+        events_logger.debug(f"DM_RECEIVED: Processing direct message from user {user}")
+
+        # Use Slack logger for framework logging
+        logger.debug(f"SLACK_EVENT: Processing message event from user {user}")
 
         # Detect if this looks like a command (starting with a word)
         first_word = text.strip().split()[0] if text.strip() else ""
@@ -54,22 +60,27 @@ def register_event_handlers(app):
     # This eliminates redundant notifications since new members are automatically added to birthday channel
 
     @app.event("member_joined_channel")
-    def handle_member_joined_channel(body, client, logger):
+    def handle_member_joined_channel(event, client, logger):
         """Handle member joined channel events with birthday channel welcome"""
-        event = body.get("event", {})
         user = event.get("user")
         channel = event.get("channel")
 
-        logger.debug(f"CHANNEL_JOIN: User {user} joined channel {channel}")
+        # Use our custom logger for events.log
+        events_logger.debug(f"CHANNEL_JOIN: User {user} joined channel {channel}")
+
+        # Use Slack logger for framework logging
+        logger.debug(
+            f"SLACK_EVENT: Processing member_joined_channel event for user {user}"
+        )
 
         # Send welcome message if they joined the birthday channel
         if channel == BIRTHDAY_CHANNEL:
             try:
                 username = get_username(app, user)
 
-                welcome_msg = f"""🎉 Welcome to the birthday channel, {get_user_mention(user)}!
+                welcome_msg = f"""🎉 Welcome to {get_channel_mention(BIRTHDAY_CHANNEL)}, {get_user_mention(user)}!
 
-Here I celebrate everyone's birthdays with personalized messages and AI-generated images!
+Here in {get_channel_mention(BIRTHDAY_CHANNEL)} I celebrate everyone's birthdays with personalized messages and AI-generated images!
 
 📅 *To add your birthday:* Send me a DM with your date in DD/MM format (e.g., 25/12) or DD/MM/YYYY format (e.g., 25/12/1990)
 
@@ -78,16 +89,25 @@ Here I celebrate everyone's birthdays with personalized messages and AI-generate
 Hope to celebrate your special day soon! 🎂"""
 
                 send_message(app, user, welcome_msg)
-                logger.info(
+
+                # Use our custom logger for events.log
+                events_logger.info(
                     f"BIRTHDAY_CHANNEL: Welcomed {username} ({user}) to birthday channel"
                 )
 
+                # Use Slack logger for framework confirmation
+                logger.info(f"SLACK_MESSAGE: Sent welcome message to user {user}")
+
             except Exception as e:
-                logger.error(
+                # Log errors to both systems
+                events_logger.error(
                     f"BIRTHDAY_CHANNEL: Failed to send welcome message to {user}: {e}"
+                )
+                logger.error(
+                    f"SLACK_ERROR: Failed to process welcome for user {user}: {e}"
                 )
         else:
             # Log non-birthday channel joins for debugging
-            logger.debug(
+            events_logger.debug(
                 f"CHANNEL_JOIN: User {user} joined non-birthday channel {channel} - no action taken"
             )

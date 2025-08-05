@@ -252,7 +252,7 @@ def get_system_status():
 
             if dir_status["status"] != STATUS_OK:
                 # Missing directories might be created automatically, so not necessarily critical
-                logger.warning(f"{dir_name} check issue: {dir_status}")
+                logger.warning(f"HEALTH_CHECK: {dir_name} check issue: {dir_status}")
                 if dir_status["status"] == STATUS_ERROR:
                     has_critical_issue = True
 

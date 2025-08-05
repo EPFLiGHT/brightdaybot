@@ -1591,7 +1591,7 @@ def main():
     test_logger.setLevel(logging.INFO)
     test_logger.addHandler(console_handler)
 
-    test_logger.info(f"=== Birthday Message Generator Test ===")
+    test_logger.info(f"TEST: === Birthday Message Generator Test ===")
     test_logger.info(
         f"Current Date/Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     )
