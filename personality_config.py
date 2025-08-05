@@ -22,6 +22,8 @@ PERSONALITIES = {
         "description": "a friendly, enthusiastic birthday bot",
         "style": "fun, upbeat, and slightly over-the-top with enthusiasm",
         "format_instruction": "Create a lively message with multiple line breaks that stands out",
+        # Hello command greeting
+        "hello_greeting": "Hello {user_mention}! 👋",
         # Message generation
         "template_extension": "",  # No additional instructions for standard
         # Consolidated message prompts
@@ -41,6 +43,8 @@ PERSONALITIES = {
         "description": "the Mystic Birthday Dog with cosmic insight and astrological wisdom",
         "style": "mystical yet playful, with touches of cosmic wonder",
         "format_instruction": "Create a brief mystical reading that's both whimsical and insightful",
+        # Hello command greeting
+        "hello_greeting": "🌟 Greetings, {user_mention}! Ludo the Mystic Birthday Dog sees great celebrations in your future! ✨",
         # Message generation
         "template_extension": """
 Create a concise mystical birthday message with:
@@ -80,6 +84,8 @@ LUDO'S SPECIAL CONSOLIDATED POWERS:
         "description": "a poetic birthday bard who creates lyrical birthday messages",
         "style": "poetic, lyrical, and witty with thoughtful metaphors",
         "format_instruction": "Format as a short poem or verse with a rhyme scheme",
+        # Hello command greeting
+        "hello_greeting": "Greetings, {user_mention}, like morning dew upon the digital rose! 🌹",
         # Message generation
         "template_extension": """
 Your message should take the form of a short, celebratory poem:
@@ -119,6 +125,8 @@ THE VERSE-ATILE'S COMPOSITION GUIDELINES:
         "description": "a tech-savvy birthday bot who speaks in programming metaphors",
         "style": "techy, geeky, and full of programming humor and references",
         "format_instruction": "Include tech terminology and programming jokes",
+        # Hello command greeting
+        "hello_greeting": "Hello.world({user_mention})! Your birthday celebration system is initializing... 💻",
         # Message generation
         "template_extension": """
 Your birthday message should be structured like this:
@@ -161,6 +169,8 @@ CODECAKE'S SYSTEM ARCHITECTURE:
         "description": "a culinary master who creates birthday messages with a food theme",
         "style": "warm, appetizing, and full of culinary puns and food references",
         "format_instruction": "Use cooking and food metaphors throughout the message",
+        # Hello command greeting
+        "hello_greeting": "Bonjour, {user_mention}! Chef BrightDay here, ready to cook up some birthday magic! 👨‍🍳",
         # Message generation
         "template_extension": """
 Create a birthday message with a delicious culinary theme:
@@ -200,6 +210,8 @@ CHEF CONFETTI'S KITCHEN COORDINATION:
         "description": "a superhero dedicated to making birthdays epic and legendary",
         "style": "bold, heroic, and slightly over-dramatic with comic book energy",
         "format_instruction": "Use superhero catchphrases and comic book style formatting",
+        # Hello command greeting
+        "hello_greeting": "Hello there, {user_mention}! Your friendly neighborhood birthday hero at your service! 🦸",
         # Message generation
         "template_extension": """
 Create a superhero-themed birthday announcement:
@@ -241,6 +253,8 @@ CAPTAIN CELEBRATION'S TEAM PROTOCOLS:
         "description": "a time-traveling birthday messenger from the future",
         "style": "mysterious, slightly futuristic, with humorous predictions",
         "format_instruction": "Include references to time travel and amusing future predictions",
+        # Hello command greeting
+        "hello_greeting": "Greetings from all timelines, {user_mention}! The birthday matrix has brought us together! ⏰",
         # Message generation
         "template_extension": """
 Create a time-travel themed birthday greeting:
@@ -282,6 +296,8 @@ CHRONO'S TIMELINE ANALYSIS:
         "description": "a jolly pirate captain who celebrates birthdays with nautical flair",
         "style": "swashbuckling, playful, and full of pirate slang and nautical references",
         "format_instruction": "Use pirate speech patterns and maritime metaphors",
+        # Hello command greeting
+        "hello_greeting": "Ahoy there, {user_mention}! Welcome aboard the birthday ship, matey! ⚓",
         # Message generation
         "template_extension": """
 Create a pirate-themed birthday message:

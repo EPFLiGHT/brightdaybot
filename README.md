@@ -163,7 +163,8 @@ To run BrightDayBot as a persistent service that starts automatically after rebo
    ```ini
    [Unit]
    Description=BrightDayBot Service
-   After=network.target
+   After=network-online.target
+   Wants=network-online.target
 
    [Service]
    Type=simple
@@ -172,10 +173,16 @@ To run BrightDayBot as a persistent service that starts automatically after rebo
    User=your_username
    Group=your_group
    Restart=always
+   RestartSec=30
 
    [Install]
    WantedBy=multi-user.target
    ```
+
+   **Important**: This configuration ensures the service waits for internet connectivity:
+   - `After=network-online.target` - Waits for actual internet connectivity, not just network interface
+   - `Wants=network-online.target` - Explicitly requests network connectivity
+   - `RestartSec=30` - Waits 30 seconds between restart attempts to avoid rapid failures
 
 2. **Enable and start the service**:
 
@@ -185,7 +192,15 @@ To run BrightDayBot as a persistent service that starts automatically after rebo
    sudo systemctl start brightdaybot.service
    ```
 
-3. **Manage the bot service**:
+3. **Enable network connectivity waiting** (required for reliable startup):
+
+   ```bash
+   sudo systemctl enable NetworkManager-wait-online.service
+   ```
+
+   This ensures the system waits for internet connectivity before starting network-dependent services.
+
+4. **Manage the bot service**:
 
    ```bash
    # Check status
@@ -498,6 +513,11 @@ If you encounter issues with BrightDayBot, follow these steps:
 
 Common issues:
 
+- **Network connectivity at startup**: If the service fails at boot with "exit-code status=217/USER":
+  - Update systemd service to use `network-online.target` instead of `network.target`
+  - Add `RestartSec=30` to prevent rapid restart failures
+  - Enable NetworkManager-wait-online service: `sudo systemctl enable NetworkManager-wait-online.service`
+  - Test connectivity manually before starting: `curl -I https://api.slack.com`
 - Missing API keys: Ensure `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, and `OPENAI_API_KEY` are set
 - Permission problems: Verify the bot has read/write permissions to the data directories
 - Invalid configuration: Check that the `BIRTHDAY_CHANNEL` is set to a valid Slack channel ID

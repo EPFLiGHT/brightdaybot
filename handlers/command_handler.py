@@ -31,7 +31,9 @@ from utils.message_generator import (
     create_birthday_announcement,
     create_consolidated_birthday_announcement,
     get_current_personality,
+    get_random_personality_name,
 )
+from personality_config import get_personality_config
 from utils.health_check import get_system_status, get_status_summary
 from services.birthday import send_reminder_to_users
 from config import (
@@ -120,6 +122,7 @@ Here's how you can interact with me:
    • Or include the year: DD/MM/YYYY (e.g., `25/12/1990`)
 
 2. *Commands:*
+   • `hello` - Get a friendly greeting from the bot
    • `add DD/MM` - Add or update your birthday
    • `add DD/MM/YYYY` - Add or update your birthday with year
    • `remove` - Remove your birthday
@@ -516,6 +519,36 @@ def handle_command(text, user_id, say, app):
                 return
 
         handle_test_command(user_id, say, app, quality, image_size)
+
+    elif command == "hello":
+        # Friendly greeting command using centralized personality config
+        current_personality = get_current_personality_name()
+
+        # Handle random personality by selecting a specific one
+        if current_personality == "random":
+            selected_personality = get_random_personality_name()
+            personality_config = get_personality_config(selected_personality)
+        else:
+            personality_config = get_personality_config(current_personality)
+
+        # Get greeting from personality config and format with user mention
+        greeting_template = personality_config.get(
+            "hello_greeting", "Hello {user_mention}! 👋"
+        )
+        greeting = greeting_template.format(user_mention=get_user_mention(user_id))
+
+        hello_message = f"""{greeting}
+
+I'm BrightDay, your friendly birthday celebration bot! I'm here to help make everyone's special day memorable with personalized messages and AI-generated images.
+
+Want to get started? Just send me your birthday in DD/MM or DD/MM/YYYY format, or type `help` to see all available commands!
+
+Hope to celebrate with you soon! 🎂"""
+
+        say(hello_message)
+        logger.info(
+            f"HELLO: Sent greeting to {username} ({user_id}) with {current_personality} personality"
+        )
 
     else:
         # Unknown command
