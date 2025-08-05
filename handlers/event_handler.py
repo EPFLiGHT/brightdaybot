@@ -30,6 +30,7 @@ def register_event_handlers(app):
         first_word = text.strip().split()[0] if text.strip() else ""
         command_words = [
             "help",
+            "hello",
             "add",
             "remove",
             "list",
