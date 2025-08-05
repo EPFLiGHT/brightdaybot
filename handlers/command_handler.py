@@ -556,14 +556,6 @@ def handle_list_command(parts, user_id, say, app):
         bdate = data["date"]
         birth_year = data["year"]
 
-        # For regular "list" we need days calculation
-        days_until = None
-        if not list_all:
-            days_until = calculate_days_until_birthday(bdate, reference_date)
-
-        username = get_username(app, uid)
-        user_mention = get_user_mention(uid)
-
         # Parse the date components using datetime for validation
         try:
             date_obj = datetime.strptime(bdate, DATE_FORMAT)
@@ -572,40 +564,35 @@ def handle_list_command(parts, user_id, say, app):
             logger.error(f"Invalid date format in list command: {bdate} - {e}")
             continue  # Skip this invalid birthday entry
 
-        age_text = ""
-        if birth_year:
-            # Calculate age they will be on their next birthday
-            next_birthday_year = reference_date.year
+        # For list_all, we can safely get usernames now since we'll display all
+        # For regular list, we'll defer username fetching until after sorting
+        username = None
+        user_mention = None
+        if list_all:
+            username = get_username(app, uid)
+            user_mention = get_user_mention(uid)
 
-            try:
-                birthday_this_year = datetime(
-                    next_birthday_year, month, day, tzinfo=timezone.utc
-                )
+        # Create approximate sort key for regular list (month*100 + day)
+        # This is much faster than calculating exact days for all users
+        approximate_sort_key = month * 100 + day
 
-                if birthday_this_year < reference_date:
-                    next_birthday_year += 1
-
-                next_age = next_birthday_year - birth_year
-                age_text = f" (turning {next_age})"
-
-            except ValueError:
-                # Handle Feb 29 in non-leap years
-                age_text = f" (age: {reference_date.year - birth_year})"
-
-        # For "list all", sort by month and day
-        sort_key = days_until if days_until is not None else (month * 100 + day)
+        # Adjust for year boundary (approximate)
+        current_month = reference_date.month
+        current_day = reference_date.day
+        if month < current_month or (month == current_month and day <= current_day):
+            approximate_sort_key += 1300  # Push to next year approximation
 
         birthday_list.append(
             (
                 uid,
                 bdate,
                 birth_year,
-                username,
-                sort_key,
-                age_text,
+                username,  # None for regular list, populated for list_all
+                approximate_sort_key,  # Fast approximation for regular list
+                None,  # age_text - calculated later when needed
                 month,
                 day,
-                user_mention,
+                user_mention,  # None for regular list, populated for list_all
             )
         )
 
@@ -614,10 +601,109 @@ def handle_list_command(parts, user_id, say, app):
         # For "list all", sort by month and day
         birthday_list.sort(key=lambda x: (x[6], x[7]))  # month, day
         title = f"📅 *All Birthdays:* (current UTC time: {current_utc})"
+
+        # Calculate age text for list_all users
+        for i, (
+            uid,
+            bdate,
+            birth_year,
+            username,
+            _,
+            _,
+            month,
+            day,
+            user_mention,
+        ) in enumerate(birthday_list):
+            age_text = ""
+            if birth_year:
+                # Calculate age they will be on their next birthday
+                next_birthday_year = reference_date.year
+
+                try:
+                    birthday_this_year = datetime(
+                        next_birthday_year, month, day, tzinfo=timezone.utc
+                    )
+
+                    if birthday_this_year < reference_date:
+                        next_birthday_year += 1
+
+                    next_age = next_birthday_year - birth_year
+                    age_text = f" (turning {next_age})"
+
+                except ValueError:
+                    # Handle Feb 29 in non-leap years
+                    age_text = f" (age: {reference_date.year - birth_year})"
+
+            # Update the tuple with age_text
+            birthday_list[i] = (
+                uid,
+                bdate,
+                birth_year,
+                username,
+                0,
+                age_text,
+                month,
+                day,
+                user_mention,
+            )
+
     else:
-        # For regular list, sort by days until birthday
-        birthday_list.sort(key=lambda x: x[4])
+        # For regular list, sort by approximate sort key first
+        birthday_list.sort(key=lambda x: x[4])  # approximate_sort_key
         title = f"📅 *Upcoming Birthdays:* (current UTC time: {current_utc})"
+
+        # Now only calculate precise days, usernames, and age for the top 10 candidates
+        # We might need a few extra in case some are invalid dates
+        candidates = birthday_list[:15]  # Get 15 to be safe, in case some are invalid
+        precise_candidates = []
+
+        for uid, bdate, birth_year, _, _, _, month, day, _ in candidates:
+            # Calculate precise days until birthday
+            days_until = calculate_days_until_birthday(bdate, reference_date)
+            if days_until is None:
+                continue  # Skip invalid dates
+
+            # Get username and mention (only for candidates we'll actually display)
+            username = get_username(app, uid)
+            user_mention = get_user_mention(uid)
+
+            # Calculate age text
+            age_text = ""
+            if birth_year:
+                next_birthday_year = reference_date.year
+
+                try:
+                    birthday_this_year = datetime(
+                        next_birthday_year, month, day, tzinfo=timezone.utc
+                    )
+
+                    if birthday_this_year < reference_date:
+                        next_birthday_year += 1
+
+                    next_age = next_birthday_year - birth_year
+                    age_text = f" (turning {next_age})"
+
+                except ValueError:
+                    # Handle Feb 29 in non-leap years
+                    age_text = f" (age: {reference_date.year - birth_year})"
+
+            precise_candidates.append(
+                (
+                    uid,
+                    bdate,
+                    birth_year,
+                    username,
+                    days_until,
+                    age_text,
+                    month,
+                    day,
+                    user_mention,
+                )
+            )
+
+        # Sort by precise days and take only top 10
+        precise_candidates.sort(key=lambda x: x[4])  # Sort by days_until
+        birthday_list = precise_candidates[:10]
 
     # Format response
     response = f"{title}\n\n"
@@ -666,7 +752,7 @@ def handle_list_command(parts, user_id, say, app):
             _,
             _,
             user_mention,
-        ) in birthday_list[:10]:
+        ) in birthday_list:  # birthday_list is already limited to 10 items
             date_words = date_to_words(bdate)
             days_text = "Today! 🎉" if days == 0 else f"in {days} days"
             response += f"• {user_mention} ({date_words}{age_text}): {days_text}\n"
