@@ -40,6 +40,7 @@ def register_event_handlers(app):
             "config",
             "admin",
             "test",
+            "confirm",
         ]
 
         if first_word in command_words:
