@@ -86,7 +86,10 @@ Here in {get_channel_mention(BIRTHDAY_CHANNEL)} I celebrate everyone's birthdays
 
 💡 *Commands:* Type `help` in a DM to see all available options
 
-Hope to celebrate your special day soon! 🎂"""
+Hope to celebrate your special day soon! 🎂
+
+*Not interested in birthday celebrations?*
+No worries! If you'd prefer to opt out, simply leave {get_channel_mention(BIRTHDAY_CHANNEL)}. This applies whether you have your birthday registered or not."""
 
                 send_message(app, user, welcome_msg)
 
