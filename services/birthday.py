@@ -14,6 +14,7 @@ from utils.slack_utils import (
     send_message_with_image,
     get_user_profile,
     get_user_status_and_info,
+    get_channel_members,
 )
 from utils.slack_formatting import get_user_mention, get_channel_mention
 from utils.message_generator import (
@@ -273,6 +274,20 @@ def timezone_aware_check(app, moment):
         f"TIMEZONE: Running timezone-aware birthday checks at {moment.strftime('%Y-%m-%d %H:%M')} (UTC)"
     )
 
+    # Get current birthday channel members (for opt-out respect)
+    try:
+        channel_members = get_channel_members(app, BIRTHDAY_CHANNEL)
+        if not channel_members:
+            logger.warning(
+                "TIMEZONE: Could not retrieve birthday channel members, skipping birthday check"
+            )
+            return
+        channel_member_set = set(channel_members)
+        logger.info(f"TIMEZONE: Birthday channel has {len(channel_members)} members")
+    except Exception as e:
+        logger.error(f"TIMEZONE: Failed to get channel members: {e}")
+        return
+
     birthdays = load_birthdays()
 
     # Clean up old timezone announcement files
@@ -300,6 +315,13 @@ def timezone_aware_check(app, moment):
             if is_deleted or is_bot:
                 logger.info(
                     f"SKIP: User {user_id} is {'deleted' if is_deleted else 'a bot'}, skipping birthday announcement"
+                )
+                continue
+
+            # Skip users who are not in the birthday channel (opted out)
+            if user_id not in channel_member_set:
+                logger.info(
+                    f"SKIP: User {user_id} ({username}) is not in birthday channel (opted out), skipping birthday announcement"
                 )
                 continue
 
@@ -404,6 +426,22 @@ def simple_daily_check(app, moment):
         f"SIMPLE_DAILY: Running simple birthday check for {moment.strftime('%Y-%m-%d')} (UTC)"
     )
 
+    # Get current birthday channel members (for opt-out respect)
+    try:
+        channel_members = get_channel_members(app, BIRTHDAY_CHANNEL)
+        if not channel_members:
+            logger.warning(
+                "SIMPLE_DAILY: Could not retrieve birthday channel members, skipping birthday check"
+            )
+            return
+        channel_member_set = set(channel_members)
+        logger.info(
+            f"SIMPLE_DAILY: Birthday channel has {len(channel_members)} members"
+        )
+    except Exception as e:
+        logger.error(f"SIMPLE_DAILY: Failed to get channel members: {e}")
+        return
+
     birthdays = load_birthdays()
     birthday_people_today = []
 
@@ -417,6 +455,13 @@ def simple_daily_check(app, moment):
             if is_deleted or is_bot:
                 logger.info(
                     f"SKIP: User {user_id} is {'deleted' if is_deleted else 'a bot'}, skipping birthday announcement"
+                )
+                continue
+
+            # Skip users who are not in the birthday channel (opted out)
+            if user_id not in channel_member_set:
+                logger.info(
+                    f"SKIP: User {user_id} ({username}) is not in birthday channel (opted out), skipping birthday announcement"
                 )
                 continue
 
@@ -495,6 +540,17 @@ def celebrate_missed_birthdays(app):
     profile_cache = {}
 
     try:
+        # Get current birthday channel members (for opt-out respect)
+        channel_members = get_channel_members(app, BIRTHDAY_CHANNEL)
+        if not channel_members:
+            logger.warning(
+                "MISSED_BIRTHDAYS: Could not retrieve birthday channel members, skipping missed birthday check"
+            )
+            return
+        channel_member_set = set(channel_members)
+        logger.info(
+            f"MISSED_BIRTHDAYS: Birthday channel has {len(channel_members)} members"
+        )
         # Load all birthdays
         birthdays = load_birthdays()
         if not birthdays:
@@ -520,6 +576,13 @@ def celebrate_missed_birthdays(app):
                     if is_deleted or is_bot:
                         logger.info(
                             f"MISSED_BIRTHDAYS: User {user_id} is {'deleted' if is_deleted else 'a bot'}, skipping"
+                        )
+                        continue
+
+                    # Skip users who are not in the birthday channel (opted out)
+                    if user_id not in channel_member_set:
+                        logger.info(
+                            f"MISSED_BIRTHDAYS: User {user_id} ({username}) is not in birthday channel (opted out), skipping"
                         )
                         continue
 

@@ -248,6 +248,7 @@ DM the bot with any of these commands:
 - `check` - Check your saved birthday
 - `check @user` - Check someone else's birthday
 - `test [quality] [size]` - See a test birthday message with optional quality and image size (quality: low/medium/high/auto, size: auto/1024x1024/1536x1024/1024x1536)
+- `confirm` - Confirm pending announcement or reminder commands
 
 Or simply send a date in `DD/MM` or `DD/MM/YYYY` format.
 
@@ -265,10 +266,10 @@ Or simply send a date in `DD/MM` or `DD/MM/YYYY` format.
 - `admin timezone` - View birthday celebration schedule across timezones
 - `admin test @user [quality] [size]` - **NEW**: Generate test birthday message & image with quality and size control (stays in DM)
 - `admin test-join [@user]` - **NEW**: Test birthday channel welcome message flow
-- `remind` or `remind new` - Send reminders to users without birthdays
-- `remind update` - Send profile update reminders to users with birthdays
-- `remind new [message]` - Send custom reminder to new users
-- `remind update [message]` - Send custom profile update reminder
+- `remind` or `remind new` - Send reminders to users without birthdays (requires confirmation)
+- `remind update` - Send profile update reminders to users with birthdays (requires confirmation)
+- `remind new [message]` - Send custom reminder to new users (requires confirmation)
+- `remind update [message]` - Send custom profile update reminder (requires confirmation)
 - `config` - View command permissions
 - `config COMMAND true/false` - Change command permissions
 
@@ -284,10 +285,10 @@ Or simply send a date in `DD/MM` or `DD/MM/YYYY` format.
 
 ### Announcement Commands
 
-- `admin announce image` - Announce AI image generation feature to birthday channel
-- `admin announce [message]` - Send custom announcement to birthday channel
+- `admin announce image` - Announce AI image generation feature to birthday channel (requires confirmation)
+- `admin announce [message]` - Send custom announcement to birthday channel (requires confirmation)
 
-**Note**: Announcements use `@here` mentions for better timezone consideration.
+**Note**: Announcements use `@here` mentions for better timezone consideration and require confirmation to prevent accidental mass notifications.
 
 ### Bot Personality
 
@@ -316,6 +317,52 @@ The bot supports multiple personalities that change birthday messages, images, a
 #### Adding Custom Personalities
 
 Edit `personality_config.py` and add a new entry with all required fields. The new personality will automatically be available.
+
+### Confirmation System
+
+To prevent accidental mass notifications, certain commands require a two-step confirmation process:
+
+#### Commands Requiring Confirmation
+
+**Mass Notification Commands:**
+- `admin announce image` - Announces features to all birthday channel members
+- `admin announce [message]` - Sends custom announcements to all birthday channel members
+- `remind` or `remind new` - Sends DM reminders to users without birthdays
+- `remind update` - Sends DM reminders to users with birthdays
+- `remind new [message]` - Sends custom DM reminders to new users
+- `remind update [message]` - Sends custom profile update reminders
+
+#### How It Works
+
+1. **Initial Command**: Run any mass notification command (e.g., `admin announce Hello everyone!`)
+2. **Preview & Confirmation Request**: The bot shows:
+   - Preview of the message that will be sent
+   - Number of users who will be notified
+   - Request to type `confirm` within 5 minutes
+3. **Confirmation**: Type `confirm` to proceed with sending
+4. **Execution**: The bot sends the notifications and provides a summary
+5. **Timeout**: Confirmations automatically expire after 5 minutes
+
+#### Example Flow
+
+```
+You: admin announce Welcome to our new birthday system!
+
+Bot: 📢 CONFIRMATION REQUIRED 📢
+
+Preview of announcement to birthday channel:
+"Welcome to our new birthday system!"
+
+This will notify approximately 25 users in #birthdays.
+
+Type `confirm` within 5 minutes to send, or any other message to cancel.
+
+You: confirm
+
+Bot: ✅ Announcement sent successfully to the birthday channel!
+```
+
+This system ensures that mass notifications are intentional and helps prevent accidental spam to team members.
 
 #### Ludo the Mystic Birthday Dog
 

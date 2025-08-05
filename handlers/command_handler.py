@@ -59,6 +59,142 @@ from utils.web_search import clear_cache
 
 logger = get_logger("commands")
 
+# Confirmation state management for mass notification commands
+# Stores pending confirmations: {user_id: {"action": "announce", "data": {...}, "timestamp": datetime}}
+PENDING_CONFIRMATIONS = {}
+CONFIRMATION_TIMEOUT_MINUTES = 5
+
+
+def clear_expired_confirmations():
+    """Remove expired confirmation requests"""
+    current_time = datetime.now(timezone.utc)
+    expired_users = []
+
+    for user_id, confirmation in PENDING_CONFIRMATIONS.items():
+        if (current_time - confirmation["timestamp"]).total_seconds() > (
+            CONFIRMATION_TIMEOUT_MINUTES * 60
+        ):
+            expired_users.append(user_id)
+
+    for user_id in expired_users:
+        del PENDING_CONFIRMATIONS[user_id]
+        logger.info(f"CONFIRMATION: Expired confirmation for user {user_id}")
+
+
+def add_pending_confirmation(user_id, action_type, data):
+    """Add a pending confirmation for a user"""
+    clear_expired_confirmations()  # Clean up first
+    PENDING_CONFIRMATIONS[user_id] = {
+        "action": action_type,
+        "data": data,
+        "timestamp": datetime.now(timezone.utc),
+    }
+    logger.info(
+        f"CONFIRMATION: Added pending {action_type} confirmation for user {user_id}"
+    )
+
+
+def get_pending_confirmation(user_id):
+    """Get pending confirmation for a user"""
+    clear_expired_confirmations()  # Clean up first
+    return PENDING_CONFIRMATIONS.get(user_id)
+
+
+def remove_pending_confirmation(user_id):
+    """Remove pending confirmation for a user"""
+    if user_id in PENDING_CONFIRMATIONS:
+        action = PENDING_CONFIRMATIONS[user_id]["action"]
+        del PENDING_CONFIRMATIONS[user_id]
+        logger.info(
+            f"CONFIRMATION: Removed pending {action} confirmation for user {user_id}"
+        )
+        return True
+    return False
+
+
+def handle_confirm_command(user_id, say, app):
+    """Handle confirmation of pending mass notification commands"""
+    username = get_username(app, user_id)
+
+    # Check if there's a pending confirmation for this user
+    confirmation = get_pending_confirmation(user_id)
+    if not confirmation:
+        say("No pending confirmation found. Confirmations expire after 5 minutes.")
+        logger.info(
+            f"CONFIRMATION: {username} ({user_id}) attempted to confirm but no pending confirmation found"
+        )
+        return
+
+    action_type = confirmation["action"]
+    action_data = confirmation["data"]
+
+    logger.info(f"CONFIRMATION: {username} ({user_id}) confirming {action_type} action")
+
+    try:
+        if action_type == "announce":
+            # Execute the announcement
+            from services.birthday import send_channel_announcement
+
+            announcement_type = action_data["type"]
+            custom_message = action_data.get("message")
+
+            success = send_channel_announcement(app, announcement_type, custom_message)
+
+            if success:
+                say(f"✅ Announcement sent successfully to the birthday channel!")
+                logger.info(
+                    f"CONFIRMATION: Successfully executed {announcement_type} announcement for {username} ({user_id})"
+                )
+            else:
+                say(f"❌ Failed to send announcement. Check the logs for details.")
+                logger.error(
+                    f"CONFIRMATION: Failed to execute {announcement_type} announcement for {username} ({user_id})"
+                )
+
+        elif action_type == "remind":
+            # Execute the reminder
+            reminder_type = action_data["type"]
+            users = action_data["users"]
+            custom_message = action_data.get("message")
+
+            results = send_reminder_to_users(app, users, custom_message, reminder_type)
+
+            # Report results
+            successful = results["successful"]
+            failed = results["failed"]
+            skipped_bots = results["skipped_bots"]
+            skipped_inactive = results.get("skipped_inactive", 0)
+
+            summary = f"✅ Reminders sent successfully!\n\n"
+            summary += f"• Successfully sent: {successful}\n"
+            if failed > 0:
+                summary += f"• Failed: {failed}\n"
+            if skipped_bots > 0:
+                summary += f"• Skipped (bots): {skipped_bots}\n"
+            if skipped_inactive > 0:
+                summary += f"• Skipped (inactive): {skipped_inactive}"
+
+            say(summary)
+            logger.info(
+                f"CONFIRMATION: Successfully executed {reminder_type} reminders for {username} ({user_id}) - {successful} sent, {failed} failed"
+            )
+
+        else:
+            say(f"❌ Unknown action type: {action_type}")
+            logger.error(
+                f"CONFIRMATION: Unknown action type {action_type} for {username} ({user_id})"
+            )
+
+    except Exception as e:
+        say(f"❌ Error executing confirmation: {e}")
+        logger.error(
+            f"CONFIRMATION: Error executing {action_type} for {username} ({user_id}): {e}"
+        )
+
+    finally:
+        # Always remove the pending confirmation
+        remove_pending_confirmation(user_id)
+
 
 def send_immediate_birthday_announcement(
     user_id, username, date, year, date_words, age_text, say, app
@@ -130,6 +266,7 @@ Here's how you can interact with me:
    • `check` - Check your saved birthday
    • `check @user` - Check someone else's birthday
    • `test [quality] [size]` - See a test birthday message for yourself (quality: low/medium/high/auto, size: auto/1024x1024/1536x1024/1024x1536)
+   • `confirm` - Confirm pending announcement or reminder commands
 
 Admin commands are also available. Type `admin help` for more information.
 """
@@ -157,10 +294,10 @@ def handle_dm_admin_help(say, user_id, app):
 • `list` - List upcoming birthdays
 • `list all` - List all birthdays organized by month
 • `stats` - View birthday statistics
-• `remind` or `remind new` - Send reminders to users without birthdays
-• `remind update` - Send profile update reminders to users with birthdays
-• `remind new [message]` - Send custom reminder to new users
-• `remind update [message]` - Send custom profile update reminder
+• `remind` or `remind new` - Send reminders to users without birthdays (requires confirmation)
+• `remind update` - Send profile update reminders to users with birthdays (requires confirmation)
+• `remind new [message]` - Send custom reminder to new users (requires confirmation)
+• `remind update [message]` - Send custom profile update reminder (requires confirmation)
 
 • `admin status` - View system health and component status
 • `admin status detailed` - View detailed system information
@@ -172,8 +309,8 @@ def handle_dm_admin_help(say, user_id, app):
 • `config COMMAND true/false` - Change command permissions
 
 *Announcements:*
-• `admin announce image` - Announce AI image generation feature to birthday channel
-• `admin announce [message]` - Send custom announcement to birthday channel
+• `admin announce image` - Announce AI image generation feature to birthday channel (requires confirmation)
+• `admin announce [message]` - Send custom announcement to birthday channel (requires confirmation)
 
 *Data Management:*
 • `admin backup` - Create a manual backup of birthdays data
@@ -550,6 +687,9 @@ Hope to celebrate with you soon! 🎂"""
             f"HELLO: Sent greeting to {username} ({user_id}) with {current_personality} personality"
         )
 
+    elif command == "confirm":
+        handle_confirm_command(user_id, say, app)
+
     else:
         # Unknown command
         handle_dm_help(say)
@@ -829,12 +969,13 @@ def handle_check_command(parts, user_id, say, app):
 
 
 def handle_remind_command(parts, user_id, say, app):
-    # Send reminders to users
+    """Send reminders to users with confirmation"""
+    username = get_username(app, user_id)
+
     if not check_command_permission(app, user_id, "remind"):
         say(
             "You don't have permission to send reminders. This command is restricted to admins."
         )
-        username = get_username(app, user_id)
         logger.warning(
             f"PERMISSIONS: {username} ({user_id}) attempted to use remind command without permission"
         )
@@ -877,19 +1018,30 @@ def handle_remind_command(parts, user_id, say, app):
             )
             return
 
-        # Send reminders to users without birthdays
-        results = send_reminder_to_users(
-            app, users_missing_birthdays, custom_message, reminder_type="new"
+        # Prepare confirmation for new user reminders
+        user_count = len(users_missing_birthdays)
+        message_preview = (
+            custom_message if custom_message else "Default new user reminder message"
         )
 
-        # Prepare response message
-        response_message = f"New user reminder sent to {results['successful']} users"
-        if results["failed"] > 0:
-            response_message += f" (failed to send to {results['failed']} users)"
-        if results["skipped_bots"] > 0:
-            response_message += f" (skipped {results['skipped_bots']} bots)"
+        add_pending_confirmation(
+            user_id,
+            "remind",
+            {
+                "type": "new",
+                "users": users_missing_birthdays,
+                "message": custom_message,
+                "user_count": user_count,
+            },
+        )
 
-        say(response_message)
+        confirmation_text = (
+            f"📧 *CONFIRMATION REQUIRED* 📧\n\n"
+            f"_Reminder type:_ New users without birthdays\n"
+            f'_Message preview:_ "{message_preview}"\n'
+            f"_Recipients:_ {user_count} users will receive DM reminders\n\n"
+            f"Type `confirm` within {CONFIRMATION_TIMEOUT_MINUTES} minutes to send, or any other message to cancel."
+        )
 
     elif reminder_type == "update":
         # Find users with birthdays for profile updates
@@ -899,25 +1051,37 @@ def handle_remind_command(parts, user_id, say, app):
             say("No users with birthdays found for profile update reminders.")
             return
 
-        # Send profile update reminders
-        results = send_reminder_to_users(
-            app, users_for_update, custom_message, reminder_type="update"
+        # Prepare confirmation for profile update reminders
+        user_count = len(users_for_update)
+        message_preview = (
+            custom_message
+            if custom_message
+            else "Default profile update reminder message"
         )
 
-        # Prepare response message
-        response_message = (
-            f"Profile update reminder sent to {results['successful']} users"
+        add_pending_confirmation(
+            user_id,
+            "remind",
+            {
+                "type": "update",
+                "users": users_for_update,
+                "message": custom_message,
+                "user_count": user_count,
+            },
         )
-        if results["failed"] > 0:
-            response_message += f" (failed to send to {results['failed']} users)"
-        if results["skipped_bots"] > 0:
-            response_message += f" (skipped {results['skipped_bots']} bots)"
-        if results.get("skipped_inactive", 0) > 0:
-            response_message += (
-                f" (skipped {results['skipped_inactive']} inactive users)"
-            )
 
-        say(response_message)
+        confirmation_text = (
+            f"📧 *CONFIRMATION REQUIRED* 📧\n\n"
+            f"_Reminder type:_ Profile update for users with birthdays\n"
+            f'_Message preview:_ "{message_preview}"\n'
+            f"_Recipients:_ {user_count} users will receive DM reminders\n\n"
+            f"Type `confirm` within {CONFIRMATION_TIMEOUT_MINUTES} minutes to send, or any other message to cancel."
+        )
+
+    say(confirmation_text)
+    logger.info(
+        f"ADMIN: {username} ({user_id}) requested reminder confirmation for {reminder_type} type to {user_count} users"
+    )
 
 
 def handle_stats_command(user_id, say, app):
@@ -1214,7 +1378,7 @@ def handle_test_command(
 
 
 def handle_announce_command(args, user_id, say, app):
-    """Handle announcement commands to birthday channel"""
+    """Handle announcement commands to birthday channel with confirmation"""
     username = get_username(app, user_id)
 
     if not args:
@@ -1223,50 +1387,65 @@ def handle_announce_command(args, user_id, say, app):
             "*Announcement Commands:*\n\n"
             "• `admin announce image` - Announce AI image generation feature\n"
             "• `admin announce [message]` - Send custom announcement to birthday channel\n\n"
+            "⚠️ _Note_: All announcement commands require confirmation before sending.\n"
             "Announcements will notify active users (!here) in the birthday channel."
         )
         say(help_text)
         logger.info(f"ADMIN: {username} ({user_id}) requested announce help")
         return
 
-    # Import here to avoid circular import
-    from services.birthday import send_channel_announcement
+    # Get estimated user count for confirmation message
+    try:
+        channel_members = get_channel_members(app, BIRTHDAY_CHANNEL)
+        user_count = len(channel_members) if channel_members else "unknown number of"
+    except Exception as e:
+        logger.warning(f"Could not get channel member count: {e}")
+        user_count = "unknown number of"
 
     # Check what type of announcement
     if args[0].lower() == "image":
-        # Send image feature announcement directly with simple confirmation
-        say("Sending image feature announcement to birthday channel...")
+        # Prepare image feature announcement confirmation
+        announcement_type = "image_feature"
+        preview_message = (
+            "AI Image Generation Feature Announcement (predefined template)"
+        )
 
-        success = send_channel_announcement(app, "image_feature")
-        if success:
-            say("✅ Image feature announcement sent successfully!")
-            logger.info(
-                f"ADMIN: {username} ({user_id}) sent image feature announcement"
-            )
-        else:
-            say("❌ Failed to send announcement. Check logs for details.")
-            logger.error(
-                f"ADMIN_ERROR: {username} ({user_id}) failed to send image announcement"
-            )
+        add_pending_confirmation(
+            user_id,
+            "announce",
+            {"type": announcement_type, "message": None, "user_count": user_count},
+        )
+
+        confirmation_text = (
+            f"📢 *CONFIRMATION REQUIRED* 📢\n\n"
+            f"_Preview of announcement to birthday channel:_\n"
+            f"_{preview_message}_\n\n"
+            f"This will notify approximately *{user_count} users* in {get_channel_mention(BIRTHDAY_CHANNEL)}.\n\n"
+            f"Type `confirm` within {CONFIRMATION_TIMEOUT_MINUTES} minutes to send, or any other message to cancel."
+        )
 
     else:
         # Custom announcement
         custom_message = " ".join(args)
 
-        # Show preview and send
-        say(f"Sending custom announcement to birthday channel:\n\n_{custom_message}_")
+        add_pending_confirmation(
+            user_id,
+            "announce",
+            {"type": "general", "message": custom_message, "user_count": user_count},
+        )
 
-        success = send_channel_announcement(app, "general", custom_message)
-        if success:
-            say("✅ Custom announcement sent successfully!")
-            logger.info(
-                f"ADMIN: {username} ({user_id}) sent custom announcement: {custom_message}"
-            )
-        else:
-            say("❌ Failed to send announcement. Check logs for details.")
-            logger.error(
-                f"ADMIN_ERROR: {username} ({user_id}) failed to send custom announcement"
-            )
+        confirmation_text = (
+            f"📢 *CONFIRMATION REQUIRED* 📢\n\n"
+            f"_Preview of announcement to birthday channel:_\n"
+            f'"{custom_message}"\n\n'
+            f"This will notify approximately *{user_count} users* in {get_channel_mention(BIRTHDAY_CHANNEL)}.\n\n"
+            f"Type `confirm` within {CONFIRMATION_TIMEOUT_MINUTES} minutes to send, or any other message to cancel."
+        )
+
+    say(confirmation_text)
+    logger.info(
+        f"ADMIN: {username} ({user_id}) requested announcement confirmation for {args[0].lower()} type"
+    )
 
 
 def handle_test_upload_command(user_id, say, app):
