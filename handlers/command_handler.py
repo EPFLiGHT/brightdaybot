@@ -25,7 +25,7 @@ from utils.slack_utils import (
     send_message_with_image,
     is_admin,
 )
-from utils.slack_formatting import get_user_mention
+from utils.slack_formatting import get_user_mention, get_channel_mention
 from utils.message_generator import (
     completion,
     create_birthday_announcement,
@@ -1538,7 +1538,10 @@ Here I celebrate everyone's birthdays with personalized messages and AI-generate
 
 💡 *Commands:* Type `help` in a DM to see all available options
 
-Hope to celebrate your special day soon! 🎂"""
+Hope to celebrate your special day soon! 🎂
+
+*Not interested in birthday celebrations?*
+No worries! If you'd prefer to opt out, simply leave {get_channel_mention(BIRTHDAY_CHANNEL)}. This applies whether you have your birthday registered or not."""
 
                 send_message(app, event_user, welcome_msg)
                 logger.info(
