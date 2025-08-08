@@ -44,6 +44,8 @@ from config import (
     BOT_PERSONALITIES,
     get_current_personality_name,
     set_current_personality,
+    get_current_openai_model,
+    set_current_openai_model,
     DATA_DIR,
     STORAGE_DIR,
     DATE_FORMAT,
@@ -1834,6 +1836,111 @@ def handle_test_birthday_command(args, user_id, say, app):
     )
 
 
+def handle_model_command(args, user_id, say, app, username):
+    """Handle OpenAI model management commands"""
+    from utils.config_storage import get_openai_model_info
+
+    if not args:
+        # Show current model information
+        model_info = get_openai_model_info()
+        current_model = model_info["model"]
+        source = model_info["source"]
+        valid_status = "✅ Valid" if model_info["valid"] else "⚠️ Unknown model"
+
+        response = f"*Current OpenAI Model:* `{current_model}`\n"
+        response += f"*Source:* {source.replace('_', ' ').title()}\n"
+        response += f"*Status:* {valid_status}\n\n"
+
+        if model_info.get("updated_at"):
+            response += f"*Last Updated:* {model_info['updated_at']}\n\n"
+
+        response += "Use `admin model set <model>` to change or `admin model list` to see available models."
+        say(response)
+        return
+
+    subcommand = args[0].lower()
+
+    if subcommand == "list":
+        # Show available models using centralized list
+        from config import get_supported_openai_models
+
+        valid_models = get_supported_openai_models()
+        current_model = get_current_openai_model()
+        model_list = []
+        for model in valid_models:
+            marker = " ← *current*" if model == current_model else ""
+            model_list.append(f"• `{model}`{marker}")
+
+        response = "*Available OpenAI Models:*\n\n"
+        response += "\n".join(model_list)
+        response += "\n\nUse `admin model set <model>` to change the current model."
+        say(response)
+
+    elif subcommand == "set" and len(args) > 1:
+        # Change the current model
+        new_model = args[1].strip()
+        current_model = get_current_openai_model()
+
+        if new_model == current_model:
+            say(f"Model is already set to `{new_model}`")
+            return
+
+        # Validate model name using centralized list
+        from config import is_valid_openai_model
+
+        if not is_valid_openai_model(new_model):
+            say(
+                f"⚠️ Unknown model `{new_model}`. Use `admin model list` to see available models.\n\n*Note:* The model will be saved anyway in case it's a newer model not in our list."
+            )
+
+        # Attempt to set the model
+        if set_current_openai_model(new_model):
+            say(f"✅ OpenAI model changed from `{current_model}` to `{new_model}`")
+            logger.info(
+                f"ADMIN_MODEL: {username} ({user_id}) changed OpenAI model from '{current_model}' to '{new_model}'"
+            )
+        else:
+            say(f"❌ Failed to change model to `{new_model}`. Check logs for details.")
+
+    elif subcommand == "reset":
+        # Reset to default model using centralized constant
+        from config import DEFAULT_OPENAI_MODEL
+
+        default_model = DEFAULT_OPENAI_MODEL
+        current_model = get_current_openai_model()
+
+        if current_model == default_model:
+            say(f"Model is already set to the default (`{default_model}`)")
+            return
+
+        if set_current_openai_model(default_model):
+            say(
+                f"✅ OpenAI model reset from `{current_model}` to default (`{default_model}`)"
+            )
+            logger.info(
+                f"ADMIN_MODEL: {username} ({user_id}) reset OpenAI model from '{current_model}' to default '{default_model}'"
+            )
+        else:
+            say(f"❌ Failed to reset model to default. Check logs for details.")
+
+    else:
+        # Show help
+        from config import DEFAULT_OPENAI_MODEL
+
+        say(
+            f"""*OpenAI Model Management Commands:*
+
+• `admin model` - Show current model information  
+• `admin model list` - List all available models
+• `admin model set <model>` - Change to specified model
+• `admin model reset` - Reset to default model ({DEFAULT_OPENAI_MODEL})
+
+*Examples:*
+• `admin model set gpt-4o`
+• `admin model set gpt-5`"""
+        )
+
+
 def handle_cache_command(parts, user_id, say, app):
     """Handle cache management commands"""
     from utils.slack_utils import get_username
@@ -2078,6 +2185,9 @@ def handle_admin_command(subcommand, args, say, user_id, app):
                 )
             else:
                 say(f"Failed to change personality to {new_personality}")
+
+    elif subcommand == "model":
+        handle_model_command(args, user_id, say, app, username)
 
     elif subcommand == "cache":
         handle_cache_command(args, user_id, say, app)
