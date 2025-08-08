@@ -1,3 +1,12 @@
+"""
+Web search integration and historical facts retrieval for BrightDayBot.
+
+Uses OpenAI's web search capabilities to find historical events and notable
+people born on specific dates, with personality-specific formatting and caching.
+
+Key functions: get_birthday_facts(), process_facts_for_personality().
+"""
+
 from openai import OpenAI
 import json
 import os

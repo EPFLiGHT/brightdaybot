@@ -1,3 +1,12 @@
+"""
+File-based data storage and backup management for BrightDayBot.
+
+Handles birthday data persistence, automatic backups, announcement tracking,
+and external backup delivery with file locking for data integrity.
+
+Key functions: load_birthdays(), save_birthday(), create_backup().
+"""
+
 import os
 import shutil
 from datetime import datetime, timezone

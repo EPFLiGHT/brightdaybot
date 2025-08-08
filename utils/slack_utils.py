@@ -1,3 +1,12 @@
+"""
+Slack API utilities and wrapper functions for BrightDayBot.
+
+Comprehensive Slack integration including user profiles, permissions,
+message sending, file uploads, emoji management, and admin verification.
+
+Key functions: get_user_profile(), send_message_with_image(), is_admin().
+"""
+
 from slack_sdk.errors import SlackApiError
 from datetime import datetime
 import requests

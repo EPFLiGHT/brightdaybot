@@ -1,3 +1,12 @@
+"""
+Shared application constants for BrightDayBot.
+
+Contains safe Slack emojis that work across all workspaces for fallback
+message generation when custom emojis are unavailable.
+
+Primary constant: SAFE_SLACK_EMOJIS list for reliable emoji usage.
+"""
+
 # Common Slack emojis that are safe to use
 SAFE_SLACK_EMOJIS = [
     ":tada:",

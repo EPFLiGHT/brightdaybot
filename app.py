@@ -1,3 +1,14 @@
+"""
+BrightDayBot - AI-Powered Slack Birthday Celebration Bot
+
+Main application entry point that initializes Slack Bot framework, event handlers,
+and background scheduling for automatic birthday celebrations.
+
+Features: AI messages/images, timezone-aware celebrations, 8+ personalities,
+admin system, automatic backups, component-specific logging.
+Uses Slack Bolt, OpenAI API, and background scheduling.
+"""
+
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 

@@ -1,3 +1,14 @@
+"""
+User command processing for BrightDayBot.
+
+Handles user commands (birthday management, testing) and admin commands (25+ commands
+including system management, AI model config, backups, mass notifications).
+Features multi-step confirmation system and permission-based access control.
+
+Main function: handle_command(). Supports birthday CRUD, admin operations,
+data management, and configuration changes.
+"""
+
 from datetime import datetime, timezone
 from calendar import month_name
 
