@@ -236,6 +236,26 @@ USERNAME_CACHE_MAX_SIZE = 1000  # Maximum number of cached usernames
 # Placeholder for current personality setting - will be loaded from file
 _current_personality = "standard"  # Default
 
+# OpenAI model configuration - will be loaded from file or env var
+_current_openai_model = None  # Will be set during initialization
+
+# ----- OPENAI MODEL CONFIGURATION -----
+
+# Centralized list of supported OpenAI models
+SUPPORTED_OPENAI_MODELS = [
+    "gpt-5",
+    "gpt-5-mini",
+    "gpt-4.1",
+    "gpt-4.1-mini",
+    "gpt-4o",
+    "gpt-4o-mini",
+    "gpt-4",
+    "gpt-4-turbo",
+]
+
+# Default OpenAI model
+DEFAULT_OPENAI_MODEL = "gpt-4.1"
+
 # Team and bot identity settings
 TEAM_NAME = 'Laboratory for Intelligent Global Health and Humanitarian Response Technologies ("LiGHT Lab")'
 BOT_NAME = "BrightDay"  # Default bot name
@@ -307,6 +327,71 @@ def get_current_personality_name():
     """Get the currently selected personality name"""
     global _current_personality
     return _current_personality
+
+
+def get_current_openai_model():
+    """Get the currently configured OpenAI model"""
+    global _current_openai_model
+    if _current_openai_model is None:
+        # Load from storage system if not yet initialized
+        from utils.config_storage import get_openai_model_info
+
+        model_info = get_openai_model_info()
+        _current_openai_model = model_info["model"]
+    return _current_openai_model
+
+
+def is_valid_openai_model(model_name):
+    """
+    Check if a model name is in the supported list
+
+    Args:
+        model_name: OpenAI model name to validate
+
+    Returns:
+        bool: True if model is supported, False otherwise
+    """
+    return model_name in SUPPORTED_OPENAI_MODELS
+
+
+def get_supported_openai_models():
+    """
+    Get the list of supported OpenAI models
+
+    Returns:
+        list: Copy of the supported models list
+    """
+    return SUPPORTED_OPENAI_MODELS.copy()
+
+
+def set_current_openai_model(model_name):
+    """
+    Set the current OpenAI model and save to storage file
+
+    Args:
+        model_name: OpenAI model name to set
+
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    global _current_openai_model
+
+    try:
+        from utils.config_storage import save_openai_model_setting
+
+        # Save to file
+        if save_openai_model_setting(model_name):
+            _current_openai_model = model_name
+            logger.info(f"CONFIG: OpenAI model changed to '{model_name}'")
+            return True
+        else:
+            logger.error(
+                f"CONFIG_ERROR: Failed to save OpenAI model setting '{model_name}'"
+            )
+            return False
+    except Exception as e:
+        logger.error(f"CONFIG_ERROR: Error setting OpenAI model '{model_name}': {e}")
+        return False
 
 
 def set_current_personality(personality_name):
@@ -395,7 +480,7 @@ def get_full_template_for_personality(personality_name):
 
 def initialize_config():
     """Initialize configuration from storage files"""
-    global ADMIN_USERS, _current_personality, BOT_PERSONALITIES, COMMAND_PERMISSIONS
+    global ADMIN_USERS, _current_personality, BOT_PERSONALITIES, COMMAND_PERMISSIONS, _current_openai_model
 
     # Import here to avoid circular imports
     from utils.config_storage import (
@@ -404,6 +489,7 @@ def initialize_config():
         load_permissions_from_file,
         save_admins_to_file,
         save_permissions_to_file,
+        get_openai_model_info,
     )
 
     # Load admins
@@ -447,5 +533,12 @@ def initialize_config():
         # Save default permissions to file if none exist
         save_permissions_to_file(COMMAND_PERMISSIONS)
         logger.info(f"CONFIG: Saved default command permissions to file")
+
+    # Load OpenAI model configuration
+    model_info = get_openai_model_info()
+    _current_openai_model = model_info["model"]
+    logger.info(
+        f"CONFIG: OpenAI model loaded: '{_current_openai_model}' (source: {model_info['source']})"
+    )
 
     logger.info("CONFIG: Configuration initialized from storage files")

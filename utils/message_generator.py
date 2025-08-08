@@ -22,7 +22,18 @@ logger = get_logger("llm")
 
 # Initialize OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1")
+
+
+# Get the current OpenAI model from config system
+def get_configured_model():
+    """Get the currently configured OpenAI model"""
+    try:
+        from config import get_current_openai_model
+
+        return get_current_openai_model()
+    except ImportError:
+        # Fallback for backward compatibility during startup
+        return os.getenv("OPENAI_MODEL", "gpt-4.1")
 
 
 # Birthday announcement formats
@@ -531,7 +542,9 @@ def completion(
             )
 
             reply = (
-                client.chat.completions.create(model=MODEL, messages=template)
+                client.chat.completions.create(
+                    model=get_configured_model(), messages=template
+                )
                 .choices[0]
                 .message.content
             )
@@ -908,7 +921,7 @@ Generate an amazing consolidated birthday message that celebrates all of them to
     # Make the API call
     try:
         response = client.chat.completions.create(
-            model=MODEL,
+            model=get_configured_model(),
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -1154,7 +1167,7 @@ def generate_birthday_image_title(
         for attempt in range(max_retries + 1):
             try:
                 response = client.chat.completions.create(
-                    model=MODEL,
+                    model=get_configured_model(),
                     messages=[
                         {
                             "role": "system",
@@ -1595,7 +1608,8 @@ def main():
     test_logger.info(
         f"Current Date/Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     )
-    test_logger.info(f"Model: {MODEL}")
+    current_model = get_configured_model()
+    test_logger.info(f"Model: {current_model}")
     test_logger.info(
         f"Testing with: Name='{args.name}', User ID='{args.user_id}', Date='{args.date}'"
     )

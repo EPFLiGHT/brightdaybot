@@ -17,6 +17,11 @@ TIMEZONE_SETTINGS_FILE = os.path.join(
     os.path.dirname(ADMINS_FILE), "timezone_settings.json"
 )
 
+# Define OpenAI model settings file path
+OPENAI_MODEL_SETTINGS_FILE = os.path.join(
+    os.path.dirname(ADMINS_FILE), "openai_model_settings.json"
+)
+
 
 def save_admins_to_file(admin_list):
     """
@@ -259,3 +264,133 @@ def load_timezone_settings():
     except Exception as e:
         logger.error(f"CONFIG_STORAGE_ERROR: Failed to load timezone settings: {e}")
         return True, 1  # Default to enabled on error
+
+
+def save_openai_model_setting(model_name):
+    """
+    Save OpenAI model setting to file
+
+    Args:
+        model_name: OpenAI model name (e.g., "gpt-4.1", "gpt-5")
+
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        # Validate model name using centralized list
+        from config import is_valid_openai_model
+
+        if not is_valid_openai_model(model_name):
+            logger.warning(
+                f"CONFIG_STORAGE: Unknown model '{model_name}', saving anyway"
+            )
+
+        data = {
+            "openai_model": model_name,
+            "updated_at": datetime.now().isoformat(),
+            "source": "admin_command",
+        }
+
+        with open(OPENAI_MODEL_SETTINGS_FILE, "w") as f:
+            json.dump(data, f, indent=2)
+
+        logger.info(f"CONFIG_STORAGE: Saved OpenAI model setting '{model_name}'")
+        return True
+    except Exception as e:
+        logger.error(f"CONFIG_STORAGE_ERROR: Failed to save OpenAI model setting: {e}")
+        return False
+
+
+def load_openai_model_setting():
+    """
+    Load OpenAI model setting from file
+
+    Returns:
+        str: Model name, or None if not found or error
+    """
+    try:
+        if not os.path.exists(OPENAI_MODEL_SETTINGS_FILE):
+            logger.info("CONFIG_STORAGE: OpenAI model settings file not found")
+            return None
+
+        with open(OPENAI_MODEL_SETTINGS_FILE, "r") as f:
+            data = json.load(f)
+            model_name = data.get("openai_model")
+
+            if model_name:
+                logger.info(
+                    f"CONFIG_STORAGE: Loaded OpenAI model setting '{model_name}'"
+                )
+                return model_name
+            else:
+                logger.warning(
+                    "CONFIG_STORAGE: Model setting file exists but no model found"
+                )
+                return None
+
+    except Exception as e:
+        logger.error(f"CONFIG_STORAGE_ERROR: Failed to load OpenAI model setting: {e}")
+        return None
+
+
+def get_openai_model_info():
+    """
+    Get detailed information about current OpenAI model setting
+
+    Returns:
+        dict: Model information including source and validation
+    """
+    try:
+        info = {
+            "model": None,
+            "source": "default",
+            "file_exists": False,
+            "env_var": os.getenv("OPENAI_MODEL"),
+            "valid": True,
+        }
+
+        # Check if settings file exists
+        if os.path.exists(OPENAI_MODEL_SETTINGS_FILE):
+            info["file_exists"] = True
+            try:
+                with open(OPENAI_MODEL_SETTINGS_FILE, "r") as f:
+                    data = json.load(f)
+                    file_model = data.get("openai_model")
+                    if file_model:
+                        info["model"] = file_model
+                        info["source"] = "file"
+                        info["updated_at"] = data.get("updated_at")
+            except Exception as e:
+                logger.error(f"Error reading model settings file: {e}")
+                info["error"] = str(e)
+
+        # Fall back to environment variable if no file setting
+        if not info["model"] and info["env_var"]:
+            info["model"] = info["env_var"]
+            info["source"] = "environment"
+
+        # Final fallback to default
+        if not info["model"]:
+            from config import DEFAULT_OPENAI_MODEL
+
+            info["model"] = DEFAULT_OPENAI_MODEL
+            info["source"] = "default"
+
+        # Validate model using centralized list
+        from config import is_valid_openai_model
+
+        info["valid"] = is_valid_openai_model(info["model"])
+
+        return info
+
+    except Exception as e:
+        logger.error(f"CONFIG_STORAGE_ERROR: Failed to get OpenAI model info: {e}")
+        from config import DEFAULT_OPENAI_MODEL
+
+        return {
+            "model": DEFAULT_OPENAI_MODEL,
+            "source": "error_fallback",
+            "file_exists": False,
+            "valid": True,
+            "error": str(e),
+        }

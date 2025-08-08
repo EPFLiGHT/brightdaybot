@@ -462,7 +462,7 @@ def get_system_status():
         if not BIRTHDAY_CHANNEL:
             has_critical_issue = True
 
-        # API key checks
+        # API key and model checks
         # OpenAI API key check
         openai_key = os.getenv("OPENAI_API_KEY")
         if openai_key:
@@ -478,6 +478,42 @@ def get_system_status():
                 "message": "OPENAI_API_KEY is not set",
             }
             has_critical_issue = True
+
+        # OpenAI model configuration check
+        try:
+            from utils.config_storage import get_openai_model_info
+
+            model_info = get_openai_model_info()
+
+            status["components"]["openai_model"] = {
+                "status": STATUS_OK if model_info["valid"] else STATUS_ERROR,
+                "model": model_info["model"],
+                "source": model_info["source"],
+                "valid": model_info["valid"],
+                "file_exists": model_info["file_exists"],
+                "env_var": model_info.get("env_var"),
+            }
+
+            if model_info.get("updated_at"):
+                status["components"]["openai_model"]["updated_at"] = model_info[
+                    "updated_at"
+                ]
+
+            if model_info.get("error"):
+                status["components"]["openai_model"]["error"] = model_info["error"]
+
+            if not model_info["valid"]:
+                logger.warning(
+                    f"Unknown OpenAI model configured: {model_info['model']}"
+                )
+
+        except Exception as e:
+            logger.error(f"Error checking OpenAI model configuration: {e}")
+            status["components"]["openai_model"] = {
+                "status": STATUS_ERROR,
+                "error": str(e),
+                "model": "unknown",
+            }
 
         # Slack Bot Token check
         slack_token = os.getenv("SLACK_BOT_TOKEN")
@@ -665,6 +701,22 @@ def get_status_summary():
             summary_lines.append(
                 f"❌ *OpenAI API*: {openai_status.get('message', 'Not configured')}"
             )
+
+        # OpenAI model status
+        model_status = status["components"].get("openai_model", {})
+        if model_status.get("status") == STATUS_OK:
+            model_name = model_status.get("model", "unknown")
+            source = model_status.get("source", "unknown")
+            summary_lines.append(f"✅ *OpenAI Model*: {model_name} (from {source})")
+        elif model_status.get("status") == STATUS_ERROR:
+            model_name = model_status.get("model", "unknown")
+            if model_status.get("valid") is False:
+                summary_lines.append(f"⚠️ *OpenAI Model*: {model_name} (unknown model)")
+            else:
+                error_msg = model_status.get("error", "Configuration error")
+                summary_lines.append(f"❌ *OpenAI Model*: {error_msg}")
+        else:
+            summary_lines.append(f"❓ *OpenAI Model*: Status unknown")
 
         slack_bot_status = status["components"].get("slack_bot_token", {})
         if slack_bot_status.get("status") == STATUS_OK:
