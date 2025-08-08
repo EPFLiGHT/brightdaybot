@@ -1,3 +1,13 @@
+"""
+Configuration storage management for persistent settings.
+
+Handles JSON-based storage for admins, personality settings, permissions,
+timezone settings, and OpenAI model configuration. Provides atomic file
+operations with backup and recovery capabilities.
+
+Functions: save/load operations for all configuration types with validation.
+"""
+
 import os
 import json
 from datetime import datetime

@@ -1,3 +1,14 @@
+"""
+AI-powered birthday message generation using OpenAI GPT models.
+
+Creates personalized birthday messages with 8+ bot personalities, user profile
+integration (age, star sign, job title), and web search historical facts.
+Features fallback templates and proper Slack formatting.
+
+Main functions: create_birthday_announcement(), create_consolidated_birthday_announcement().
+Supports dynamic personality selection and configurable AI models.
+"""
+
 from openai import OpenAI
 import logging
 import os

@@ -1,3 +1,12 @@
+"""
+System health monitoring and status reporting for BrightDayBot.
+
+Comprehensive health checks including directory structure, file integrity,
+configuration validation, log file monitoring, and API token verification.
+
+Main functions: get_system_status(), get_status_summary().
+"""
+
 import os
 import json
 import traceback
@@ -13,11 +22,11 @@ from config import (
     WEB_SEARCH_CACHE_ENABLED,
     BIRTHDAY_CHANNEL,
     get_logger,
-    LOG_FILES,
     LOGS_DIR,
     DAILY_CHECK_TIME,
     TIMEZONE_CELEBRATION_TIME,
 )
+from utils.logging_config import LOG_FILES
 from utils.config_storage import ADMINS_FILE, PERSONALITY_FILE
 
 logger = get_logger("health_check")

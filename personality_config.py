@@ -1,14 +1,9 @@
 """
-Centralized Personality Configuration for BrightDayBot
+Centralized personality configurations for BrightDayBot.
 
-This file contains ALL personality configurations in one place, including:
-- Basic personality info (name, description, style)
-- Message generation templates and prompts
-- Image generation prompts
-- Web search formatting
-
-Each personality is completely defined here, making it easy to add new personalities
-or modify existing ones without hunting through multiple files.
+Contains complete definitions for 8+ bot personalities including basic info,
+message templates, image generation prompts, and web search formatting.
+Makes it easy to add or modify personalities in one location.
 """
 
 # Import these at runtime to avoid circular imports

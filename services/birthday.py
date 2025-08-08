@@ -1,3 +1,13 @@
+"""
+Core birthday celebration logic for BrightDayBot.
+
+Handles timezone-aware and simple birthday announcements with AI-generated
+personalized messages and images. Supports duplicate prevention, user profile
+integration, and smart consolidation for multiple same-day birthdays.
+
+Main functions: timezone_aware_check(), simple_daily_check(), send_reminder_to_users().
+"""
+
 import random
 from datetime import datetime, timezone
 

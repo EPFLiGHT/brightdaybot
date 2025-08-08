@@ -1,3 +1,12 @@
+"""
+Timezone utilities and celebration scheduling for BrightDayBot.
+
+Handles timezone-aware birthday celebrations, user timezone detection,
+and scheduling coordination across multiple time zones.
+
+Key functions: is_celebration_time_for_user(), format_timezone_schedule().
+"""
+
 from datetime import datetime, timezone
 import pytz
 from config import get_logger

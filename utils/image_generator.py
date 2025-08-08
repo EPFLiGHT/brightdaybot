@@ -1,3 +1,13 @@
+"""
+AI-powered birthday image generation using GPT-Image-1.
+
+Supports face-accurate images with user profile photos and text-only fallback.
+Features quality control, automatic cleanup, and personality-themed styles.
+
+Main functions: generate_birthday_image(), download_profile_photo(), cleanup_old_files().
+Uses OpenAI API, PIL for processing, with automatic cache management.
+"""
+
 from openai import OpenAI
 import os
 import requests

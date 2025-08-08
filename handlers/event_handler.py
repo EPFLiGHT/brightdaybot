@@ -1,3 +1,13 @@
+"""
+Slack event processing for BrightDayBot.
+
+Handles direct messages, team joins, and channel interactions. Routes events
+to appropriate handlers with smart command vs. date input disambiguation.
+
+Main function: register_event_handlers(). Processes message events, team_join
+events, and app mentions with comprehensive error handling.
+"""
+
 from slack_sdk.errors import SlackApiError
 
 from utils.date_utils import extract_date

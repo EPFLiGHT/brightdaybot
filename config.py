@@ -1,6 +1,15 @@
+"""
+BrightDayBot Configuration - Core Settings and Constants
+
+Centralized configuration including environment variables, file paths, feature flags,
+and application constants. Functions moved to separate utility modules.
+
+Key modules: utils/app_config.py, utils/logging_config.py, utils/template_utils.py
+Provides backward compatibility imports for refactored functions.
+"""
+
 import os
 from dotenv import load_dotenv
-import logging
 from datetime import time
 
 # Load environment variables first - this should be at the very top
@@ -41,156 +50,21 @@ BACKUP_CHANNEL_ID = os.getenv("BACKUP_CHANNEL_ID")
 # Send backup on every change vs. batched/daily digest
 BACKUP_ON_EVERY_CHANGE = os.getenv("BACKUP_ON_EVERY_CHANGE", "true").lower() == "true"
 
-# File paths
-LOG_FILE = os.path.join(LOGS_DIR, "app.log")
+# ----- FILE PATHS -----
+
+# Core data files
 BIRTHDAYS_FILE = os.path.join(STORAGE_DIR, "birthdays.txt")
 ADMINS_FILE = os.path.join(STORAGE_DIR, "admins.json")
 PERSONALITY_FILE = os.path.join(STORAGE_DIR, "personality.json")
 PERMISSIONS_FILE = os.path.join(STORAGE_DIR, "permissions.json")
 
-# ----- ENHANCED LOGGING CONFIGURATION -----
-
-import logging.handlers
-
-# Enhanced logging with separate files for different components
-LOG_FILES = {
-    "main": os.path.join(LOGS_DIR, "main.log"),  # Core application
-    "commands": os.path.join(
-        LOGS_DIR, "commands.log"
-    ),  # User commands and admin actions
-    "events": os.path.join(LOGS_DIR, "events.log"),  # Slack events
-    "birthday": os.path.join(LOGS_DIR, "birthday.log"),  # Birthday service logic
-    "ai": os.path.join(LOGS_DIR, "ai.log"),  # AI/LLM interactions
-    "slack": os.path.join(LOGS_DIR, "slack.log"),  # Slack API interactions
-    "storage": os.path.join(LOGS_DIR, "storage.log"),  # Data storage operations
-    "system": os.path.join(LOGS_DIR, "system.log"),  # System health, config, utils
-    "scheduler": os.path.join(
-        LOGS_DIR, "scheduler.log"
-    ),  # Scheduling and background tasks
-}
-
-# Legacy main log file for compatibility
-LOG_FILE = LOG_FILES["main"]
-
-# Component to log file mapping
-COMPONENT_LOG_MAPPING = {
-    "main": "main",
-    "config": "main",
-    "app": "main",
-    "commands": "commands",
-    "command_handler": "commands",
-    "events": "events",
-    "event_handler": "events",
-    "birthday": "birthday",
-    "llm": "ai",
-    "message_generator": "ai",
-    "image_generator": "ai",
-    "web_search": "ai",
-    "slack": "slack",
-    "slack_utils": "slack",
-    "storage": "storage",
-    "config_storage": "storage",
-    "health_check": "system",
-    "date": "system",
-    "date_utils": "system",
-    "timezone_utils": "system",
-    "scheduler": "scheduler",
-}
-
-# Set up logging formatter with more detailed info
-log_formatter = logging.Formatter(
-    "%(asctime)s - [%(levelname)s] %(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-)
-
-# Create the parent directory for log files if it doesn't exist
-os.makedirs(LOGS_DIR, exist_ok=True)
-
-# Set up file handlers with rotation for each log file
-log_handlers = {}
-for log_type, log_file in LOG_FILES.items():
-    # Use RotatingFileHandler to prevent files from getting too large
-    handler = logging.handlers.RotatingFileHandler(
-        log_file,
-        maxBytes=10 * 1024 * 1024,  # 10MB per file
-        backupCount=5,  # Keep 5 backup files
-        encoding="utf-8",
-    )
-    handler.setFormatter(log_formatter)
-    log_handlers[log_type] = handler
-
-# Configure root logger
-root_logger = logging.getLogger("birthday_bot")
-root_logger.setLevel(logging.INFO)
-
-# Don't add all handlers to root - this causes all messages to go to all files
-# Individual component loggers will get their specific handlers in get_logger()
-
-
-def get_logger(name):
-    """
-    Get a properly configured logger with component-specific file routing.
-
-    This enhanced version routes logs to appropriate files based on component:
-    - Commands and admin actions -> commands.log
-    - Slack events -> events.log
-    - Birthday logic -> birthday.log
-    - AI/LLM operations -> ai.log
-    - Slack API calls -> slack.log
-    - Storage operations -> storage.log
-    - System utilities -> system.log
-    - Scheduler tasks -> scheduler.log
-    - Main application -> main.log
-
-    Args:
-        name: Logger name/component (e.g., 'commands', 'slack', 'birthday')
-
-    Returns:
-        Configured logger instance with appropriate file routing
-    """
-    if not name.startswith("birthday_bot."):
-        full_name = f"birthday_bot.{name}"
-    else:
-        full_name = name
-        name = name.replace("birthday_bot.", "")
-
-    # Get the logger
-    logger = logging.getLogger(full_name)
-
-    # Prevent duplicate handlers
-    if logger.hasHandlers():
-        return logger
-
-    # Determine which log file this component should use
-    log_type = COMPONENT_LOG_MAPPING.get(name, "system")  # Default to system.log
-
-    # Add only the specific handler for this component
-    if log_type in log_handlers:
-        logger.addHandler(log_handlers[log_type])
-        logger.setLevel(logging.INFO)
-        logger.propagate = False  # Don't propagate to parent to avoid duplicate logs
-
-    return logger
-
-
-# Create the main logger
-logger = get_logger("main")
-
-
-# ----- CREATE DIRECTORY STRUCTURE -----
-
-# Now that we have logging set up, create the directory structure
-for directory in [DATA_DIR, LOGS_DIR, STORAGE_DIR, TRACKING_DIR, BACKUP_DIR, CACHE_DIR]:
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-        logger.info(f"CONFIG: Created directory {directory}")
-
+# Legacy log file for compatibility
+LOG_FILE = os.path.join(LOGS_DIR, "app.log")
 
 # ----- APPLICATION CONFIGURATION -----
 
 # Channel configuration
 BIRTHDAY_CHANNEL = os.getenv("BIRTHDAY_CHANNEL_ID")
-if not BIRTHDAY_CHANNEL:
-    logger.error("CONFIG_ERROR: BIRTHDAY_CHANNEL_ID not found in .env file")
 
 # Date format constants
 DATE_FORMAT = "%d/%m"
@@ -231,14 +105,6 @@ COMMAND_PERMISSIONS = {
 username_cache = {}
 USERNAME_CACHE_MAX_SIZE = 1000  # Maximum number of cached usernames
 
-# ----- BOT PERSONALITY CUSTOMIZATION -----
-
-# Placeholder for current personality setting - will be loaded from file
-_current_personality = "standard"  # Default
-
-# OpenAI model configuration - will be loaded from file or env var
-_current_openai_model = None  # Will be set during initialization
-
 # ----- OPENAI MODEL CONFIGURATION -----
 
 # Centralized list of supported OpenAI models
@@ -256,65 +122,13 @@ SUPPORTED_OPENAI_MODELS = [
 # Default OpenAI model
 DEFAULT_OPENAI_MODEL = "gpt-4.1"
 
+# ----- TEAM AND BOT IDENTITY -----
+
 # Team and bot identity settings
 TEAM_NAME = 'Laboratory for Intelligent Global Health and Humanitarian Response Technologies ("LiGHT Lab")'
 BOT_NAME = "BrightDay"  # Default bot name
 
-
-# Get emoji instructions based on USE_CUSTOM_EMOJIS setting
-def get_emoji_instructions():
-    """Get emoji usage instructions based on custom emoji configuration"""
-    if USE_CUSTOM_EMOJIS:
-        return """
-- You can use both STANDARD SLACK EMOJIS and CUSTOM WORKSPACE EMOJIS
-- Examples will be provided in your specific prompts
-- Remember to use Slack emoji format with colons (e.g., :cake:)
-"""
-    else:
-        return """
-- Only use STANDARD SLACK EMOJIS like: :tada: :birthday: :cake: :balloon: :gift: :confetti_ball: :sparkles: 
-  :star: :heart: :champagne: :clap: :raised_hands: :crown: :trophy: :partying_face: :smile: 
-- DO NOT use custom emojis like :birthday_party_parrot: or :rave: as they may not exist in all workspaces
-"""
-
-
-# Base template that all personalities share
-def get_base_template():
-    """Get the base template with dynamic emoji instructions"""
-    emoji_instructions = get_emoji_instructions()
-
-    return f"""
-You are {{name}}, {{description}} for the {{team_name}} workspace. 
-Your job is to create concise yet engaging birthday messages that will make people smile!
-
-IMPORTANT CONSTRAINTS:
-{emoji_instructions}
-- DO NOT use Unicode emojis (like 🎂) - ONLY use Slack format with colons (:cake:)
-
-SLACK FORMATTING RULES - VERY IMPORTANT:
-1. For bold text, use *single asterisks* NOT **double asterisks**
-2. For italic text, use _single underscores_ NOT *asterisks* or __double underscores__
-3. For strikethrough, use ~tildes~ around text
-4. For links use <URL|text> format NOT [text](URL)
-5. To mention active members use <!here> exactly as written
-6. To mention a user use <@USER_ID> exactly as provided to you
-
-CONTENT GUIDELINES:
-1. Be {{style}} but BRIEF (aim for 4-6 lines total)
-2. Focus on quality over quantity - keep it punchy and impactful
-3. Include the person's name and at least 2-3 emoji for visual appeal
-4. Reference their star sign or age if provided (but keep it short)
-5. {{format_instruction}} 
-6. ALWAYS include both the user mention and <!here> mention
-7. End with a brief question about celebration plans
-8. Don't mention that you're an AI
-
-Create a message that is brief but impactful!
-"""
-
-
-# For backward compatibility
-BASE_TEMPLATE = get_base_template()
+# ----- PERSONALITY CONFIGURATION -----
 
 # Import centralized personality configurations
 from personality_config import PERSONALITIES
@@ -322,223 +136,45 @@ from personality_config import PERSONALITIES
 # For backward compatibility, reference the centralized configurations
 BOT_PERSONALITIES = PERSONALITIES
 
+# ----- INITIALIZATION -----
 
-def get_current_personality_name():
-    """Get the currently selected personality name"""
-    global _current_personality
-    return _current_personality
+# Initialize logging system
+from utils.logging_config import setup_logging
 
+setup_logging(LOGS_DIR)
 
-def get_current_openai_model():
-    """Get the currently configured OpenAI model"""
-    global _current_openai_model
-    if _current_openai_model is None:
-        # Load from storage system if not yet initialized
-        from utils.config_storage import get_openai_model_info
+# Get the main logger
+from utils.logging_config import get_logger
 
-        model_info = get_openai_model_info()
-        _current_openai_model = model_info["model"]
-    return _current_openai_model
+logger = get_logger("main")
 
+# Create directory structure
+for directory in [DATA_DIR, LOGS_DIR, STORAGE_DIR, TRACKING_DIR, BACKUP_DIR, CACHE_DIR]:
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+        logger.info(f"CONFIG: Created directory {directory}")
 
-def is_valid_openai_model(model_name):
-    """
-    Check if a model name is in the supported list
+# Log any configuration issues
+if not BIRTHDAY_CHANNEL:
+    logger.error("CONFIG_ERROR: BIRTHDAY_CHANNEL_ID not found in .env file")
 
-    Args:
-        model_name: OpenAI model name to validate
+# ----- BACKWARD COMPATIBILITY IMPORTS -----
 
-    Returns:
-        bool: True if model is supported, False otherwise
-    """
-    return model_name in SUPPORTED_OPENAI_MODELS
+# Re-export functions from new modules for backward compatibility
+from utils.app_config import (
+    get_current_personality_name,
+    set_current_personality,
+    get_current_openai_model,
+    set_current_openai_model,
+    is_valid_openai_model,
+    get_supported_openai_models,
+    set_custom_personality_setting,
+    initialize_config,
+)
 
-
-def get_supported_openai_models():
-    """
-    Get the list of supported OpenAI models
-
-    Returns:
-        list: Copy of the supported models list
-    """
-    return SUPPORTED_OPENAI_MODELS.copy()
-
-
-def set_current_openai_model(model_name):
-    """
-    Set the current OpenAI model and save to storage file
-
-    Args:
-        model_name: OpenAI model name to set
-
-    Returns:
-        bool: True if successful, False otherwise
-    """
-    global _current_openai_model
-
-    try:
-        from utils.config_storage import save_openai_model_setting
-
-        # Save to file
-        if save_openai_model_setting(model_name):
-            _current_openai_model = model_name
-            logger.info(f"CONFIG: OpenAI model changed to '{model_name}'")
-            return True
-        else:
-            logger.error(
-                f"CONFIG_ERROR: Failed to save OpenAI model setting '{model_name}'"
-            )
-            return False
-    except Exception as e:
-        logger.error(f"CONFIG_ERROR: Error setting OpenAI model '{model_name}': {e}")
-        return False
-
-
-def set_current_personality(personality_name):
-    """
-    Set the current personality name and save to storage file
-
-    Args:
-        personality_name: Name of personality to set
-
-    Returns:
-        bool: True if successful, False otherwise
-    """
-    global _current_personality
-    if personality_name in BOT_PERSONALITIES:
-        _current_personality = personality_name
-        logger.info(f"CONFIG: Bot personality changed to '{personality_name}'")
-
-        # Import here to avoid circular imports
-        from utils.config_storage import save_personality_setting
-
-        # Save the setting to file
-        custom_settings = None
-        if personality_name == "custom":
-            # Save current custom settings
-            custom_settings = {
-                "name": BOT_PERSONALITIES["custom"]["name"],
-                "description": BOT_PERSONALITIES["custom"]["description"],
-                "style": BOT_PERSONALITIES["custom"]["style"],
-                "format_instruction": BOT_PERSONALITIES["custom"]["format_instruction"],
-                "template_extension": BOT_PERSONALITIES["custom"]["template_extension"],
-            }
-
-        save_personality_setting(personality_name, custom_settings)
-        return True
-    return False
-
-
-def set_custom_personality_setting(setting_name, value):
-    """
-    Update a custom personality setting
-
-    Args:
-        setting_name: Name of the setting (name, description, style, etc.)
-        value: New value for the setting
-
-    Returns:
-        bool: True if successful, False otherwise
-    """
-    if setting_name not in [
-        "name",
-        "description",
-        "style",
-        "format_instruction",
-        "template_extension",
-    ]:
-        logger.error(
-            f"CONFIG_ERROR: Invalid custom personality setting: {setting_name}"
-        )
-        return False
-
-    BOT_PERSONALITIES["custom"][setting_name] = value
-    logger.info(f"CONFIG: Updated custom personality setting '{setting_name}'")
-
-    # Save current personality if it's custom
-    if get_current_personality_name() == "custom":
-        set_current_personality("custom")  # This will trigger saving to file
-
-    return True
-
-
-# Function to get the full template for a personality
-def get_full_template_for_personality(personality_name):
-    """Build the full template for a given personality by combining base and extensions"""
-    if personality_name not in BOT_PERSONALITIES:
-        personality_name = "standard"
-
-    personality = BOT_PERSONALITIES[personality_name]
-    full_template = BASE_TEMPLATE
-
-    # Add any personality-specific extension
-    if personality["template_extension"]:
-        full_template += "\n" + personality["template_extension"]
-
-    return full_template
-
-
-def initialize_config():
-    """Initialize configuration from storage files"""
-    global ADMIN_USERS, _current_personality, BOT_PERSONALITIES, COMMAND_PERMISSIONS, _current_openai_model
-
-    # Import here to avoid circular imports
-    from utils.config_storage import (
-        load_admins_from_file,
-        load_personality_setting,
-        load_permissions_from_file,
-        save_admins_to_file,
-        save_permissions_to_file,
-        get_openai_model_info,
-    )
-
-    # Load admins
-    admin_users_from_file = load_admins_from_file()
-
-    if admin_users_from_file:
-        ADMIN_USERS = admin_users_from_file
-        logger.info(f"CONFIG: Loaded {len(ADMIN_USERS)} admin users from file")
-    else:
-        # If no admins in file, use defaults but make sure to maintain any existing ones
-        logger.info(f"CONFIG: No admins found in file, using default list")
-        # Add any default admins that aren't already in the list
-        for admin in DEFAULT_ADMIN_USERS:
-            if admin not in ADMIN_USERS:
-                ADMIN_USERS.append(admin)
-
-        # Save the combined list to file
-        save_admins_to_file(ADMIN_USERS)
-        logger.info(f"CONFIG: Saved {len(ADMIN_USERS)} default admin users to file")
-
-    # Add this debug print
-    logger.info(f"CONFIG: ADMIN_USERS now contains: {ADMIN_USERS}")
-
-    # Load personality settings
-    personality_name, custom_settings = load_personality_setting()
-    _current_personality = personality_name
-
-    # If there are custom settings, apply them
-    if custom_settings and isinstance(custom_settings, dict):
-        for key, value in custom_settings.items():
-            if key in BOT_PERSONALITIES["custom"]:
-                BOT_PERSONALITIES["custom"][key] = value
-
-    # Load command permissions
-    permissions_from_file = load_permissions_from_file()
-    if permissions_from_file:
-        # Update the COMMAND_PERMISSIONS with values from file
-        COMMAND_PERMISSIONS.update(permissions_from_file)
-        logger.info(f"CONFIG: Loaded command permissions from file")
-    else:
-        # Save default permissions to file if none exist
-        save_permissions_to_file(COMMAND_PERMISSIONS)
-        logger.info(f"CONFIG: Saved default command permissions to file")
-
-    # Load OpenAI model configuration
-    model_info = get_openai_model_info()
-    _current_openai_model = model_info["model"]
-    logger.info(
-        f"CONFIG: OpenAI model loaded: '{_current_openai_model}' (source: {model_info['source']})"
-    )
-
-    logger.info("CONFIG: Configuration initialized from storage files")
+from utils.template_utils import (
+    get_emoji_instructions,
+    get_base_template,
+    get_full_template_for_personality,
+    BASE_TEMPLATE,
+)

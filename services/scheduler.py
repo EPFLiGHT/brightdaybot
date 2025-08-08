@@ -1,3 +1,13 @@
+"""
+Background scheduling system for automatic birthday celebrations.
+
+Manages timezone-aware hourly checks and simple daily announcements in a
+separate daemon thread. Supports startup recovery and dynamic reconfiguration.
+
+Key functions: setup_scheduler(), run_now(), hourly_task(), daily_task().
+Uses schedule library and threading for non-blocking execution.
+"""
+
 import schedule
 import time
 import threading

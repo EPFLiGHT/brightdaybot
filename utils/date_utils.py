@@ -1,3 +1,12 @@
+"""
+Date parsing and manipulation utilities for BrightDayBot.
+
+Handles date extraction from natural language, validation, age calculations,
+and astrological sign determination for birthday processing.
+
+Key functions: extract_date(), calculate_age(), get_star_sign().
+"""
+
 import re
 from datetime import datetime, timezone
 from calendar import month_name
