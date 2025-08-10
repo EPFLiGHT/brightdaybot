@@ -11,7 +11,14 @@ from openai import OpenAI
 import json
 import os
 from datetime import datetime
-from config import get_logger, CACHE_DIR, WEB_SEARCH_CACHE_ENABLED, DATE_FORMAT
+from config import (
+    get_logger,
+    CACHE_DIR,
+    WEB_SEARCH_CACHE_ENABLED,
+    DATE_FORMAT,
+    TOKEN_LIMITS,
+    TEMPERATURE_SETTINGS,
+)
 import argparse
 import sys
 
@@ -74,7 +81,8 @@ def process_facts_for_personality(facts_text, formatted_date, personality):
                 {"role": "system", "content": system_content},
                 {"role": "user", "content": user_content},
             ],
-            max_completion_tokens=300,  # Reduced for more concise outputs
+            max_completion_tokens=TOKEN_LIMITS["web_search_facts"],
+            temperature=TEMPERATURE_SETTINGS["default"],
         )
 
         # Log token usage for monitoring

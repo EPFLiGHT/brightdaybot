@@ -349,7 +349,7 @@ brightdaybot/
 
 **Recent Enhancement**: Config.py refactored from 544 to 174 lines by extracting functionality into focused utility modules:
 
-- **`config.py`** - Core configuration constants and environment variables
+- **`config.py`** - Core configuration constants, environment variables, and centralized OpenAI API parameters
 - **`utils/app_config.py`** - Dynamic configuration management (OpenAI models, personalities, admin users)
 - **`utils/logging_config.py`** - Multi-component logging system with 9 specialized log files
 - **`utils/template_utils.py`** - Message template building and emoji management

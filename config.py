@@ -122,6 +122,40 @@ SUPPORTED_OPENAI_MODELS = [
 # Default OpenAI model
 DEFAULT_OPENAI_MODEL = "gpt-4.1"
 
+# ----- OPENAI API PARAMETERS -----
+
+# Token limits for different chat completion use cases
+TOKEN_LIMITS = {
+    "single_birthday": 500,  # Default for regular birthday messages
+    "consolidated_birthday": 800,  # Multiple birthday messages
+    "web_search_facts": 500,  # Historical date summarization
+    "image_title_generation": 100,  # AI-generated image titles
+}
+
+# Temperature settings for creativity control
+TEMPERATURE_SETTINGS = {
+    "default": 0.7,  # Standard temperature for most messages
+    "creative": 1.0,  # Higher creativity for consolidated messages and titles
+    "factual": 0.3,  # Lower temperature for factual content (future use)
+}
+
+# Image generation parameters
+IMAGE_GENERATION_PARAMS = {
+    "quality": {
+        "default": "high",  # Production default
+        "test": "low",  # Test mode default
+        "options": ["low", "medium", "high", "auto"],
+    },
+    "size": {
+        "default": "1536x1024",  # Production default
+        "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+    },
+    "input_fidelity": {
+        "default": "high",  # Always high for face preservation
+        "options": ["low", "high"],
+    },
+}
+
 # ----- TEAM AND BOT IDENTITY -----
 
 # Team and bot identity settings

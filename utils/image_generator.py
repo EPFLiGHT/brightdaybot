@@ -14,7 +14,7 @@ import requests
 import glob
 import random
 from datetime import datetime, timedelta
-from config import get_logger, CACHE_DIR
+from config import get_logger, CACHE_DIR, IMAGE_GENERATION_PARAMS
 from utils.usage_logging import log_image_generation_usage
 import json
 import base64
@@ -88,17 +88,22 @@ def generate_birthday_image(
             image_quality = quality
             cost_mode = f"explicit {quality} quality"
         else:
-            # Use test_mode logic as fallback
-            image_quality = "low" if test_mode else "high"
+            # Use centralized quality settings with test_mode logic as fallback
+            image_quality = (
+                IMAGE_GENERATION_PARAMS["quality"]["test"]
+                if test_mode
+                else IMAGE_GENERATION_PARAMS["quality"]["default"]
+            )
             cost_mode = "low-cost test" if test_mode else "full quality"
 
-        input_fidelity = "high"  # Always use high fidelity for face preservation
+        # Use centralized input fidelity setting
+        input_fidelity = IMAGE_GENERATION_PARAMS["input_fidelity"]["default"]
 
         # Determine image size - allow override via image_size parameter
         if image_size is not None:
             final_image_size = image_size
         else:
-            final_image_size = "auto"  # Default to auto for optimal size selection
+            final_image_size = IMAGE_GENERATION_PARAMS["size"]["default"]
 
         logger.info(
             f"IMAGE_GEN: Generating birthday image for {name} in {personality} style ({'reference-based' if use_reference_mode else 'text-only'}, {cost_mode})"

@@ -22,6 +22,8 @@ from config import (
     BOT_PERSONALITIES,
     TEAM_NAME,
     get_current_personality_name,
+    TOKEN_LIMITS,
+    TEMPERATURE_SETTINGS,
 )
 
 from utils.date_utils import get_star_sign
@@ -546,7 +548,10 @@ def completion(
             )
 
             response = client.chat.completions.create(
-                model=get_configured_model(), messages=template
+                model=get_configured_model(),
+                messages=template,
+                max_completion_tokens=TOKEN_LIMITS["single_birthday"],
+                temperature=TEMPERATURE_SETTINGS["creative"],
             )
 
             # Log token usage for monitoring
@@ -1015,8 +1020,8 @@ Happy Birthday {mention_text}! [Continue with creative content...]"{birthday_fac
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            max_completion_tokens=800,  # Increased for consolidated messages with multiple mentions and personality content
-            temperature=1,  # Higher creativity for multiple birthdays
+            max_completion_tokens=TOKEN_LIMITS["consolidated_birthday"],
+            temperature=TEMPERATURE_SETTINGS["creative"],
         )
 
         message = response.choices[0].message.content.strip()
@@ -1392,8 +1397,8 @@ def generate_birthday_image_title(
                         },
                         {"role": "user", "content": formatted_prompt},
                     ],
-                    max_completion_tokens=200,
-                    temperature=1,  # Higher creativity for titles
+                    max_completion_tokens=TOKEN_LIMITS["image_title_generation"],
+                    temperature=TEMPERATURE_SETTINGS["creative"],
                 )
 
                 # Log token usage for monitoring
