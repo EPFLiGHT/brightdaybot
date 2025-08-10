@@ -33,6 +33,16 @@ from utils.message_generator import (
     create_consolidated_birthday_announcement,
 )
 from utils.timezone_utils import is_celebration_time_for_user
+from utils.birthday_validation import (
+    validate_birthday_people_for_posting,
+    should_regenerate_message,
+    filter_images_for_valid_people,
+)
+from utils.race_condition_logger import (
+    log_race_condition_detection,
+    log_validation_action_taken,
+    should_alert_on_race_conditions,
+)
 from config import BIRTHDAY_CHANNEL, AI_IMAGE_GENERATION_ENABLED, get_logger
 
 logger = get_logger("birthday")
@@ -374,6 +384,9 @@ def timezone_aware_check(app, moment):
         )
 
         try:
+            # Track processing timing for race condition analysis
+            processing_start = datetime.now(timezone.utc)
+
             # Create consolidated message for ALL birthday people today
             result = create_consolidated_birthday_announcement(
                 all_birthday_people_today,
@@ -384,40 +397,155 @@ def timezone_aware_check(app, moment):
                 image_size=None,  # Use default auto sizing
             )
 
-            if isinstance(result, tuple) and AI_IMAGE_GENERATION_ENABLED:
-                message, images_list = result
-                if images_list:
-                    # Send message with multiple attachments in a single post (preferred approach)
-                    send_results = send_message_with_multiple_attachments(
-                        app, BIRTHDAY_CHANNEL, message, images_list
+            processing_duration = (
+                datetime.now(timezone.utc) - processing_start
+            ).total_seconds()
+
+            # CRITICAL: Validate people are still valid before posting (race condition prevention)
+            validation_result = validate_birthday_people_for_posting(
+                app, all_birthday_people_today, BIRTHDAY_CHANNEL
+            )
+
+            valid_people = validation_result["valid_people"]
+            invalid_people = validation_result["invalid_people"]
+            validation_summary = validation_result["validation_summary"]
+
+            # Comprehensive race condition logging
+            log_race_condition_detection(
+                validation_result,
+                len(all_birthday_people_today),
+                processing_duration,
+                "TIMEZONE",
+            )
+
+            # Check if this should trigger alerts
+            should_alert_on_race_conditions(validation_result)
+
+            # If no one is valid anymore, skip celebration entirely
+            if not valid_people:
+                logger.warning(
+                    f"TIMEZONE: All {validation_summary['total']} birthday people became invalid during processing. Skipping celebration."
+                )
+                log_validation_action_taken(
+                    "skipped", 0, validation_summary["total"], "TIMEZONE"
+                )
+                return
+
+            # If some people became invalid, decide whether to regenerate or filter
+            final_message = None
+            final_images = []
+
+            if invalid_people:
+                if should_regenerate_message(
+                    validation_result, regeneration_threshold=0.3
+                ):
+                    # Significant changes - regenerate message with valid people only
+                    logger.info(
+                        f"TIMEZONE: Regenerating message for {len(valid_people)} valid people "
+                        f"(filtered out {len(invalid_people)}) due to significant changes"
                     )
-                    if send_results["success"]:
-                        logger.info(
-                            f"TIMEZONE: Successfully sent consolidated birthday post with {send_results['attachments_sent']} images"
-                            + (
-                                " (using fallback method)"
-                                if send_results.get("fallback_used")
-                                else ""
-                            )
+                    log_validation_action_taken(
+                        "regenerated",
+                        len(valid_people),
+                        validation_summary["total"],
+                        "TIMEZONE",
+                    )
+                    regenerated_result = create_consolidated_birthday_announcement(
+                        valid_people,
+                        app=app,
+                        include_image=AI_IMAGE_GENERATION_ENABLED,
+                        test_mode=False,
+                        quality=None,
+                        image_size=None,
+                    )
+
+                    if (
+                        isinstance(regenerated_result, tuple)
+                        and AI_IMAGE_GENERATION_ENABLED
+                    ):
+                        final_message, final_images = regenerated_result
+                        final_images = final_images or []
+                    else:
+                        final_message = regenerated_result
+                        final_images = []
+                else:
+                    # Minor changes - use original message but filter images
+                    logger.info(
+                        f"TIMEZONE: Using original message but filtering {len(invalid_people)} invalid people from images"
+                    )
+                    log_validation_action_taken(
+                        "filtered",
+                        len(valid_people),
+                        validation_summary["total"],
+                        "TIMEZONE",
+                    )
+                    if isinstance(result, tuple) and AI_IMAGE_GENERATION_ENABLED:
+                        final_message, original_images = result
+                        final_images = filter_images_for_valid_people(
+                            original_images, valid_people
                         )
                     else:
-                        logger.warning(
-                            f"TIMEZONE: Failed to send birthday images - {send_results['attachments_failed']}/{send_results['total_attachments']} attachments failed"
-                        )
-                else:
-                    # No images generated, send message only
-                    send_message(app, BIRTHDAY_CHANNEL, message)
+                        final_message = result
+                        final_images = []
             else:
-                message = result
-                send_message(app, BIRTHDAY_CHANNEL, message)
+                # All people still valid - use original result
+                log_validation_action_taken(
+                    "proceeded",
+                    len(valid_people),
+                    validation_summary["total"],
+                    "TIMEZONE",
+                )
+                if isinstance(result, tuple) and AI_IMAGE_GENERATION_ENABLED:
+                    final_message, final_images = result
+                    final_images = final_images or []
+                else:
+                    final_message = result
+                    final_images = []
 
-            # Mark ALL birthday people as celebrated to prevent duplicate celebrations
-            for person in all_birthday_people_today:
+            # Post the validated message and images
+            if final_images and AI_IMAGE_GENERATION_ENABLED:
+                # Send message with multiple attachments in a single post (preferred approach)
+                send_results = send_message_with_multiple_attachments(
+                    app, BIRTHDAY_CHANNEL, final_message, final_images
+                )
+                if send_results["success"]:
+                    logger.info(
+                        f"TIMEZONE: Successfully sent consolidated birthday post with {send_results['attachments_sent']} images"
+                        + (
+                            " (using fallback method)"
+                            if send_results.get("fallback_used")
+                            else ""
+                        )
+                        + (
+                            f" [validated: {len(valid_people)}/{validation_summary['total']} people]"
+                            if invalid_people
+                            else ""
+                        )
+                    )
+                else:
+                    logger.warning(
+                        f"TIMEZONE: Failed to send birthday images - {send_results['attachments_failed']}/{send_results['total_attachments']} attachments failed"
+                    )
+            else:
+                # No images or images disabled - send message only
+                send_message(app, BIRTHDAY_CHANNEL, final_message)
+                logger.info(
+                    f"TIMEZONE: Successfully sent consolidated birthday message"
+                    + (
+                        f" [validated: {len(valid_people)}/{validation_summary['total']} people]"
+                        if invalid_people
+                        else ""
+                    )
+                )
+
+            # Mark only VALID birthday people as celebrated to prevent duplicate celebrations
+            for person in valid_people:
                 mark_timezone_birthday_announced(person["user_id"], person["timezone"])
 
-            names = [p["username"] for p in all_birthday_people_today]
+            # Log results with validation summary
+            valid_names = [p["username"] for p in valid_people]
             logger.info(
-                f"TIMEZONE: Successfully celebrated all birthdays today: {', '.join(names)}"
+                f"TIMEZONE: Successfully celebrated validated birthdays: {', '.join(valid_names)}"
             )
 
         except Exception as e:
@@ -425,8 +553,14 @@ def timezone_aware_check(app, moment):
                 f"TIMEZONE_ERROR: Failed to celebrate consolidated birthdays: {e}"
             )
 
-            # Fallback: mark as celebrated to prevent retry loops
-            for person in all_birthday_people_today:
+            # Fallback: mark as celebrated to prevent retry loops (only valid people)
+            # Note: If validation failed, valid_people might not be defined yet
+            people_to_mark = (
+                valid_people
+                if "valid_people" in locals()
+                else all_birthday_people_today
+            )
+            for person in people_to_mark:
                 mark_timezone_birthday_announced(person["user_id"], person["timezone"])
 
     elif all_birthday_people_today:
@@ -530,40 +664,118 @@ def simple_daily_check(app, moment):
                 image_size=None,
             )
 
-            if isinstance(result, tuple) and AI_IMAGE_GENERATION_ENABLED:
-                message, images_list = result
-                if images_list:
-                    # Send message with multiple attachments in a single post (preferred approach)
-                    send_results = send_message_with_multiple_attachments(
-                        app, BIRTHDAY_CHANNEL, message, images_list
+            # CRITICAL: Validate people are still valid before posting (race condition prevention)
+            validation_result = validate_birthday_people_for_posting(
+                app, birthday_people_today, BIRTHDAY_CHANNEL
+            )
+
+            valid_people = validation_result["valid_people"]
+            invalid_people = validation_result["invalid_people"]
+            validation_summary = validation_result["validation_summary"]
+
+            # If no one is valid anymore, skip celebration entirely
+            if not valid_people:
+                logger.warning(
+                    f"SIMPLE_DAILY: All {validation_summary['total']} birthday people became invalid during processing. Skipping celebration."
+                )
+                return
+
+            # If some people became invalid, decide whether to regenerate or filter
+            final_message = None
+            final_images = []
+
+            if invalid_people:
+                if should_regenerate_message(
+                    validation_result, regeneration_threshold=0.3
+                ):
+                    # Significant changes - regenerate message with valid people only
+                    logger.info(
+                        f"SIMPLE_DAILY: Regenerating message for {len(valid_people)} valid people "
+                        f"(filtered out {len(invalid_people)}) due to significant changes"
                     )
-                    if send_results["success"]:
-                        logger.info(
-                            f"SIMPLE_DAILY: Successfully sent consolidated birthday post with {send_results['attachments_sent']} images"
-                            + (
-                                " (using fallback method)"
-                                if send_results.get("fallback_used")
-                                else ""
-                            )
+                    regenerated_result = create_consolidated_birthday_announcement(
+                        valid_people,
+                        app=app,
+                        include_image=AI_IMAGE_GENERATION_ENABLED,
+                        test_mode=False,
+                        quality=None,
+                        image_size=None,
+                    )
+
+                    if (
+                        isinstance(regenerated_result, tuple)
+                        and AI_IMAGE_GENERATION_ENABLED
+                    ):
+                        final_message, final_images = regenerated_result
+                        final_images = final_images or []
+                    else:
+                        final_message = regenerated_result
+                        final_images = []
+                else:
+                    # Minor changes - use original message but filter images
+                    logger.info(
+                        f"SIMPLE_DAILY: Using original message but filtering {len(invalid_people)} invalid people from images"
+                    )
+                    if isinstance(result, tuple) and AI_IMAGE_GENERATION_ENABLED:
+                        final_message, original_images = result
+                        final_images = filter_images_for_valid_people(
+                            original_images, valid_people
                         )
                     else:
-                        logger.warning(
-                            f"SIMPLE_DAILY: Failed to send birthday images - {send_results['attachments_failed']}/{send_results['total_attachments']} attachments failed"
-                        )
-                else:
-                    # No images generated, send message only
-                    send_message(app, BIRTHDAY_CHANNEL, message)
+                        final_message = result
+                        final_images = []
             else:
-                message = result
-                send_message(app, BIRTHDAY_CHANNEL, message)
+                # All people still valid - use original result
+                if isinstance(result, tuple) and AI_IMAGE_GENERATION_ENABLED:
+                    final_message, final_images = result
+                    final_images = final_images or []
+                else:
+                    final_message = result
+                    final_images = []
 
-            # Mark all as announced
-            for person in birthday_people_today:
+            # Post the validated message and images
+            if final_images and AI_IMAGE_GENERATION_ENABLED:
+                # Send message with multiple attachments in a single post (preferred approach)
+                send_results = send_message_with_multiple_attachments(
+                    app, BIRTHDAY_CHANNEL, final_message, final_images
+                )
+                if send_results["success"]:
+                    logger.info(
+                        f"SIMPLE_DAILY: Successfully sent consolidated birthday post with {send_results['attachments_sent']} images"
+                        + (
+                            " (using fallback method)"
+                            if send_results.get("fallback_used")
+                            else ""
+                        )
+                        + (
+                            f" [validated: {len(valid_people)}/{validation_summary['total']} people]"
+                            if invalid_people
+                            else ""
+                        )
+                    )
+                else:
+                    logger.warning(
+                        f"SIMPLE_DAILY: Failed to send birthday images - {send_results['attachments_failed']}/{send_results['total_attachments']} attachments failed"
+                    )
+            else:
+                # No images or images disabled - send message only
+                send_message(app, BIRTHDAY_CHANNEL, final_message)
+                logger.info(
+                    f"SIMPLE_DAILY: Successfully sent consolidated birthday message"
+                    + (
+                        f" [validated: {len(valid_people)}/{validation_summary['total']} people]"
+                        if invalid_people
+                        else ""
+                    )
+                )
+
+            # Mark only valid people as announced
+            for person in valid_people:
                 mark_birthday_announced(person["user_id"])
 
-            names = [p["username"] for p in birthday_people_today]
+            valid_names = [p["username"] for p in valid_people]
             logger.info(
-                f"SIMPLE_DAILY: Successfully announced birthdays for: {', '.join(names)}"
+                f"SIMPLE_DAILY: Successfully announced validated birthdays for: {', '.join(valid_names)}"
             )
 
         except Exception as e:
@@ -668,52 +880,101 @@ def celebrate_missed_birthdays(app):
                 f"MISSED_BIRTHDAYS: Celebrating {len(birthday_people_today)} missed birthdays"
             )
 
-            # Use the same consolidated announcement logic as timezone_aware_check
+            # Use the same consolidated announcement logic with validation
             result = create_consolidated_birthday_announcement(
                 birthday_people_today,
                 app=app,
                 include_image=AI_IMAGE_GENERATION_ENABLED,
             )
 
-            # Send the message
-            if isinstance(result, tuple) and AI_IMAGE_GENERATION_ENABLED:
-                message, images_list = result
-                if images_list:
-                    # Send message with multiple attachments in a single post (preferred approach)
-                    send_results = send_message_with_multiple_attachments(
-                        app, BIRTHDAY_CHANNEL, message, images_list
-                    )
-                    if send_results["success"]:
-                        logger.info(
-                            f"MISSED_BIRTHDAYS: Successfully sent consolidated birthday post with {send_results['attachments_sent']} images"
-                            + (
-                                " (using fallback method)"
-                                if send_results.get("fallback_used")
-                                else ""
-                            )
-                        )
-                    else:
-                        logger.warning(
-                            f"MISSED_BIRTHDAYS: Failed to send birthday images - {send_results['attachments_failed']}/{send_results['total_attachments']} attachments failed"
-                        )
-                else:
-                    # No images generated, send message only
-                    send_message(app, BIRTHDAY_CHANNEL, message)
-            else:
-                message = result
-                send_message(app, BIRTHDAY_CHANNEL, message)
+            # CRITICAL: Validate people are still valid before posting (race condition prevention)
+            validation_result = validate_birthday_people_for_posting(
+                app, birthday_people_today, BIRTHDAY_CHANNEL
+            )
 
-            # Mark all as announced to prevent duplicates
+            valid_people = validation_result["valid_people"]
+            invalid_people = validation_result["invalid_people"]
+            validation_summary = validation_result["validation_summary"]
+
+            # If no one is valid anymore, skip celebration entirely
+            if not valid_people:
+                logger.warning(
+                    f"MISSED_BIRTHDAYS: All {validation_summary['total']} missed birthday people became invalid during processing. Skipping celebration."
+                )
+                return
+
+            # Handle filtering for missed birthdays (simpler logic - just filter images)
+            final_message = None
+            final_images = []
+
+            if invalid_people:
+                logger.info(
+                    f"MISSED_BIRTHDAYS: Filtered out {len(invalid_people)} invalid people from missed birthday celebration"
+                )
+                if isinstance(result, tuple) and AI_IMAGE_GENERATION_ENABLED:
+                    final_message, original_images = result
+                    final_images = filter_images_for_valid_people(
+                        original_images, valid_people
+                    )
+                else:
+                    final_message = result
+                    final_images = []
+            else:
+                # All people still valid - use original result
+                if isinstance(result, tuple) and AI_IMAGE_GENERATION_ENABLED:
+                    final_message, final_images = result
+                    final_images = final_images or []
+                else:
+                    final_message = result
+                    final_images = []
+
+            # Send the validated message
+            if final_images and AI_IMAGE_GENERATION_ENABLED:
+                # Send message with multiple attachments in a single post (preferred approach)
+                send_results = send_message_with_multiple_attachments(
+                    app, BIRTHDAY_CHANNEL, final_message, final_images
+                )
+                if send_results["success"]:
+                    logger.info(
+                        f"MISSED_BIRTHDAYS: Successfully sent consolidated birthday post with {send_results['attachments_sent']} images"
+                        + (
+                            " (using fallback method)"
+                            if send_results.get("fallback_used")
+                            else ""
+                        )
+                        + (
+                            f" [validated: {len(valid_people)}/{validation_summary['total']} people]"
+                            if invalid_people
+                            else ""
+                        )
+                    )
+                else:
+                    logger.warning(
+                        f"MISSED_BIRTHDAYS: Failed to send birthday images - {send_results['attachments_failed']}/{send_results['total_attachments']} attachments failed"
+                    )
+            else:
+                # No images generated, send message only
+                send_message(app, BIRTHDAY_CHANNEL, final_message)
+                logger.info(
+                    f"MISSED_BIRTHDAYS: Successfully sent consolidated birthday message"
+                    + (
+                        f" [validated: {len(valid_people)}/{validation_summary['total']} people]"
+                        if invalid_people
+                        else ""
+                    )
+                )
+
+            # Mark only valid people as announced to prevent duplicates
             # Use the same marking logic as the regular celebration functions
-            for person in birthday_people_today:
+            for person in valid_people:
                 # For missed birthdays, we use simple marking since we don't know
                 # which mode triggered the miss. is_user_celebrated_today() will
                 # check both simple and timezone-aware tracking methods.
                 mark_birthday_announced(person["user_id"])
 
-            names = [p["username"] for p in birthday_people_today]
+            valid_names = [p["username"] for p in valid_people]
             logger.info(
-                f"MISSED_BIRTHDAYS: Successfully announced missed birthdays for: {', '.join(names)}"
+                f"MISSED_BIRTHDAYS: Successfully announced validated missed birthdays for: {', '.join(valid_names)}"
             )
 
         else:

@@ -46,6 +46,11 @@ from utils.message_generator import (
 )
 from personality_config import get_personality_config
 from utils.health_check import get_system_status, get_status_summary
+from utils.immediate_celebration_utils import (
+    should_celebrate_immediately,
+    create_birthday_update_notification,
+    log_immediate_celebration_decision,
+)
 from services.birthday import send_reminder_to_users
 from config import (
     BIRTHDAY_CHANNEL,
@@ -213,12 +218,14 @@ def send_immediate_birthday_announcement(
     user_id, username, date, year, date_words, age_text, say, app
 ):
     """
-    Send immediate birthday announcement when someone adds their birthday on their actual birthday.
-    This function ensures the announcement is tracked to prevent duplicates during daily checks.
+    Smart immediate birthday celebration that preserves consolidated messaging consistency.
 
-    NOTE: This handles single-person immediate announcements. The daily check uses
-    create_consolidated_birthday_announcement() for multiple people, but immediate
-    announcements are typically single-person events.
+    Analyzes whether other people have birthdays today and decides between:
+    1. Immediate individual celebration (if user is alone)
+    2. Notification-only (if others have same-day birthdays, preserves consolidation)
+
+    This prevents the social inconsistency of some people getting individual celebrations
+    while others get consolidated group celebrations on the same day.
 
     Args:
         user_id: User ID of the birthday person
@@ -230,35 +237,59 @@ def send_immediate_birthday_announcement(
         say: Slack say function for user feedback
         app: Slack app instance
     """
-    say(
-        f"It's your birthday today! {date_words}{age_text} - I'll send an announcement to the birthday channel right away!"
-    )
+    # Analyze celebration strategy
+    decision = should_celebrate_immediately(app, user_id, date, BIRTHDAY_CHANNEL)
 
-    try:
-        # Try to get personalized AI message
-        ai_message = completion(username, date_words, user_id, date, year, app=app)
-        send_message(app, BIRTHDAY_CHANNEL, ai_message)
+    # Log the decision for monitoring
+    log_immediate_celebration_decision(user_id, username, decision)
+
+    if decision["celebrate_immediately"]:
+        # Individual immediate celebration (no others have birthdays today)
+        notification = create_birthday_update_notification(
+            user_id, username, date, year, decision
+        )
+        say(notification)
+
+        try:
+            # Send personalized AI message to birthday channel
+            ai_message = completion(username, date_words, user_id, date, year, app=app)
+            send_message(app, BIRTHDAY_CHANNEL, ai_message)
+            logger.info(
+                f"IMMEDIATE_BIRTHDAY: Sent individual AI-generated announcement for {username} ({user_id})"
+            )
+        except Exception as e:
+            logger.error(
+                f"AI_ERROR: Failed to generate immediate birthday message for {username}: {e}"
+            )
+            # Fallback to generated announcement if AI fails
+            announcement = create_birthday_announcement(
+                user_id, username, date, year, test_mode=False, quality=None
+            )
+            send_message(app, BIRTHDAY_CHANNEL, announcement)
+            logger.info(
+                f"IMMEDIATE_BIRTHDAY: Sent individual fallback announcement for {username} ({user_id})"
+            )
+
+        # CRITICAL: Mark birthday as announced to prevent duplicate announcements during daily check
+        mark_birthday_announced(user_id)
         logger.info(
-            f"IMMEDIATE_BIRTHDAY: Sent AI-generated announcement for {username} ({user_id})"
-        )
-    except Exception as e:
-        logger.error(
-            f"AI_ERROR: Failed to generate immediate birthday message for {username}: {e}"
-        )
-        # Fallback to generated announcement if AI fails
-        announcement = create_birthday_announcement(
-            user_id, username, date, year, test_mode=False, quality=None
-        )
-        send_message(app, BIRTHDAY_CHANNEL, announcement)
-        logger.info(
-            f"IMMEDIATE_BIRTHDAY: Sent fallback announcement for {username} ({user_id})"
+            f"IMMEDIATE_BIRTHDAY: Marked {username} ({user_id}) as announced to prevent duplicates"
         )
 
-    # CRITICAL: Mark birthday as announced to prevent duplicate announcements during daily check
-    mark_birthday_announced(user_id)
-    logger.info(
-        f"IMMEDIATE_BIRTHDAY: Marked {username} ({user_id}) as announced to prevent duplicates"
-    )
+    else:
+        # Notification-only mode (preserve consolidated celebration)
+        same_day_count = decision["same_day_count"]
+        notification = create_birthday_update_notification(
+            user_id, username, date, year, decision
+        )
+        say(notification)
+
+        logger.info(
+            f"IMMEDIATE_BIRTHDAY: Notification-only for {username} ({user_id}) - "
+            f"will be celebrated with {same_day_count} others in daily announcement"
+        )
+
+        # NOTE: Do NOT mark as announced - let daily check handle the consolidated celebration
 
 
 def handle_dm_help(say):
