@@ -25,6 +25,10 @@ from config import (
     LOGS_DIR,
     DAILY_CHECK_TIME,
     TIMEZONE_CELEBRATION_TIME,
+    TOKEN_LIMITS,
+    TEMPERATURE_SETTINGS,
+    IMAGE_GENERATION_PARAMS,
+    AI_IMAGE_GENERATION_ENABLED,
 )
 from utils.logging_config import LOG_FILES
 from utils.config_storage import ADMINS_FILE, PERSONALITY_FILE
@@ -145,6 +149,616 @@ def check_json_file(file_path):
     except Exception as e:
         logger.error(f"Unexpected error checking file {file_path}: {e}")
         return {"status": STATUS_ERROR, "file": file_path, "error": str(e)}
+
+
+def check_api_parameters():
+    """
+    Check centralized API parameters for validity
+
+    Returns:
+        dict: Status information about API parameter configuration
+    """
+    try:
+        api_status = {"status": STATUS_OK, "parameters": {}, "issues": []}
+
+        # Check TOKEN_LIMITS
+        token_status = {"status": STATUS_OK, "parameters": {}}
+        expected_token_keys = [
+            "single_birthday",
+            "consolidated_birthday",
+            "web_search_facts",
+            "image_title_generation",
+        ]
+
+        for key in expected_token_keys:
+            if key in TOKEN_LIMITS:
+                value = TOKEN_LIMITS[key]
+                if isinstance(value, int) and 50 <= value <= 2000:  # Reasonable range
+                    token_status["parameters"][key] = {
+                        "value": value,
+                        "status": STATUS_OK,
+                    }
+                else:
+                    token_status["parameters"][key] = {
+                        "value": value,
+                        "status": STATUS_ERROR,
+                        "error": "Invalid token limit range",
+                    }
+                    token_status["status"] = STATUS_ERROR
+                    api_status["issues"].append(
+                        f"TOKEN_LIMITS.{key}: {value} outside valid range (50-2000)"
+                    )
+            else:
+                token_status["parameters"][key] = {
+                    "status": STATUS_MISSING,
+                    "error": "Missing token limit",
+                }
+                token_status["status"] = STATUS_ERROR
+                api_status["issues"].append(
+                    f"TOKEN_LIMITS.{key}: Missing configuration"
+                )
+
+        api_status["parameters"]["token_limits"] = token_status
+
+        # Check TEMPERATURE_SETTINGS
+        temp_status = {"status": STATUS_OK, "parameters": {}}
+        expected_temp_keys = ["default", "creative", "factual"]
+
+        for key in expected_temp_keys:
+            if key in TEMPERATURE_SETTINGS:
+                value = TEMPERATURE_SETTINGS[key]
+                if (
+                    isinstance(value, (int, float)) and 0.0 <= value <= 2.0
+                ):  # Valid OpenAI temperature range
+                    temp_status["parameters"][key] = {
+                        "value": value,
+                        "status": STATUS_OK,
+                    }
+                else:
+                    temp_status["parameters"][key] = {
+                        "value": value,
+                        "status": STATUS_ERROR,
+                        "error": "Invalid temperature range",
+                    }
+                    temp_status["status"] = STATUS_ERROR
+                    api_status["issues"].append(
+                        f"TEMPERATURE_SETTINGS.{key}: {value} outside valid range (0.0-2.0)"
+                    )
+            else:
+                temp_status["parameters"][key] = {
+                    "status": STATUS_MISSING,
+                    "error": "Missing temperature setting",
+                }
+                temp_status["status"] = STATUS_ERROR
+                api_status["issues"].append(
+                    f"TEMPERATURE_SETTINGS.{key}: Missing configuration"
+                )
+
+        api_status["parameters"]["temperature_settings"] = temp_status
+
+        # Check IMAGE_GENERATION_PARAMS
+        image_status = {"status": STATUS_OK, "parameters": {}}
+
+        # Check quality parameters
+        quality_config = IMAGE_GENERATION_PARAMS.get("quality", {})
+        if "options" in quality_config and "default" in quality_config:
+            valid_options = quality_config["options"]
+            default_quality = quality_config["default"]
+            if default_quality in valid_options:
+                image_status["parameters"]["quality"] = {
+                    "default": default_quality,
+                    "options": valid_options,
+                    "status": STATUS_OK,
+                }
+            else:
+                image_status["parameters"]["quality"] = {
+                    "default": default_quality,
+                    "options": valid_options,
+                    "status": STATUS_ERROR,
+                    "error": "Default quality not in valid options",
+                }
+                image_status["status"] = STATUS_ERROR
+                api_status["issues"].append(
+                    f"IMAGE_GENERATION_PARAMS.quality: default '{default_quality}' not in options {valid_options}"
+                )
+        else:
+            image_status["parameters"]["quality"] = {
+                "status": STATUS_MISSING,
+                "error": "Missing quality configuration",
+            }
+            image_status["status"] = STATUS_ERROR
+            api_status["issues"].append(
+                "IMAGE_GENERATION_PARAMS.quality: Missing configuration"
+            )
+
+        # Check size parameters
+        size_config = IMAGE_GENERATION_PARAMS.get("size", {})
+        if "options" in size_config and "default" in size_config:
+            valid_options = size_config["options"]
+            default_size = size_config["default"]
+            if default_size in valid_options:
+                image_status["parameters"]["size"] = {
+                    "default": default_size,
+                    "options": valid_options,
+                    "status": STATUS_OK,
+                }
+            else:
+                image_status["parameters"]["size"] = {
+                    "default": default_size,
+                    "options": valid_options,
+                    "status": STATUS_ERROR,
+                    "error": "Default size not in valid options",
+                }
+                image_status["status"] = STATUS_ERROR
+                api_status["issues"].append(
+                    f"IMAGE_GENERATION_PARAMS.size: default '{default_size}' not in options {valid_options}"
+                )
+        else:
+            image_status["parameters"]["size"] = {
+                "status": STATUS_MISSING,
+                "error": "Missing size configuration",
+            }
+            image_status["status"] = STATUS_ERROR
+            api_status["issues"].append(
+                "IMAGE_GENERATION_PARAMS.size: Missing configuration"
+            )
+
+        # Check input_fidelity parameters
+        fidelity_config = IMAGE_GENERATION_PARAMS.get("input_fidelity", {})
+        if "options" in fidelity_config and "default" in fidelity_config:
+            valid_options = fidelity_config["options"]
+            default_fidelity = fidelity_config["default"]
+            if default_fidelity in valid_options:
+                image_status["parameters"]["input_fidelity"] = {
+                    "default": default_fidelity,
+                    "options": valid_options,
+                    "status": STATUS_OK,
+                }
+            else:
+                image_status["parameters"]["input_fidelity"] = {
+                    "default": default_fidelity,
+                    "options": valid_options,
+                    "status": STATUS_ERROR,
+                    "error": "Default input_fidelity not in valid options",
+                }
+                image_status["status"] = STATUS_ERROR
+                api_status["issues"].append(
+                    f"IMAGE_GENERATION_PARAMS.input_fidelity: default '{default_fidelity}' not in options {valid_options}"
+                )
+        else:
+            image_status["parameters"]["input_fidelity"] = {
+                "status": STATUS_MISSING,
+                "error": "Missing input_fidelity configuration",
+            }
+            image_status["status"] = STATUS_ERROR
+            api_status["issues"].append(
+                "IMAGE_GENERATION_PARAMS.input_fidelity: Missing configuration"
+            )
+
+        api_status["parameters"]["image_generation"] = image_status
+
+        # Set overall status
+        if any(
+            param["status"] == STATUS_ERROR
+            for param in api_status["parameters"].values()
+        ):
+            api_status["status"] = STATUS_ERROR
+
+        return api_status
+
+    except Exception as e:
+        logger.error(f"Error checking API parameters: {e}")
+        return {"status": STATUS_ERROR, "error": str(e), "parameters": {}}
+
+
+def check_image_generation_system():
+    """
+    Check AI image generation system health
+
+    Returns:
+        dict: Status information about image generation system
+    """
+    try:
+        image_system_status = {
+            "status": STATUS_OK,
+            "feature_enabled": AI_IMAGE_GENERATION_ENABLED,
+            "components": {},
+            "issues": [],
+        }
+
+        # Check image cache directory
+        image_cache_dir = os.path.join(CACHE_DIR, "images")
+        image_cache_status = check_directory(image_cache_dir)
+
+        if image_cache_status["status"] == STATUS_OK:
+            try:
+                # Count image files
+                image_files = [
+                    f
+                    for f in os.listdir(image_cache_dir)
+                    if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))
+                    and os.path.isfile(os.path.join(image_cache_dir, f))
+                ]
+                image_cache_status["image_count"] = len(image_files)
+
+                # Get oldest and newest images
+                if image_files:
+                    image_files_with_times = [
+                        (f, os.path.getmtime(os.path.join(image_cache_dir, f)))
+                        for f in image_files
+                    ]
+                    oldest = min(image_files_with_times, key=lambda x: x[1])
+                    newest = max(image_files_with_times, key=lambda x: x[1])
+
+                    image_cache_status["oldest_image"] = {
+                        "file": oldest[0],
+                        "date": format_timestamp(oldest[1]),
+                    }
+                    image_cache_status["newest_image"] = {
+                        "file": newest[0],
+                        "date": format_timestamp(newest[1]),
+                    }
+
+                    # Calculate total size
+                    total_size = sum(
+                        os.path.getsize(os.path.join(image_cache_dir, f))
+                        for f in image_files
+                    )
+                    image_cache_status["total_size_mb"] = round(
+                        total_size / (1024 * 1024), 2
+                    )
+
+            except Exception as e:
+                logger.warning(f"Error analyzing image cache: {e}")
+                image_cache_status["warning"] = (
+                    f"Could not analyze image files: {str(e)}"
+                )
+        elif (
+            image_cache_status["status"] == STATUS_MISSING
+            and AI_IMAGE_GENERATION_ENABLED
+        ):
+            image_cache_status["note"] = (
+                "Image cache directory will be created when images are generated"
+            )
+
+        image_system_status["components"]["image_cache"] = image_cache_status
+
+        # Check profile cache directory
+        profile_cache_dir = os.path.join(CACHE_DIR, "profiles")
+        profile_cache_status = check_directory(profile_cache_dir)
+
+        if profile_cache_status["status"] == STATUS_OK:
+            try:
+                # Count profile files
+                profile_files = [
+                    f
+                    for f in os.listdir(profile_cache_dir)
+                    if f.lower().endswith((".png", ".jpg", ".jpeg"))
+                    and os.path.isfile(os.path.join(profile_cache_dir, f))
+                ]
+                profile_cache_status["profile_count"] = len(profile_files)
+
+                if profile_files:
+                    # Calculate total size
+                    total_size = sum(
+                        os.path.getsize(os.path.join(profile_cache_dir, f))
+                        for f in profile_files
+                    )
+                    profile_cache_status["total_size_mb"] = round(
+                        total_size / (1024 * 1024), 2
+                    )
+
+            except Exception as e:
+                logger.warning(f"Error analyzing profile cache: {e}")
+                profile_cache_status["warning"] = (
+                    f"Could not analyze profile files: {str(e)}"
+                )
+        elif (
+            profile_cache_status["status"] == STATUS_MISSING
+            and AI_IMAGE_GENERATION_ENABLED
+        ):
+            profile_cache_status["note"] = (
+                "Profile cache directory will be created when profiles are downloaded"
+            )
+
+        image_system_status["components"]["profile_cache"] = profile_cache_status
+
+        # Check if image generation is disabled but cache directories exist
+        if not AI_IMAGE_GENERATION_ENABLED:
+            if (
+                image_cache_status["status"] == STATUS_OK
+                or profile_cache_status["status"] == STATUS_OK
+            ):
+                image_system_status["note"] = (
+                    "Image generation disabled but cache directories exist (cleanup may be needed)"
+                )
+
+        # Check for issues
+        if any(
+            comp.get("status") == STATUS_ERROR
+            for comp in image_system_status["components"].values()
+        ):
+            image_system_status["status"] = STATUS_ERROR
+
+        return image_system_status
+
+    except Exception as e:
+        logger.error(f"Error checking image generation system: {e}")
+        return {
+            "status": STATUS_ERROR,
+            "error": str(e),
+            "feature_enabled": AI_IMAGE_GENERATION_ENABLED,
+            "components": {},
+        }
+
+
+def check_multiple_birthday_functionality():
+    """
+    Check multiple birthday handling functionality
+
+    Returns:
+        dict: Status information about multiple birthday system
+    """
+    try:
+        multiple_birthday_status = {"status": STATUS_OK, "components": {}, "issues": []}
+
+        # Check if personality config has consolidated templates
+        try:
+            from personality_config import PERSONALITIES
+
+            template_status = {"status": STATUS_OK, "personalities": {}}
+
+            for personality_name, personality_config in PERSONALITIES.items():
+                personality_status = {"status": STATUS_OK, "templates": {}}
+
+                # Check if personality has consolidated prompt
+                # Note: standard, random, and custom personalities intentionally have empty consolidated prompts
+                acceptable_empty_personalities = ["standard", "random", "custom"]
+
+                if "consolidated_prompt" in personality_config:
+                    consolidated_prompt = personality_config["consolidated_prompt"]
+
+                    # Check if this personality is allowed to have empty consolidated prompt
+                    if personality_name in acceptable_empty_personalities:
+                        # For these personalities, empty is acceptable
+                        if isinstance(consolidated_prompt, str):
+                            if len(consolidated_prompt.strip()) > 0:
+                                personality_status["templates"][
+                                    "consolidated_prompt"
+                                ] = {
+                                    "status": STATUS_OK,
+                                    "length": len(consolidated_prompt),
+                                    "note": "Has personality-specific consolidated prompt",
+                                }
+                            else:
+                                personality_status["templates"][
+                                    "consolidated_prompt"
+                                ] = {
+                                    "status": STATUS_OK,
+                                    "length": 0,
+                                    "note": f"Empty by design - {personality_name} uses base prompt only",
+                                }
+                        else:
+                            personality_status["templates"]["consolidated_prompt"] = {
+                                "status": STATUS_ERROR,
+                                "error": "Invalid consolidated prompt type",
+                            }
+                            personality_status["status"] = STATUS_ERROR
+                            multiple_birthday_status["issues"].append(
+                                f"Personality '{personality_name}': Invalid consolidated prompt type"
+                            )
+                    else:
+                        # For other personalities, non-empty consolidated prompt is required
+                        if (
+                            isinstance(consolidated_prompt, str)
+                            and len(consolidated_prompt.strip()) > 0
+                        ):
+                            personality_status["templates"]["consolidated_prompt"] = {
+                                "status": STATUS_OK,
+                                "length": len(consolidated_prompt),
+                            }
+                        else:
+                            personality_status["templates"]["consolidated_prompt"] = {
+                                "status": STATUS_ERROR,
+                                "error": "Empty or invalid consolidated prompt",
+                            }
+                            personality_status["status"] = STATUS_ERROR
+                            multiple_birthday_status["issues"].append(
+                                f"Personality '{personality_name}': Invalid consolidated prompt"
+                            )
+                else:
+                    personality_status["templates"]["consolidated_prompt"] = {
+                        "status": STATUS_MISSING,
+                        "error": "Missing consolidated prompt",
+                    }
+                    personality_status["status"] = STATUS_ERROR
+                    multiple_birthday_status["issues"].append(
+                        f"Personality '{personality_name}': Missing consolidated prompt"
+                    )
+
+                template_status["personalities"][personality_name] = personality_status
+
+                if personality_status["status"] == STATUS_ERROR:
+                    template_status["status"] = STATUS_ERROR
+
+            multiple_birthday_status["components"][
+                "personality_templates"
+            ] = template_status
+
+        except ImportError as e:
+            logger.error(f"Could not import personality config: {e}")
+            multiple_birthday_status["components"]["personality_templates"] = {
+                "status": STATUS_ERROR,
+                "error": f"Could not import personality config: {str(e)}",
+            }
+            multiple_birthday_status["status"] = STATUS_ERROR
+
+        # Check if message generator has consolidated functionality
+        try:
+            # Test if message generator module can be imported
+            import utils.message_generator
+
+            # Check if it has the required functions
+            required_functions = ["create_consolidated_birthday_announcement"]
+            generator_status = {"status": STATUS_OK, "functions": {}}
+
+            for func_name in required_functions:
+                if hasattr(utils.message_generator, func_name):
+                    generator_status["functions"][func_name] = {
+                        "status": STATUS_OK,
+                        "available": True,
+                    }
+                else:
+                    generator_status["functions"][func_name] = {
+                        "status": STATUS_MISSING,
+                        "available": False,
+                        "error": f"Function {func_name} not found",
+                    }
+                    generator_status["status"] = STATUS_ERROR
+                    multiple_birthday_status["issues"].append(
+                        f"Message generator: Missing function {func_name}"
+                    )
+
+            multiple_birthday_status["components"][
+                "message_generator"
+            ] = generator_status
+
+        except ImportError as e:
+            logger.error(f"Could not import message generator: {e}")
+            multiple_birthday_status["components"]["message_generator"] = {
+                "status": STATUS_ERROR,
+                "error": f"Could not import message generator: {str(e)}",
+            }
+            multiple_birthday_status["status"] = STATUS_ERROR
+
+        # Set overall status
+        if any(
+            comp.get("status") == STATUS_ERROR
+            for comp in multiple_birthday_status["components"].values()
+        ):
+            multiple_birthday_status["status"] = STATUS_ERROR
+
+        return multiple_birthday_status
+
+    except Exception as e:
+        logger.error(f"Error checking multiple birthday functionality: {e}")
+        return {"status": STATUS_ERROR, "error": str(e), "components": {}}
+
+
+def check_testing_infrastructure():
+    """
+    Check testing infrastructure and capabilities
+
+    Returns:
+        dict: Status information about testing infrastructure
+    """
+    try:
+        testing_status = {"status": STATUS_OK, "components": {}, "capabilities": []}
+
+        # Check if test commands are available in command handler
+        try:
+            # Check if handlers can be imported
+            import handlers.command_handler
+
+            # Look for test-related functionality
+            test_functions = []
+            for attr_name in dir(handlers.command_handler):
+                if "test" in attr_name.lower() and callable(
+                    getattr(handlers.command_handler, attr_name)
+                ):
+                    test_functions.append(attr_name)
+
+            testing_status["components"]["command_handler"] = {
+                "status": STATUS_OK,
+                "test_functions": test_functions,
+                "test_function_count": len(test_functions),
+            }
+
+            if len(test_functions) > 0:
+                testing_status["capabilities"].append("Command-based testing available")
+
+        except ImportError as e:
+            logger.warning(f"Could not import command handler: {e}")
+            testing_status["components"]["command_handler"] = {
+                "status": STATUS_ERROR,
+                "error": f"Could not import command handler: {str(e)}",
+            }
+
+        # Check if image generator has standalone testing capability
+        try:
+            image_gen_file = os.path.join(
+                os.path.dirname(os.path.dirname(__file__)),
+                "utils",
+                "image_generator.py",
+            )
+            if os.path.exists(image_gen_file):
+                testing_status["components"]["image_generator_standalone"] = {
+                    "status": STATUS_OK,
+                    "file_exists": True,
+                    "path": image_gen_file,
+                }
+                testing_status["capabilities"].append(
+                    "Standalone image generation testing"
+                )
+            else:
+                testing_status["components"]["image_generator_standalone"] = {
+                    "status": STATUS_MISSING,
+                    "file_exists": False,
+                    "path": image_gen_file,
+                }
+        except Exception as e:
+            logger.warning(f"Error checking image generator file: {e}")
+            testing_status["components"]["image_generator_standalone"] = {
+                "status": STATUS_ERROR,
+                "error": str(e),
+            }
+
+        # Check external backup testing capability
+        try:
+            import utils.storage
+
+            # Check if storage module has backup functions
+            backup_functions = []
+            for attr_name in dir(utils.storage):
+                if "backup" in attr_name.lower() and callable(
+                    getattr(utils.storage, attr_name)
+                ):
+                    backup_functions.append(attr_name)
+
+            testing_status["components"]["backup_system"] = {
+                "status": STATUS_OK,
+                "backup_functions": backup_functions,
+                "backup_function_count": len(backup_functions),
+            }
+
+            if len(backup_functions) > 0:
+                testing_status["capabilities"].append("Backup system testing available")
+
+        except ImportError as e:
+            logger.warning(f"Could not import storage module: {e}")
+            testing_status["components"]["backup_system"] = {
+                "status": STATUS_ERROR,
+                "error": f"Could not import storage module: {str(e)}",
+            }
+
+        # Check parameter validation capabilities
+        if AI_IMAGE_GENERATION_ENABLED:
+            testing_status["capabilities"].append("AI image generation testing")
+
+        testing_status["capabilities"].append("Health check system testing")
+
+        # Set overall status
+        if any(
+            comp.get("status") == STATUS_ERROR
+            for comp in testing_status["components"].values()
+        ):
+            testing_status["status"] = "warning"  # Not critical, but has some issues
+
+        return testing_status
+
+    except Exception as e:
+        logger.error(f"Error checking testing infrastructure: {e}")
+        return {"status": STATUS_ERROR, "error": str(e), "components": {}}
 
 
 def check_log_files():
@@ -455,6 +1069,39 @@ def get_system_status():
 
         status["components"]["timezone_settings"] = timezone_status
 
+        # Check API parameters
+        api_params_status = check_api_parameters()
+        status["components"]["api_parameters"] = api_params_status
+
+        if api_params_status.get("status") == STATUS_ERROR:
+            has_critical_issue = True
+
+        # Check image generation system
+        image_gen_status = check_image_generation_system()
+        status["components"]["image_generation_system"] = image_gen_status
+
+        if image_gen_status.get("status") == STATUS_ERROR:
+            has_critical_issue = True
+
+        # Check multiple birthday functionality
+        multiple_birthday_status = check_multiple_birthday_functionality()
+        status["components"][
+            "multiple_birthday_functionality"
+        ] = multiple_birthday_status
+
+        if multiple_birthday_status.get("status") == STATUS_ERROR:
+            has_critical_issue = True
+
+        # Check testing infrastructure
+        testing_status = check_testing_infrastructure()
+        status["components"]["testing_infrastructure"] = testing_status
+
+        # Testing issues are not critical for overall system health
+        if testing_status.get("status") == STATUS_ERROR:
+            logger.warning(
+                "Testing infrastructure has issues but not marking as critical"
+            )
+
         # Check log files status
         log_status = check_log_files()
         status["components"]["log_files"] = log_status
@@ -742,6 +1389,74 @@ def get_status_summary():
             summary_lines.append(
                 f"❌ *Slack App Token*: {slack_app_status.get('message', 'Not configured')}"
             )
+
+        # API Parameters
+        api_params_status = status["components"].get("api_parameters", {})
+        if api_params_status.get("status") == STATUS_OK:
+            summary_lines.append(
+                "✅ *API Parameters*: All parameters configured correctly"
+            )
+        else:
+            issues_count = len(api_params_status.get("issues", []))
+            summary_lines.append(
+                f"❌ *API Parameters*: {issues_count} configuration issue(s) detected"
+            )
+            if "error" in api_params_status:
+                summary_lines.append(f"   Error: {api_params_status['error']}")
+
+        # Image Generation System
+        image_gen_status = status["components"].get("image_generation_system", {})
+        if image_gen_status.get("feature_enabled"):
+            if image_gen_status.get("status") == STATUS_OK:
+                components = image_gen_status.get("components", {})
+                image_count = components.get("image_cache", {}).get("image_count", 0)
+                profile_count = components.get("profile_cache", {}).get(
+                    "profile_count", 0
+                )
+                summary_lines.append(
+                    f"✅ *AI Image Generation*: Enabled ({image_count} images, {profile_count} profiles cached)"
+                )
+            else:
+                summary_lines.append(
+                    f"❌ *AI Image Generation*: Enabled but issues detected"
+                )
+                if "error" in image_gen_status:
+                    summary_lines.append(f"   Error: {image_gen_status['error']}")
+        else:
+            summary_lines.append("ℹ️ *AI Image Generation*: Disabled")
+
+        # Multiple Birthday Functionality
+        multiple_birthday_status = status["components"].get(
+            "multiple_birthday_functionality", {}
+        )
+        if multiple_birthday_status.get("status") == STATUS_OK:
+            summary_lines.append(
+                "✅ *Multiple Birthday System*: All templates and functions available"
+            )
+        else:
+            issues_count = len(multiple_birthday_status.get("issues", []))
+            summary_lines.append(
+                f"❌ *Multiple Birthday System*: {issues_count} issue(s) detected"
+            )
+            if "error" in multiple_birthday_status:
+                summary_lines.append(f"   Error: {multiple_birthday_status['error']}")
+
+        # Testing Infrastructure
+        testing_status = status["components"].get("testing_infrastructure", {})
+        if testing_status.get("status") == STATUS_OK:
+            capabilities_count = len(testing_status.get("capabilities", []))
+            summary_lines.append(
+                f"✅ *Testing Infrastructure*: {capabilities_count} testing capabilities available"
+            )
+        elif testing_status.get("status") == "warning":
+            capabilities_count = len(testing_status.get("capabilities", []))
+            summary_lines.append(
+                f"⚠️ *Testing Infrastructure*: {capabilities_count} capabilities available with some issues"
+            )
+        else:
+            summary_lines.append(f"❌ *Testing Infrastructure*: Issues detected")
+            if "error" in testing_status:
+                summary_lines.append(f"   Error: {testing_status['error']}")
 
         # Overall status
         summary_lines.append("")

@@ -163,7 +163,7 @@ python app.py
 - `admin list` / `admin add USER_ID` / `admin remove USER_ID` - Manage admin users
 - `list` / `list all` - View upcoming birthdays / all birthdays by month
 - `stats` - Birthday statistics and system overview
-- `admin status` / `admin status detailed` - System health check with detailed diagnostics
+- `admin status` / `admin status detailed` - Comprehensive health check monitoring 20+ components (API parameters, image generation, logging, testing infrastructure)
 - `config` / `config COMMAND true/false` - View and change command permissions
 
 **Bot Personality Management:**
