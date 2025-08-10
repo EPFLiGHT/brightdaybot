@@ -225,3 +225,49 @@ def initialize_config():
     )
 
     logger.info("CONFIG: Configuration initialized from storage files")
+
+
+# Centralized OpenAI model configuration function
+def get_configured_openai_model():
+    """
+    Get the currently configured OpenAI model with fallback support.
+
+    This is the centralized function that all modules should use to get
+    the OpenAI model for API calls. It provides consistent model configuration
+    across all AI-powered features (message generation, web search, etc.).
+
+    Returns:
+        str: The OpenAI model name to use for API calls
+    """
+    import os
+
+    try:
+        # Try to get from config system (preferred method)
+        from config import get_current_openai_model
+
+        configured_model = get_current_openai_model()
+
+        if configured_model:
+            return configured_model
+        else:
+            # Fallback to environment variable
+            env_model = os.getenv("OPENAI_MODEL", "gpt-4.1")
+            logger.warning(
+                f"CONFIG: Using fallback OpenAI model from environment: {env_model}"
+            )
+            return env_model
+
+    except ImportError:
+        # Fallback for backward compatibility during startup
+        env_model = os.getenv("OPENAI_MODEL", "gpt-4.1")
+        logger.warning(
+            f"CONFIG: Using fallback OpenAI model due to import error: {env_model}"
+        )
+        return env_model
+    except Exception as e:
+        # Ultimate fallback
+        fallback_model = "gpt-4.1"
+        logger.error(
+            f"CONFIG_ERROR: Failed to get configured OpenAI model: {e}. Using fallback: {fallback_model}"
+        )
+        return fallback_model

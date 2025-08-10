@@ -22,6 +22,8 @@ from utils.storage import (
 from utils.slack_utils import (
     send_message,
     send_message_with_image,
+    send_message_with_multiple_images,
+    send_message_with_multiple_attachments,
     get_user_profile,
     get_user_status_and_info,
     get_channel_members,
@@ -383,8 +385,28 @@ def timezone_aware_check(app, moment):
             )
 
             if isinstance(result, tuple) and AI_IMAGE_GENERATION_ENABLED:
-                message, image_data = result
-                send_message_with_image(app, BIRTHDAY_CHANNEL, message, image_data)
+                message, images_list = result
+                if images_list:
+                    # Send message with multiple attachments in a single post (preferred approach)
+                    send_results = send_message_with_multiple_attachments(
+                        app, BIRTHDAY_CHANNEL, message, images_list
+                    )
+                    if send_results["success"]:
+                        logger.info(
+                            f"TIMEZONE: Successfully sent consolidated birthday post with {send_results['attachments_sent']} images"
+                            + (
+                                " (using fallback method)"
+                                if send_results.get("fallback_used")
+                                else ""
+                            )
+                        )
+                    else:
+                        logger.warning(
+                            f"TIMEZONE: Failed to send birthday images - {send_results['attachments_failed']}/{send_results['total_attachments']} attachments failed"
+                        )
+                else:
+                    # No images generated, send message only
+                    send_message(app, BIRTHDAY_CHANNEL, message)
             else:
                 message = result
                 send_message(app, BIRTHDAY_CHANNEL, message)
@@ -509,8 +531,28 @@ def simple_daily_check(app, moment):
             )
 
             if isinstance(result, tuple) and AI_IMAGE_GENERATION_ENABLED:
-                message, image_data = result
-                send_message_with_image(app, BIRTHDAY_CHANNEL, message, image_data)
+                message, images_list = result
+                if images_list:
+                    # Send message with multiple attachments in a single post (preferred approach)
+                    send_results = send_message_with_multiple_attachments(
+                        app, BIRTHDAY_CHANNEL, message, images_list
+                    )
+                    if send_results["success"]:
+                        logger.info(
+                            f"SIMPLE_DAILY: Successfully sent consolidated birthday post with {send_results['attachments_sent']} images"
+                            + (
+                                " (using fallback method)"
+                                if send_results.get("fallback_used")
+                                else ""
+                            )
+                        )
+                    else:
+                        logger.warning(
+                            f"SIMPLE_DAILY: Failed to send birthday images - {send_results['attachments_failed']}/{send_results['total_attachments']} attachments failed"
+                        )
+                else:
+                    # No images generated, send message only
+                    send_message(app, BIRTHDAY_CHANNEL, message)
             else:
                 message = result
                 send_message(app, BIRTHDAY_CHANNEL, message)
@@ -635,8 +677,28 @@ def celebrate_missed_birthdays(app):
 
             # Send the message
             if isinstance(result, tuple) and AI_IMAGE_GENERATION_ENABLED:
-                message, image_data = result
-                send_message_with_image(app, BIRTHDAY_CHANNEL, message, image_data)
+                message, images_list = result
+                if images_list:
+                    # Send message with multiple attachments in a single post (preferred approach)
+                    send_results = send_message_with_multiple_attachments(
+                        app, BIRTHDAY_CHANNEL, message, images_list
+                    )
+                    if send_results["success"]:
+                        logger.info(
+                            f"MISSED_BIRTHDAYS: Successfully sent consolidated birthday post with {send_results['attachments_sent']} images"
+                            + (
+                                " (using fallback method)"
+                                if send_results.get("fallback_used")
+                                else ""
+                            )
+                        )
+                    else:
+                        logger.warning(
+                            f"MISSED_BIRTHDAYS: Failed to send birthday images - {send_results['attachments_failed']}/{send_results['total_attachments']} attachments failed"
+                        )
+                else:
+                    # No images generated, send message only
+                    send_message(app, BIRTHDAY_CHANNEL, message)
             else:
                 message = result
                 send_message(app, BIRTHDAY_CHANNEL, message)

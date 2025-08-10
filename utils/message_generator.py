@@ -28,6 +28,7 @@ from utils.date_utils import get_star_sign
 from utils.constants import SAFE_SLACK_EMOJIS
 from utils.slack_formatting import get_user_mention, fix_slack_formatting
 from utils.web_search import get_birthday_facts
+from utils.usage_logging import log_chat_completion_usage
 
 logger = get_logger("llm")
 
@@ -35,16 +36,8 @@ logger = get_logger("llm")
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
-# Get the current OpenAI model from config system
-def get_configured_model():
-    """Get the currently configured OpenAI model"""
-    try:
-        from config import get_current_openai_model
-
-        return get_current_openai_model()
-    except ImportError:
-        # Fallback for backward compatibility during startup
-        return os.getenv("OPENAI_MODEL", "gpt-4.1")
+# Import centralized model configuration function
+from utils.app_config import get_configured_openai_model as get_configured_model
 
 
 # Birthday announcement formats
@@ -552,13 +545,14 @@ def completion(
                 + (f" (retry {retry_count})" if retry_count > 0 else "")
             )
 
-            reply = (
-                client.chat.completions.create(
-                    model=get_configured_model(), messages=template
-                )
-                .choices[0]
-                .message.content
+            response = client.chat.completions.create(
+                model=get_configured_model(), messages=template
             )
+
+            # Log token usage for monitoring
+            log_chat_completion_usage(response, "SINGLE_BIRTHDAY", logger)
+
+            reply = response.choices[0].message.content
 
             # Fix common Slack formatting issues
             reply = fix_slack_formatting(reply)
@@ -761,7 +755,7 @@ def create_consolidated_birthday_announcement(
         # Single birthday - use existing single-person completion function
         person = birthday_people[0]
         try:
-            return completion(
+            result = completion(
                 person["username"],
                 person["date_words"],
                 person["user_id"],
@@ -769,18 +763,42 @@ def create_consolidated_birthday_announcement(
                 person.get("year"),
                 app=app,
                 user_profile=person.get("profile"),
-                include_image=include_image,  # Enable image generation for single person too
+                include_image=include_image,
+                test_mode=test_mode,
+                quality=quality,
+                image_size=image_size,
             )
+
+            # Convert single person result to consistent list format
+            if include_image and isinstance(result, tuple):
+                message, single_image = result
+                if single_image:
+                    # Add person identification to image metadata for consistency
+                    single_image["birthday_person"] = {
+                        "user_id": person["user_id"],
+                        "username": person["username"],
+                        "date": person.get("date"),
+                        "year": person.get("year"),
+                    }
+                    return message, [single_image]  # Return as list for consistency
+                else:
+                    return message, []  # Empty list if no image
+            else:
+                return result  # Just message for non-image case
+
         except Exception as e:
             logger.error(
                 f"AI_ERROR: Failed to generate consolidated message for {person['username']}: {e}"
             )
-            return create_birthday_announcement(
+            fallback_message = create_birthday_announcement(
                 person["user_id"],
                 person["username"],
                 person["date"],
                 person.get("year"),
             )
+            if include_image:
+                return fallback_message, []  # Return consistent format
+            return fallback_message
 
     # Multiple birthdays - use AI to create creative consolidated message
     try:
@@ -791,7 +809,10 @@ def create_consolidated_birthday_announcement(
         logger.error(f"AI_ERROR: Failed to generate AI consolidated message: {e}")
         # Fallback to static template for multiple birthdays
         if include_image:
-            return _generate_fallback_consolidated_message(birthday_people), None
+            return (
+                _generate_fallback_consolidated_message(birthday_people),
+                [],
+            )  # Return empty list instead of None
         return _generate_fallback_consolidated_message(birthday_people)
 
 
@@ -879,6 +900,56 @@ def _generate_ai_consolidated_message(
             selected_personality_name, BOT_PERSONALITIES["standard"]
         )
 
+    # Get birthday facts for personalities that use web search (same logic as single birthdays)
+    birthday_facts_text = ""
+    personalities_using_web_search = [
+        "mystic_dog",
+        "time_traveler",
+        "superhero",
+        "pirate",
+        "poet",
+        "tech_guru",
+        "chef",
+        "standard",
+    ]
+
+    if selected_personality_name in personalities_using_web_search and birthday_people:
+        try:
+            # Since all people share the same birthday date, use the first person's date
+            shared_birthday_date = birthday_people[0]["date"]  # DD/MM format
+
+            # Get facts formatted for this specific personality
+            birthday_facts = get_birthday_facts(
+                shared_birthday_date, selected_personality_name
+            )
+
+            if birthday_facts and birthday_facts["facts"]:
+                # Get birthday facts text from centralized configuration
+                from personality_config import get_personality_config
+
+                personality_config = get_personality_config(selected_personality_name)
+                facts_template = personality_config.get(
+                    "birthday_facts_text",
+                    "Incorporate these interesting facts about their shared birthday date: {facts}",
+                )
+                birthday_facts_text = (
+                    f"\n\n{facts_template.format(facts=birthday_facts['facts'])}"
+                )
+
+                # Add sources if available
+                if birthday_facts["sources"]:
+                    sources_text = "\n\nYou may reference where this information came from in a way that fits your personality, without mentioning specific URLs."
+                    birthday_facts_text += sources_text
+
+                logger.info(
+                    f"CONSOLIDATED_AI: Added {selected_personality_name}-specific facts for shared date {shared_birthday_date}"
+                )
+        except Exception as e:
+            logger.error(
+                f"CONSOLIDATED_AI_ERROR: Failed to get birthday facts for {selected_personality_name}: {e}"
+            )
+            # Continue without facts if there's an error
+
     # Get emoji instructions and list
     emoji_list = SAFE_SLACK_EMOJIS
     emoji_instruction = "ONLY USE STANDARD SLACK EMOJIS"
@@ -912,13 +983,15 @@ def _generate_ai_consolidated_message(
 BIRTHDAY PEOPLE:
 {chr(10).join(people_info)}
 
-FORMATTING REQUIREMENTS:
-- Include {mention_text} in the message
-- Include <!here> to notify active members
-- Use this exact format for mentions: {mention_text}
-- Keep the message to 8-12 lines maximum
-- {emoji_instruction}
-- Available emojis: {', '.join(emoji_list[:20])}{'...' if len(emoji_list) > 20 else ''}
+CRITICAL FORMATTING REQUIREMENTS (MUST FOLLOW EXACTLY):
+1. **MENTIONS**: You MUST include these exact mentions in your message: {mention_text}
+   - Do NOT change, paraphrase, or modify these mentions
+   - Do NOT replace with names or other text
+   - These EXACT strings must appear in your response: {mention_text}
+2. **NOTIFICATION**: Include <!here> exactly as written to notify active members
+3. **LENGTH**: Keep the message to 8-12 lines maximum
+4. **EMOJIS**: {emoji_instruction}
+5. **AVAILABLE EMOJIS**: {', '.join(emoji_list[:20])}{'...' if len(emoji_list) > 20 else ''}
 
 CREATIVE REQUIREMENTS:
 - Make this feel special and unique for {count_word} celebrating together
@@ -927,7 +1000,12 @@ CREATIVE REQUIREMENTS:
 - Include interactive elements or questions for the team
 - Make it feel like a celebration, not just an announcement
 
-Generate an amazing consolidated birthday message that celebrates all of them together!"""
+EXAMPLE STRUCTURE:
+"<!here> *Birthday [Relationship]!* 🎉
+
+Happy Birthday {mention_text}! [Continue with creative content...]"{birthday_facts_text}
+
+**IMPORTANT**: The mentions {mention_text} must appear EXACTLY as provided. Generate an amazing consolidated birthday message!"""
 
     # Make the API call
     try:
@@ -937,17 +1015,28 @@ Generate an amazing consolidated birthday message that celebrates all of them to
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            max_tokens=500,
-            temperature=0.9,  # Higher creativity for multiple birthdays
+            max_completion_tokens=800,  # Increased for consolidated messages with multiple mentions and personality content
+            temperature=1,  # Higher creativity for multiple birthdays
         )
 
         message = response.choices[0].message.content.strip()
 
+        # Log token usage for monitoring
+        log_chat_completion_usage(response, "CONSOLIDATED_AI", logger)
+
         # Fix any formatting issues
         message = fix_slack_formatting(message)
 
+        # Post-process to ensure all required mentions are present
+        message = _ensure_mentions_present(message, mentions, mention_text)
+
         # Validate the message contains required elements
         if not _validate_consolidated_message(message, mentions):
+            logger.error(
+                f"CONSOLIDATED_AI: Message validation failed after post-processing. "
+                f"Required mentions: {mentions}. Message length: {len(message)}. "
+                f"Message preview: {message[:200]}..."
+            )
             logger.warning(
                 "CONSOLIDATED_AI: Generated message failed validation, regenerating..."
             )
@@ -957,44 +1046,67 @@ Generate an amazing consolidated birthday message that celebrates all of them to
             f"CONSOLIDATED_AI: Successfully generated consolidated message for {len(birthday_people)} people"
         )
 
-        # Generate image for multiple birthdays if requested
-        generated_image = None
+        # Generate individual images for each birthday person if requested
+        generated_images = []
         if include_image:
             try:
-                # Create a consolidated profile for multiple people image generation
-                consolidated_profile = create_consolidated_profile(birthday_people)
                 from utils.image_generator import generate_birthday_image
 
                 logger.info(
-                    f"IMAGE: Generating consolidated birthday image for {len(birthday_people)} people"
-                )
-                generated_image = generate_birthday_image(
-                    consolidated_profile,
-                    selected_personality_name,
-                    enable_transparency=False,  # Keep simple for multiple birthdays
-                    birthday_message=message,  # Pass the generated consolidated message
-                    test_mode=test_mode,
-                    quality=quality,
-                    image_size=image_size,
+                    f"IMAGE: Generating individual birthday images for {len(birthday_people)} people using {selected_personality_name} personality"
                 )
 
-                if generated_image:
-                    logger.info(
-                        f"IMAGE: Successfully generated consolidated image for {len(birthday_people)} people"
-                    )
-                else:
-                    logger.warning(
-                        f"IMAGE: Failed to generate consolidated image for {len(birthday_people)} people"
-                    )
+                # Generate individual images for each person using consistent personality
+                for person in birthday_people:
+                    try:
+                        person_image = generate_birthday_image(
+                            person.get("profile", {}),
+                            selected_personality_name,  # Use consistent personality across all images
+                            person.get("date"),
+                            enable_transparency=False,
+                            birthday_message=message,  # Pass the consolidated message for context
+                            test_mode=test_mode,
+                            quality=quality,
+                            image_size=image_size,
+                        )
+
+                        if person_image:
+                            # Add person identification to image metadata
+                            person_image["birthday_person"] = {
+                                "user_id": person["user_id"],
+                                "username": person["username"],
+                                "date": person.get("date"),
+                                "year": person.get("year"),
+                            }
+                            generated_images.append(person_image)
+                            logger.info(
+                                f"IMAGE: Successfully generated individual image for {person['username']}"
+                            )
+                        else:
+                            logger.warning(
+                                f"IMAGE: Failed to generate individual image for {person['username']}"
+                            )
+
+                    except Exception as e:
+                        logger.error(
+                            f"IMAGE_ERROR: Failed to generate individual image for {person['username']}: {e}"
+                        )
+
+                logger.info(
+                    f"IMAGE: Generated {len(generated_images)} individual birthday images out of {len(birthday_people)} people"
+                )
 
             except Exception as e:
                 logger.error(
-                    f"IMAGE_ERROR: Failed to generate consolidated birthday image: {e}"
+                    f"IMAGE_ERROR: Failed to generate individual birthday images: {e}"
                 )
 
-        # Return tuple if image was requested, otherwise just message
+        # Return tuple if images were requested, otherwise just message
         if include_image:
-            return message, generated_image
+            return (
+                message,
+                generated_images,
+            )  # Return list of individual images instead of single group image
         return message
 
     except Exception as e:
@@ -1076,24 +1188,118 @@ def create_consolidated_profile(birthday_people):
     }
 
 
-def _validate_consolidated_message(message, required_mentions):
-    """Validate that consolidated message contains all required elements"""
-    # Check for required mentions
+def _ensure_mentions_present(message, required_mentions, formatted_mentions):
+    """
+    Post-process message to ensure all required mentions are present.
+
+    This is a safety net in case the AI doesn't include exact mentions.
+    """
+    missing_mentions = []
+
+    # Check which mentions are missing
     for mention in required_mentions:
         if mention not in message:
-            logger.warning(f"VALIDATION: Missing required mention {mention}")
-            return False
+            missing_mentions.append(mention)
+
+    if missing_mentions:
+        logger.warning(f"POST_PROCESS: AI missed mentions: {missing_mentions}")
+
+        # Try to intelligently inject missing mentions
+        # Look for common patterns where mentions should be
+
+        # Pattern 1: After "Happy Birthday" - most common case
+        if "Happy Birthday" in message and not any(
+            mention in message for mention in required_mentions
+        ):
+            message = message.replace(
+                "Happy Birthday", f"Happy Birthday {formatted_mentions}"
+            )
+            logger.info(f"POST_PROCESS: Injected mentions after 'Happy Birthday'")
+
+        # Pattern 2: Look for birthday-related keywords and inject nearby
+        elif any(
+            keyword in message.lower()
+            for keyword in ["birthday", "celebrating", "celebrate"]
+        ):
+            # Find first birthday-related sentence and try to inject there
+            lines = message.split("\n")
+            for i, line in enumerate(lines):
+                if any(
+                    keyword in line.lower()
+                    for keyword in ["birthday", "celebrating", "celebrate"]
+                ):
+                    if not any(mention in line for mention in required_mentions):
+                        # Try to inject mentions naturally
+                        if "birthday" in line.lower():
+                            lines[i] = line.replace(
+                                "birthday", f"birthday {formatted_mentions}"
+                            )
+                        elif "celebrating" in line.lower():
+                            lines[i] = line.replace(
+                                "celebrating", f"celebrating {formatted_mentions}"
+                            )
+                        elif "celebrate" in line.lower():
+                            lines[i] = line.replace(
+                                "celebrate", f"celebrate {formatted_mentions}"
+                            )
+
+                        message = "\n".join(lines)
+                        logger.info(
+                            f"POST_PROCESS: Injected mentions in birthday-related line"
+                        )
+                        break
+
+        # Pattern 3: Last resort - add mentions at the beginning after <!here>
+        else:
+            if "<!here>" in message:
+                message = message.replace(
+                    "<!here>", f"<!here>\n\nHappy Birthday {formatted_mentions}!"
+                )
+                logger.info(f"POST_PROCESS: Added mentions after <!here> as fallback")
+            else:
+                # Ultimate fallback - prepend mentions
+                message = f"Happy Birthday {formatted_mentions}!\n\n{message}"
+                logger.info(f"POST_PROCESS: Prepended mentions as ultimate fallback")
+
+    return message
+
+
+def _validate_consolidated_message(message, required_mentions):
+    """Validate that consolidated message contains all required elements"""
+    validation_errors = []
+
+    # Check for required mentions
+    missing_mentions = []
+    for mention in required_mentions:
+        if mention not in message:
+            missing_mentions.append(mention)
+
+    if missing_mentions:
+        validation_errors.append(f"Missing mentions: {missing_mentions}")
+        logger.warning(f"VALIDATION: Missing required mentions: {missing_mentions}")
 
     # Check for channel notification
     if "<!here>" not in message:
+        validation_errors.append("Missing <!here> notification")
         logger.warning("VALIDATION: Missing <!here> notification")
-        return False
 
     # Check minimum length
     if len(message.strip()) < 50:
-        logger.warning("VALIDATION: Message too short")
+        validation_errors.append(
+            f"Message too short ({len(message.strip())} chars, need 50+)"
+        )
+        logger.warning(
+            f"VALIDATION: Message too short ({len(message.strip())} characters)"
+        )
+
+    # If there are validation errors, log a summary
+    if validation_errors:
+        logger.error(
+            f"VALIDATION_SUMMARY: {len(validation_errors)} error(s): {'; '.join(validation_errors)}"
+        )
         return False
 
+    logger.info("VALIDATION: All requirements met - message validated successfully")
     return True
 
 
@@ -1186,9 +1392,12 @@ def generate_birthday_image_title(
                         },
                         {"role": "user", "content": formatted_prompt},
                     ],
-                    max_tokens=50,
-                    temperature=0.8,  # Higher creativity for titles
+                    max_completion_tokens=200,
+                    temperature=1,  # Higher creativity for titles
                 )
+
+                # Log token usage for monitoring
+                log_chat_completion_usage(response, "IMAGE_TITLE_GEN", logger)
 
                 ai_title = response.choices[0].message.content.strip()
 

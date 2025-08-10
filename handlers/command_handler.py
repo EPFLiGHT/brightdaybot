@@ -315,7 +315,7 @@ def handle_dm_admin_help(say, user_id, app):
 • `admin status` - View system health and component status
 • `admin status detailed` - View detailed system information
 • `admin timezone` - View birthday celebration schedule across timezones
-• `admin test @user` - Generate test birthday message & image for a user (stays in DM)
+• `admin test @user1 [@user2 @user3...]` - Generate test birthday message & images (single or multiple users, stays in DM)
 • `admin test-join [@user]` - Test birthday channel welcome message
 
 • `config` - View command permissions
@@ -331,6 +331,7 @@ def handle_dm_admin_help(say, user_id, app):
 • `admin cache clear` - Clear all web search cache
 • `admin cache clear DD/MM` - Clear web search cache for a specific date
 • `admin test-upload` - Test the image upload functionality
+• `admin test-upload-multi` - Test multiple image attachment functionality (new consolidated system)
 • `admin test-file-upload` - Test text file upload functionality (like backup files)
 • `admin test-external-backup` - Test the external backup system with detailed diagnostics
 
@@ -1500,6 +1501,131 @@ def handle_test_upload_command(user_id, say, app):
         say(f"An error occurred during the test upload: {e}")
 
 
+def handle_test_upload_multi_command(user_id, say, app):
+    """Handles the admin test-upload-multi command to test multiple attachment functionality."""
+    from utils.slack_utils import send_message_with_multiple_attachments, get_username
+
+    username = get_username(app, user_id)
+    say(
+        "🔄 *Testing Multiple Attachment Upload System*\nCreating dummy images and testing batch upload..."
+    )
+
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+        import io
+
+        # Create multiple dummy images with different themes
+        test_images = []
+        image_configs = [
+            {"color": "blue", "text": "Alice's Birthday", "personality": "mystic_dog"},
+            {"color": "green", "text": "Bob's Birthday", "personality": "superhero"},
+            {"color": "red", "text": "Charlie's Birthday", "personality": "pirate"},
+        ]
+
+        for i, config in enumerate(image_configs):
+            # Create dummy image
+            img = Image.new("RGB", (300, 150), color=config["color"])
+            d = ImageDraw.Draw(img)
+
+            # Add text to image
+            try:
+                # Try to use default font, fallback to basic if not available
+                font = ImageFont.load_default()
+            except:
+                font = None
+
+            d.text((10, 20), config["text"], fill="white", font=font)
+            d.text((10, 50), f"Style: {config['personality']}", fill="white", font=font)
+            d.text((10, 80), f"Test Image #{i+1}", fill="white", font=font)
+            d.text((10, 110), "Multi-Attachment Test", fill="white", font=font)
+
+            # Convert to bytes
+            buffer = io.BytesIO()
+            img.save(buffer, format="PNG")
+            image_bytes = buffer.getvalue()
+
+            # Create image data with birthday person metadata (simulate real birthday images)
+            image_data = {
+                "image_data": image_bytes,
+                "personality": config["personality"],
+                "format": "png",
+                "birthday_person": {
+                    "user_id": f"U{1111111111 + i}",  # Fake user IDs
+                    "username": config["text"].split("'s")[0],  # Extract name
+                    "date": f"{15+i}/04",  # Fake birthday dates
+                    "year": 1990 + i,
+                },
+                "user_profile": {
+                    "preferred_name": config["text"].split("'s")[0],
+                    "title": f"Test {config['personality'].replace('_', ' ').title()}",
+                },
+            }
+
+            test_images.append(image_data)
+
+        # Test the multiple attachment function
+        logger.info(
+            f"TEST_UPLOAD_MULTI: Created {len(test_images)} test images for {username}"
+        )
+
+        test_message = (
+            f"🎂 *Multi-Attachment Test Results* 🎂\n\n"
+            f"Testing the new consolidated birthday attachment system with {len(test_images)} images.\n\n"
+            f"This simulates a multiple birthday celebration with individual face-accurate images "
+            f"sent as attachments to a single consolidated message.\n\n"
+            f"_Expected behavior_: One message with all {len(test_images)} images attached, "
+            f"each with personalized AI-generated titles."
+        )
+
+        # Send using the new multiple attachment system
+        results = send_message_with_multiple_attachments(
+            app, user_id, test_message, test_images
+        )
+
+        # Report results
+        if results["success"]:
+            success_message = (
+                f"✅ *Multi-Attachment Test Successful!*\n\n"
+                f"_Results:_\n"
+                f"• Message sent: {'✅' if results['message_sent'] else '❌'}\n"
+                f"• Attachments sent: {results['attachments_sent']}/{results['total_attachments']}\n"
+                f"• Failed attachments: {results['attachments_failed']}\n"
+                f"• Fallback used: {'Yes' if results.get('fallback_used') else 'No'}\n\n"
+                f"The multiple attachment system is working correctly! "
+                f"{'(Used fallback method due to API limitations)' if results.get('fallback_used') else '(Used native batch upload)'}"
+            )
+            say(success_message)
+            logger.info(
+                f"TEST_UPLOAD_MULTI: Success for {username} - {results['attachments_sent']}/{results['total_attachments']} attachments sent"
+            )
+        else:
+            error_message = (
+                f"❌ *Multi-Attachment Test Failed*\n\n"
+                f"_Results:_\n"
+                f"• Message sent: {'✅' if results['message_sent'] else '❌'}\n"
+                f"• Attachments sent: {results['attachments_sent']}/{results['total_attachments']}\n"
+                f"• Failed attachments: {results['attachments_failed']}\n"
+                f"• Fallback used: {'Yes' if results.get('fallback_used') else 'No'}\n\n"
+                f"Please check the logs for detailed error information."
+            )
+            say(error_message)
+            logger.error(
+                f"TEST_UPLOAD_MULTI: Failed for {username} - only {results['attachments_sent']}/{results['total_attachments']} attachments sent"
+            )
+
+    except ImportError:
+        logger.error("TEST_UPLOAD_MULTI: Pillow library is not installed.")
+        say(
+            "❌ Cannot create test images because the `Pillow` library is not installed.\n"
+            "Please install it with: `pip install Pillow`"
+        )
+    except Exception as e:
+        logger.error(f"TEST_UPLOAD_MULTI: Failed to execute multi-upload test: {e}")
+        say(
+            f"❌ Multi-attachment test failed with error: {e}\nPlease check the logs for details."
+        )
+
+
 def handle_test_file_upload_command(user_id, say, app):
     """Handles the admin test-file-upload command to test text file uploads."""
     import tempfile
@@ -1801,50 +1927,243 @@ No worries! If you'd prefer to opt out, simply leave {get_channel_mention(BIRTHD
 
 
 def handle_test_birthday_command(args, user_id, say, app):
-    """Handles the admin test @user [quality] [size] command to generate test birthday message and image."""
+    """Handles the admin test @user1 [@user2 @user3...] [quality] [size] command to generate test birthday message and image(s)."""
     if not args:
         say(
-            "Please specify a user: `admin test @user [quality] [size]`\nQuality options: low, medium, high, auto\nSize options: auto, 1024x1024, 1536x1024, 1024x1536"
+            "Please specify user(s): `admin test @user1 [@user2 @user3...] [quality] [size]`\n"
+            "Quality options: low, medium, high, auto\n"
+            "Size options: auto, 1024x1024, 1536x1024, 1024x1536\n\n"
+            "Examples:\n"
+            "• `admin test @alice` - Single user test\n"
+            "• `admin test @alice @bob @charlie` - Multiple user test\n"
+            "• `admin test @alice @bob high auto` - Multiple users with quality/size"
         )
         return
 
-    # Extract user ID from mention
-    test_user_id = None
-    if args[0].startswith("<@") and args[0].endswith(">"):
-        test_user_id = args[0][2:-1].split("|")[0]
-        # Ensure user ID is fully uppercase (Slack standard)
-        test_user_id = test_user_id.upper()
-        logger.info(f"TEST_COMMAND: Extracted user ID: {test_user_id}")
-    else:
-        say("Please mention a user with @username")
+    # Extract user IDs from mentions (support multiple users)
+    test_user_ids = []
+    non_user_args = []
+
+    for arg in args:
+        if arg.startswith("<@") and arg.endswith(">"):
+            # This is a user mention
+            user_id_part = arg[2:-1].split("|")[0].upper()
+            test_user_ids.append(user_id_part)
+            logger.info(f"TEST_COMMAND: Extracted user ID: {user_id_part}")
+        else:
+            # This is a quality/size parameter
+            non_user_args.append(arg)
+
+    if not test_user_ids:
+        say("Please mention at least one user with @username")
         return
 
-    # Extract quality and image_size parameters if provided
+    if len(test_user_ids) > 5:
+        say("Maximum 5 users allowed for testing to avoid spam")
+        return
+
+    # Extract quality and image_size parameters from non-user arguments
     quality = None
     image_size = None
 
-    if len(args) > 1:
-        quality_arg = args[1].lower()
+    if len(non_user_args) > 0:
+        quality_arg = non_user_args[0].lower()
         if quality_arg in ["low", "medium", "high", "auto"]:
             quality = quality_arg
         else:
-            say(f"Invalid quality '{args[1]}'. Valid options: low, medium, high, auto")
+            say(
+                f"Invalid quality '{non_user_args[0]}'. Valid options: low, medium, high, auto"
+            )
             return
 
-    if len(args) > 2:
-        size_arg = args[2].lower()
+    if len(non_user_args) > 1:
+        size_arg = non_user_args[1].lower()
         if size_arg in ["auto", "1024x1024", "1536x1024", "1024x1536"]:
             image_size = size_arg
         else:
             say(
-                f"Invalid size '{args[2]}'. Valid options: auto, 1024x1024, 1536x1024, 1024x1536"
+                f"Invalid size '{non_user_args[1]}'. Valid options: auto, 1024x1024, 1536x1024, 1024x1536"
             )
             return
 
-    # Use the unified test command handler
-    handle_test_command(
-        user_id, say, app, quality, image_size, target_user_id=test_user_id
+    # Determine if this is single or multiple user test
+    if len(test_user_ids) == 1:
+        # Single user test - use existing single user handler
+        handle_test_command(
+            user_id, say, app, quality, image_size, target_user_id=test_user_ids[0]
+        )
+    else:
+        # Multiple user test - use new consolidated handler
+        handle_test_multiple_birthday_command(
+            test_user_ids, user_id, say, app, quality, image_size
+        )
+
+
+def handle_test_multiple_birthday_command(
+    test_user_ids, admin_user_id, say, app, quality=None, image_size=None
+):
+    """Handle testing multiple birthday celebrations with consolidated message and individual images."""
+    from utils.slack_utils import send_message_with_multiple_attachments
+    from utils.message_generator import create_consolidated_birthday_announcement
+
+    admin_username = get_username(app, admin_user_id)
+    logger.info(
+        f"TEST_MULTI: {admin_username} testing multiple birthdays for {len(test_user_ids)} users"
     )
+
+    say(
+        f"🎂 *Testing Multiple Birthday System* 🎂\n"
+        f"Generating consolidated birthday message + individual images for {len(test_user_ids)} users...\n"
+        f"Quality: {quality or 'test mode (low)'}, Size: {image_size or 'auto'}"
+    )
+
+    try:
+        # Load real birthday data (same logic as single test)
+        birthdays = load_birthdays()
+        today = datetime.now()
+        today_date_str = today.strftime("%d/%m")
+
+        # Determine shared birthday date for all test users
+        shared_date = None
+        shared_year = None
+
+        # First, try to find if any of the test users have a stored birthday
+        for user_id in test_user_ids:
+            if user_id in birthdays:
+                shared_date = birthdays[user_id]["date"]
+                shared_year = birthdays[user_id].get("year")  # Might be None
+                logger.info(
+                    f"TEST_MULTI: Using stored birthday {shared_date} from {get_username(app, user_id)} as shared date"
+                )
+                break
+
+        # If no stored birthdays found, use today's date for all
+        if not shared_date:
+            shared_date = today_date_str
+            shared_year = None  # No year for "today" tests
+            logger.info(
+                f"TEST_MULTI: No stored birthdays found, using today's date {shared_date} as shared date"
+            )
+
+        # Create birthday data for all test users using the shared date
+        birthday_people = []
+
+        for user_id in test_user_ids:
+            # Get real user profile for realistic testing
+            user_profile = get_user_profile(app, user_id)
+            username = get_username(app, user_id)
+
+            if not user_profile:
+                say(f"❌ Could not get profile for user {user_id}")
+                return
+
+            # Use the shared birthday date for all users (this is what consolidated messages are for)
+            date_words = date_to_words(shared_date, shared_year)
+
+            birthday_person = {
+                "user_id": user_id,
+                "username": username,
+                "date": shared_date,  # All users share the same date
+                "year": shared_year,  # All users share the same year (or None)
+                "date_words": date_words,
+                "profile": user_profile,
+            }
+            birthday_people.append(birthday_person)
+            logger.info(
+                f"TEST_MULTI: Prepared real birthday data for {username} - {shared_date}"
+                + (f"/{shared_year}" if shared_year else "")
+            )
+
+        # Generate consolidated birthday announcement with individual images
+        result = create_consolidated_birthday_announcement(
+            birthday_people,
+            app=app,
+            include_image=True,  # Enable image generation
+            test_mode=True,  # Use test mode for cost efficiency
+            quality=quality,
+            image_size=image_size,
+        )
+
+        if isinstance(result, tuple):
+            message, images_list = result
+
+            if images_list:
+                # Send using the new multiple attachment system
+                send_results = send_message_with_multiple_attachments(
+                    app, admin_user_id, message, images_list
+                )
+
+                # Report detailed results to admin
+                # Determine data source description
+                data_source = (
+                    "stored birthday data"
+                    if any(user_id in birthdays for user_id in test_user_ids)
+                    else "today's date (no stored birthdays)"
+                )
+
+                success_msg = (
+                    f"✅ *Multi-Birthday Test Results* ✅\n\n"
+                    f"_Test Configuration:_\n"
+                    f"• Users tested: {len(test_user_ids)}\n"
+                    f"• Shared birthday date: {shared_date}"
+                    + (f"/{shared_year}" if shared_year else "")
+                    + f"\n"
+                    f"• Data source: {data_source}\n"
+                    f"• Quality setting: {quality or 'test mode (low)'}\n"
+                    f"• Image size: {image_size or 'auto'}\n\n"
+                    f"_Sending Results:_\n"
+                    f"• Message sent: {'✅' if send_results['message_sent'] else '❌'}\n"
+                    f"• Images attached: {send_results['attachments_sent']}/{send_results['total_attachments']}\n"
+                    f"• Failed attachments: {send_results['attachments_failed']}\n"
+                    f"• Method used: {'Native batch upload' if not send_results.get('fallback_used') else 'Sequential fallback'}\n\n"
+                )
+
+                if send_results["success"]:
+                    success_msg += (
+                        f"🎉 _Test successful!_ This demonstrates the complete multiple birthday flow:\n"
+                        f"• Single consolidated message mentioning all {len(test_user_ids)} users\n"
+                        f"• Individual face-accurate images for each person\n"
+                        f"• Consistent personality theme across all images\n"
+                        f"• Clean presentation with all content in one post"
+                    )
+                else:
+                    success_msg += f"⚠️ _Partial success_ - Some images failed to send. Check logs for details."
+
+                say(success_msg)
+                logger.info(
+                    f"TEST_MULTI: Completed for {admin_username} - {send_results['attachments_sent']}/{send_results['total_attachments']} images sent"
+                )
+
+            else:
+                # No images generated
+                say(
+                    f"✅ *Multi-Birthday Test - Message Only*\n\n"
+                    f"Generated consolidated message for {len(test_user_ids)} users, but no images were created.\n"
+                    f"This could be due to API limitations or missing profile photos.\n\n"
+                    f"_Message preview:_\n{message[:200]}..."
+                )
+                logger.info(
+                    f"TEST_MULTI: Message-only test for {admin_username} - no images generated"
+                )
+
+        else:
+            # Just a message returned
+            say(
+                f"✅ *Multi-Birthday Test - Basic*\n\n"
+                f"Generated basic consolidated message for {len(test_user_ids)} users:\n\n"
+                f"_Message preview:_\n{result[:200]}..."
+            )
+            logger.info(f"TEST_MULTI: Basic test for {admin_username}")
+
+    except Exception as e:
+        logger.error(
+            f"TEST_MULTI_ERROR: Failed multi-birthday test for {admin_username}: {e}"
+        )
+        say(
+            f"❌ *Multi-Birthday Test Failed*\n\n"
+            f"Error: {e}\n\n"
+            f"Please check the logs for detailed error information."
+        )
 
 
 def handle_model_command(args, user_id, say, app, username):
@@ -2310,6 +2629,9 @@ def handle_admin_command(subcommand, args, say, user_id, app):
 
     elif subcommand == "test-upload":
         handle_test_upload_command(user_id, say, app)
+
+    elif subcommand == "test-upload-multi":
+        handle_test_upload_multi_command(user_id, say, app)
 
     elif subcommand == "test-file-upload":
         handle_test_file_upload_command(user_id, say, app)

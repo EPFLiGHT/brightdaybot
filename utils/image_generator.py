@@ -15,6 +15,7 @@ import glob
 import random
 from datetime import datetime, timedelta
 from config import get_logger, CACHE_DIR
+from utils.usage_logging import log_image_generation_usage
 import json
 import base64
 from PIL import Image
@@ -116,6 +117,18 @@ def generate_birthday_image(
                         input_fidelity=input_fidelity,
                         quality=image_quality,
                     )
+
+                # Log usage for monitoring
+                log_image_generation_usage(
+                    response,
+                    "IMAGE_EDIT_REFERENCE",
+                    logger,
+                    image_count=1,
+                    quality=image_quality,
+                    image_size=final_image_size,
+                    model="gpt-image-1",
+                )
+
                 logger.info(f"IMAGE_GEN: Successfully used reference photo for {name}")
             except Exception as e:
                 logger.error(
@@ -145,6 +158,17 @@ def generate_birthday_image(
                 generation_params["background"] = "transparent"
 
             response = client.images.generate(**generation_params)
+
+            # Log usage for monitoring
+            log_image_generation_usage(
+                response,
+                "IMAGE_GENERATE_TEXT",
+                logger,
+                image_count=1,
+                quality=image_quality,
+                image_size=final_image_size,
+                model="gpt-image-1",
+            )
 
         # Handle both base64 and URL responses
         if hasattr(response.data[0], "b64_json") and response.data[0].b64_json:

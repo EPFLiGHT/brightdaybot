@@ -20,6 +20,10 @@ logger = get_logger("web_search")
 # Initialize OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+# Import centralized model configuration function
+from utils.app_config import get_configured_openai_model
+from utils.usage_logging import log_chat_completion_usage, log_web_search_usage
+
 
 def process_facts_for_personality(facts_text, formatted_date, personality):
     """
@@ -65,13 +69,16 @@ def process_facts_for_personality(facts_text, formatted_date, personality):
 
         # Use OpenAI to reformat the facts in the appropriate personality style
         response = client.chat.completions.create(
-            model="gpt-4.1",
+            model=get_configured_openai_model(),
             messages=[
                 {"role": "system", "content": system_content},
                 {"role": "user", "content": user_content},
             ],
-            max_tokens=300,  # Reduced for more concise outputs
+            max_completion_tokens=300,  # Reduced for more concise outputs
         )
+
+        # Log token usage for monitoring
+        log_chat_completion_usage(response, "WEB_SEARCH_FACTS", logger)
 
         processed_facts = response.choices[0].message.content.strip()
         logger.info(
@@ -169,6 +176,9 @@ def get_birthday_facts(date_str, personality="mystic_dog"):
             tools=[{"type": "web_search_preview"}],
             input=search_query,
         )
+
+        # Log usage for monitoring
+        log_web_search_usage(response, "WEB_SEARCH_QUERY", logger)
 
         logger.info(f"WEB_SEARCH: Received response for {formatted_date}")
 

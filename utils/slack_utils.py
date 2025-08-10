@@ -447,6 +447,342 @@ def send_message_with_image(app, channel: str, text: str, image_data=None, block
         return send_message(app, channel, text, blocks)
 
 
+def send_message_with_multiple_images(
+    app, channel: str, text: str, image_list: list, blocks=None
+):
+    """
+    Send a message followed by multiple individual images to a Slack channel
+
+    Args:
+        app: Slack app instance
+        channel: Channel ID or user ID to send to
+        text: Initial message text
+        image_list: List of image data dictionaries (from generate_birthday_image)
+        blocks: Optional blocks for rich formatting
+
+    Returns:
+        dict: Results with successful and failed image counts
+    """
+    results = {
+        "message_sent": False,
+        "images_sent": 0,
+        "images_failed": 0,
+        "total_images": len(image_list),
+    }
+
+    try:
+        # First send the main message
+        message_success = send_message(app, channel, text, blocks)
+        results["message_sent"] = message_success
+
+        if not message_success:
+            logger.warning(
+                f"MULTI_IMAGE: Failed to send main message, continuing with images anyway"
+            )
+
+        # Send each image individually
+        for i, image_data in enumerate(image_list):
+            try:
+                if not image_data or not image_data.get("image_data"):
+                    logger.warning(f"MULTI_IMAGE: Skipping image {i+1} - no image data")
+                    results["images_failed"] += 1
+                    continue
+
+                # Generate title for this individual image
+                person_info = image_data.get("birthday_person", {})
+                person_name = person_info.get("username", f"Person {i+1}")
+
+                # Use AI to generate personalized title
+                try:
+                    from utils.message_generator import generate_birthday_image_title
+
+                    ai_title = generate_birthday_image_title(
+                        person_name,
+                        image_data.get("personality", "standard"),
+                        image_data.get("user_profile"),
+                        None,  # birthday_message - not needed for individual titles
+                        False,  # is_multiple_people - each image is individual
+                    )
+                    final_title = f"🎂 {ai_title}"
+                except Exception as e:
+                    logger.error(
+                        f"MULTI_IMAGE_TITLE_ERROR: Failed to generate AI title for {person_name}: {e}"
+                    )
+                    # Fallback to simple title
+                    personality_name = (
+                        image_data.get("personality", "standard")
+                        .replace("_", " ")
+                        .title()
+                    )
+                    final_title = (
+                        f"🎂 {person_name}'s Birthday - {personality_name} Style"
+                    )
+
+                # Create filename for this image
+                safe_name = (
+                    "".join(
+                        c for c in person_name if c.isalnum() or c in (" ", "-", "_")
+                    )
+                    .rstrip()
+                    .replace(" ", "_")
+                )
+                timestamp = datetime.now().strftime("%H%M%S")
+                filename = f"birthday_{safe_name}_{i+1}_{timestamp}.png"
+
+                # Send individual image (no additional text - just the title)
+                image_success = send_message_with_image(
+                    app, channel, "", image_data, blocks=None
+                )
+
+                if image_success:
+                    results["images_sent"] += 1
+                    logger.info(
+                        f"MULTI_IMAGE: Successfully sent image {i+1}/{len(image_list)} for {person_name}"
+                    )
+                else:
+                    results["images_failed"] += 1
+                    logger.warning(
+                        f"MULTI_IMAGE: Failed to send image {i+1}/{len(image_list)} for {person_name}"
+                    )
+
+            except Exception as e:
+                results["images_failed"] += 1
+                logger.error(
+                    f"MULTI_IMAGE_ERROR: Failed to send image {i+1}/{len(image_list)}: {e}"
+                )
+
+        logger.info(
+            f"MULTI_IMAGE: Completed sending to {channel} - {results['images_sent']} images sent, {results['images_failed']} failed"
+        )
+        return results
+
+    except Exception as e:
+        logger.error(
+            f"MULTI_IMAGE_ERROR: Unexpected error sending multiple images to {channel}: {e}"
+        )
+        results["images_failed"] = len(image_list)
+        return results
+
+
+def send_message_with_multiple_attachments(
+    app, channel: str, text: str, image_list: list, blocks=None
+):
+    """
+    Send a single message with multiple image attachments using Slack's files_upload_v2
+
+    Args:
+        app: Slack app instance
+        channel: Channel ID or user ID to send to
+        text: Message text to send with all attachments
+        image_list: List of image data dictionaries (from generate_birthday_image)
+        blocks: Optional blocks for rich formatting
+
+    Returns:
+        dict: Results with success status and attachment details
+    """
+    results = {
+        "success": False,
+        "message_sent": False,
+        "attachments_sent": 0,
+        "attachments_failed": 0,
+        "total_attachments": len(image_list),
+        "fallback_used": False,
+    }
+
+    try:
+        # Handle case where no images are provided
+        if not image_list:
+            success = send_message(app, channel, text, blocks)
+            results["success"] = success
+            results["message_sent"] = success
+            return results
+
+        # Prepare file uploads list for files_upload_v2
+        file_uploads = []
+
+        for i, image_data in enumerate(image_list):
+            try:
+                if not image_data or not image_data.get("image_data"):
+                    logger.warning(
+                        f"MULTI_ATTACH: Skipping attachment {i+1} - no image data"
+                    )
+                    results["attachments_failed"] += 1
+                    continue
+
+                # Generate personalized filename and title for each image
+                person_info = image_data.get("birthday_person", {})
+                person_name = person_info.get("username", f"Person {i+1}")
+
+                # Create safe filename
+                safe_name = (
+                    "".join(
+                        c for c in person_name if c.isalnum() or c in (" ", "-", "_")
+                    )
+                    .rstrip()
+                    .replace(" ", "_")
+                )
+                timestamp = datetime.now().strftime("%H%M%S")
+                filename = f"birthday_{safe_name}_{i+1}_{timestamp}.png"
+
+                # Generate AI title for this image
+                try:
+                    from utils.message_generator import generate_birthday_image_title
+
+                    ai_title = generate_birthday_image_title(
+                        person_name,
+                        image_data.get("personality", "standard"),
+                        image_data.get("user_profile"),
+                        None,  # birthday_message - not needed for individual titles
+                        False,  # is_multiple_people - each image is individual
+                    )
+                    final_title = f"🎂 {ai_title}"
+                except Exception as e:
+                    logger.error(
+                        f"MULTI_ATTACH_TITLE_ERROR: Failed to generate AI title for {person_name}: {e}"
+                    )
+                    # Fallback to simple title
+                    personality_name = (
+                        image_data.get("personality", "standard")
+                        .replace("_", " ")
+                        .title()
+                    )
+                    final_title = (
+                        f"🎂 {person_name}'s Birthday - {personality_name} Style"
+                    )
+
+                # Add to file uploads list
+                file_uploads.append(
+                    {
+                        "file": image_data["image_data"],
+                        "filename": filename,
+                        "title": final_title,
+                    }
+                )
+
+                logger.info(
+                    f"MULTI_ATTACH: Prepared attachment {i+1}/{len(image_list)} for {person_name}"
+                )
+
+            except Exception as e:
+                logger.error(
+                    f"MULTI_ATTACH_PREP_ERROR: Failed to prepare attachment {i+1}: {e}"
+                )
+                results["attachments_failed"] += 1
+                continue
+
+        # If no valid attachments, send message only
+        if not file_uploads:
+            logger.warning(
+                "MULTI_ATTACH: No valid attachments prepared, sending message only"
+            )
+            success = send_message(app, channel, text, blocks)
+            results["success"] = success
+            results["message_sent"] = success
+            return results
+
+        # Get target channel (handle DMs)
+        target_channel = channel
+        if channel.startswith("U"):
+            # Open a DM channel to get the proper channel ID for files_upload_v2
+            dm_response = app.client.conversations_open(users=channel)
+            if dm_response["ok"]:
+                target_channel = dm_response["channel"]["id"]
+                logger.info(
+                    f"MULTI_ATTACH: Opened DM channel {target_channel} for user {channel}"
+                )
+            else:
+                logger.error(f"MULTI_ATTACH: Failed to open DM channel for {channel}")
+                # Fallback to sequential method
+                return _fallback_to_sequential_images(
+                    app, channel, text, image_list, blocks
+                )
+
+        # Upload all files in a single message using files_upload_v2
+        logger.info(
+            f"MULTI_ATTACH: Uploading {len(file_uploads)} files to {target_channel}"
+        )
+
+        upload_response = app.client.files_upload_v2(
+            channel=target_channel, initial_comment=text, file_uploads=file_uploads
+        )
+
+        if upload_response["ok"]:
+            results["success"] = True
+            results["message_sent"] = True
+            results["attachments_sent"] = len(file_uploads)
+
+            logger.info(
+                f"MULTI_ATTACH: Successfully sent message with {len(file_uploads)} attachments to {target_channel}"
+            )
+
+            # Log individual attachment details
+            uploaded_files = upload_response.get("files", [])
+            for i, uploaded_file in enumerate(uploaded_files):
+                file_id = uploaded_file.get("id", f"file_{i}")
+                file_name = uploaded_file.get("name", f"attachment_{i}")
+                logger.info(f"MULTI_ATTACH: Uploaded {file_name} (ID: {file_id})")
+
+        else:
+            error = upload_response.get("error", "Unknown error")
+            logger.error(f"MULTI_ATTACH_ERROR: Failed to upload files: {error}")
+            # Fallback to sequential method
+            return _fallback_to_sequential_images(
+                app, channel, text, image_list, blocks
+            )
+
+        return results
+
+    except SlackApiError as e:
+        logger.error(f"MULTI_ATTACH_API_ERROR: Slack API error: {e}")
+        # Fallback to sequential method
+        return _fallback_to_sequential_images(app, channel, text, image_list, blocks)
+    except Exception as e:
+        logger.error(f"MULTI_ATTACH_ERROR: Unexpected error: {e}")
+        # Fallback to sequential method
+        return _fallback_to_sequential_images(app, channel, text, image_list, blocks)
+
+
+def _fallback_to_sequential_images(
+    app, channel: str, text: str, image_list: list, blocks=None
+):
+    """
+    Fallback method: send message with images sequentially when batch upload fails
+
+    Args:
+        app: Slack app instance
+        channel: Channel ID or user ID to send to
+        text: Initial message text
+        image_list: List of image data dictionaries
+        blocks: Optional blocks for rich formatting
+
+    Returns:
+        dict: Results with fallback indication
+    """
+    logger.info("MULTI_ATTACH_FALLBACK: Using sequential image sending as fallback")
+
+    # Use existing sequential method
+    sequential_results = send_message_with_multiple_images(
+        app, channel, text, image_list, blocks
+    )
+
+    # Mark as fallback and return
+    sequential_results["fallback_used"] = True
+    sequential_results["success"] = (
+        sequential_results["message_sent"] and sequential_results["images_sent"] > 0
+    )
+
+    # Map sequential results to attachment format for consistency
+    sequential_results["attachments_sent"] = sequential_results.pop("images_sent", 0)
+    sequential_results["attachments_failed"] = sequential_results.pop(
+        "images_failed", 0
+    )
+    sequential_results["total_attachments"] = sequential_results.pop(
+        "total_images", len(image_list)
+    )
+
+    return sequential_results
+
+
 def send_message(app, channel: str, text: str, blocks=None):
     """
     Send a message to a Slack channel with error handling
