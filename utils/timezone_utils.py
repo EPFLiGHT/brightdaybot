@@ -40,14 +40,14 @@ def is_celebration_time_for_user(
     user_timezone_str, target_time=TIMEZONE_CELEBRATION_TIME
 ):
     """
-    Check if it's celebration time (09:00 by default) in the user's timezone
+    Check if it's celebration time in the user's timezone
 
     Args:
         user_timezone_str: User's timezone string (e.g., "America/New_York")
-        target_time: Time to celebrate as datetime.time object (default: time(9, 0))
+        target_time: Time to celebrate as datetime.time object (default: TIMEZONE_CELEBRATION_TIME)
 
     Returns:
-        True if it's currently the celebration time in user's timezone
+        True if it's currently at or after the celebration time in user's timezone
     """
     try:
         user_tz = get_timezone_object(user_timezone_str)
@@ -55,14 +55,12 @@ def is_celebration_time_for_user(
         # Get current time in user's timezone
         current_user_time = datetime.now(user_tz)
 
-        # Check if current time matches target celebration time
-        is_celebration_time = (
-            current_user_time.hour == target_time.hour
-            and current_user_time.minute == target_time.minute
-        )
+        # Check if current time is at or after target celebration time
+        # Use >= logic to handle scheduler timing variations and delays
+        is_celebration_time = current_user_time.hour >= target_time.hour
 
         logger.debug(
-            f"TIMEZONE: User timezone {user_timezone_str}, current time: {current_user_time.hour:02d}:{current_user_time.minute:02d}, target: {target_time.hour:02d}:{target_time.minute:02d}, match: {is_celebration_time}"
+            f"TIMEZONE: User timezone {user_timezone_str}, current time: {current_user_time.hour:02d}:{current_user_time.minute:02d}, target: {target_time.hour:02d}:{target_time.minute:02d}, celebration_time: {is_celebration_time} (>= logic)"
         )
 
         return is_celebration_time

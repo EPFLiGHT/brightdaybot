@@ -87,7 +87,7 @@ def setup_scheduler(app, timezone_aware_check, simple_daily_check):
 
     if _timezone_enabled:
         # Schedule hourly birthday checks at the top of each hour for timezone-aware celebrations
-        # This ensures celebrations happen at 9:00 AM sharp in each user's timezone
+        # This ensures celebrations happen at the configured time in each user's timezone
         schedule.every().hour.at(":00").do(hourly_task)
         logger.info(
             f"SCHEDULER: Timezone-aware birthday checks ENABLED (checking every {_check_interval} hour(s) at :00)"

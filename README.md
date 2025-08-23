@@ -6,7 +6,7 @@ A Slack bot that records and wishes workspace members happy birthday with AI-gen
 
 - **🎯 AI-Generated Messages**: Personalized birthday wishes using OpenAI GPT-4.1
 - **🖼️ AI Birthday Images**: Face-accurate images using your Slack profile photo and GPT-Image-1
-- **🌍 Multi-Timezone Support**: Celebrates birthdays at 9 AM in each user's local timezone
+- **🌍 Multi-Timezone Support**: Celebrates birthdays at 9 AM by default in each user's local timezone (configurable)
 - **🎭 8 Unique Personalities**: From mystic dog to superhero to pirate themes
 - **📈 Smart Consolidation**: Single message for multiple birthdays to avoid spam
 - **🔧 Dynamic Configuration**: Change AI models and settings without restart
@@ -312,10 +312,10 @@ admin model                 # Show current model status
 # Check current timezone mode
 admin timezone
 
-# Enable timezone-aware celebrations (9 AM local time)
+# Enable timezone-aware celebrations (9 AM by default, configurable via TIMEZONE_CELEBRATION_TIME)
 admin timezone enable
 
-# Disable for simple mode (10 AM server time)
+# Disable for simple mode (10 AM by default, configurable via DAILY_CHECK_TIME)
 admin timezone disable
 
 # View detailed timezone schedule
@@ -495,13 +495,13 @@ Bot: ✅ Announcement sent successfully to the birthday channel!
 
 **Two Modes Available**:
 
-1. **Timezone-Aware Mode** (default): Celebrates at 9 AM in each user's timezone
+1. **Timezone-Aware Mode** (default): Celebrates at 9 AM by default in each user's timezone (configurable)
 
    - Hourly checks to catch different timezone groups
    - Single consolidated message for all same-day birthdays
    - Enable: `admin timezone enable`
 
-2. **Simple Mode**: Single daily check at 10 AM server time
+2. **Simple Mode**: Single daily check at 10 AM by default server time (configurable)
    - All birthdays announced together
    - Enable: `admin timezone disable`
 

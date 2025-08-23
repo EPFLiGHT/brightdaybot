@@ -49,6 +49,7 @@ from config import (
     get_logger,
     BOT_BIRTH_YEAR,
     IMAGE_GENERATION_PARAMS,
+    TIMEZONE_CELEBRATION_TIME,
 )
 from utils.bot_celebration import (
     generate_bot_celebration_message,
@@ -455,13 +456,22 @@ def timezone_aware_check(app, moment):
     # Note: We don't exit early if some birthdays were celebrated today
     # We need to process each person individually to catch any missed celebrations
 
-    # Find who's hitting 9 AM right now (the trigger)
+    # Find who's hitting celebration time right now (the trigger)
     trigger_people = []
     all_birthday_people_today = []
 
+    # Enhanced logging: Track all birthday processing
+    total_birthdays_checked = 0
+    birthdays_found_today = 0
+
     for user_id, birthday_data in birthdays.items():
+        total_birthdays_checked += 1
         # Check if it's their birthday today
         if check_if_birthday_today(birthday_data["date"], moment):
+            birthdays_found_today += 1
+            logger.debug(
+                f"TIMEZONE: Found birthday today for {user_id} (date: {birthday_data['date']})"
+            )
             # Skip if this user was already celebrated today
             if is_user_celebrated_today(user_id):
                 logger.debug(f"TIMEZONE: {user_id} already celebrated today, skipping")
@@ -507,17 +517,26 @@ def timezone_aware_check(app, moment):
             # Add to all birthday people for today
             all_birthday_people_today.append(birthday_person)
 
-            # Check if this person is hitting 9 AM right now (the trigger)
+            # Check if this person is hitting celebration time right now (the trigger)
             if is_celebration_time_for_user(user_timezone):
                 trigger_people.append(birthday_person)
                 logger.info(
-                    f"TIMEZONE: It's 9 AM in {user_timezone} for {username} - triggering celebration for all today's birthdays!"
+                    f"TIMEZONE: It's {TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')} in {user_timezone} for {username} - triggering celebration for all today's birthdays!"
+                )
+            else:
+                logger.debug(
+                    f"TIMEZONE: Not celebration time for {username} in {user_timezone} (waiting for {TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')} trigger)"
                 )
 
-    # If someone is hitting 9 AM, celebrate EVERYONE with birthdays today
+    # Enhanced logging: Summary of birthday detection results
+    logger.info(
+        f"TIMEZONE: Birthday detection summary - checked: {total_birthdays_checked}, found today: {birthdays_found_today}, triggers: {len(trigger_people)}, celebrating: {len(all_birthday_people_today)}"
+    )
+
+    # If someone is hitting celebration time, celebrate EVERYONE with birthdays today
     if trigger_people and all_birthday_people_today:
         logger.info(
-            f"TIMEZONE: Celebrating all {len(all_birthday_people_today)} birthdays today (triggered by {len(trigger_people)} person(s) hitting 9 AM)"
+            f"TIMEZONE: Celebrating all {len(all_birthday_people_today)} birthdays today (triggered by {len(trigger_people)} person(s) hitting {TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')})"
         )
 
         try:
@@ -701,8 +720,10 @@ def timezone_aware_check(app, moment):
                 mark_timezone_birthday_announced(person["user_id"], person["timezone"])
 
     elif all_birthday_people_today:
-        logger.debug(
-            f"TIMEZONE: Found {len(all_birthday_people_today)} birthdays today, but none hitting 9 AM right now"
+        # Enhanced logging: Show who has birthdays but no triggers
+        birthday_names = [person["username"] for person in all_birthday_people_today]
+        logger.info(
+            f"TIMEZONE: Found {len(all_birthday_people_today)} birthdays today ({', '.join(birthday_names)}) but no {TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')} triggers - waiting for celebration time"
         )
     else:
         logger.debug("TIMEZONE: No birthdays to celebrate today")
