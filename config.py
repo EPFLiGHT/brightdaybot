@@ -162,6 +162,13 @@ IMAGE_GENERATION_PARAMS = {
 TEAM_NAME = 'Laboratory for Intelligent Global Health and Humanitarian Response Technologies ("LiGHT Lab")'
 BOT_NAME = "BrightDay"  # Default bot name
 
+# ----- BOT BIRTHDAY CONFIGURATION -----
+
+# BrightDayBot's own birthday - created March 5th, 2025
+BOT_BIRTHDAY = "05/03"  # DD/MM format
+BOT_BIRTH_YEAR = 2025  # Year the bot was created
+BOT_USER_ID = "BRIGHTDAYBOT"  # Special identifier for the bot itself
+
 # ----- PERSONALITY CONFIGURATION -----
 
 # Import centralized personality configurations

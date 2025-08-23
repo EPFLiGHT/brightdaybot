@@ -68,6 +68,7 @@ from config import (
     CACHE_DIR,
     BIRTHDAYS_FILE,
     AI_IMAGE_GENERATION_ENABLED,
+    IMAGE_GENERATION_PARAMS,
     DAILY_CHECK_TIME,
     TIMEZONE_CELEBRATION_TIME,
     EXTERNAL_BACKUP_ENABLED,
@@ -348,6 +349,7 @@ def handle_dm_admin_help(say, user_id, app):
 • `admin timezone` - View birthday celebration schedule across timezones
 • `admin test @user1 [@user2 @user3...]` - Generate test birthday message & images (single or multiple users, stays in DM)
 • `admin test-join [@user]` - Test birthday channel welcome message
+• `admin test-bot-celebration [quality] [size]` - Test BrightDayBot's self-celebration (Ludo's mystical birthday message)
 
 • `config` - View command permissions
 • `config COMMAND true/false` - Change command permissions
@@ -2392,6 +2394,226 @@ def handle_status_command(parts, user_id, say, app):
     )
 
 
+def handle_test_bot_celebration_command(
+    user_id, say, app, quality=None, image_size=None
+):
+    """Handle the admin test-bot-celebration command to test bot's self-celebration in DM."""
+    from utils.slack_utils import (
+        get_username,
+        get_channel_members,
+        send_message_with_image,
+    )
+    from utils.bot_celebration import (
+        generate_bot_celebration_message,
+        get_bot_celebration_image_title,
+    )
+    from utils.image_generator import generate_birthday_image
+    from utils.storage import load_birthdays
+    from config import (
+        BOT_BIRTH_YEAR,
+        BIRTHDAY_CHANNEL,
+        AI_IMAGE_GENERATION_ENABLED,
+        IMAGE_GENERATION_PARAMS,
+    )
+    from datetime import datetime
+
+    username = get_username(app, user_id)
+    say(
+        "🤖 *Testing BrightDayBot's Self-Celebration* 🤖\n_Test message will stay in this DM._"
+    )
+
+    try:
+        # Calculate current bot age
+        current_year = datetime.now().year
+        bot_age = current_year - BOT_BIRTH_YEAR
+
+        # Get current statistics
+        birthdays = load_birthdays()
+        total_birthdays = len(birthdays)
+
+        # Get channel members for savings calculation
+        channel_members = get_channel_members(app, BIRTHDAY_CHANNEL)
+        channel_members_count = len(channel_members) if channel_members else 0
+
+        # Calculate estimated savings vs Billy bot
+        yearly_savings = channel_members_count * 12  # $1 per user per month
+
+        # Add logging for test start
+        logger.info(
+            f"TEST_BOT_CELEBRATION: Starting test for {username} ({user_id}) - bot age {bot_age}"
+        )
+        logger.info(
+            f"TEST_BOT_CELEBRATION: Configuration - birthdays: {total_birthdays}, members: {channel_members_count}, savings: ${yearly_savings}"
+        )
+
+        # Determine quality and size settings with smart defaults for display
+        display_quality = (
+            quality
+            if quality is not None
+            else IMAGE_GENERATION_PARAMS["quality"]["test"]
+        )
+        display_image_size = (
+            image_size
+            if image_size is not None
+            else IMAGE_GENERATION_PARAMS["size"]["default"]
+        )
+
+        # Show configuration and progress feedback
+        say(
+            f"_Configuration:_\n"
+            f"• Bot age: {bot_age} years (March 5th, 2025)\n"
+            f"• Birthdays tracked: {total_birthdays}\n"
+            f"• Channel members: {channel_members_count}\n"
+            f"• Estimated savings: ${yearly_savings}/year\n"
+            f"• Quality: {display_quality} {'(custom)' if quality is not None else '(default)'}\n"
+            f"• Size: {display_image_size} {'(custom)' if image_size is not None else '(default)'}\n"
+            f"• Images: {'enabled' if AI_IMAGE_GENERATION_ENABLED else 'disabled'}"
+        )
+
+        say(
+            "Generating Ludo's mystical celebration message... this might take a moment."
+        )
+
+        # Generate Ludo's mystical celebration message
+        celebration_message = generate_bot_celebration_message(
+            bot_age=bot_age,
+            total_birthdays=total_birthdays,
+            yearly_savings=yearly_savings,
+            channel_members_count=channel_members_count,
+        )
+
+        # Try to generate birthday image if enabled
+        if AI_IMAGE_GENERATION_ENABLED:
+            try:
+                image_title = get_bot_celebration_image_title()
+
+                # Generate the birthday image using a fake user profile for bot
+                bot_profile = {
+                    "real_name": "BrightDayBot",
+                    "display_name": "BrightDayBot",
+                    "title": "Mystical Birthday Guardian",
+                }
+
+                # Determine quality and size settings with smart defaults
+                final_quality = (
+                    quality
+                    if quality is not None
+                    else IMAGE_GENERATION_PARAMS["quality"]["test"]
+                )
+                final_image_size = (
+                    image_size
+                    if image_size is not None
+                    else IMAGE_GENERATION_PARAMS["size"]["default"]
+                )
+
+                image_result = generate_birthday_image(
+                    user_profile=bot_profile,
+                    personality="mystic_dog",  # Use Ludo for bot celebration
+                    date_str="05/03",  # Bot's birthday
+                    birthday_message=celebration_message,
+                    test_mode=True,  # Use test mode for cost efficiency
+                    quality=final_quality,  # Use custom or default quality
+                    image_size=final_image_size,  # Use custom or default size
+                )
+
+                if image_result and image_result.get("success"):
+                    # Send message with image to admin's DM using correct function signature
+                    image_success = send_message_with_image(
+                        app,
+                        user_id,
+                        celebration_message,
+                        image_result,  # Pass the full image_result dict containing image_data
+                    )
+                    if image_success:
+                        # Enhanced success message with detailed results
+                        say(
+                            f"✅ *Bot Celebration Test Completed!* ✅\n\n"
+                            f"_Results:_\n"
+                            f"• Ludo's mystical message: ✅ Generated successfully\n"
+                            f"• AI image generation: ✅ Generated and sent\n"
+                            f"• Image features: Cosmic scene with all 8 personality incarnations\n"
+                            f"• Processing: Complete - ready for March 5th automatic celebration\n\n"
+                            f"🎉 _Test successful!_ This demonstrates the complete bot self-celebration flow."
+                        )
+                        logger.info(
+                            f"TEST_BOT_CELEBRATION: Successfully completed with image for {username}"
+                        )
+                    else:
+                        # Fallback to message only if image upload fails
+                        say(celebration_message)
+                        say(
+                            f"⚠️ *Bot Celebration Test - Image Upload Failed* ⚠️\n\n"
+                            f"_Results:_\n"
+                            f"• Ludo's mystical message: ✅ Generated and sent above\n"
+                            f"• AI image generation: ✅ Generated successfully\n"
+                            f"• Image upload: ❌ Failed to send to Slack\n"
+                            f"• Fallback: Message-only mode used\n\n"
+                            f"🔧 _Admin tip:_ Check Slack API permissions or image file format."
+                        )
+                        logger.warning(
+                            f"TEST_BOT_CELEBRATION: Image upload failed for {username}, fell back to message-only"
+                        )
+                else:
+                    # Send message only if image failed
+                    say(celebration_message)
+                    say(
+                        f"⚠️ *Bot Celebration Test - Partial Success* ⚠️\n\n"
+                        f"_Results:_\n"
+                        f"• Ludo's mystical message: ✅ Generated and sent above\n"
+                        f"• AI image generation: ❌ Failed\n"
+                        f"• Reason: Image generation error (check logs)\n"
+                        f"• Impact: Message-only mode for this test\n\n"
+                        f"💡 _Note:_ Actual March 5th celebration would retry image generation."
+                    )
+                    logger.warning(
+                        f"TEST_BOT_CELEBRATION: Completed with image failure for {username}"
+                    )
+
+            except Exception as image_error:
+                logger.warning(
+                    f"TEST_BOT_CELEBRATION: Image generation exception for {username}: {image_error}"
+                )
+                # Fallback to message only
+                say(celebration_message)
+                say(
+                    f"⚠️ *Bot Celebration Test - Image Error* ⚠️\n\n"
+                    f"_Results:_\n"
+                    f"• Ludo's mystical message: ✅ Generated and sent above\n"
+                    f"• AI image generation: ❌ Exception occurred\n"
+                    f"• Error details: Check logs for technical details\n"
+                    f"• Fallback: Message-only mode used\n\n"
+                    f"🔧 _Admin tip:_ Review image generation logs for troubleshooting."
+                )
+        else:
+            # Images disabled - send message only
+            say(celebration_message)
+            say(
+                f"✅ *Bot Celebration Test Completed!* ✅\n\n"
+                f"_Results:_\n"
+                f"• Ludo's mystical message: ✅ Generated and sent above\n"
+                f"• AI image generation: ⚠️ Disabled in configuration\n"
+                f"• Mode: Message-only celebration\n"
+                f"• Processing: Complete - ready for March 5th automatic celebration\n\n"
+                f"💡 _Note:_ Enable AI_IMAGE_GENERATION_ENABLED for full visual celebration."
+            )
+            logger.info(
+                f"TEST_BOT_CELEBRATION: Completed in message-only mode for {username}"
+            )
+
+    except Exception as e:
+        say(
+            f"❌ *Bot Celebration Test Failed* ❌\n\n"
+            f"_Error Details:_\n"
+            f"• Test status: Failed during processing\n"
+            f"• Error: {str(e)}\n"
+            f"• Admin user: {username}\n\n"
+            f"🔧 _Admin tip:_ Check logs for detailed error information."
+        )
+        logger.error(
+            f"TEST_BOT_CELEBRATION: Test failed by {username} ({user_id}): {e}"
+        )
+
+
 def handle_admin_command(subcommand, args, say, user_id, app):
     """Handle admin-specific commands"""
     # Add global declaration
@@ -2678,6 +2900,24 @@ def handle_admin_command(subcommand, args, say, user_id, app):
 
     elif subcommand == "announce":
         handle_announce_command(args, user_id, say, app)
+
+    elif subcommand == "test-bot-celebration":
+        # Extract quality and image_size parameters if provided: "admin test-bot-celebration [quality] [size]"
+        quality = None
+        image_size = None
+
+        # Parse additional arguments for quality and size parameters
+        if len(args) >= 1:
+            potential_quality = args[0]
+            if potential_quality in IMAGE_GENERATION_PARAMS["quality"]["options"]:
+                quality = potential_quality
+
+        if len(args) >= 2:
+            potential_size = args[1]
+            if potential_size in IMAGE_GENERATION_PARAMS["size"]["options"]:
+                image_size = potential_size
+
+        handle_test_bot_celebration_command(user_id, say, app, quality, image_size)
 
     else:
         say(

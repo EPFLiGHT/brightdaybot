@@ -9,6 +9,7 @@ Main functions: timezone_aware_check(), simple_daily_check(), send_reminder_to_u
 """
 
 import random
+import os
 from datetime import datetime, timezone
 
 from utils.date_utils import check_if_birthday_today, date_to_words
@@ -22,7 +23,6 @@ from utils.storage import (
 from utils.slack_utils import (
     send_message,
     send_message_with_image,
-    send_message_with_multiple_images,
     send_message_with_multiple_attachments,
     get_user_profile,
     get_user_status_and_info,
@@ -43,9 +43,143 @@ from utils.race_condition_logger import (
     log_validation_action_taken,
     should_alert_on_race_conditions,
 )
-from config import BIRTHDAY_CHANNEL, AI_IMAGE_GENERATION_ENABLED, get_logger
+from config import (
+    BIRTHDAY_CHANNEL,
+    AI_IMAGE_GENERATION_ENABLED,
+    get_logger,
+    BOT_BIRTH_YEAR,
+    IMAGE_GENERATION_PARAMS,
+)
+from utils.bot_celebration import (
+    generate_bot_celebration_message,
+    get_bot_celebration_image_title,
+)
+from utils.image_generator import generate_birthday_image
 
 logger = get_logger("birthday")
+
+
+def celebrate_bot_birthday(app, moment):
+    """
+    Check if today is BrightDayBot's birthday (March 5th) and celebrate if so.
+    Uses Ludo personality to celebrate the bot's creation and mention all 8 personalities.
+
+    Args:
+        app: Slack app instance
+        moment: Current datetime with timezone info
+
+    Returns:
+        bool: True if bot birthday was celebrated, False otherwise
+    """
+    # Check if today is March 5th (bot's birthday)
+    if moment.month != 3 or moment.day != 5:
+        return False
+
+    # Check if we already celebrated today to prevent duplicates
+    celebration_tracking_file = (
+        f"data/tracking/bot_birthday_{moment.strftime('%Y-%m-%d')}.txt"
+    )
+    if os.path.exists(celebration_tracking_file):
+        logger.debug("BOT_BIRTHDAY: Already celebrated today, skipping")
+        return False
+
+    try:
+        logger.info(
+            "BOT_BIRTHDAY: It's BrightDayBot's birthday - March 5th! Celebrating..."
+        )
+
+        # Calculate bot age
+        bot_age = moment.year - BOT_BIRTH_YEAR
+
+        # Get current statistics
+        birthdays = load_birthdays()
+        total_birthdays = len(birthdays)
+
+        # Get channel members for savings calculation
+        channel_members = get_channel_members(app, BIRTHDAY_CHANNEL)
+        channel_members_count = len(channel_members) if channel_members else 0
+
+        # Calculate estimated savings vs Billy bot
+        yearly_savings = channel_members_count * 12  # $1 per user per month
+
+        # Generate Ludo's mystical celebration message
+        celebration_message = generate_bot_celebration_message(
+            bot_age=bot_age,
+            total_birthdays=total_birthdays,
+            yearly_savings=yearly_savings,
+            channel_members_count=channel_members_count,
+        )
+
+        # Generate birthday image if enabled
+        if AI_IMAGE_GENERATION_ENABLED:
+            try:
+                image_title = get_bot_celebration_image_title()
+
+                # Generate the birthday image using a fake user profile for bot
+                bot_profile = {
+                    "real_name": "BrightDayBot",
+                    "display_name": "BrightDayBot",
+                    "title": "Mystical Birthday Guardian",
+                }
+
+                image_result = generate_birthday_image(
+                    user_profile=bot_profile,
+                    personality="mystic_dog",  # Use Ludo for bot celebration
+                    date_str="05/03",  # Bot's birthday
+                    birthday_message=celebration_message,
+                    test_mode=False,
+                    quality=IMAGE_GENERATION_PARAMS["quality"][
+                        "default"
+                    ],  # Use default quality from config
+                    image_size=IMAGE_GENERATION_PARAMS["size"][
+                        "default"
+                    ],  # Use default size from config
+                )
+
+                if image_result and image_result.get("success"):
+                    # Send message with image
+                    send_message_with_image(
+                        app=app,
+                        channel_or_user=BIRTHDAY_CHANNEL,
+                        message=celebration_message,
+                        image_path=image_result["image_path"],
+                        image_title=image_title,
+                    )
+                    logger.info("BOT_BIRTHDAY: Sent celebration message with AI image")
+                else:
+                    # Fallback to message only
+                    send_message(app, BIRTHDAY_CHANNEL, celebration_message)
+                    logger.info(
+                        "BOT_BIRTHDAY: Sent celebration message (image generation failed)"
+                    )
+
+            except Exception as image_error:
+                logger.warning(f"BOT_BIRTHDAY: Image generation failed: {image_error}")
+                # Fallback to message only
+                send_message(app, BIRTHDAY_CHANNEL, celebration_message)
+                logger.info(
+                    "BOT_BIRTHDAY: Sent celebration message (image error fallback)"
+                )
+        else:
+            # Images disabled - send message only
+            send_message(app, BIRTHDAY_CHANNEL, celebration_message)
+            logger.info("BOT_BIRTHDAY: Sent celebration message (images disabled)")
+
+        # Mark as celebrated today to prevent duplicates
+        os.makedirs("data/tracking", exist_ok=True)
+        with open(celebration_tracking_file, "w") as f:
+            f.write(
+                f"BrightDayBot birthday celebrated on {moment.strftime('%Y-%m-%d')}"
+            )
+
+        logger.info(
+            f"BOT_BIRTHDAY: Successfully celebrated BrightDayBot's {bot_age} year anniversary!"
+        )
+        return True
+
+    except Exception as e:
+        logger.error(f"BOT_BIRTHDAY_ERROR: Failed to celebrate bot birthday: {e}")
+        return False
 
 
 def send_reminder_to_users(app, users, custom_message=None, reminder_type="new"):
@@ -295,6 +429,9 @@ def timezone_aware_check(app, moment):
     logger.info(
         f"TIMEZONE: Running timezone-aware birthday checks at {moment.strftime('%Y-%m-%d %H:%M')} (UTC)"
     )
+
+    # Check if today is BrightDayBot's birthday and celebrate if so
+    celebrate_bot_birthday(app, moment)
 
     # Get current birthday channel members (for opt-out respect)
     try:
@@ -591,6 +728,9 @@ def simple_daily_check(app, moment):
     logger.info(
         f"SIMPLE_DAILY: Running simple birthday check for {moment.strftime('%Y-%m-%d')} (UTC)"
     )
+
+    # Check if today is BrightDayBot's birthday and celebrate if so
+    celebrate_bot_birthday(app, moment)
 
     # Get current birthday channel members (for opt-out respect)
     try:

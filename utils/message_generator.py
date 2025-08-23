@@ -688,6 +688,9 @@ def completion(
             mention_text = user_mention if user_id else name
             formatted_message = random_message.replace("{name}", mention_text)
 
+            # Fix Slack formatting issues in fallback message
+            formatted_message = fix_slack_formatting(formatted_message)
+
             logger.info(f"AI: Used fallback birthday message")
 
             # Generate AI image if requested (after message is created)
@@ -1405,6 +1408,9 @@ def generate_birthday_image_title(
                 log_chat_completion_usage(response, "IMAGE_TITLE_GEN", logger)
 
                 ai_title = response.choices[0].message.content.strip()
+
+                # Fix Slack formatting issues
+                ai_title = fix_slack_formatting(ai_title)
 
                 # Clean up the title (remove quotes, extra punctuation)
                 ai_title = ai_title.strip("\"'").rstrip(".!?")

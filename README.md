@@ -182,6 +182,7 @@ python app.py
 - `admin test-upload` - Test image upload functionality
 - `admin test-file-upload` - Test text file upload functionality
 - `admin test-external-backup` - Test external backup system with diagnostics
+- `admin test-bot-celebration` - Test BrightDayBot's self-celebration (Ludo's mystical birthday message)
 
 **Data Management:**
 

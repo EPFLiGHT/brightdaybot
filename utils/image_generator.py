@@ -188,6 +188,7 @@ def generate_birthday_image(
             image_base64 = None
 
         result = {
+            "success": True,  # Add success flag for command handler validation
             "image_url": image_url,  # None for base64 format
             "image_data": image_data,
             "image_base64": image_base64,  # Include base64 string
