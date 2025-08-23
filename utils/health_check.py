@@ -788,7 +788,9 @@ def check_log_files():
         has_issues = False
         total_size = 0
 
-        for log_type, log_file in LOG_FILES.items():
+        for log_type, log_filename in LOG_FILES.items():
+            # Construct full path since LOG_FILES contains relative paths
+            log_file = os.path.join(LOGS_DIR, log_filename)
             file_info = {
                 "path": log_file,
                 "exists": os.path.exists(log_file),
@@ -1201,6 +1203,56 @@ def get_system_status():
             }
             has_critical_issue = True
 
+        # Live connectivity checks
+        slack_connectivity = check_live_slack_connectivity()
+        status["components"]["slack_connectivity"] = slack_connectivity
+
+        if slack_connectivity.get("status") == STATUS_ERROR:
+            has_critical_issue = True
+
+        # OpenAI connectivity (non-critical - system can function without it for basic operations)
+        try:
+            openai_connectivity = check_live_openai_connectivity()
+            status["components"]["openai_connectivity"] = openai_connectivity
+
+            # Only mark as critical if it's a configuration issue, not connectivity
+            if openai_connectivity.get("status") == STATUS_NOT_CONFIGURED:
+                logger.warning(
+                    "HEALTH_CHECK: OpenAI API not configured - some features will be unavailable"
+                )
+                has_critical_issue = True
+            elif openai_connectivity.get("status") == STATUS_ERROR:
+                logger.warning(
+                    f"HEALTH_CHECK: OpenAI API connectivity issues - {openai_connectivity.get('message', 'unknown error')}"
+                )
+                # Don't mark as critical issue - system can still function for non-AI operations
+
+        except Exception as e:
+            logger.error(f"Error checking OpenAI connectivity: {e}")
+            status["components"]["openai_connectivity"] = {
+                "status": STATUS_ERROR,
+                "error": str(e),
+                "message": f"OpenAI connectivity check failed: {str(e)}",
+            }
+
+        # Scheduler runtime health
+        try:
+            from services.scheduler import get_scheduler_health
+
+            scheduler_health = get_scheduler_health()
+            status["components"]["scheduler_runtime"] = scheduler_health
+
+            if scheduler_health.get("status") == STATUS_ERROR:
+                has_critical_issue = True
+
+        except Exception as e:
+            logger.error(f"Error checking scheduler health: {e}")
+            status["components"]["scheduler_runtime"] = {
+                "status": STATUS_ERROR,
+                "error": str(e),
+            }
+            has_critical_issue = True
+
         # Set overall status
         if has_critical_issue:
             status["overall"] = STATUS_ERROR
@@ -1219,6 +1271,140 @@ def get_system_status():
             "components": {},
             "overall": STATUS_ERROR,
             "error": str(e),
+        }
+
+
+def check_live_slack_connectivity():
+    """
+    Test live connectivity to Slack API with actual API call
+
+    Returns:
+        dict: Slack API connectivity status
+    """
+    try:
+        slack_token = os.getenv("SLACK_BOT_TOKEN")
+        if not slack_token:
+            return {
+                "status": STATUS_NOT_CONFIGURED,
+                "message": "No Slack bot token configured",
+            }
+
+        # Import Slack client
+        from slack_sdk import WebClient
+        from slack_sdk.errors import SlackApiError
+
+        client = WebClient(token=slack_token)
+
+        # Make a simple API call to test connectivity
+        start_time = datetime.now()
+        response = client.auth_test()
+        response_time = (datetime.now() - start_time).total_seconds()
+
+        if response.get("ok"):
+            return {
+                "status": STATUS_OK,
+                "connected": True,
+                "response_time_seconds": response_time,
+                "user_id": response.get("user_id"),
+                "team_name": response.get("team"),
+                "api_url": response.get("url"),
+                "message": f"Connected successfully in {response_time:.2f}s",
+            }
+        else:
+            return {
+                "status": STATUS_ERROR,
+                "connected": False,
+                "error": response.get("error", "Unknown error"),
+                "message": "Slack API returned error",
+            }
+
+    except SlackApiError as e:
+        return {
+            "status": STATUS_ERROR,
+            "connected": False,
+            "error": str(e),
+            "error_code": e.response.get("error"),
+            "message": f"Slack API error: {e.response.get('error')}",
+        }
+    except Exception as e:
+        return {
+            "status": STATUS_ERROR,
+            "connected": False,
+            "error": str(e),
+            "message": f"Failed to connect to Slack: {str(e)}",
+        }
+
+
+def check_live_openai_connectivity():
+    """
+    Test live connectivity to OpenAI API with actual API call
+
+    Returns:
+        dict: OpenAI API connectivity status
+    """
+    try:
+        openai_key = os.getenv("OPENAI_API_KEY")
+        if not openai_key:
+            return {
+                "status": STATUS_NOT_CONFIGURED,
+                "message": "No OpenAI API key configured",
+            }
+
+        # Import OpenAI client (v1.0+ API)
+        from openai import (
+            OpenAI,
+            AuthenticationError,
+            RateLimitError,
+            APIConnectionError,
+        )
+
+        # Initialize client
+        client = OpenAI(api_key=openai_key)
+
+        # Make a simple API call to test connectivity (list models)
+        start_time = datetime.now()
+        models = client.models.list()
+        response_time = (datetime.now() - start_time).total_seconds()
+
+        # Convert to list and count
+        model_list = list(models)
+        model_count = len(model_list)
+
+        return {
+            "status": STATUS_OK,
+            "connected": True,
+            "response_time_seconds": response_time,
+            "available_models": model_count,
+            "message": f"Connected successfully in {response_time:.2f}s, {model_count} models available",
+        }
+
+    except AuthenticationError as e:
+        return {
+            "status": STATUS_ERROR,
+            "connected": False,
+            "error": "Authentication failed",
+            "message": "OpenAI API key is invalid",
+        }
+    except RateLimitError as e:
+        return {
+            "status": STATUS_ERROR,
+            "connected": False,
+            "error": "Rate limit exceeded",
+            "message": "OpenAI API rate limit reached",
+        }
+    except APIConnectionError as e:
+        return {
+            "status": STATUS_ERROR,
+            "connected": False,
+            "error": "Connection failed",
+            "message": f"Cannot connect to OpenAI API: {str(e)}",
+        }
+    except Exception as e:
+        return {
+            "status": STATUS_ERROR,
+            "connected": False,
+            "error": str(e),
+            "message": f"Failed to connect to OpenAI: {str(e)}",
         }
 
 
@@ -1457,6 +1643,56 @@ def get_status_summary():
             summary_lines.append(f"❌ *Testing Infrastructure*: Issues detected")
             if "error" in testing_status:
                 summary_lines.append(f"   Error: {testing_status['error']}")
+
+        # Runtime Health Checks
+        summary_lines.append("")  # Add separator
+        summary_lines.append("🚀 *Runtime Health Monitoring*")
+
+        # Scheduler health
+        scheduler_status = status["components"].get("scheduler_runtime", {})
+        if scheduler_status.get("status") == STATUS_OK:
+            jobs_count = scheduler_status.get("scheduled_jobs", 0)
+            success_rate = scheduler_status.get("success_rate_percent")
+            if success_rate is not None:
+                summary_lines.append(
+                    f"✅ *Scheduler*: Running ({jobs_count} jobs, {success_rate:.1f}% success)"
+                )
+            else:
+                summary_lines.append(f"✅ *Scheduler*: Running ({jobs_count} jobs)")
+        else:
+            summary_lines.append(f"❌ *Scheduler*: Issues detected")
+            if "error" in scheduler_status:
+                summary_lines.append(f"   Error: {scheduler_status['error']}")
+
+        # Slack connectivity
+        slack_connectivity = status["components"].get("slack_connectivity", {})
+        if slack_connectivity.get("status") == STATUS_OK:
+            response_time = slack_connectivity.get("response_time_seconds", 0)
+            team_name = slack_connectivity.get("team_name", "Unknown")
+            summary_lines.append(
+                f"✅ *Slack API*: Connected to '{team_name}' ({response_time:.2f}s)"
+            )
+        elif slack_connectivity.get("status") == STATUS_NOT_CONFIGURED:
+            summary_lines.append("❌ *Slack API*: Not configured")
+        else:
+            summary_lines.append(f"❌ *Slack API*: Connection failed")
+            if "message" in slack_connectivity:
+                summary_lines.append(f"   Error: {slack_connectivity['message']}")
+
+        # OpenAI connectivity
+        openai_connectivity = status["components"].get("openai_connectivity", {})
+        if openai_connectivity.get("status") == STATUS_OK:
+            response_time = openai_connectivity.get("response_time_seconds", 0)
+            models_count = openai_connectivity.get("available_models", 0)
+            summary_lines.append(
+                f"✅ *OpenAI API*: Connected ({models_count} models, {response_time:.2f}s)"
+            )
+        elif openai_connectivity.get("status") == STATUS_NOT_CONFIGURED:
+            summary_lines.append("❌ *OpenAI API*: Not configured")
+        else:
+            summary_lines.append(f"❌ *OpenAI API*: Connection failed")
+            if "message" in openai_connectivity:
+                summary_lines.append(f"   Error: {openai_connectivity['message']}")
 
         # Overall status
         summary_lines.append("")

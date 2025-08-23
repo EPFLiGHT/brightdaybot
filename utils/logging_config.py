@@ -12,7 +12,8 @@ import logging
 import logging.handlers
 
 # Enhanced logging with separate files for different components
-LOG_FILES = {
+# Use relative paths to avoid circular import, construct full paths when needed
+LOG_FILE_NAMES = {
     "main": "main.log",  # Core application
     "commands": "commands.log",  # User commands and admin actions
     "events": "events.log",  # Slack events
@@ -23,6 +24,9 @@ LOG_FILES = {
     "system": "system.log",  # System health, config, utils
     "scheduler": "scheduler.log",  # Scheduling and background tasks
 }
+
+# For backwards compatibility and health check usage
+LOG_FILES = LOG_FILE_NAMES  # Will be updated with full paths when LOGS_DIR is available
 
 # Component to log file mapping
 COMPONENT_LOG_MAPPING = {

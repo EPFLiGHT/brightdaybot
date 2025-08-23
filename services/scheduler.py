@@ -25,6 +25,13 @@ _app_instance = None
 _timezone_enabled = None
 _check_interval = None
 
+# Scheduler health monitoring
+_scheduler_thread = None
+_last_heartbeat = None
+_total_executions = 0
+_failed_executions = 0
+_scheduler_running = False
+
 
 def hourly_task():
     """
@@ -60,10 +67,29 @@ def daily_task():
 
 
 def run_scheduler():
-    """Run the scheduler in a separate thread"""
+    """Run the scheduler in a separate thread with health monitoring"""
+    global _last_heartbeat, _total_executions, _failed_executions, _scheduler_running
+
+    _scheduler_running = True
+    logger.info("SCHEDULER_HEALTH: Scheduler thread started and running")
+
     while True:
-        schedule.run_pending()
-        time.sleep(60)  # Check every minute
+        try:
+            # Update heartbeat
+            _last_heartbeat = datetime.now()
+
+            # Run scheduled tasks
+            pending_count = len(schedule.jobs)
+            if pending_count > 0:
+                _total_executions += 1
+
+            schedule.run_pending()
+            time.sleep(60)  # Check every minute
+
+        except Exception as e:
+            _failed_executions += 1
+            logger.error(f"SCHEDULER_HEALTH: Error in scheduler loop: {e}")
+            time.sleep(60)  # Continue running even after errors
 
 
 def setup_scheduler(app, timezone_aware_check, simple_daily_check):
@@ -75,7 +101,7 @@ def setup_scheduler(app, timezone_aware_check, simple_daily_check):
         timezone_aware_check: Function to call for timezone-aware birthday checks
         simple_daily_check: Function to call for simple daily birthday checks
     """
-    global _timezone_aware_callback, _simple_daily_callback, _app_instance, _timezone_enabled, _check_interval
+    global _timezone_aware_callback, _simple_daily_callback, _app_instance, _timezone_enabled, _check_interval, _scheduler_thread
     _timezone_aware_callback = timezone_aware_check
     _simple_daily_callback = simple_daily_check
     _app_instance = app
@@ -109,9 +135,9 @@ def setup_scheduler(app, timezone_aware_check, simple_daily_check):
         )
 
     # Start the scheduler in a separate thread
-    scheduler_thread = threading.Thread(target=run_scheduler)
-    scheduler_thread.daemon = True  # Make thread exit when main program exits
-    scheduler_thread.start()
+    _scheduler_thread = threading.Thread(target=run_scheduler)
+    _scheduler_thread.daemon = True  # Make thread exit when main program exits
+    _scheduler_thread.start()
     logger.info("SCHEDULER: Background scheduler thread started")
 
 
@@ -158,3 +184,77 @@ def startup_birthday_catchup(app, current_time):
     # Use the dedicated missed birthday function that bypasses time checks
     # and celebrates all uncelebrated birthdays for today
     celebrate_missed_birthdays(app)
+
+
+def get_scheduler_health():
+    """
+    Get scheduler health status for monitoring
+
+    Returns:
+        dict: Scheduler health information
+    """
+    global _scheduler_thread, _last_heartbeat, _total_executions, _failed_executions, _scheduler_running
+
+    now = datetime.now()
+
+    # Check if thread is alive
+    thread_alive = _scheduler_thread is not None and _scheduler_thread.is_alive()
+
+    # Check heartbeat freshness (should be within last 2 minutes)
+    heartbeat_fresh = False
+    heartbeat_age_seconds = None
+    if _last_heartbeat:
+        heartbeat_age = now - _last_heartbeat
+        heartbeat_age_seconds = heartbeat_age.total_seconds()
+        heartbeat_fresh = heartbeat_age_seconds < 120  # 2 minutes
+
+    # Calculate success rate
+    success_rate = None
+    if _total_executions > 0:
+        success_rate = (
+            (_total_executions - _failed_executions) / _total_executions
+        ) * 100
+
+    health_status = (
+        "ok" if (thread_alive and heartbeat_fresh and _scheduler_running) else "error"
+    )
+
+    return {
+        "status": health_status,
+        "thread_alive": thread_alive,
+        "scheduler_running": _scheduler_running,
+        "last_heartbeat": _last_heartbeat.isoformat() if _last_heartbeat else None,
+        "heartbeat_age_seconds": heartbeat_age_seconds,
+        "heartbeat_fresh": heartbeat_fresh,
+        "total_executions": _total_executions,
+        "failed_executions": _failed_executions,
+        "success_rate_percent": success_rate,
+        "scheduled_jobs": len(schedule.jobs),
+        "timezone_enabled": _timezone_enabled,
+        "check_interval_hours": _check_interval,
+    }
+
+
+def get_scheduler_summary():
+    """
+    Get human-readable scheduler health summary
+
+    Returns:
+        str: Human-readable scheduler status
+    """
+    health = get_scheduler_health()
+
+    if health["status"] == "ok":
+        return f"✅ Scheduler healthy - {health['scheduled_jobs']} jobs, {health['success_rate_percent']:.1f}% success rate"
+    else:
+        issues = []
+        if not health["thread_alive"]:
+            issues.append("thread not running")
+        if not health["heartbeat_fresh"]:
+            issues.append(
+                f"heartbeat stale ({health['heartbeat_age_seconds']:.0f}s ago)"
+            )
+        if not health["scheduler_running"]:
+            issues.append("not initialized")
+
+        return f"❌ Scheduler issues: {', '.join(issues)}"
