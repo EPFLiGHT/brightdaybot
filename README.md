@@ -152,7 +152,7 @@ python app.py
 - `add DD/MM` or `add DD/MM/YYYY` - Set your birthday
 - `check` - View your saved birthday
 - `remove` - Remove your birthday
-- `test [quality] [size]` - See a sample birthday message with image
+- `test [quality] [size] [--text-only]` - See a sample birthday message with image (--text-only skips image generation)
 - `help` - Show all commands
 
 ### Admin Commands
@@ -177,12 +177,12 @@ python app.py
 
 **Testing & Debugging:**
 
-- `admin test @user [quality] [size]` - Generate test birthday message & image (stays in DM)
+- `admin test @user [quality] [size] [--text-only]` - Generate test birthday message & image (stays in DM)
 - `admin test-join [@user]` - Test birthday channel welcome message flow
 - `admin test-upload` - Test image upload functionality
 - `admin test-file-upload` - Test text file upload functionality
 - `admin test-external-backup` - Test external backup system with diagnostics
-- `admin test-bot-celebration` - Test BrightDayBot's self-celebration (Ludo's mystical birthday message)
+- `admin test-bot-celebration [quality] [size] [--text-only]` - Test BrightDayBot's self-celebration (Ludo's mystical birthday message)
 
 **Data Management:**
 

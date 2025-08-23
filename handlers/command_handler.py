@@ -127,8 +127,65 @@ def remove_pending_confirmation(user_id):
         logger.info(
             f"CONFIRMATION: Removed pending {action} confirmation for user {user_id}"
         )
-        return True
-    return False
+
+
+def parse_test_command_args(args):
+    """
+    Parse test command arguments to extract quality, image_size, and text_only flag
+
+    Args:
+        args: List of command arguments
+
+    Returns:
+        tuple: (quality, image_size, text_only, error_message)
+        If error_message is not None, parsing failed
+    """
+    quality = None
+    image_size = None
+    text_only = False
+
+    # Filter out --text-only flag first
+    filtered_args = []
+    for arg in args:
+        if arg.lower() == "--text-only":
+            text_only = True
+        else:
+            filtered_args.append(arg)
+
+    # Process remaining arguments for quality and size
+    if len(filtered_args) > 0:
+        quality_arg = filtered_args[0].lower()
+        if quality_arg in ["low", "medium", "high", "auto"]:
+            quality = quality_arg
+        else:
+            return (
+                None,
+                None,
+                False,
+                f"Invalid quality '{filtered_args[0]}'. Valid options: low, medium, high, auto",
+            )
+
+    if len(filtered_args) > 1:
+        size_arg = filtered_args[1].lower()
+        if size_arg in ["auto", "1024x1024", "1536x1024", "1024x1536"]:
+            image_size = size_arg
+        else:
+            return (
+                None,
+                None,
+                False,
+                f"Invalid size '{filtered_args[1]}'. Valid options: auto, 1024x1024, 1536x1024, 1024x1536",
+            )
+
+    if len(filtered_args) > 2:
+        return (
+            None,
+            None,
+            False,
+            f"Too many arguments. Expected: [quality] [size] [--text-only]",
+        )
+
+    return quality, image_size, text_only, None
 
 
 def handle_confirm_command(user_id, say, app):
@@ -310,7 +367,7 @@ Here's how you can interact with me:
    • `help` - Show this help message
    • `check` - Check your saved birthday
    • `check @user` - Check someone else's birthday
-   • `test [quality] [size]` - See a test birthday message for yourself (quality: low/medium/high/auto, size: auto/1024x1024/1536x1024/1024x1536)
+   • `test [quality] [size] [--text-only]` - See a test birthday message for yourself (quality: low/medium/high/auto, size: auto/1024x1024/1536x1024/1024x1536, --text-only skips images)
    • `confirm` - Confirm pending announcement or reminder commands
 
 Admin commands are also available. Type `admin help` for more information.
@@ -347,9 +404,9 @@ def handle_dm_admin_help(say, user_id, app):
 • `admin status` - View system health and component status
 • `admin status detailed` - View detailed system information
 • `admin timezone` - View birthday celebration schedule across timezones
-• `admin test @user1 [@user2 @user3...]` - Generate test birthday message & images (single or multiple users, stays in DM)
+• `admin test @user1 [@user2 @user3...] [quality] [size] [--text-only]` - Generate test birthday message & images (single or multiple users, stays in DM)
 • `admin test-join [@user]` - Test birthday channel welcome message
-• `admin test-bot-celebration [quality] [size]` - Test BrightDayBot's self-celebration (Ludo's mystical birthday message)
+• `admin test-bot-celebration [quality] [size] [--text-only]` - Test BrightDayBot's self-celebration (Ludo's mystical birthday message)
 
 • `config` - View command permissions
 • `config COMMAND true/false` - Change command permissions
@@ -678,31 +735,16 @@ def handle_command(text, user_id, say, app):
         handle_config_command(parts, user_id, say, app)
 
     elif command == "test":
-        # Extract quality and image_size parameters if provided: "test [quality] [size]"
-        quality = None
-        image_size = None
+        # Extract quality, image_size, and --text-only parameters if provided: "test [quality] [size] [--text-only]"
+        quality, image_size, text_only, error_message = parse_test_command_args(
+            parts[1:]
+        )
 
-        if len(parts) > 1:
-            quality_arg = parts[1].lower()
-            if quality_arg in ["low", "medium", "high", "auto"]:
-                quality = quality_arg
-            else:
-                say(
-                    f"Invalid quality '{parts[1]}'. Valid options: low, medium, high, auto"
-                )
-                return
+        if error_message:
+            say(error_message)
+            return
 
-        if len(parts) > 2:
-            size_arg = parts[2].lower()
-            if size_arg in ["auto", "1024x1024", "1536x1024", "1024x1536"]:
-                image_size = size_arg
-            else:
-                say(
-                    f"Invalid size '{parts[2]}'. Valid options: auto, 1024x1024, 1536x1024, 1024x1536"
-                )
-                return
-
-        handle_test_command(user_id, say, app, quality, image_size)
+        handle_test_command(user_id, say, app, quality, image_size, text_only=text_only)
 
     elif command == "hello":
         # Friendly greeting command using centralized personality config
@@ -1269,7 +1311,13 @@ def handle_config_command(parts, user_id, say, app):
 
 
 def handle_test_command(
-    user_id, say, app, quality=None, image_size=None, target_user_id=None
+    user_id,
+    say,
+    app,
+    quality=None,
+    image_size=None,
+    target_user_id=None,
+    text_only=None,
 ):
     """
     Generate a test birthday message for a user
@@ -1316,14 +1364,21 @@ def handle_test_command(
                 f"Generating a test birthday message for you... this might take a moment."
             )
 
-        # Log quality and image size if provided
+        # Log quality, image size, and text_only flag if provided
         if quality:
             logger.info(f"TEST_COMMAND: Using quality: {quality}")
         if image_size:
             logger.info(f"TEST_COMMAND: Using image size: {image_size}")
+        if text_only:
+            logger.info(
+                f"TEST_COMMAND: Using text-only mode (skipping image generation)"
+            )
 
         # Get enhanced profile data for personalization
         user_profile = get_user_profile(app, target_user_id)
+
+        # Determine whether to include image: respect --text-only flag first, then global setting
+        include_image = AI_IMAGE_GENERATION_ENABLED and not text_only
 
         # Try to get personalized AI message with profile data and optional image
         result = completion(
@@ -1334,13 +1389,13 @@ def handle_test_command(
             birth_year,
             app=app,
             user_profile=user_profile,
-            include_image=AI_IMAGE_GENERATION_ENABLED,
+            include_image=include_image,
             test_mode=True,  # Use low-cost mode for user testing
             quality=quality,  # Allow quality override
             image_size=image_size,  # Allow image size override
         )
 
-        if isinstance(result, tuple) and AI_IMAGE_GENERATION_ENABLED:
+        if isinstance(result, tuple) and include_image:
             test_message, image_data = result
             if image_data:
                 # Send the message with image in one go (no duplicate message)
@@ -1960,16 +2015,19 @@ No worries! If you'd prefer to opt out, simply leave {get_channel_mention(BIRTHD
 
 
 def handle_test_birthday_command(args, user_id, say, app):
-    """Handles the admin test @user1 [@user2 @user3...] [quality] [size] command to generate test birthday message and image(s)."""
+    """Handles the admin test @user1 [@user2 @user3...] [quality] [size] [--text-only] command to generate test birthday message and image(s)."""
     if not args:
         say(
-            "Please specify user(s): `admin test @user1 [@user2 @user3...] [quality] [size]`\n"
+            "Please specify user(s): `admin test @user1 [@user2 @user3...] [quality] [size] [--text-only]`\n"
             "Quality options: low, medium, high, auto\n"
-            "Size options: auto, 1024x1024, 1536x1024, 1024x1536\n\n"
+            "Size options: auto, 1024x1024, 1536x1024, 1024x1536\n"
+            "Flags: --text-only (skip image generation)\n\n"
             "Examples:\n"
             "• `admin test @alice` - Single user test\n"
             "• `admin test @alice @bob @charlie` - Multiple user test\n"
-            "• `admin test @alice @bob high auto` - Multiple users with quality/size"
+            "• `admin test @alice @bob high auto` - Multiple users with quality/size\n"
+            "• `admin test @alice --text-only` - Single user text-only test\n"
+            "• `admin test @alice @bob --text-only` - Multiple users text-only test"
         )
         return
 
@@ -1995,45 +2053,42 @@ def handle_test_birthday_command(args, user_id, say, app):
         say("Maximum 5 users allowed for testing to avoid spam")
         return
 
-    # Extract quality and image_size parameters from non-user arguments
-    quality = None
-    image_size = None
+    # Extract quality, image_size, and --text-only parameters from non-user arguments
+    quality, image_size, text_only, error_message = parse_test_command_args(
+        non_user_args
+    )
 
-    if len(non_user_args) > 0:
-        quality_arg = non_user_args[0].lower()
-        if quality_arg in ["low", "medium", "high", "auto"]:
-            quality = quality_arg
-        else:
-            say(
-                f"Invalid quality '{non_user_args[0]}'. Valid options: low, medium, high, auto"
-            )
-            return
-
-    if len(non_user_args) > 1:
-        size_arg = non_user_args[1].lower()
-        if size_arg in ["auto", "1024x1024", "1536x1024", "1024x1536"]:
-            image_size = size_arg
-        else:
-            say(
-                f"Invalid size '{non_user_args[1]}'. Valid options: auto, 1024x1024, 1536x1024, 1024x1536"
-            )
-            return
+    if error_message:
+        say(error_message)
+        return
 
     # Determine if this is single or multiple user test
     if len(test_user_ids) == 1:
         # Single user test - use existing single user handler
         handle_test_command(
-            user_id, say, app, quality, image_size, target_user_id=test_user_ids[0]
+            user_id,
+            say,
+            app,
+            quality,
+            image_size,
+            target_user_id=test_user_ids[0],
+            text_only=text_only,
         )
     else:
         # Multiple user test - use new consolidated handler
         handle_test_multiple_birthday_command(
-            test_user_ids, user_id, say, app, quality, image_size
+            test_user_ids, user_id, say, app, quality, image_size, text_only=text_only
         )
 
 
 def handle_test_multiple_birthday_command(
-    test_user_ids, admin_user_id, say, app, quality=None, image_size=None
+    test_user_ids,
+    admin_user_id,
+    say,
+    app,
+    quality=None,
+    image_size=None,
+    text_only=None,
 ):
     """Handle testing multiple birthday celebrations with consolidated message and individual images."""
     from utils.slack_utils import send_message_with_multiple_attachments
@@ -2044,9 +2099,15 @@ def handle_test_multiple_birthday_command(
         f"TEST_MULTI: {admin_username} testing multiple birthdays for {len(test_user_ids)} users"
     )
 
+    # Log text_only flag if provided
+    if text_only:
+        logger.info(f"TEST_MULTI: Using text-only mode (skipping image generation)")
+
+    # Update user display message
+    image_mode = "text-only" if text_only else "with individual images"
     say(
         f"🎂 *Testing Multiple Birthday System* 🎂\n"
-        f"Generating consolidated birthday message + individual images for {len(test_user_ids)} users...\n"
+        f"Generating consolidated birthday message {image_mode} for {len(test_user_ids)} users...\n"
         f"Quality: {quality or 'test mode (low)'}, Size: {image_size or 'auto'}"
     )
 
@@ -2107,11 +2168,14 @@ def handle_test_multiple_birthday_command(
                 + (f"/{shared_year}" if shared_year else "")
             )
 
-        # Generate consolidated birthday announcement with individual images
+        # Determine whether to include images: respect --text-only flag first, then global setting
+        include_image = AI_IMAGE_GENERATION_ENABLED and not text_only
+
+        # Generate consolidated birthday announcement with optional individual images
         result = create_consolidated_birthday_announcement(
             birthday_people,
             app=app,
-            include_image=True,  # Enable image generation
+            include_image=include_image,
             test_mode=True,  # Use test mode for cost efficiency
             quality=quality,
             image_size=image_size,
@@ -2395,7 +2459,7 @@ def handle_status_command(parts, user_id, say, app):
 
 
 def handle_test_bot_celebration_command(
-    user_id, say, app, quality=None, image_size=None
+    user_id, say, app, quality=None, image_size=None, text_only=None
 ):
     """Handle the admin test-bot-celebration command to test bot's self-celebration in DM."""
     from utils.slack_utils import (
@@ -2446,6 +2510,12 @@ def handle_test_bot_celebration_command(
             f"TEST_BOT_CELEBRATION: Configuration - birthdays: {total_birthdays}, members: {channel_members_count}, savings: ${yearly_savings}"
         )
 
+        # Log text_only flag if provided
+        if text_only:
+            logger.info(
+                f"TEST_BOT_CELEBRATION: Using text-only mode (skipping image generation)"
+            )
+
         # Determine quality and size settings with smart defaults for display
         display_quality = (
             quality
@@ -2482,8 +2552,11 @@ def handle_test_bot_celebration_command(
             channel_members_count=channel_members_count,
         )
 
+        # Determine whether to include image: respect --text-only flag first, then global setting
+        include_image = AI_IMAGE_GENERATION_ENABLED and not text_only
+
         # Try to generate birthday image if enabled
-        if AI_IMAGE_GENERATION_ENABLED:
+        if include_image:
             try:
                 image_title = get_bot_celebration_image_title()
 
@@ -2902,22 +2975,16 @@ def handle_admin_command(subcommand, args, say, user_id, app):
         handle_announce_command(args, user_id, say, app)
 
     elif subcommand == "test-bot-celebration":
-        # Extract quality and image_size parameters if provided: "admin test-bot-celebration [quality] [size]"
-        quality = None
-        image_size = None
+        # Extract quality, image_size, and --text-only parameters: "admin test-bot-celebration [quality] [size] [--text-only]"
+        quality, image_size, text_only, error_message = parse_test_command_args(args)
 
-        # Parse additional arguments for quality and size parameters
-        if len(args) >= 1:
-            potential_quality = args[0]
-            if potential_quality in IMAGE_GENERATION_PARAMS["quality"]["options"]:
-                quality = potential_quality
+        if error_message:
+            say(error_message)
+            return
 
-        if len(args) >= 2:
-            potential_size = args[1]
-            if potential_size in IMAGE_GENERATION_PARAMS["size"]["options"]:
-                image_size = potential_size
-
-        handle_test_bot_celebration_command(user_id, say, app, quality, image_size)
+        handle_test_bot_celebration_command(
+            user_id, say, app, quality, image_size, text_only=text_only
+        )
 
     else:
         say(
