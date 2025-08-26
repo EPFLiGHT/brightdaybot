@@ -135,6 +135,42 @@ def check_if_birthday_today(date_str, reference_date=None):
         return False
 
 
+def check_if_birthday_today_in_user_timezone(date_str, user_timezone_str):
+    """
+    Check if a date string in DD/MM format matches today's date in the user's timezone
+
+    This fixes the timezone logic flaw where birthdays were being celebrated
+    based on server timezone instead of user timezone.
+
+    Args:
+        date_str: Date in DD/MM format
+        user_timezone_str: User's timezone string (e.g., "America/New_York")
+
+    Returns:
+        True if the date matches today's date in the user's timezone, False otherwise
+    """
+    try:
+        # Import pytz here to avoid circular imports
+        import pytz
+        from utils.timezone_utils import get_timezone_object
+
+        # Get user's timezone, fallback to UTC if invalid
+        user_tz = get_timezone_object(user_timezone_str)
+
+        # Get current date in user's timezone
+        current_user_time = datetime.now(user_tz)
+
+        # Use the timezone-aware birthday check logic
+        return check_if_birthday_today(date_str, current_user_time)
+
+    except Exception as e:
+        logger.error(
+            f"TIMEZONE_BIRTHDAY_CHECK_ERROR: Failed to check birthday for timezone {user_timezone_str}: {e}"
+        )
+        # Fallback to server time check if timezone logic fails
+        return check_if_birthday_today(date_str)
+
+
 def calculate_days_until_birthday(date_str, reference_date=None):
     """
     Calculate days until a birthday

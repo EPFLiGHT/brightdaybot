@@ -12,7 +12,11 @@ import random
 import os
 from datetime import datetime, timezone
 
-from utils.date_utils import check_if_birthday_today, date_to_words
+from utils.date_utils import (
+    check_if_birthday_today,
+    date_to_words,
+    check_if_birthday_today_in_user_timezone,
+)
 from utils.storage import (
     load_birthdays,
     mark_timezone_birthday_announced,
@@ -407,15 +411,19 @@ def send_channel_announcement(app, announcement_type="general", custom_message=N
 
 def timezone_aware_check(app, moment):
     """
-    Run timezone-aware birthday checks - consolidates ALL birthdays for the day when first person hits 9 AM
+    Run server-independent timezone-aware birthday checks with team consolidation
 
-    To avoid spamming colleagues, when the first person's timezone hits 9:00 AM, we celebrate
-    ALL people with birthdays today in one consolidated message:
-    - Alice (Tokyo UTC+9): 9:00 AM JST = 00:00 UTC (triggers check)
-    - Bob (New York UTC-5): would be 9:00 AM EST = 14:00 UTC
-    - Carol (London UTC+0): would be 9:00 AM GMT = 09:00 UTC
+    Uses UTC date grouping to find all people with birthdays today, then celebrates them
+    when the first person hits their 9:00 AM celebration time. This ensures consistent
+    behavior regardless of server location while maintaining team celebration benefits.
 
-    Result: One message at 00:00 UTC: "Happy Birthday Alice, Bob, and Carol! 🎉"
+    Example scenarios:
+    - Single person: Alice (China UTC+8) celebrates at 9 AM China time on her birthday
+    - Team celebration: Alice triggers, Bob (Switzerland UTC+1) and Carol (California UTC-8)
+      join consolidated celebration even if it's slightly early/late for them
+
+    Server independence: Same behavior whether server runs in California, Switzerland,
+    or Australia - UTC date grouping eliminates all geographic dependencies.
 
     Args:
         app: Slack app instance
@@ -427,8 +435,14 @@ def timezone_aware_check(app, moment):
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=timezone.utc)
 
+    # CRITICAL: Convert to UTC for server-independent date grouping
+    # This ensures consistent behavior regardless of server location
+    import pytz
+
+    utc_moment = moment.astimezone(pytz.UTC)
+
     logger.info(
-        f"TIMEZONE: Running timezone-aware birthday checks at {moment.strftime('%Y-%m-%d %H:%M')} (UTC)"
+        f"TIMEZONE: Running timezone-aware birthday checks at {moment.strftime('%Y-%m-%d %H:%M')} → UTC: {utc_moment.strftime('%Y-%m-%d %H:%M')} (server-independent)"
     )
 
     # Check if today is BrightDayBot's birthday and celebrate if so
@@ -466,41 +480,42 @@ def timezone_aware_check(app, moment):
 
     for user_id, birthday_data in birthdays.items():
         total_birthdays_checked += 1
-        # Check if it's their birthday today
-        if check_if_birthday_today(birthday_data["date"], moment):
+
+        # Get user status and profile info efficiently FIRST (moved up to get timezone)
+        _, is_bot, is_deleted, username = get_user_status_and_info(app, user_id)
+
+        # Skip deleted/deactivated users or bots early
+        if is_deleted or is_bot:
+            logger.debug(
+                f"SKIP: User {user_id} is {'deleted' if is_deleted else 'a bot'}, skipping birthday check"
+            )
+            continue
+
+        # Skip users who are not in the birthday channel (opted out) early
+        if user_id not in channel_member_set:
+            logger.debug(
+                f"SKIP: User {user_id} ({username}) is not in birthday channel (opted out), skipping birthday check"
+            )
+            continue
+
+        # Get full user profile for timezone info (with caching) - moved up
+        if user_id not in profile_cache:
+            profile_cache[user_id] = get_user_profile(app, user_id)
+        user_profile = profile_cache[user_id]
+        user_timezone = user_profile.get("timezone", "UTC") if user_profile else "UTC"
+
+        # UTC APPROACH: Check if it's their birthday today using UTC for server-independent grouping
+        # This allows people with same birthday DATE to be celebrated together
+        # while being completely independent of server location
+        if check_if_birthday_today(birthday_data["date"], utc_moment):
             birthdays_found_today += 1
             logger.debug(
-                f"TIMEZONE: Found birthday today for {user_id} (date: {birthday_data['date']})"
+                f"TIMEZONE: Found birthday today for {user_id} (date: {birthday_data['date']}, UTC date: {utc_moment.strftime('%d/%m')})"
             )
             # Skip if this user was already celebrated today
             if is_user_celebrated_today(user_id):
                 logger.debug(f"TIMEZONE: {user_id} already celebrated today, skipping")
                 continue
-
-            # Get user status and profile info efficiently
-            _, is_bot, is_deleted, username = get_user_status_and_info(app, user_id)
-
-            # Skip deleted/deactivated users or bots
-            if is_deleted or is_bot:
-                logger.info(
-                    f"SKIP: User {user_id} is {'deleted' if is_deleted else 'a bot'}, skipping birthday announcement"
-                )
-                continue
-
-            # Skip users who are not in the birthday channel (opted out)
-            if user_id not in channel_member_set:
-                logger.info(
-                    f"SKIP: User {user_id} ({username}) is not in birthday channel (opted out), skipping birthday announcement"
-                )
-                continue
-
-            # Get full user profile for timezone info (with caching)
-            if user_id not in profile_cache:
-                profile_cache[user_id] = get_user_profile(app, user_id)
-            user_profile = profile_cache[user_id]
-            user_timezone = (
-                user_profile.get("timezone", "UTC") if user_profile else "UTC"
-            )
 
             date_words = date_to_words(birthday_data["date"], birthday_data.get("year"))
 
@@ -774,28 +789,35 @@ def simple_daily_check(app, moment):
 
     # Find all birthdays for today
     for user_id, birthday_data in birthdays.items():
+        # Get user status and profile info efficiently FIRST (moved up to get timezone)
+        _, is_bot, is_deleted, username = get_user_status_and_info(app, user_id)
+
+        # Skip deleted/deactivated users or bots early
+        if is_deleted or is_bot:
+            logger.debug(
+                f"SKIP: User {user_id} is {'deleted' if is_deleted else 'a bot'}, skipping birthday check"
+            )
+            continue
+
+        # Skip users who are not in the birthday channel (opted out) early
+        if user_id not in channel_member_set:
+            logger.debug(
+                f"SKIP: User {user_id} ({username}) is not in birthday channel (opted out), skipping birthday check"
+            )
+            continue
+
+        # Get full user profile for timezone info (with caching) - moved up
+        if user_id not in profile_cache:
+            profile_cache[user_id] = get_user_profile(app, user_id)
+        user_profile = profile_cache[user_id]
+        user_timezone = user_profile.get("timezone", "UTC") if user_profile else "UTC"
+
+        # SIMPLE MODE: Check if it's their birthday today using SERVER timezone
+        # In simple mode, we don't care about user timezones - just same calendar date
         if check_if_birthday_today(birthday_data["date"], moment):
-            # Get user status and profile info efficiently
-            _, is_bot, is_deleted, username = get_user_status_and_info(app, user_id)
-
-            # Skip deleted/deactivated users or bots
-            if is_deleted or is_bot:
-                logger.info(
-                    f"SKIP: User {user_id} is {'deleted' if is_deleted else 'a bot'}, skipping birthday announcement"
-                )
-                continue
-
-            # Skip users who are not in the birthday channel (opted out)
-            if user_id not in channel_member_set:
-                logger.info(
-                    f"SKIP: User {user_id} ({username}) is not in birthday channel (opted out), skipping birthday announcement"
-                )
-                continue
-
-            # Get full user profile for additional data (with caching)
-            if user_id not in profile_cache:
-                profile_cache[user_id] = get_user_profile(app, user_id)
-            user_profile = profile_cache[user_id]
+            logger.debug(
+                f"SIMPLE_DAILY: Found birthday today for {user_id} (date: {birthday_data['date']}, server date: {moment.strftime('%d/%m')})"
+            )
             date_words = date_to_words(birthday_data["date"], birthday_data.get("year"))
 
             birthday_person = {
