@@ -280,11 +280,16 @@ def create_image_prompt(
     else:
         multiple_context = ""
 
-    # Adjust face context based on generation mode
+    # Calculate bot celebration status once (used in multiple places)
+    is_bot_celebration = user_profile and user_profile.get("user_id") == "BRIGHTDAYBOT"
+
+    # Adjust face context and no-people instructions based on generation mode
     face_context = ""
+    no_people_instruction = ""
+
     if use_reference_mode:
         # For reference mode: we're editing an existing photo, so focus on transformation
-        face_context = f" Transform this photo into a festive birthday celebration scene while keeping the person as the central focus. Maintain their facial features and expression but add birthday decorations, cake, balloons, and celebratory elements around them."
+        face_context = f" Transform this photo into a festive birthday celebration scene. If this image contains a human face, maintain and celebrate that person as the central focus. If this image contains no human faces (like a logo, pet, or landscape), create a celebration scene without adding any fake people or human figures."
         logger.info(f"IMAGE_PROMPT: Using reference mode prompt for {name}")
     elif user_profile and (
         user_profile.get("photo_512") or user_profile.get("photo_original")
@@ -294,6 +299,20 @@ def create_image_prompt(
         logger.info(
             f"IMAGE_PROMPT: Including face context for {name} (has profile photo)"
         )
+    else:
+        if is_bot_celebration:
+            # For bot self-celebration, don't apply no-people restriction since the bot_celebration_image_prompt
+            # explicitly describes Ludo and personality dogs
+            no_people_instruction = ""
+            logger.info(
+                f"IMAGE_PROMPT: Bot self-celebration detected for {name}, allowing personality dogs"
+            )
+        else:
+            # For cases with no profile photo: explicitly prevent fake people
+            no_people_instruction = " IMPORTANT: Focus only on birthday celebration elements (cake, decorations, balloons, presents, confetti) without including any human faces or people. Create a festive scene celebrating the birthday without any human figures."
+            logger.info(
+                f"IMAGE_PROMPT: Using no-people instruction for {name} (no profile photo)"
+            )
 
     # Include birthday message context if provided
     message_context = ""
@@ -319,15 +338,29 @@ def create_image_prompt(
                 # Ultimate fallback for reference mode
                 prompt_template = f"Transform this photo into a festive birthday celebration for {name}{title_context}.{face_context}{message_context}"
     else:
-        # Standard text-only generation mode
-        prompt_template = personality_config.get("image_prompt", "")
+        # Check if bot celebration should use special prompt
+        if is_bot_celebration and personality == "mystic_dog":
+            # Use the special bot celebration image prompt instead of regular mystic_dog prompt
+            prompt_template = personality_config.get("bot_celebration_image_prompt", "")
+            if prompt_template:
+                logger.info(
+                    f"IMAGE_PROMPT: Using special bot_celebration_image_prompt for {name}"
+                )
+            else:
+                logger.warning(
+                    f"IMAGE_PROMPT: bot_celebration_image_prompt not found, falling back to standard"
+                )
+                prompt_template = personality_config.get("image_prompt", "")
+        else:
+            # Standard text-only generation mode
+            prompt_template = personality_config.get("image_prompt", "")
+
         if not prompt_template:
             # Fallback to standard if no template found
             standard_config = get_personality_config("standard")
             prompt_template = standard_config["image_prompt"]
 
     # Format the template with the context variables
-    # For reference mode where face_context is already embedded, we still need to provide it for .format()
     try:
         formatted_prompt = prompt_template.format(
             name=name,
@@ -343,6 +376,10 @@ def create_image_prompt(
             formatted_prompt = f"Transform this photo into a festive birthday celebration for {name}{title_context}. {face_context}{message_context}"
         else:
             formatted_prompt = f"Create a joyful birthday celebration for {name}{title_context}. {face_context}{message_context}"
+
+    # Append no-people instruction directly to the final prompt if needed
+    if no_people_instruction:
+        formatted_prompt += no_people_instruction
 
     return formatted_prompt
 
