@@ -125,6 +125,7 @@ def celebrate_bot_birthday(app, moment):
                     "real_name": "BrightDayBot",
                     "display_name": "BrightDayBot",
                     "title": "Mystical Birthday Guardian",
+                    "user_id": "BRIGHTDAYBOT",  # Critical for bot celebration detection
                 }
 
                 image_result = generate_birthday_image(
@@ -446,7 +447,7 @@ def timezone_aware_check(app, moment):
     )
 
     # Check if today is BrightDayBot's birthday and celebrate if so
-    celebrate_bot_birthday(app, moment)
+    celebrate_bot_birthday(app, utc_moment)
 
     # Get current birthday channel members (for opt-out respect)
     try:

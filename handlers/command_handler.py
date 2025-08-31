@@ -2565,6 +2565,7 @@ def handle_test_bot_celebration_command(
                     "real_name": "BrightDayBot",
                     "display_name": "BrightDayBot",
                     "title": "Mystical Birthday Guardian",
+                    "user_id": "BRIGHTDAYBOT",  # Critical for bot celebration detection
                 }
 
                 # Determine quality and size settings with smart defaults
