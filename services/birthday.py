@@ -143,13 +143,15 @@ def celebrate_bot_birthday(app, moment):
                 )
 
                 if image_result and image_result.get("success"):
+                    # Add the bot celebration title to image_result for proper display
+                    image_result["custom_title"] = image_title
+
                     # Send message with image
                     send_message_with_image(
-                        app=app,
-                        channel_or_user=BIRTHDAY_CHANNEL,
-                        message=celebration_message,
-                        image_path=image_result["image_path"],
-                        image_title=image_title,
+                        app,
+                        BIRTHDAY_CHANNEL,
+                        celebration_message,
+                        image_result,  # Pass the full image_result dict
                     )
                     logger.info("BOT_BIRTHDAY: Sent celebration message with AI image")
                 else:

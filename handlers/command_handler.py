@@ -2591,6 +2591,9 @@ def handle_test_bot_celebration_command(
                 )
 
                 if image_result and image_result.get("success"):
+                    # Add the bot celebration title to image_result for proper display
+                    image_result["custom_title"] = image_title
+
                     # Send message with image to admin's DM using correct function signature
                     image_success = send_message_with_image(
                         app,
