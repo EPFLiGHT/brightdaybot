@@ -52,6 +52,7 @@ from config import (
     AI_IMAGE_GENERATION_ENABLED,
     get_logger,
     BOT_BIRTH_YEAR,
+    BOT_BIRTHDAY,
     IMAGE_GENERATION_PARAMS,
     TIMEZONE_CELEBRATION_TIME,
 )
@@ -66,7 +67,7 @@ logger = get_logger("birthday")
 
 def celebrate_bot_birthday(app, moment):
     """
-    Check if today is BrightDayBot's birthday (March 5th) and celebrate if so.
+    Check if today is BrightDayBot's birthday and celebrate if so.
     Uses Ludo personality to celebrate the bot's creation and mention all 8 personalities.
 
     Args:
@@ -76,8 +77,10 @@ def celebrate_bot_birthday(app, moment):
     Returns:
         bool: True if bot birthday was celebrated, False otherwise
     """
-    # Check if today is March 5th (bot's birthday)
-    if moment.month != 3 or moment.day != 5:
+    # Check if today is the bot's birthday using BOT_BIRTHDAY config
+    from utils.date_utils import check_if_birthday_today, date_to_words
+
+    if not check_if_birthday_today(BOT_BIRTHDAY, moment):
         return False
 
     # Check if we already celebrated today to prevent duplicates
@@ -90,7 +93,7 @@ def celebrate_bot_birthday(app, moment):
 
     try:
         logger.info(
-            "BOT_BIRTHDAY: It's BrightDayBot's birthday - March 5th! Celebrating..."
+            f"BOT_BIRTHDAY: It's BrightDayBot's birthday - {date_to_words(BOT_BIRTHDAY)}! Celebrating..."
         )
 
         # Calculate bot age
@@ -131,7 +134,7 @@ def celebrate_bot_birthday(app, moment):
                 image_result = generate_birthday_image(
                     user_profile=bot_profile,
                     personality="mystic_dog",  # Use Ludo for bot celebration
-                    date_str="05/03",  # Bot's birthday
+                    date_str=BOT_BIRTHDAY,  # Bot's birthday from config
                     birthday_message=celebration_message,
                     test_mode=False,
                     quality=IMAGE_GENERATION_PARAMS["quality"][

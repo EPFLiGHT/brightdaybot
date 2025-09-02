@@ -164,7 +164,7 @@ BOT_NAME = "BrightDay"  # Default bot name
 
 # ----- BOT BIRTHDAY CONFIGURATION -----
 
-# BrightDayBot's own birthday - created March 5th, 2025
+# BrightDayBot's own birthday configuration
 BOT_BIRTHDAY = "05/03"  # DD/MM format
 BOT_BIRTH_YEAR = 2025  # Year the bot was created
 BOT_USER_ID = "BRIGHTDAYBOT"  # Special identifier for the bot itself

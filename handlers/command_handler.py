@@ -2473,8 +2473,10 @@ def handle_test_bot_celebration_command(
     )
     from utils.image_generator import generate_birthday_image
     from utils.storage import load_birthdays
+    from utils.date_utils import date_to_words
     from config import (
         BOT_BIRTH_YEAR,
+        BOT_BIRTHDAY,
         BIRTHDAY_CHANNEL,
         AI_IMAGE_GENERATION_ENABLED,
         IMAGE_GENERATION_PARAMS,
@@ -2531,7 +2533,7 @@ def handle_test_bot_celebration_command(
         # Show configuration and progress feedback
         say(
             f"_Configuration:_\n"
-            f"• Bot age: {bot_age} years (March 5th, 2025)\n"
+            f"• Bot age: {bot_age} years ({date_to_words(BOT_BIRTHDAY)}, {BOT_BIRTH_YEAR})\n"
             f"• Birthdays tracked: {total_birthdays}\n"
             f"• Channel members: {channel_members_count}\n"
             f"• Estimated savings: ${yearly_savings}/year\n"
@@ -2583,7 +2585,7 @@ def handle_test_bot_celebration_command(
                 image_result = generate_birthday_image(
                     user_profile=bot_profile,
                     personality="mystic_dog",  # Use Ludo for bot celebration
-                    date_str="05/03",  # Bot's birthday
+                    date_str=BOT_BIRTHDAY,  # Bot's birthday from config
                     birthday_message=celebration_message,
                     test_mode=True,  # Use test mode for cost efficiency
                     quality=final_quality,  # Use custom or default quality
@@ -2618,7 +2620,7 @@ def handle_test_bot_celebration_command(
                             f"• Ludo's mystical message: ✅ Generated successfully\n"
                             f"• AI image generation: ✅ Generated and sent\n"
                             f"• Image features: Cosmic scene with all 8 personality incarnations\n"
-                            f"• Processing: Complete - ready for March 5th automatic celebration\n\n"
+                            f"• Processing: Complete - ready for {date_to_words(BOT_BIRTHDAY)} automatic celebration\n\n"
                             f"🎉 _Test successful!_ This demonstrates the complete bot self-celebration flow."
                         )
                         logger.info(
@@ -2649,7 +2651,7 @@ def handle_test_bot_celebration_command(
                         f"• AI image generation: ❌ Failed\n"
                         f"• Reason: Image generation error (check logs)\n"
                         f"• Impact: Message-only mode for this test\n\n"
-                        f"💡 _Note:_ Actual March 5th celebration would retry image generation."
+                        f"💡 _Note:_ Actual {date_to_words(BOT_BIRTHDAY)} celebration would retry image generation."
                     )
                     logger.warning(
                         f"TEST_BOT_CELEBRATION: Completed with image failure for {username}"
@@ -2679,7 +2681,7 @@ def handle_test_bot_celebration_command(
                 f"• Ludo's mystical message: ✅ Generated and sent above\n"
                 f"• AI image generation: ⚠️ Disabled in configuration\n"
                 f"• Mode: Message-only celebration\n"
-                f"• Processing: Complete - ready for March 5th automatic celebration\n\n"
+                f"• Processing: Complete - ready for {date_to_words(BOT_BIRTHDAY)} automatic celebration\n\n"
                 f"💡 _Note:_ Enable AI_IMAGE_GENERATION_ENABLED for full visual celebration."
             )
             logger.info(
