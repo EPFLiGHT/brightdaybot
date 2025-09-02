@@ -9,11 +9,18 @@ Main function: generate_bot_celebration_message().
 
 import os
 from openai import OpenAI
-from config import BOT_BIRTH_YEAR, get_logger, TOKEN_LIMITS, TEMPERATURE_SETTINGS
+from config import (
+    BOT_BIRTH_YEAR,
+    BOT_BIRTHDAY,
+    get_logger,
+    TOKEN_LIMITS,
+    TEMPERATURE_SETTINGS,
+)
 from personality_config import PERSONALITIES
 from utils.app_config import get_configured_openai_model
 from utils.usage_logging import log_chat_completion_usage
 from utils.slack_formatting import fix_slack_formatting
+from utils.date_utils import date_to_words
 
 logger = get_logger("birthday")
 
@@ -52,12 +59,17 @@ def generate_bot_celebration_message(
         return f"🌟 Happy Birthday BrightDayBot! 🎂 Today marks {bot_age} year(s) of free birthday celebrations!"
 
     # Format the prompt with actual statistics
+    bot_birthday_formatted = date_to_words(
+        BOT_BIRTHDAY
+    )  # Convert "05/03" to "5th of March"
+
     formatted_prompt = prompt_template.format(
         total_birthdays=total_birthdays,
         yearly_savings=yearly_savings,
         monthly_savings=monthly_savings,
         bot_age=bot_age,
         bot_birth_year=BOT_BIRTH_YEAR,
+        bot_birthday=bot_birthday_formatted,  # "5th of March"
     )
 
     try:
@@ -158,9 +170,16 @@ def get_bot_celebration_image_title():
 
         if generated_title:
             # Fix Slack formatting issues
-            generated_title = fix_slack_formatting(generated_title)
-            logger.info("BOT_CELEBRATION: Successfully generated AI title")
-            return generated_title
+            formatted_title = fix_slack_formatting(generated_title)
+            # Ensure fix_slack_formatting didn't return None or empty string
+            if formatted_title and formatted_title.strip():
+                logger.info("BOT_CELEBRATION: Successfully generated AI title")
+                return formatted_title
+            else:
+                logger.warning(
+                    "BOT_CELEBRATION: fix_slack_formatting returned empty, using fallback"
+                )
+                return "🌟 BrightDayBot's Mystical Birthday Vision! 🎂✨"
         else:
             logger.warning("BOT_CELEBRATION: AI generated empty title, using fallback")
             return "🌟 BrightDayBot's Mystical Birthday Vision! 🎂✨"

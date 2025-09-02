@@ -374,7 +374,7 @@ def send_message_with_image(app, channel: str, text: str, image_data=None, block
 
                 # Check for pre-generated custom title first, then generate AI title
                 custom_title = image_data.get("custom_title")
-                if custom_title:
+                if custom_title and custom_title.strip():
                     final_title = f"🎂 {custom_title}"
                     logger.info(f"IMAGE_TITLE: Using custom title: '{custom_title}'")
                 else:

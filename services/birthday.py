@@ -145,6 +145,15 @@ def celebrate_bot_birthday(app, moment):
                 if image_result and image_result.get("success"):
                     # Add the bot celebration title to image_result for proper display
                     image_result["custom_title"] = image_title
+                    # Validate the custom title was set properly
+                    if not image_title or not image_title.strip():
+                        logger.error(
+                            f"BOT_BIRTHDAY: Custom title is empty or None: '{image_title}' - AI title generation will run instead"
+                        )
+                    else:
+                        logger.info(
+                            f"BOT_BIRTHDAY: Custom title set successfully: '{image_title}'"
+                        )
 
                     # Send message with image
                     send_message_with_image(
