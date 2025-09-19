@@ -761,6 +761,143 @@ def check_testing_infrastructure():
         return {"status": STATUS_ERROR, "error": str(e), "components": {}}
 
 
+def check_message_archive_system():
+    """
+    Check message archive system health and status
+
+    Returns:
+        dict: Status information about message archive system
+    """
+    try:
+        from config import (
+            MESSAGE_ARCHIVING_ENABLED,
+            ARCHIVE_RETENTION_DAYS,
+            AUTO_CLEANUP_ENABLED,
+        )
+
+        archive_status = {
+            "status": STATUS_OK,
+            "enabled": MESSAGE_ARCHIVING_ENABLED,
+            "retention_days": ARCHIVE_RETENTION_DAYS,
+            "auto_cleanup_enabled": AUTO_CLEANUP_ENABLED,
+            "total_messages": 0,
+            "archive_files": 0,
+            "total_size_mb": 0,
+            "issues": [],
+        }
+
+        if not MESSAGE_ARCHIVING_ENABLED:
+            archive_status["status"] = STATUS_NOT_CONFIGURED
+            archive_status["message"] = "Message archiving is disabled"
+            return archive_status
+
+        # Check archive directory structure
+        messages_cache_dir = os.path.join(CACHE_DIR, "messages")
+
+        if not os.path.exists(messages_cache_dir):
+            archive_status["status"] = STATUS_MISSING
+            archive_status["error"] = "Archive directory does not exist"
+            return archive_status
+
+        if not os.path.isdir(messages_cache_dir):
+            archive_status["status"] = STATUS_ERROR
+            archive_status["error"] = "Archive path exists but is not a directory"
+            return archive_status
+
+        # Analyze archive contents
+        try:
+            total_files = 0
+            total_size = 0
+            total_messages = 0
+            oldest_archive = None
+            newest_archive = None
+
+            # Walk through year/month directory structure
+            for root, dirs, files in os.walk(messages_cache_dir):
+                for file in files:
+                    if file.endswith(("_messages.json", "_messages.json.gz")):
+                        file_path = os.path.join(root, file)
+                        try:
+                            file_size = os.path.getsize(file_path)
+                            file_time = os.path.getmtime(file_path)
+
+                            total_files += 1
+                            total_size += file_size
+
+                            # Track oldest and newest
+                            if oldest_archive is None or file_time < oldest_archive[1]:
+                                oldest_archive = (file, file_time)
+                            if newest_archive is None or file_time > newest_archive[1]:
+                                newest_archive = (file, file_time)
+
+                            # Try to count messages in uncompressed files
+                            if file.endswith("_messages.json"):
+                                try:
+                                    with open(file_path, "r") as f:
+                                        data = json.load(f)
+                                        if isinstance(data, list):
+                                            total_messages += len(data)
+                                        elif (
+                                            isinstance(data, dict)
+                                            and "messages" in data
+                                        ):
+                                            total_messages += len(data["messages"])
+                                except (json.JSONDecodeError, PermissionError):
+                                    # Can't read file, skip message count
+                                    pass
+
+                        except (OSError, PermissionError) as e:
+                            archive_status["issues"].append(
+                                f"Cannot access {file}: {str(e)}"
+                            )
+
+            archive_status["archive_files"] = total_files
+            archive_status["total_size_mb"] = round(total_size / (1024 * 1024), 2)
+            archive_status["total_messages"] = total_messages
+
+            if oldest_archive:
+                archive_status["oldest_archive"] = {
+                    "file": oldest_archive[0],
+                    "date": format_timestamp(oldest_archive[1]),
+                }
+
+            if newest_archive:
+                archive_status["newest_archive"] = {
+                    "file": newest_archive[0],
+                    "date": format_timestamp(newest_archive[1]),
+                }
+
+            # Check for potential issues
+            if total_files == 0:
+                archive_status["status"] = STATUS_NOT_INITIALIZED
+                archive_status["message"] = "No archive files found - system may be new"
+
+            # Check if archives are too old (beyond retention period)
+            if oldest_archive:
+                oldest_age_days = (datetime.now().timestamp() - oldest_archive[1]) / (
+                    24 * 3600
+                )
+                if oldest_age_days > ARCHIVE_RETENTION_DAYS + 7:  # 7 day grace period
+                    archive_status["issues"].append(
+                        f"Archives older than retention period detected ({oldest_age_days:.0f} days)"
+                    )
+
+            # Set warning status if there are non-critical issues
+            if archive_status["issues"] and archive_status["status"] == STATUS_OK:
+                archive_status["status"] = "warning"
+
+        except Exception as e:
+            logger.error(f"Error analyzing archive contents: {e}")
+            archive_status["status"] = STATUS_ERROR
+            archive_status["error"] = f"Failed to analyze archives: {str(e)}"
+
+        return archive_status
+
+    except Exception as e:
+        logger.error(f"Error checking message archive system: {e}")
+        return {"status": STATUS_ERROR, "error": str(e), "enabled": False}
+
+
 def check_log_files():
     """
     Check all log files for existence, size, and recent activity
@@ -1102,6 +1239,16 @@ def get_system_status():
         if testing_status.get("status") == STATUS_ERROR:
             logger.warning(
                 "Testing infrastructure has issues but not marking as critical"
+            )
+
+        # Check message archive system
+        archive_status = check_message_archive_system()
+        status["components"]["message_archive"] = archive_status
+
+        # Archive issues are not critical for overall system health
+        if archive_status.get("status") == STATUS_ERROR:
+            logger.warning(
+                "Message archive system has issues but not marking as critical"
             )
 
         # Check log files status
@@ -1693,6 +1840,34 @@ def get_status_summary():
             summary_lines.append(f"❌ *OpenAI API*: Connection failed")
             if "message" in openai_connectivity:
                 summary_lines.append(f"   Error: {openai_connectivity['message']}")
+
+        # Message Archive system
+        archive_status = status["components"].get("message_archive", {})
+        if archive_status.get("status") == STATUS_OK:
+            total_messages = archive_status.get("total_messages", 0)
+            archive_files = archive_status.get("archive_files", 0)
+            total_size = archive_status.get("total_size_mb", 0)
+            summary_lines.append(
+                f"✅ *Message Archive*: {total_messages} messages in {archive_files} files ({total_size} MB)"
+            )
+            if archive_status.get("newest_archive"):
+                summary_lines.append(
+                    f"   Latest archive: {archive_status['newest_archive']['date']}"
+                )
+        elif archive_status.get("status") == STATUS_NOT_CONFIGURED:
+            summary_lines.append("ℹ️ *Message Archive*: Disabled")
+        elif archive_status.get("status") == STATUS_NOT_INITIALIZED:
+            summary_lines.append("ℹ️ *Message Archive*: No archives yet (system is new)")
+        else:
+            summary_lines.append(
+                f"❌ *Message Archive*: {archive_status.get('status', 'UNKNOWN').upper()}"
+            )
+            if "error" in archive_status:
+                summary_lines.append(f"   Error: {archive_status['error']}")
+            elif archive_status.get("issues"):
+                summary_lines.append(
+                    f"   Issues: {len(archive_status['issues'])} warnings"
+                )
 
         # Overall status
         summary_lines.append("")

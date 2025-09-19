@@ -40,7 +40,7 @@ SLACK FORMATTING RULES - VERY IMPORTANT:
 1. For bold text, use *single asterisks* NOT **double asterisks**
 2. For italic text, use _single underscores_ NOT *asterisks* or __double underscores__
 3. For strikethrough, use ~tildes~ around text
-4. For links use <URL|text> format NOT [text](URL)
+4. For hyperlinks use <https://example.com|text> format (Note: <!here> and <@USER_ID> are mentions, not links)
 5. For code blocks use `single backticks` NOT ```triple backticks```
 6. For headers use *bold text* NOT # markdown headers
 7. For blockquotes use >>> at the start of line NOT > markdown style

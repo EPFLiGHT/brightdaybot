@@ -432,6 +432,25 @@ def handle_dm_admin_help(say, user_id, app):
 • `admin test-file-upload` - Test text file upload functionality (like backup files)
 • `admin test-external-backup` - Test the external backup system with detailed diagnostics
 
+*Message Archive Management:*
+• `admin archive status` - View archive system status and statistics
+• `admin archive search [query]` - Search archived messages with filters
+• `admin archive export [format] [days]` - Export archived messages (csv/json)
+• `admin archive cleanup` - Manually trigger archive cleanup
+• `admin archive cleanup force` - Force cleanup regardless of age
+
+*AI Model Configuration:*
+• `admin model` - Show current OpenAI model and configuration
+• `admin model list` - List all supported OpenAI models
+• `admin model set <model>` - Change to specified model (e.g., gpt-4o)
+• `admin model reset` - Reset to default model (gpt-4.1)
+
+*Timezone Configuration:*
+• `admin timezone` - View current timezone status
+• `admin timezone status` - Show detailed timezone schedule
+• `admin timezone enable` - Enable timezone-aware mode (hourly checks)
+• `admin timezone disable` - Disable timezone-aware mode (daily check)
+
 *Bot Personality:*
 • `admin personality` - Show current bot personality
 • `admin personality [name]` - Change bot personality
