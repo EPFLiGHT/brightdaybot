@@ -23,8 +23,127 @@ from utils.config_storage import get_current_admins
 from utils.constants import SAFE_SLACK_EMOJIS, CUSTOM_SLACK_EMOJIS
 from utils.slack_formatting import get_user_mention
 from utils.message_generator import generate_birthday_image_title
+from utils.message_archive import archive_message
 
 logger = get_logger("slack")
+
+
+def _determine_message_type(channel: str, text: str, context: dict = None) -> str:
+    """
+    Determine the message type for archiving purposes
+
+    Args:
+        channel: Channel ID or user ID
+        text: Message text content
+        context: Optional context information
+
+    Returns:
+        Message type string
+    """
+    if context and context.get("message_type"):
+        return context["message_type"]
+
+    # Check for DM (user ID starts with 'U')
+    if channel.startswith("U"):
+        return "dm"
+
+    # Check for common patterns
+    text_lower = text.lower()
+    if "birthday" in text_lower or "🎂" in text:
+        return "birthday"
+    elif text_lower.startswith("test") or "test" in text_lower:
+        return "test"
+    elif "error" in text_lower or "failed" in text_lower:
+        return "error"
+    else:
+        return "system"
+
+
+def _extract_attachment_metadata(
+    image_data: dict = None, file_path: str = None
+) -> list:
+    """
+    Extract attachment metadata for archiving
+
+    Args:
+        image_data: Image data dictionary from image generator
+        file_path: File path for file attachments
+
+    Returns:
+        List of attachment metadata dictionaries
+    """
+    attachments = []
+
+    if image_data and image_data.get("image_data"):
+        attachment = {
+            "type": "image",
+            "filename": f"birthday_{image_data.get('personality', 'standard')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png",
+            "format": image_data.get("format", "png"),
+            "generated_for": image_data.get("generated_for"),
+            "personality": image_data.get("personality"),
+            "ai_title": image_data.get("custom_title"),
+        }
+        attachments.append(attachment)
+
+    elif file_path:
+        attachment = {
+            "type": "file",
+            "filename": os.path.basename(file_path),
+            "size_bytes": (
+                os.path.getsize(file_path) if os.path.exists(file_path) else None
+            ),
+        }
+        attachments.append(attachment)
+
+    return attachments
+
+
+def _extract_message_metadata(context: dict = None, image_data: dict = None) -> dict:
+    """
+    Extract metadata for message archiving
+
+    Args:
+        context: Context information (personality, tokens, etc.)
+        image_data: Image generation data
+
+    Returns:
+        Metadata dictionary
+    """
+    metadata = {}
+
+    if context:
+        metadata.update(
+            {
+                "personality": context.get("personality"),
+                "celebration_type": context.get("celebration_type"),
+                "ai_tokens_used": context.get("ai_tokens_used"),
+                "command_name": context.get("command_name"),
+                "image_quality": context.get("image_quality"),
+                "image_size": context.get("image_size"),
+                "generation_mode": context.get("generation_mode"),
+                "is_fallback": context.get("is_fallback", False),
+                "retry_count": context.get("retry_count", 0),
+            }
+        )
+
+    if image_data:
+        metadata.update(
+            {
+                "personality": metadata.get("personality")
+                or image_data.get("personality"),
+                "image_quality": metadata.get("image_quality")
+                or image_data.get("quality"),
+                "image_size": metadata.get("image_size") or image_data.get("size"),
+                "generation_mode": (
+                    "reference"
+                    if image_data.get("reference_photo_used")
+                    else "text_only"
+                ),
+            }
+        )
+
+    # Remove None values
+    return {k: v for k, v in metadata.items() if v is not None}
 
 
 def get_user_profile(app, user_id):
@@ -332,9 +451,11 @@ def get_channel_members(app, channel_id):
         return []
 
 
-def send_message_with_image(app, channel: str, text: str, image_data=None, blocks=None):
+def send_message_with_image(
+    app, channel: str, text: str, image_data=None, blocks=None, context: dict = None
+):
     """
-    Send a message to a Slack channel with optional image attachment
+    Send a message to a Slack channel with optional image attachment and automatic archiving
 
     Args:
         app: Slack app instance
@@ -342,6 +463,7 @@ def send_message_with_image(app, channel: str, text: str, image_data=None, block
         text: Message text
         image_data: Optional image data dict from image_generator
         blocks: Optional blocks for rich formatting
+        context: Optional context for archiving (message_type, personality, etc.)
 
     Returns:
         True if successful, False otherwise
@@ -370,7 +492,7 @@ def send_message_with_image(app, channel: str, text: str, image_data=None, block
                             f"IMAGE_ERROR: Failed to open DM channel: {dm_response.get('error')}"
                         )
                         # Fallback to text-only message
-                        return send_message(app, channel, text, blocks)
+                        return send_message(app, channel, text, blocks, context)
 
                 # Check for pre-generated custom title first, then generate AI title
                 custom_title = image_data.get("custom_title")
@@ -423,40 +545,73 @@ def send_message_with_image(app, channel: str, text: str, image_data=None, block
                     logger.info(
                         f"IMAGE: Successfully sent message with image to {target_channel}"
                     )
+
+                    # Archive the successful message with image
+                    try:
+                        username = (
+                            get_username(app, channel)
+                            if channel.startswith("U")
+                            else None
+                        )
+                        message_type = _determine_message_type(channel, text, context)
+                        metadata = _extract_message_metadata(context, image_data)
+                        attachments = _extract_attachment_metadata(
+                            image_data=image_data
+                        )
+
+                        archive_message(
+                            message_type=message_type,
+                            channel=channel,
+                            text=text,
+                            user=channel if channel.startswith("U") else None,
+                            username=username,
+                            blocks=blocks,
+                            attachments=attachments,
+                            metadata=metadata,
+                            status="success",
+                            slack_ts=upload_response.get("file", {}).get(
+                                "id"
+                            ),  # Use file ID as reference
+                        )
+                    except Exception as archive_error:
+                        logger.warning(
+                            f"ARCHIVE_WARNING: Failed to archive image message: {archive_error}"
+                        )
+
                     return True
                 else:
                     logger.error(
                         f"IMAGE_ERROR: Failed to upload file: {upload_response.get('error')}"
                     )
                     # Fallback to text-only message if upload fails
-                    return send_message(app, channel, text, blocks)
+                    return send_message(app, channel, text, blocks, context)
 
             except SlackApiError as e:
                 logger.error(f"IMAGE_ERROR: Error during upload process: {e}")
                 # Fallback for older slack client versions or other issues
-                return send_message(app, channel, text, blocks)
+                return send_message(app, channel, text, blocks, context)
             except Exception as upload_error:
                 logger.error(
                     f"IMAGE_ERROR: Unexpected error during upload process: {upload_error}"
                 )
-                return send_message(app, channel, text, blocks)
+                return send_message(app, channel, text, blocks, context)
 
         else:
             # No image, send regular message
-            return send_message(app, channel, text, blocks)
+            return send_message(app, channel, text, blocks, context)
 
     except SlackApiError as e:
         logger.error(f"API_ERROR: Failed to send message with image to {channel}: {e}")
         # Fall back to text-only message
-        return send_message(app, channel, text, blocks)
+        return send_message(app, channel, text, blocks, context)
     except Exception as e:
         logger.error(f"ERROR: Unexpected error sending message with image: {e}")
         # Fall back to text-only message
-        return send_message(app, channel, text, blocks)
+        return send_message(app, channel, text, blocks, context)
 
 
 def send_message_with_multiple_images(
-    app, channel: str, text: str, image_list: list, blocks=None
+    app, channel: str, text: str, image_list: list, blocks=None, context: dict = None
 ):
     """
     Send a message followed by multiple individual images to a Slack channel
@@ -467,6 +622,7 @@ def send_message_with_multiple_images(
         text: Initial message text
         image_list: List of image data dictionaries (from generate_birthday_image)
         blocks: Optional blocks for rich formatting
+        context: Optional context for archiving (message_type, personality, etc.)
 
     Returns:
         dict: Results with successful and failed image counts
@@ -480,7 +636,7 @@ def send_message_with_multiple_images(
 
     try:
         # First send the main message
-        message_success = send_message(app, channel, text, blocks)
+        message_success = send_message(app, channel, text, blocks, context)
         results["message_sent"] = message_success
 
         if not message_success:
@@ -573,7 +729,7 @@ def send_message_with_multiple_images(
 
 
 def send_message_with_multiple_attachments(
-    app, channel: str, text: str, image_list: list, blocks=None
+    app, channel: str, text: str, image_list: list, blocks=None, context: dict = None
 ):
     """
     Send a single message with multiple image attachments using Slack's files_upload_v2
@@ -584,6 +740,7 @@ def send_message_with_multiple_attachments(
         text: Message text to send with all attachments
         image_list: List of image data dictionaries (from generate_birthday_image)
         blocks: Optional blocks for rich formatting
+        context: Optional context for archiving (message_type, personality, etc.)
 
     Returns:
         dict: Results with success status and attachment details
@@ -600,7 +757,7 @@ def send_message_with_multiple_attachments(
     try:
         # Handle case where no images are provided
         if not image_list:
-            success = send_message(app, channel, text, blocks)
+            success = send_message(app, channel, text, blocks, context)
             results["success"] = success
             results["message_sent"] = success
             return results
@@ -683,7 +840,7 @@ def send_message_with_multiple_attachments(
             logger.warning(
                 "MULTI_ATTACH: No valid attachments prepared, sending message only"
             )
-            success = send_message(app, channel, text, blocks)
+            success = send_message(app, channel, text, blocks, context)
             results["success"] = success
             results["message_sent"] = success
             return results
@@ -702,7 +859,7 @@ def send_message_with_multiple_attachments(
                 logger.error(f"MULTI_ATTACH: Failed to open DM channel for {channel}")
                 # Fallback to sequential method
                 return _fallback_to_sequential_images(
-                    app, channel, text, image_list, blocks
+                    app, channel, text, image_list, blocks, context
                 )
 
         # Upload all files in a single message using files_upload_v2
@@ -723,6 +880,41 @@ def send_message_with_multiple_attachments(
                 f"MULTI_ATTACH: Successfully sent message with {len(file_uploads)} attachments to {target_channel}"
             )
 
+            # Archive the successful message with multiple attachments
+            try:
+                username = (
+                    get_username(app, channel) if channel.startswith("U") else None
+                )
+                message_type = _determine_message_type(channel, text, context)
+                metadata = _extract_message_metadata(context)
+
+                # Create attachment metadata for all uploaded files
+                attachments = []
+                for i, image_data in enumerate(image_list):
+                    if image_data and image_data.get("image_data"):
+                        attachment_meta = _extract_attachment_metadata(
+                            image_data=image_data
+                        )
+                        if attachment_meta:
+                            attachments.extend(attachment_meta)
+
+                archive_message(
+                    message_type=message_type,
+                    channel=channel,
+                    text=text,
+                    user=channel if channel.startswith("U") else None,
+                    username=username,
+                    blocks=blocks,
+                    attachments=attachments,
+                    metadata=metadata,
+                    status="success",
+                    slack_ts=upload_response.get("ts"),  # Use timestamp from response
+                )
+            except Exception as archive_error:
+                logger.warning(
+                    f"ARCHIVE_WARNING: Failed to archive multiple attachment message: {archive_error}"
+                )
+
             # Log individual attachment details
             uploaded_files = upload_response.get("files", [])
             for i, uploaded_file in enumerate(uploaded_files):
@@ -735,7 +927,7 @@ def send_message_with_multiple_attachments(
             logger.error(f"MULTI_ATTACH_ERROR: Failed to upload files: {error}")
             # Fallback to sequential method
             return _fallback_to_sequential_images(
-                app, channel, text, image_list, blocks
+                app, channel, text, image_list, blocks, context
             )
 
         return results
@@ -743,15 +935,19 @@ def send_message_with_multiple_attachments(
     except SlackApiError as e:
         logger.error(f"MULTI_ATTACH_API_ERROR: Slack API error: {e}")
         # Fallback to sequential method
-        return _fallback_to_sequential_images(app, channel, text, image_list, blocks)
+        return _fallback_to_sequential_images(
+            app, channel, text, image_list, blocks, context
+        )
     except Exception as e:
         logger.error(f"MULTI_ATTACH_ERROR: Unexpected error: {e}")
         # Fallback to sequential method
-        return _fallback_to_sequential_images(app, channel, text, image_list, blocks)
+        return _fallback_to_sequential_images(
+            app, channel, text, image_list, blocks, context
+        )
 
 
 def _fallback_to_sequential_images(
-    app, channel: str, text: str, image_list: list, blocks=None
+    app, channel: str, text: str, image_list: list, blocks=None, context: dict = None
 ):
     """
     Fallback method: send message with images sequentially when batch upload fails
@@ -770,7 +966,7 @@ def _fallback_to_sequential_images(
 
     # Use existing sequential method
     sequential_results = send_message_with_multiple_images(
-        app, channel, text, image_list, blocks
+        app, channel, text, image_list, blocks, context
     )
 
     # Mark as fallback and return
@@ -791,47 +987,102 @@ def _fallback_to_sequential_images(
     return sequential_results
 
 
-def send_message(app, channel: str, text: str, blocks=None):
+def send_message(app, channel: str, text: str, blocks=None, context: dict = None):
     """
-    Send a message to a Slack channel with error handling
+    Send a message to a Slack channel with error handling and automatic archiving
 
     Args:
         app: Slack app instance
         channel: Channel ID
         text: Message text
         blocks: Optional blocks for rich formatting
+        context: Optional context for archiving (message_type, personality, etc.)
 
     Returns:
         True if successful, False otherwise
     """
-    try:
-        if blocks:
-            app.client.chat_postMessage(channel=channel, text=text, blocks=blocks)
-        else:
-            app.client.chat_postMessage(channel=channel, text=text)
+    slack_ts = None
+    username = None
+    message_type = _determine_message_type(channel, text, context)
 
-        # Log different messages based on whether this is a DM or channel
+    try:
+        # Send the message
+        if blocks:
+            response = app.client.chat_postMessage(
+                channel=channel, text=text, blocks=blocks
+            )
+        else:
+            response = app.client.chat_postMessage(channel=channel, text=text)
+
+        # Extract Slack timestamp from response
+        slack_ts = response.get("ts") if response.get("ok") else None
+
+        # Get username for archiving
         if channel.startswith("U"):
-            recipient = get_username(app, channel)
-            logger.info(f"MESSAGE: Sent DM to {recipient} ({channel})")
+            username = get_username(app, channel)
+            logger.info(f"MESSAGE: Sent DM to {username} ({channel})")
         else:
             logger.info(f"MESSAGE: Sent message to channel {channel}")
 
+        # Archive the successful message
+        try:
+            metadata = _extract_message_metadata(context)
+            archive_message(
+                message_type=message_type,
+                channel=channel,
+                text=text,
+                user=channel if channel.startswith("U") else None,
+                username=username,
+                blocks=blocks,
+                metadata=metadata,
+                status="success",
+                slack_ts=slack_ts,
+            )
+        except Exception as archive_error:
+            logger.warning(
+                f"ARCHIVE_WARNING: Failed to archive message: {archive_error}"
+            )
+
         return True
+
     except SlackApiError as e:
         logger.error(f"API_ERROR: Failed to send message to {channel}: {e}")
+
+        # Archive the failed message
+        try:
+            metadata = _extract_message_metadata(context)
+            archive_message(
+                message_type=message_type,
+                channel=channel,
+                text=text,
+                user=channel if channel.startswith("U") else None,
+                username=username
+                or (get_username(app, channel) if channel.startswith("U") else None),
+                blocks=blocks,
+                metadata=metadata,
+                status="failed",
+                error_details=str(e),
+            )
+        except Exception as archive_error:
+            logger.warning(
+                f"ARCHIVE_WARNING: Failed to archive failed message: {archive_error}"
+            )
+
         return False
 
 
-def send_message_with_file(app, channel: str, text: str, file_path: str):
+def send_message_with_file(
+    app, channel: str, text: str, file_path: str, context: dict = None
+):
     """
-    Send a message to a Slack channel with file attachment
+    Send a message to a Slack channel with file attachment and automatic archiving
 
     Args:
         app: Slack app instance
         channel: Channel ID or user ID to send to
         text: Message text
         file_path: Path to file to upload
+        context: Optional context for archiving (message_type, etc.)
 
     Returns:
         bool: True if successful, False otherwise
@@ -867,26 +1118,121 @@ def send_message_with_file(app, channel: str, text: str, file_path: str):
             return False
 
         # Log successful send (use original channel ID for user-friendly logging)
+        username = None
         if channel.startswith("U"):
-            recipient = get_username(app, channel)
+            username = get_username(app, channel)
             logger.info(
-                f"MESSAGE: Sent file to {recipient} ({channel}): {os.path.basename(file_path)}"
+                f"MESSAGE: Sent file to {username} ({channel}): {os.path.basename(file_path)}"
             )
         else:
             logger.info(
                 f"MESSAGE: Sent file to channel {channel}: {os.path.basename(file_path)}"
             )
 
+        # Archive the successful file message
+        try:
+            message_type = _determine_message_type(channel, text, context)
+            metadata = _extract_message_metadata(context)
+            attachments = _extract_attachment_metadata(file_path=file_path)
+
+            archive_message(
+                message_type=message_type,
+                channel=channel,
+                text=text,
+                user=channel if channel.startswith("U") else None,
+                username=username,
+                attachments=attachments,
+                metadata=metadata,
+                status="success",
+                slack_ts=response.get("file", {}).get("id"),  # Use file ID as reference
+            )
+        except Exception as archive_error:
+            logger.warning(
+                f"ARCHIVE_WARNING: Failed to archive file message: {archive_error}"
+            )
+
         return True
 
     except SlackApiError as e:
         logger.error(f"API_ERROR: Failed to send file to {channel}: {e}")
+
+        # Archive the failed message
+        try:
+            message_type = _determine_message_type(channel, text, context)
+            metadata = _extract_message_metadata(context)
+            attachments = _extract_attachment_metadata(file_path=file_path)
+            username = get_username(app, channel) if channel.startswith("U") else None
+
+            archive_message(
+                message_type=message_type,
+                channel=channel,
+                text=text,
+                user=channel if channel.startswith("U") else None,
+                username=username,
+                attachments=attachments,
+                metadata=metadata,
+                status="failed",
+                error_details=f"Slack API Error: {str(e)}",
+            )
+        except Exception as archive_error:
+            logger.warning(
+                f"ARCHIVE_WARNING: Failed to archive failed file message: {archive_error}"
+            )
+
         return False
+
     except FileNotFoundError:
         logger.error(f"FILE_ERROR: File not found: {file_path}")
+
+        # Archive the failed message
+        try:
+            message_type = _determine_message_type(channel, text, context)
+            metadata = _extract_message_metadata(context)
+            username = get_username(app, channel) if channel.startswith("U") else None
+
+            archive_message(
+                message_type=message_type,
+                channel=channel,
+                text=text,
+                user=channel if channel.startswith("U") else None,
+                username=username,
+                metadata=metadata,
+                status="failed",
+                error_details=f"File not found: {file_path}",
+            )
+        except Exception as archive_error:
+            logger.warning(
+                f"ARCHIVE_WARNING: Failed to archive failed file message: {archive_error}"
+            )
+
         return False
+
     except Exception as e:
         logger.error(f"UPLOAD_ERROR: Unexpected error sending file to {channel}: {e}")
+
+        # Archive the failed message
+        try:
+            message_type = _determine_message_type(channel, text, context)
+            metadata = _extract_message_metadata(context)
+            attachments = _extract_attachment_metadata(file_path=file_path)
+            username = get_username(app, channel) if channel.startswith("U") else None
+
+            archive_message(
+                message_type=message_type,
+                channel=channel,
+                text=text,
+                user=channel if channel.startswith("U") else None,
+                username=username,
+                attachments=attachments,
+                metadata=metadata,
+                status="failed",
+                error_details=f"Upload error: {str(e)}",
+            )
+        except Exception as archive_error:
+            logger.warning(
+                f"ARCHIVE_WARNING: Failed to archive failed file message: {archive_error}"
+            )
+
         return False
 
 

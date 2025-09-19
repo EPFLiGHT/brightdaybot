@@ -75,6 +75,13 @@ from config import (
 )
 from utils.config_storage import save_admins_to_file
 from utils.web_search import clear_cache
+from utils.message_archive import get_archive_stats, cleanup_old_archives
+from utils.message_query import (
+    search_messages,
+    export_messages,
+    get_query_stats,
+    SearchQuery,
+)
 
 logger = get_logger("commands")
 
@@ -2702,6 +2709,394 @@ def handle_test_bot_celebration_command(
         )
 
 
+def handle_archive_command(args, user_id, say, app):
+    """Handle archive management commands"""
+    username = get_username(app, user_id)
+
+    if not args:
+        # Show archive help
+        help_text = """*📁 Archive Management Commands*
+
+• `admin archive stats` - View archive statistics
+• `admin archive search <query>` - Search archived messages
+• `admin archive search --days 7 <query>` - Search last 7 days
+• `admin archive export` - Export all archives to JSON
+• `admin archive export --format csv` - Export as CSV
+• `admin archive cleanup` - Force cleanup old archives
+• `admin archive recent` - Show recent message activity
+• `admin archive config` - View current archive settings
+
+*Examples:*
+• `admin archive search birthday` - Find birthday messages
+• `admin archive search --user @alice` - Find messages to/from Alice
+• `admin archive export --days 30` - Export last 30 days"""
+
+        say(help_text)
+        return
+
+    subcommand = args[0].lower()
+
+    try:
+        if subcommand == "stats":
+            handle_archive_stats_command(user_id, say, app)
+
+        elif subcommand == "search":
+            handle_archive_search_command(args[1:], user_id, say, app)
+
+        elif subcommand == "export":
+            handle_archive_export_command(args[1:], user_id, say, app)
+
+        elif subcommand == "cleanup":
+            handle_archive_cleanup_command(user_id, say, app)
+
+        elif subcommand == "recent":
+            handle_archive_recent_command(args[1:], user_id, say, app)
+
+        elif subcommand == "config":
+            handle_archive_config_command(user_id, say, app)
+
+        else:
+            say(
+                f"Unknown archive subcommand: `{subcommand}`. Use `admin archive` for help."
+            )
+
+    except Exception as e:
+        logger.error(
+            f"ARCHIVE_COMMAND_ERROR: Failed to handle archive command by {username}: {e}"
+        )
+        say(f"❌ Archive command failed: {str(e)}")
+
+
+def handle_archive_stats_command(user_id, say, app):
+    """Show archive statistics"""
+    try:
+        stats = get_archive_stats()
+
+        if "error" in stats:
+            say(f"❌ Failed to get archive stats: {stats['error']}")
+            return
+
+        # Format storage size
+        storage_mb = stats.get("storage_size_mb", 0)
+        if storage_mb >= 1024:
+            storage_str = f"{storage_mb/1024:.1f} GB"
+        else:
+            storage_str = f"{storage_mb} MB"
+
+        # Format date range
+        date_range = stats.get("date_range", {})
+        if date_range.get("first") and date_range.get("last"):
+            range_str = f"{date_range['first']} to {date_range['last']}"
+        else:
+            range_str = "No messages archived yet"
+
+        stats_text = f"""*📊 Message Archive Statistics*
+
+**Total Messages:** {stats.get('total_messages', 0):,}
+**Storage Used:** {storage_str}
+**Date Range:** {range_str}
+**Available Dates:** {len(stats.get('available_dates', []))}
+
+**Last Updated:** {stats.get('index_last_updated', 'Never')}"""
+
+        say(stats_text)
+
+        logger.info(
+            f"ARCHIVE_STATS: Stats viewed by {get_username(app, user_id)} ({user_id})"
+        )
+
+    except Exception as e:
+        logger.error(f"ARCHIVE_STATS_ERROR: {e}")
+        say(f"❌ Failed to get archive statistics: {str(e)}")
+
+
+def handle_archive_search_command(args, user_id, say, app):
+    """Search archived messages"""
+    try:
+        # Parse search parameters
+        query_text = ""
+        days_back = None
+        user_filter = None
+        limit = 10
+
+        i = 0
+        while i < len(args):
+            arg = args[i]
+            if arg == "--days" and i + 1 < len(args):
+                days_back = int(args[i + 1])
+                i += 2
+            elif arg == "--user" and i + 1 < len(args):
+                user_filter = args[i + 1].strip("<@>")
+                i += 2
+            elif arg == "--limit" and i + 1 < len(args):
+                limit = int(args[i + 1])
+                i += 2
+            else:
+                query_text += arg + " "
+                i += 1
+
+        query_text = query_text.strip()
+
+        if not query_text:
+            say(
+                "❌ Please provide a search query. Example: `admin archive search birthday`"
+            )
+            return
+
+        # Create search query
+        search_query = SearchQuery(text=query_text, limit=limit)
+
+        if days_back:
+            from datetime import timedelta
+
+            search_query.date_from = datetime.now() - timedelta(days=days_back)
+
+        if user_filter:
+            search_query.users = [user_filter]
+
+        # Perform search
+        result = search_messages(search_query)
+
+        if result.total_matches == 0:
+            say(f"🔍 No messages found matching '{query_text}'")
+            return
+
+        # Format results
+        results_text = f"🔍 *Search Results for '{query_text}'*\n\n"
+        results_text += f"**Found:** {result.total_matches} matches (showing {len(result.messages)})\n"
+        results_text += f"**Search time:** {result.search_time_ms}ms\n\n"
+
+        for i, msg in enumerate(result.messages[:5], 1):  # Show first 5 results
+            timestamp = msg.get("timestamp", "")
+            if timestamp:
+                try:
+                    dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+                    time_str = dt.strftime("%Y-%m-%d %H:%M")
+                except:
+                    time_str = timestamp[:16]
+            else:
+                time_str = "Unknown"
+
+            text_preview = msg.get("text", "")[:100]
+            if len(text_preview) >= 100:
+                text_preview += "..."
+
+            username = msg.get("username", msg.get("user", "Unknown"))
+            msg_type = msg.get("type", "unknown")
+
+            results_text += f"**{i}.** `{time_str}` | {msg_type} | {username}\n"
+            results_text += f"   {text_preview}\n\n"
+
+        if result.total_matches > 5:
+            results_text += f"... and {result.total_matches - 5} more results\n"
+            results_text += f"Use `admin archive export --days {days_back or 30}` to get full results"
+
+        say(results_text)
+
+        logger.info(
+            f"ARCHIVE_SEARCH: Search '{query_text}' by {get_username(app, user_id)} - {result.total_matches} matches"
+        )
+
+    except Exception as e:
+        logger.error(f"ARCHIVE_SEARCH_ERROR: {e}")
+        say(f"❌ Search failed: {str(e)}")
+
+
+def handle_archive_export_command(args, user_id, say, app):
+    """Export archived messages"""
+    try:
+        # Parse export parameters
+        format_type = "json"
+        days_back = None
+
+        i = 0
+        while i < len(args):
+            arg = args[i]
+            if arg == "--format" and i + 1 < len(args):
+                format_type = args[i + 1].lower()
+                i += 2
+            elif arg == "--days" and i + 1 < len(args):
+                days_back = int(args[i + 1])
+                i += 2
+            else:
+                i += 1
+
+        if format_type not in ["json", "csv"]:
+            say("❌ Export format must be 'json' or 'csv'")
+            return
+
+        # Create export query
+        search_query = SearchQuery(limit=None)  # No limit for export
+
+        if days_back:
+            from datetime import timedelta
+
+            search_query.date_from = datetime.now() - timedelta(days=days_back)
+
+        # Perform export
+        export_result = export_messages(search_query, format_type)
+
+        if not export_result.get("success", False):
+            say(f"❌ Export failed: {export_result.get('error', 'Unknown error')}")
+            return
+
+        # Send success message
+        file_path = export_result["file_path"]
+        message_count = export_result["message_count"]
+
+        export_text = f"""✅ *Archive Export Complete*
+
+**Format:** {format_type.upper()}
+**Messages:** {message_count:,}
+**File:** `{file_path}`
+**Size:** {export_result.get('file_size', 'Unknown')}
+
+The export file has been saved to the server. Contact your system administrator to retrieve it."""
+
+        say(export_text)
+
+        logger.info(
+            f"ARCHIVE_EXPORT: Export ({format_type}) by {get_username(app, user_id)} - {message_count} messages"
+        )
+
+    except Exception as e:
+        logger.error(f"ARCHIVE_EXPORT_ERROR: {e}")
+        say(f"❌ Export failed: {str(e)}")
+
+
+def handle_archive_cleanup_command(user_id, say, app):
+    """Force cleanup of old archives"""
+    try:
+        cleanup_result = cleanup_old_archives()
+
+        if "error" in cleanup_result:
+            say(f"❌ Cleanup failed: {cleanup_result['error']}")
+            return
+
+        cleanup_text = f"""🧹 *Archive Cleanup Complete*
+
+**Files deleted:** {cleanup_result['deleted_files']}
+**Files compressed:** {cleanup_result['compressed_files']}
+**Cutoff date:** {cleanup_result['cutoff_date']}
+
+Old archives have been cleaned up successfully."""
+
+        say(cleanup_text)
+
+        logger.info(
+            f"ARCHIVE_CLEANUP: Manual cleanup by {get_username(app, user_id)} - {cleanup_result['deleted_files']} deleted"
+        )
+
+    except Exception as e:
+        logger.error(f"ARCHIVE_CLEANUP_ERROR: {e}")
+        say(f"❌ Cleanup failed: {str(e)}")
+
+
+def handle_archive_recent_command(args, user_id, say, app):
+    """Show recent message activity"""
+    try:
+        days = 7  # Default to last 7 days
+        if args and args[0].isdigit():
+            days = int(args[0])
+            days = min(days, 90)  # Limit to 90 days max
+
+        from datetime import timedelta
+
+        date_from = datetime.now() - timedelta(days=days)
+
+        stats = get_query_stats(date_from=date_from)
+
+        if "error" in stats:
+            say(f"❌ Failed to get recent activity: {stats['error']}")
+            return
+
+        total_messages = stats.get("total_messages", 0)
+
+        if total_messages == 0:
+            say(f"📊 No message activity in the last {days} days")
+            return
+
+        # Format message types
+        msg_types = stats.get("message_types", {})
+        type_lines = []
+        for msg_type, count in sorted(
+            msg_types.items(), key=lambda x: x[1], reverse=True
+        ):
+            type_lines.append(f"  • {msg_type}: {count}")
+
+        # Format top users
+        user_activity = stats.get("user_activity", {})
+        top_users = sorted(user_activity.items(), key=lambda x: x[1], reverse=True)[:5]
+        user_lines = []
+        for username, count in top_users:
+            user_lines.append(f"  • {username}: {count}")
+
+        recent_text = f"""📊 *Message Activity (Last {days} days)*
+
+**Total Messages:** {total_messages:,}
+**AI Tokens Used:** {stats.get('ai_token_stats', {}).get('total_tokens', 0):,}
+
+**Message Types:**
+{chr(10).join(type_lines) if type_lines else '  None'}
+
+**Top Active Users:**
+{chr(10).join(user_lines) if user_lines else '  None'}
+
+**Status Breakdown:**
+  • Success: {stats.get('status_breakdown', {}).get('success', 0)}
+  • Failed: {stats.get('status_breakdown', {}).get('failed', 0)}"""
+
+        say(recent_text)
+
+        logger.info(
+            f"ARCHIVE_RECENT: Activity viewed by {get_username(app, user_id)} ({user_id})"
+        )
+
+    except Exception as e:
+        logger.error(f"ARCHIVE_RECENT_ERROR: {e}")
+        say(f"❌ Failed to get recent activity: {str(e)}")
+
+
+def handle_archive_config_command(user_id, say, app):
+    """Show current archive configuration"""
+    try:
+        from config import (
+            MESSAGE_ARCHIVING_ENABLED,
+            ARCHIVE_RETENTION_DAYS,
+            ARCHIVE_COMPRESSION_DAYS,
+            ARCHIVE_DM_MESSAGES,
+            ARCHIVE_FAILED_MESSAGES,
+            ARCHIVE_SYSTEM_MESSAGES,
+            ARCHIVE_TEST_MESSAGES,
+            AUTO_CLEANUP_ENABLED,
+        )
+
+        config_text = f"""⚙️ *Archive Configuration*
+
+**Archiving Enabled:** {'✅ Yes' if MESSAGE_ARCHIVING_ENABLED else '❌ No'}
+**Retention Period:** {ARCHIVE_RETENTION_DAYS} days
+**Compression After:** {ARCHIVE_COMPRESSION_DAYS} days
+**Auto Cleanup:** {'✅ Enabled' if AUTO_CLEANUP_ENABLED else '❌ Disabled'}
+
+**Message Types Archived:**
+• DM Messages: {'✅' if ARCHIVE_DM_MESSAGES else '❌'}
+• Failed Messages: {'✅' if ARCHIVE_FAILED_MESSAGES else '❌'}
+• System Messages: {'✅' if ARCHIVE_SYSTEM_MESSAGES else '❌'}
+• Test Messages: {'✅' if ARCHIVE_TEST_MESSAGES else '❌'}
+
+*Note: Configuration can be changed via environment variables.*"""
+
+        say(config_text)
+
+        logger.info(
+            f"ARCHIVE_CONFIG: Config viewed by {get_username(app, user_id)} ({user_id})"
+        )
+
+    except Exception as e:
+        logger.error(f"ARCHIVE_CONFIG_ERROR: {e}")
+        say(f"❌ Failed to get archive configuration: {str(e)}")
+
+
 def handle_admin_command(subcommand, args, say, user_id, app):
     """Handle admin-specific commands"""
     # Add global declaration
@@ -3000,6 +3395,9 @@ def handle_admin_command(subcommand, args, say, user_id, app):
         handle_test_bot_celebration_command(
             user_id, say, app, quality, image_size, text_only=text_only
         )
+
+    elif subcommand == "archive":
+        handle_archive_command(args, user_id, say, app)
 
     else:
         say(
