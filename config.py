@@ -28,6 +28,7 @@ TRACKING_DIR = os.path.join(DATA_DIR, "tracking")
 BACKUP_DIR = os.path.join(DATA_DIR, "backups")
 MAX_BACKUPS = 10  # Keep last 10 backups
 CACHE_DIR = os.path.join(DATA_DIR, "cache")
+MESSAGES_CACHE_DIR = os.path.join(CACHE_DIR, "messages")
 
 # ----- FEATURE FLAGS -----
 
@@ -67,7 +68,7 @@ DAILY_MESSAGE_LIMIT = int(os.getenv("DAILY_MESSAGE_LIMIT", "10000"))
 ARCHIVE_DM_MESSAGES = os.getenv("ARCHIVE_DM_MESSAGES", "true").lower() == "true"
 ARCHIVE_FAILED_MESSAGES = os.getenv("ARCHIVE_FAILED_MESSAGES", "true").lower() == "true"
 ARCHIVE_SYSTEM_MESSAGES = os.getenv("ARCHIVE_SYSTEM_MESSAGES", "true").lower() == "true"
-ARCHIVE_TEST_MESSAGES = os.getenv("ARCHIVE_TEST_MESSAGES", "false").lower() == "true"
+ARCHIVE_TEST_MESSAGES = os.getenv("ARCHIVE_TEST_MESSAGES", "true").lower() == "true"
 
 # Automatic cleanup settings
 AUTO_CLEANUP_ENABLED = os.getenv("ARCHIVE_AUTO_CLEANUP", "true").lower() == "true"
@@ -215,7 +216,15 @@ from utils.logging_config import get_logger
 logger = get_logger("main")
 
 # Create directory structure
-for directory in [DATA_DIR, LOGS_DIR, STORAGE_DIR, TRACKING_DIR, BACKUP_DIR, CACHE_DIR]:
+for directory in [
+    DATA_DIR,
+    LOGS_DIR,
+    STORAGE_DIR,
+    TRACKING_DIR,
+    BACKUP_DIR,
+    CACHE_DIR,
+    MESSAGES_CACHE_DIR,
+]:
     if not os.path.exists(directory):
         os.makedirs(directory)
         logger.info(f"CONFIG: Created directory {directory}")

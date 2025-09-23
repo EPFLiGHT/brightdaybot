@@ -772,17 +772,38 @@ def check_message_archive_system():
         from config import (
             MESSAGE_ARCHIVING_ENABLED,
             ARCHIVE_RETENTION_DAYS,
+            ARCHIVE_COMPRESSION_DAYS,
             AUTO_CLEANUP_ENABLED,
+            CLEANUP_SCHEDULE_HOURS,
+            ARCHIVE_DM_MESSAGES,
+            ARCHIVE_FAILED_MESSAGES,
+            ARCHIVE_SYSTEM_MESSAGES,
+            ARCHIVE_TEST_MESSAGES,
+            DAILY_MESSAGE_LIMIT,
         )
 
         archive_status = {
             "status": STATUS_OK,
             "enabled": MESSAGE_ARCHIVING_ENABLED,
             "retention_days": ARCHIVE_RETENTION_DAYS,
+            "compression_days": ARCHIVE_COMPRESSION_DAYS,
             "auto_cleanup_enabled": AUTO_CLEANUP_ENABLED,
+            "cleanup_schedule_hours": CLEANUP_SCHEDULE_HOURS,
+            "daily_message_limit": DAILY_MESSAGE_LIMIT,
+            "message_types": {
+                "dm_messages": ARCHIVE_DM_MESSAGES,
+                "failed_messages": ARCHIVE_FAILED_MESSAGES,
+                "system_messages": ARCHIVE_SYSTEM_MESSAGES,
+                "test_messages": ARCHIVE_TEST_MESSAGES,
+            },
             "total_messages": 0,
             "archive_files": 0,
             "total_size_mb": 0,
+            "recent_activity": {
+                "messages_last_7_days": 0,
+                "files_last_7_days": 0,
+                "daily_average": 0,
+            },
             "issues": [],
         }
 
@@ -812,8 +833,15 @@ def check_message_archive_system():
             oldest_archive = None
             newest_archive = None
 
+            # Calculate cutoff time for recent activity (last 7 days)
+            from datetime import datetime, timedelta
+
+            seven_days_ago = (datetime.now() - timedelta(days=7)).timestamp()
+            recent_messages = 0
+            recent_files = 0
+
             # Walk through year/month directory structure
-            for root, dirs, files in os.walk(messages_cache_dir):
+            for root, _, files in os.walk(messages_cache_dir):
                 for file in files:
                     if file.endswith(("_messages.json", "_messages.json.gz")):
                         file_path = os.path.join(root, file)
@@ -823,6 +851,10 @@ def check_message_archive_system():
 
                             total_files += 1
                             total_size += file_size
+
+                            # Track recent activity
+                            if file_time >= seven_days_ago:
+                                recent_files += 1
 
                             # Track oldest and newest
                             if oldest_archive is None or file_time < oldest_archive[1]:
@@ -835,13 +867,21 @@ def check_message_archive_system():
                                 try:
                                     with open(file_path, "r") as f:
                                         data = json.load(f)
+                                        file_message_count = 0
                                         if isinstance(data, list):
-                                            total_messages += len(data)
+                                            file_message_count = len(data)
                                         elif (
                                             isinstance(data, dict)
                                             and "messages" in data
                                         ):
-                                            total_messages += len(data["messages"])
+                                            file_message_count = len(data["messages"])
+
+                                        total_messages += file_message_count
+
+                                        # Count recent messages
+                                        if file_time >= seven_days_ago:
+                                            recent_messages += file_message_count
+
                                 except (json.JSONDecodeError, PermissionError):
                                     # Can't read file, skip message count
                                     pass
@@ -854,6 +894,15 @@ def check_message_archive_system():
             archive_status["archive_files"] = total_files
             archive_status["total_size_mb"] = round(total_size / (1024 * 1024), 2)
             archive_status["total_messages"] = total_messages
+
+            # Add recent activity data
+            archive_status["recent_activity"] = {
+                "messages_last_7_days": recent_messages,
+                "files_last_7_days": recent_files,
+                "daily_average": (
+                    round(recent_messages / 7, 1) if recent_messages > 0 else 0
+                ),
+            }
 
             if oldest_archive:
                 archive_status["oldest_archive"] = {
@@ -1858,6 +1907,10 @@ def get_status_summary():
             summary_lines.append("ℹ️ *Message Archive*: Disabled")
         elif archive_status.get("status") == STATUS_NOT_INITIALIZED:
             summary_lines.append("ℹ️ *Message Archive*: No archives yet (system is new)")
+        elif archive_status.get("status") == STATUS_MISSING:
+            summary_lines.append(
+                "ℹ️ *Message Archive*: Directory missing (will be created automatically)"
+            )
         else:
             summary_lines.append(
                 f"❌ *Message Archive*: {archive_status.get('status', 'UNKNOWN').upper()}"

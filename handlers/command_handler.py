@@ -195,6 +195,55 @@ def parse_test_command_args(args):
     return quality, image_size, text_only, None
 
 
+def say_with_archive(say, app, channel, text, message_type="command", context=None):
+    """
+    Wrapper function that sends a message via say() and archives it.
+
+    Args:
+        say: The Slack say function
+        app: Slack app instance
+        channel: Channel or user ID where message is sent
+        text: Message text
+        message_type: Type of message for archiving (command, admin, system, etc.)
+        context: Additional context for archiving
+    """
+    # Send the message using say()
+    say(text)
+
+    # Archive the message
+    try:
+        from utils.message_archive import archive_message
+
+        # Build context if not provided
+        if context is None:
+            context = {}
+
+        # Add message type to context
+        if "message_type" not in context:
+            context["message_type"] = message_type
+
+        # Get username for DMs
+        username = None
+        if channel.startswith("U"):
+            from utils.slack_utils import get_username
+
+            username = get_username(app, channel)
+
+        # Archive the message
+        archive_message(
+            message_type=message_type,
+            channel=channel,
+            text=text,
+            user=channel if channel.startswith("U") else None,
+            username=username,
+            metadata=context,
+            status="success",
+        )
+    except Exception as e:
+        # Log but don't fail if archiving fails
+        logger.warning(f"Failed to archive say() message: {e}")
+
+
 def handle_confirm_command(user_id, say, app):
     """Handle confirmation of pending mass notification commands"""
     username = get_username(app, user_id)
@@ -433,7 +482,7 @@ def handle_dm_admin_help(say, user_id, app):
 • `admin test-external-backup` - Test the external backup system with detailed diagnostics
 
 *Message Archive Management:*
-• `admin archive status` - View archive system status and statistics
+• `admin archive stats` - View archive system status and statistics
 • `admin archive search [query]` - Search archived messages with filters
 • `admin archive export [format] [days]` - Export archived messages (csv/json)
 • `admin archive cleanup` - Manually trigger archive cleanup
@@ -1436,47 +1485,66 @@ def handle_test_command(
                             else f"Here's what your birthday message would look like:\n\n{test_message}"
                         ),
                         image_data,
+                        context={"message_type": "test", "command_name": "test"},
                     ):
                         logger.info(
                             f"TEST: Successfully sent test message with image to {username} ({target_user_id})"
                         )
                     else:
                         # Fallback to text-only if image upload fails
-                        say(
+                        full_message = (
                             f"Here's what {username}'s birthday message would look like:\n\n{test_message}"
                             if is_admin_test
                             else f"Here's what your birthday message would look like:\n\n{test_message}"
                         )
-                        say(
-                            "Note: Image was generated but couldn't be sent. Check the logs for details."
+                        full_message += "\n\nNote: Image was generated but couldn't be sent. Check the logs for details."
+                        send_message(
+                            app,
+                            user_id,
+                            full_message,
+                            context={"message_type": "test", "command_name": "test"},
                         )
                 except Exception as e:
                     logger.error(
                         f"IMAGE_ERROR: Failed to send test image to user {target_user_id}: {e}"
                     )
-                    say(
+                    full_message = (
                         f"Here's what {username}'s birthday message would look like:\n\n{test_message}"
                         if is_admin_test
                         else f"Here's what your birthday message would look like:\n\n{test_message}"
                     )
-                    say(
-                        "Note: Image was generated but couldn't be sent. Check the logs for details."
+                    full_message += "\n\nNote: Image was generated but couldn't be sent. Check the logs for details."
+                    send_message(
+                        app,
+                        user_id,
+                        full_message,
+                        context={"message_type": "test", "command_name": "test"},
                     )
             else:
-                say(
+                full_message = (
                     f"Here's what {username}'s birthday message would look like:\n\n{test_message}"
                     if is_admin_test
                     else f"Here's what your birthday message would look like:\n\n{test_message}"
                 )
-                say(
-                    "Note: Image generation was attempted but failed. Check the logs for details."
+                full_message += "\n\nNote: Image generation was attempted but failed. Check the logs for details."
+                send_message(
+                    app,
+                    user_id,
+                    full_message,
+                    context={"message_type": "test", "command_name": "test"},
                 )
         else:
             test_message = result
-            say(
+            full_message = (
                 f"Here's what {username}'s birthday message would look like:\n\n{test_message}"
                 if is_admin_test
                 else f"Here's what your birthday message would look like:\n\n{test_message}"
+            )
+            send_message(
+                app,
+                user_id,
+                full_message,
+                context={"message_type": "test", "command_name": "test"},
             )
         logger.info(
             f"TEST: Generated test birthday message for {username} ({target_user_id})"
@@ -1486,7 +1554,7 @@ def handle_test_command(
         logger.error(f"AI_ERROR: Failed to generate test message: {e}")
 
         # Fallback to announcement
-        say(
+        fallback_intro = (
             f"I couldn't generate a custom message, but here's a template of what {username}'s birthday message would look like:"
             if is_admin_test
             else "I couldn't generate a custom message, but here's a template of what your birthday message would look like:"
@@ -1502,7 +1570,18 @@ def handle_test_command(
             quality=quality,  # Allow quality override
         )
 
-        say(announcement)
+        # Send as one message with archiving
+        full_fallback_message = f"{fallback_intro}\n\n{announcement}"
+        send_message(
+            app,
+            user_id,
+            full_fallback_message,
+            context={
+                "message_type": "test",
+                "command_name": "test",
+                "is_fallback": True,
+            },
+        )
 
 
 def handle_announce_command(args, user_id, say, app):
@@ -1599,6 +1678,7 @@ def handle_test_upload_command(user_id, say, app):
             user_id,
             "This is a test upload from the `admin test-upload` command.",
             image_data=image_data,
+            context={"message_type": "test", "command_name": "admin test-upload"},
         ):
             say("Test image uploaded successfully to your DMs!")
         else:
@@ -2476,9 +2556,83 @@ def handle_status_command(parts, user_id, say, app):
                 ]
             )
 
+        # Add detailed archive information if available
+        archive_status = status["components"].get("message_archive", {})
+        if archive_status and archive_status.get("status") != "not_configured":
+            archive_info = ["\n*Archive Configuration:*"]
+
+            # Basic configuration
+            archive_info.extend(
+                [
+                    f"• Archiving Enabled: {'Yes' if archive_status.get('enabled', False) else 'No'}",
+                    f"• Retention Period: {archive_status.get('retention_days', 'N/A')} days",
+                    f"• Auto Cleanup: {'Enabled' if archive_status.get('auto_cleanup_enabled', False) else 'Disabled'} (every {archive_status.get('cleanup_schedule_hours', 'N/A')} hours)",
+                    f"• Compression After: {archive_status.get('compression_days', 'N/A')} days",
+                    f"• Daily Message Limit: {archive_status.get('daily_message_limit', 'N/A'):,}",
+                ]
+            )
+
+            # Message types configuration
+            message_types = archive_status.get("message_types", {})
+            if message_types:
+                archive_info.append("\n*Message Types Archived:*")
+                archive_info.extend(
+                    [
+                        f"• DM Messages: {'✅' if message_types.get('dm_messages', False) else '❌'}",
+                        f"• Failed Messages: {'✅' if message_types.get('failed_messages', False) else '❌'}",
+                        f"• System Messages: {'✅' if message_types.get('system_messages', False) else '❌'}",
+                        f"• Test Messages: {'✅' if message_types.get('test_messages', False) else '❌'}",
+                    ]
+                )
+
+            # Archive statistics
+            if archive_status.get("total_messages", 0) > 0:
+                archive_info.append("\n*Archive Statistics:*")
+                archive_info.extend(
+                    [
+                        f"• Total Messages: {archive_status.get('total_messages', 0):,}",
+                        f"• Archive Files: {archive_status.get('archive_files', 0):,}",
+                        f"• Storage Used: {archive_status.get('total_size_mb', 0):.1f} MB",
+                    ]
+                )
+
+                # Date range
+                if archive_status.get("oldest_archive") and archive_status.get(
+                    "newest_archive"
+                ):
+                    archive_info.extend(
+                        [
+                            f"• Date Range: {archive_status['oldest_archive']['date']} to {archive_status['newest_archive']['date']}",
+                            f"• Oldest Archive: {archive_status['oldest_archive']['file']}",
+                            f"• Newest Archive: {archive_status['newest_archive']['file']}",
+                        ]
+                    )
+
+                # Recent activity
+                recent_activity = archive_status.get("recent_activity", {})
+                if recent_activity:
+                    archive_info.append("\n*Recent Activity (Last 7 Days):*")
+                    archive_info.extend(
+                        [
+                            f"• Messages Archived: {recent_activity.get('messages_last_7_days', 0):,}",
+                            f"• Files Created: {recent_activity.get('files_last_7_days', 0):,}",
+                            f"• Daily Average: {recent_activity.get('daily_average', 0):.1f} messages",
+                        ]
+                    )
+
+            detailed_info.extend(archive_info)
+
         summary += "\n" + "\n".join(detailed_info)
 
-    say(summary)
+    # Archive this important status report
+    say_with_archive(
+        say,
+        app,
+        user_id,
+        summary,
+        message_type="admin" if is_detailed else "command",
+        context={"command_name": "admin status", "is_detailed": is_detailed},
+    )
     logger.info(
         f"STATUS: {username} ({user_id}) requested system status {'with details' if is_detailed else ''}"
     )
@@ -2637,6 +2791,10 @@ def handle_test_bot_celebration_command(
                         user_id,
                         celebration_message,
                         image_result,  # Pass the full image_result dict containing image_data
+                        context={
+                            "message_type": "test",
+                            "command_name": "admin test-bot-celebration",
+                        },
                     )
                     if image_success:
                         # Enhanced success message with detailed results
@@ -2791,8 +2949,24 @@ def handle_archive_stats_command(user_id, say, app):
     try:
         stats = get_archive_stats()
 
+        if stats is None:
+            say("❌ Failed to get archive statistics: Function returned None")
+            return
+
         if "error" in stats:
             say(f"❌ Failed to get archive stats: {stats['error']}")
+            return
+
+        # Check if archive is empty
+        total_messages = stats.get("total_messages", 0)
+        if total_messages == 0:
+            say(
+                """*📊 Message Archive Statistics*
+
+ℹ️ *Archive Status:* Empty - No messages have been archived yet
+
+The message archiving system is ready but hasn't collected any data. Messages will be automatically archived as the bot sends them."""
+            )
             return
 
         # Format storage size
@@ -2804,19 +2978,19 @@ def handle_archive_stats_command(user_id, say, app):
 
         # Format date range
         date_range = stats.get("date_range", {})
-        if date_range.get("first") and date_range.get("last"):
+        if date_range and date_range.get("first") and date_range.get("last"):
             range_str = f"{date_range['first']} to {date_range['last']}"
         else:
-            range_str = "No messages archived yet"
+            range_str = "No date range available"
 
         stats_text = f"""*📊 Message Archive Statistics*
 
-**Total Messages:** {stats.get('total_messages', 0):,}
-**Storage Used:** {storage_str}
-**Date Range:** {range_str}
-**Available Dates:** {len(stats.get('available_dates', []))}
+*Total Messages:* {total_messages:,}
+*Storage Used:* {storage_str}
+*Date Range:* {range_str}
+*Available Dates:* {len(stats.get('available_dates', []))}
 
-**Last Updated:** {stats.get('index_last_updated', 'Never')}"""
+*Last Updated:* {stats.get('index_last_updated', 'Never')}"""
 
         say(stats_text)
 
@@ -2882,8 +3056,8 @@ def handle_archive_search_command(args, user_id, say, app):
 
         # Format results
         results_text = f"🔍 *Search Results for '{query_text}'*\n\n"
-        results_text += f"**Found:** {result.total_matches} matches (showing {len(result.messages)})\n"
-        results_text += f"**Search time:** {result.search_time_ms}ms\n\n"
+        results_text += f"*Found:* {result.total_matches} matches (showing {len(result.messages)})\n"
+        results_text += f"*Search time:* {result.search_time_ms}ms\n\n"
 
         for i, msg in enumerate(result.messages[:5], 1):  # Show first 5 results
             timestamp = msg.get("timestamp", "")
@@ -2903,7 +3077,7 @@ def handle_archive_search_command(args, user_id, say, app):
             username = msg.get("username", msg.get("user", "Unknown"))
             msg_type = msg.get("type", "unknown")
 
-            results_text += f"**{i}.** `{time_str}` | {msg_type} | {username}\n"
+            results_text += f"*{i}.* `{time_str}` | {msg_type} | {username}\n"
             results_text += f"   {text_preview}\n\n"
 
         if result.total_matches > 5:
@@ -2965,10 +3139,10 @@ def handle_archive_export_command(args, user_id, say, app):
 
         export_text = f"""✅ *Archive Export Complete*
 
-**Format:** {format_type.upper()}
-**Messages:** {message_count:,}
-**File:** `{file_path}`
-**Size:** {export_result.get('file_size', 'Unknown')}
+*Format:* {format_type.upper()}
+*Messages:* {message_count:,}
+*File:* `{file_path}`
+*Size:* {export_result.get('file_size', 'Unknown')}
 
 The export file has been saved to the server. Contact your system administrator to retrieve it."""
 
@@ -2994,9 +3168,9 @@ def handle_archive_cleanup_command(user_id, say, app):
 
         cleanup_text = f"""🧹 *Archive Cleanup Complete*
 
-**Files deleted:** {cleanup_result['deleted_files']}
-**Files compressed:** {cleanup_result['compressed_files']}
-**Cutoff date:** {cleanup_result['cutoff_date']}
+*Files deleted:* {cleanup_result['deleted_files']}
+*Files compressed:* {cleanup_result['compressed_files']}
+*Cutoff date:* {cleanup_result['cutoff_date']}
 
 Old archives have been cleaned up successfully."""
 
@@ -3052,16 +3226,16 @@ def handle_archive_recent_command(args, user_id, say, app):
 
         recent_text = f"""📊 *Message Activity (Last {days} days)*
 
-**Total Messages:** {total_messages:,}
-**AI Tokens Used:** {stats.get('ai_token_stats', {}).get('total_tokens', 0):,}
+*Total Messages:* {total_messages:,}
+*AI Tokens Used:* {stats.get('ai_token_stats', {}).get('total_tokens', 0):,}
 
-**Message Types:**
+*Message Types:*
 {chr(10).join(type_lines) if type_lines else '  None'}
 
-**Top Active Users:**
+*Top Active Users:*
 {chr(10).join(user_lines) if user_lines else '  None'}
 
-**Status Breakdown:**
+*Status Breakdown:*
   • Success: {stats.get('status_breakdown', {}).get('success', 0)}
   • Failed: {stats.get('status_breakdown', {}).get('failed', 0)}"""
 
@@ -3092,12 +3266,12 @@ def handle_archive_config_command(user_id, say, app):
 
         config_text = f"""⚙️ *Archive Configuration*
 
-**Archiving Enabled:** {'✅ Yes' if MESSAGE_ARCHIVING_ENABLED else '❌ No'}
-**Retention Period:** {ARCHIVE_RETENTION_DAYS} days
-**Compression After:** {ARCHIVE_COMPRESSION_DAYS} days
-**Auto Cleanup:** {'✅ Enabled' if AUTO_CLEANUP_ENABLED else '❌ Disabled'}
+*Archiving Enabled:* {'✅ Yes' if MESSAGE_ARCHIVING_ENABLED else '❌ No'}
+*Retention Period:* {ARCHIVE_RETENTION_DAYS} days
+*Compression After:* {ARCHIVE_COMPRESSION_DAYS} days
+*Auto Cleanup:* {'✅ Enabled' if AUTO_CLEANUP_ENABLED else '❌ Disabled'}
 
-**Message Types Archived:**
+*Message Types Archived:*
 • DM Messages: {'✅' if ARCHIVE_DM_MESSAGES else '❌'}
 • Failed Messages: {'✅' if ARCHIVE_FAILED_MESSAGES else '❌'}
 • System Messages: {'✅' if ARCHIVE_SYSTEM_MESSAGES else '❌'}

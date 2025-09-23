@@ -163,29 +163,39 @@ def archive_message(
         str: Unique message ID for the archived message (empty string if filtered)
     """
     try:
+        logger.info(
+            f"ARCHIVE_DEBUG: archive_message() called - type={message_type}, channel={channel[:10]}..., text_len={len(text)}"
+        )
+        logger.info(
+            f"ARCHIVE_CONFIG: MESSAGE_ARCHIVING_ENABLED={MESSAGE_ARCHIVING_ENABLED}, ARCHIVE_DM_MESSAGES={ARCHIVE_DM_MESSAGES}, ARCHIVE_TEST_MESSAGES={ARCHIVE_TEST_MESSAGES}"
+        )
+
         # Check if message archiving is enabled
         if not MESSAGE_ARCHIVING_ENABLED:
+            logger.warning(f"ARCHIVE_SKIP: Message archiving is disabled globally")
             return ""
 
         # Apply privacy filters based on configuration
         if message_type == "dm" and not ARCHIVE_DM_MESSAGES:
-            logger.debug(f"MESSAGE_ARCHIVE: Skipping DM message (disabled in config)")
+            logger.warning(f"ARCHIVE_SKIP: Skipping DM message (disabled in config)")
             return ""
 
         if status == "failed" and not ARCHIVE_FAILED_MESSAGES:
-            logger.debug(
-                f"MESSAGE_ARCHIVE: Skipping failed message (disabled in config)"
+            logger.warning(
+                f"ARCHIVE_SKIP: Skipping failed message (disabled in config)"
             )
             return ""
 
         if message_type == "system" and not ARCHIVE_SYSTEM_MESSAGES:
-            logger.debug(
-                f"MESSAGE_ARCHIVE: Skipping system message (disabled in config)"
+            logger.warning(
+                f"ARCHIVE_SKIP: Skipping system message (disabled in config)"
             )
             return ""
 
         if message_type == "test" and not ARCHIVE_TEST_MESSAGES:
-            logger.debug(f"MESSAGE_ARCHIVE: Skipping test message (disabled in config)")
+            logger.warning(
+                f"ARCHIVE_SKIP: Skipping test message (disabled in config) - TEST MESSAGES NOT ARCHIVED BY DEFAULT!"
+            )
             return ""
         ensure_archive_directories()
 
@@ -241,12 +251,17 @@ def archive_message(
         # Add to pending archives for async processing
         with _archive_lock:
             _pending_archives.append(archived_message)
+            queue_size = len(_pending_archives)
+
+        logger.info(
+            f"ARCHIVE_QUEUE: Added message {message_id} to queue (queue_size={queue_size}, type={message_type})"
+        )
 
         # Process archives asynchronously
         _process_pending_archives_async()
 
-        logger.debug(
-            f"MESSAGE_ARCHIVE: Queued message {message_id} for archiving ({message_type})"
+        logger.info(
+            f"ARCHIVE_SUCCESS: Successfully queued message {message_id} for archiving ({message_type})"
         )
         return message_id
 
@@ -262,16 +277,23 @@ def _process_pending_archives_async():
         try:
             with _archive_lock:
                 if not _pending_archives:
+                    logger.debug(f"ARCHIVE_THREAD: No pending archives to process")
                     return
                 messages_to_process = _pending_archives.copy()
+                queue_size = len(messages_to_process)
                 _pending_archives.clear()
 
+            logger.info(
+                f"ARCHIVE_THREAD: Starting to process {queue_size} messages from queue"
+            )
             _write_archives_to_disk(messages_to_process)
+            logger.info(f"ARCHIVE_THREAD: Completed processing {queue_size} messages")
 
         except Exception as e:
             logger.error(f"ARCHIVE_ERROR: Failed to process pending archives: {e}")
 
     # Start background thread
+    logger.info(f"ARCHIVE_THREAD: Spawning background thread for archive processing")
     thread = threading.Thread(target=process, daemon=True)
     thread.start()
 
@@ -279,6 +301,8 @@ def _process_pending_archives_async():
 def _write_archives_to_disk(messages: List[ArchivedMessage]):
     """Write archived messages to disk with proper organization"""
     try:
+        logger.info(f"ARCHIVE_DISK: Starting to write {len(messages)} messages to disk")
+
         # Group messages by date
         messages_by_date = {}
         for message in messages:
@@ -287,27 +311,40 @@ def _write_archives_to_disk(messages: List[ArchivedMessage]):
                 messages_by_date[date_key] = []
             messages_by_date[date_key].append(message)
 
+        logger.info(
+            f"ARCHIVE_DISK: Grouped messages into {len(messages_by_date)} date buckets"
+        )
+
         # Write each date's messages
         for date, date_messages in messages_by_date.items():
+            logger.info(
+                f"ARCHIVE_DISK: Writing {len(date_messages)} messages for date {date}"
+            )
             _write_daily_archive(
                 datetime.combine(date, datetime.min.time()), date_messages
             )
 
         logger.info(
-            f"MESSAGE_ARCHIVE: Wrote {len(messages)} messages to disk across {len(messages_by_date)} days"
+            f"ARCHIVE_DISK: Successfully wrote {len(messages)} messages to disk across {len(messages_by_date)} days"
         )
 
     except Exception as e:
         logger.error(f"ARCHIVE_ERROR: Failed to write archives to disk: {e}")
+        import traceback
+
+        logger.error(f"ARCHIVE_ERROR: Stack trace: {traceback.format_exc()}")
 
 
 def _write_daily_archive(date: datetime, messages: List[ArchivedMessage]):
     """Write messages for a specific day to the daily archive"""
     try:
         archive_dir, messages_file, summary_file = get_archive_path(date)
+        logger.info(f"ARCHIVE_FILE: Writing to {messages_file}")
+        logger.info(f"ARCHIVE_FILE: Archive directory: {archive_dir}")
 
         # Ensure directory exists
         os.makedirs(archive_dir, exist_ok=True)
+        logger.info(f"ARCHIVE_FILE: Created/verified directory {archive_dir}")
 
         # Load existing messages if file exists
         existing_messages = []
@@ -331,6 +368,9 @@ def _write_daily_archive(date: datetime, messages: List[ArchivedMessage]):
 
         # Combine with existing messages
         all_messages = existing_messages + new_message_dicts
+        logger.info(
+            f"ARCHIVE_FILE: Combined {len(existing_messages)} existing + {len(new_message_dicts)} new = {len(all_messages)} total messages"
+        )
 
         # Create archive data structure
         archive_data = {
@@ -341,17 +381,25 @@ def _write_daily_archive(date: datetime, messages: List[ArchivedMessage]):
         }
 
         # Write messages file
+        logger.info(
+            f"ARCHIVE_FILE: About to write {len(all_messages)} messages to {messages_file}"
+        )
         with open(messages_file, "w") as f:
             json.dump(archive_data, f, indent=2)
+        logger.info(f"ARCHIVE_FILE: Successfully wrote file {messages_file}")
 
         # Create/update summary file
         _create_daily_summary(date, all_messages, summary_file)
+        logger.info(f"ARCHIVE_FILE: Created summary file {summary_file}")
 
         # Update searchable index
         _update_search_index(date, len(new_message_dicts))
+        logger.info(
+            f"ARCHIVE_FILE: Updated search index for {len(new_message_dicts)} new messages"
+        )
 
-        logger.debug(
-            f"MESSAGE_ARCHIVE: Wrote {len(new_message_dicts)} messages to {messages_file}"
+        logger.info(
+            f"ARCHIVE_FILE: SUCCESS - Wrote {len(new_message_dicts)} messages to {messages_file}"
         )
 
     except Exception as e:
