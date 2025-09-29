@@ -145,7 +145,7 @@ def generate_special_day_message(
 
         # Generate the message
         model = get_configured_openai_model()
-        max_tokens = TOKEN_LIMITS.get("single_birthday", 500) if not test_mode else 300
+        max_tokens = TOKEN_LIMITS.get("single_birthday", 500)
         temperature = TEMPERATURE_SETTINGS.get("default", 0.7)
 
         logger.info(f"Generating special day message with {personality} personality")

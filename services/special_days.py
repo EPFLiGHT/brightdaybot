@@ -602,10 +602,10 @@ def verify_special_days() -> Dict[str, List[str]]:
         else:
             date_counts[day.date] = day.name
 
-        # Validate date format
+        # Validate date format (DD/MM)
         try:
-            month, day_num = map(int, day.date.split("/"))
-            if not (1 <= month <= 12 and 1 <= day_num <= 31):
+            day_num, month = map(int, day.date.split("/"))
+            if not (1 <= day_num <= 31 and 1 <= month <= 12):
                 raise ValueError()
         except:
             results["invalid_dates"].append(f"{day.date}: {day.name}")

@@ -536,7 +536,7 @@ def handle_dm_admin_help(say, user_id, app):
 
 *Special Days Management:*
 • `admin special` - View special days help
-• `admin special add DD/MM "Name" "Category" "Description" [emoji]` - Add observance
+• `admin special add DD/MM "Name" "Category" "Description" ["emoji"] ["source"] ["url"]` - Add observance
 • `admin special remove DD/MM [name]` - Remove observance
 • `admin special list [category]` - List all observances
 • `admin special test [DD/MM]` - Test announcement
@@ -659,7 +659,15 @@ def handle_command(text, user_id, say, app):
             )
             return
 
-        handle_admin_command(admin_subcommand, parts[2:], say, user_id, app)
+        # Special handling for admin special commands that need quoted string parsing
+        if admin_subcommand == "special":
+            # Pass the original text after "admin special" for quoted parsing
+            admin_special_text = text[len("admin special") :].strip()
+            handle_admin_special_command_with_quotes(
+                admin_special_text, user_id, say, app
+            )
+        else:
+            handle_admin_command(admin_subcommand, parts[2:], say, user_id, app)
         return
 
     if command == "add" and len(parts) >= 2:
@@ -3531,11 +3539,150 @@ _Special days include global health observances, technology celebrations, and cu
     )
 
 
-def handle_admin_special_command(args, user_id, say, app):
-    """Handle admin special days commands"""
+def parse_quoted_args(command_text):
+    """Parse command text with quoted arguments, handling spaces inside quotes"""
+    parts = []
+    current = ""
+    in_quotes = False
+    i = 0
+
+    while i < len(command_text):
+        char = command_text[i]
+
+        if char == '"':
+            if in_quotes:
+                # End quote - add current part
+                parts.append(current)
+                current = ""
+                in_quotes = False
+            else:
+                # Start quote
+                in_quotes = True
+        elif char == " " and not in_quotes:
+            # Space outside quotes - end current part
+            if current:
+                parts.append(current)
+                current = ""
+        else:
+            # Regular character
+            current += char
+
+        i += 1
+
+    # Add final part if any
+    if current:
+        parts.append(current)
+
+    return parts
+
+
+def handle_admin_special_command_with_quotes(command_text, user_id, say, app):
+    """Handle admin special days commands with quoted string parsing"""
     from services.special_days import (
         SpecialDay,
         save_special_day,
+        remove_special_day,
+        load_special_days,
+        update_category_status,
+        load_special_days_config,
+        save_special_days_config,
+        format_special_days_list,
+        get_special_days_for_date,
+        mark_special_day_announced,
+    )
+    from utils.special_day_generator import generate_special_day_message
+    from datetime import datetime
+    import csv
+
+    username = get_username(app, user_id)
+
+    # Parse quoted arguments
+    args = parse_quoted_args(command_text)
+
+    if not args:
+        args = ["help"]
+
+    subcommand = args[0].lower()
+
+    if subcommand == "add":
+        # Add a new special day: admin special add DD/MM "Name" "Category" "Description" ["emoji"] ["source"] ["url"]
+        if len(args) < 5:
+            say(
+                'Usage: `admin special add DD/MM "Name" "Category" "Description" ["emoji"] ["source"] ["url"]`\n'
+                "Examples:\n"
+                '• `admin special add 15/03 "World Sleep Day" "Global Health" "Promoting healthy sleep"`\n'
+                '• `admin special add 15/03 "World Sleep Day" "Global Health" "Promoting healthy sleep" "💤"`\n'
+                '• `admin special add 15/03 "World Sleep Day" "Global Health" "Promoting healthy sleep" "💤" "World Sleep Society" "https://worldsleepday.org"`'
+            )
+            return
+
+        try:
+            date_str = args[1]
+            name = args[2]
+            category = args[3]
+            description = args[4]
+            emoji = args[5] if len(args) > 5 else ""
+            source = args[6] if len(args) > 6 else "Custom"
+            url = args[7] if len(args) > 7 else ""
+
+            # Validate date format (DD/MM)
+            day, month = map(int, date_str.split("/"))
+            if not (1 <= day <= 31 and 1 <= month <= 12):
+                raise ValueError("Invalid date")
+
+            # Basic URL validation if provided
+            if url and not (url.startswith("http://") or url.startswith("https://")):
+                say("❌ URL must start with http:// or https://")
+                return
+
+            # Validate category
+            from config import SPECIAL_DAYS_CATEGORIES
+
+            if category not in SPECIAL_DAYS_CATEGORIES:
+                say(
+                    f"Invalid category. Must be one of: {', '.join(SPECIAL_DAYS_CATEGORIES)}"
+                )
+                return
+
+            special_day = SpecialDay(
+                date=f"{day:02d}/{month:02d}",
+                name=name,
+                category=category,
+                description=description,
+                emoji=emoji,
+                enabled=True,
+                source=source,
+                url=url,
+            )
+
+            if save_special_day(special_day, app, username):
+                source_info = f" (Source: {source})" if source != "Custom" else ""
+                url_info = f" - {url}" if url else ""
+                say(
+                    f"✅ Added special day: {emoji} *{name}* on {date_str} ({category}){source_info}{url_info}"
+                )
+                logger.info(
+                    f"ADMIN_SPECIAL: {username} added special day: {name} on {date_str} with source: {source}"
+                )
+            else:
+                say("❌ Failed to add special day. Check logs for details.")
+
+        except (ValueError, IndexError) as e:
+            say(
+                f'❌ Invalid format. Use: `admin special add DD/MM "Name" "Category" "Description" ["emoji"] ["source"] ["url"]`\n'
+                'Example: `admin special add 15/03 "World Sleep Day" "Global Health" "Promoting healthy sleep" "💤" "World Sleep Society" "https://worldsleepday.org"`'
+            )
+
+    else:
+        # For non-add commands, fall back to the original handler
+        # Convert back to simple args for compatibility
+        simple_args = command_text.split()
+        handle_admin_special_command(simple_args, user_id, say, app)
+
+
+def handle_admin_special_command(args, user_id, say, app):
+    """Handle admin special days commands (non-add commands only)"""
+    from services.special_days import (
         remove_special_day,
         load_special_days,
         update_category_status,
@@ -3556,60 +3703,7 @@ def handle_admin_special_command(args, user_id, say, app):
 
     subcommand = args[0].lower()
 
-    if subcommand == "add":
-        # Add a new special day: admin special add DD/MM "Name" "Category" "Description" [emoji]
-        if len(args) < 4:
-            say(
-                'Usage: `admin special add DD/MM "Name" "Category" "Description" [emoji]`'
-            )
-            return
-
-        try:
-            date_str = args[1]
-            # Validate date format
-            month, day = map(int, date_str.split("/"))
-            if not (1 <= month <= 12 and 1 <= day <= 31):
-                raise ValueError("Invalid date")
-
-            name = args[2]
-            category = args[3]
-            description = args[4] if len(args) > 4 else ""
-            emoji = args[5] if len(args) > 5 else ""
-
-            # Validate category
-            from config import SPECIAL_DAYS_CATEGORIES
-
-            if category not in SPECIAL_DAYS_CATEGORIES:
-                say(
-                    f"Invalid category. Must be one of: {', '.join(SPECIAL_DAYS_CATEGORIES)}"
-                )
-                return
-
-            special_day = SpecialDay(
-                date=f"{month:02d}/{day:02d}",
-                name=name,
-                category=category,
-                description=description,
-                emoji=emoji,
-                enabled=True,
-            )
-
-            if save_special_day(special_day, app, username):
-                say(
-                    f"✅ Added special day: {emoji} *{name}* on {date_str} ({category})"
-                )
-                logger.info(
-                    f"ADMIN_SPECIAL: {username} added special day: {name} on {date_str}"
-                )
-            else:
-                say("❌ Failed to add special day. Check logs for details.")
-
-        except (ValueError, IndexError) as e:
-            say(
-                f'❌ Invalid format. Use: `admin special add DD/MM "Name" "Category" "Description" [emoji]`'
-            )
-
-    elif subcommand == "remove":
+    if subcommand == "remove":
         # Remove a special day: admin special remove DD/MM [name]
         if len(args) < 2:
             say("Usage: `admin special remove DD/MM [name]`")
@@ -3642,7 +3736,9 @@ def handle_admin_special_command(args, user_id, say, app):
 
             by_month = defaultdict(list)
             for day in all_days:
-                month = int(day.date.split("/")[0])
+                month = int(
+                    day.date.split("/")[1]
+                )  # DD/MM format - month is second part
                 by_month[month].append(day)
 
             for month in sorted(by_month.keys()):
@@ -3650,7 +3746,10 @@ def handle_admin_special_command(args, user_id, say, app):
 
                 message += f"*{month_name[month]}:*\n"
                 for day in sorted(
-                    by_month[month], key=lambda d: int(d.date.split("/")[1])
+                    by_month[month],
+                    key=lambda d: int(
+                        d.date.split("/")[0]
+                    ),  # DD/MM format - sort by day within month
                 ):
                     emoji = f"{day.emoji} " if day.emoji else ""
                     status = "✅" if day.enabled else "❌"
@@ -3697,10 +3796,10 @@ def handle_admin_special_command(args, user_id, say, app):
             test_date = datetime.now()
         else:
             try:
-                # Parse date
+                # Parse date (DD/MM)
                 date_str = args[1]
-                month, day = map(int, date_str.split("/"))
-                test_date = datetime.now().replace(month=month, day=day)
+                day, month = map(int, date_str.split("/"))
+                test_date = datetime.now().replace(day=day, month=month)
             except:
                 say("Invalid date format. Use DD/MM")
                 return
@@ -3824,7 +3923,7 @@ def handle_admin_special_command(args, user_id, say, app):
         # Help message
         help_text = """*Admin Special Days Commands:*
 
-• `admin special add DD/MM "Name" "Category" "Description" [emoji]` - Add a special day
+• `admin special add DD/MM "Name" "Category" "Description" ["emoji"] ["source"] ["url"]` - Add a special day (quoted strings support spaces)
 • `admin special remove DD/MM [name]` - Remove a special day
 • `admin special list [category]` - List all special days
 • `admin special categories [enable/disable category]` - Manage categories
@@ -3833,7 +3932,17 @@ def handle_admin_special_command(args, user_id, say, app):
 • `admin special verify` - Verify data accuracy and completeness
 • `admin special import` - Import from CSV (coming soon)
 
-*Categories:* Global Health, Tech, Culture, Company"""
+*Categories:* Global Health, Tech, Culture, Company
+
+*Add Command Examples:*
+```
+admin special add 15/03 "World Sleep Day" "Global Health" "Promoting healthy sleep"
+admin special add 15/03 "World Sleep Day" "Global Health" "Promoting healthy sleep" "💤"
+admin special add 15/03 "World Sleep Day" "Global Health" "Promoting healthy sleep" "💤" "World Sleep Society"
+admin special add 15/03 "World Sleep Day" "Global Health" "Promoting healthy sleep" "💤" "World Sleep Society" "https://worldsleepday.org"
+```
+
+*Note:* Use quotes around parameters with spaces. Source and URL are automatically integrated into AI-generated messages."""
         say(help_text)
 
     logger.info(

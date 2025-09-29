@@ -152,10 +152,10 @@ DEFAULT_OPENAI_MODEL = "gpt-4.1"
 
 # Token limits for different chat completion use cases
 TOKEN_LIMITS = {
-    "single_birthday": 500,  # Default for regular birthday messages
-    "consolidated_birthday": 800,  # Multiple birthday messages
-    "web_search_facts": 500,  # Historical date summarization
-    "image_title_generation": 100,  # AI-generated image titles
+    "single_birthday": 1000,  # Default for regular birthday messages
+    "consolidated_birthday": 2000,  # Multiple birthday messages
+    "web_search_facts": 1000,  # Historical date summarization
+    "image_title_generation": 200,  # AI-generated image titles
 }
 
 # Temperature settings for creativity control

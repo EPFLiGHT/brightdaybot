@@ -192,6 +192,7 @@ python app.py
 - `admin restore latest` - Restore from the latest backup
 - `admin cache clear` - Clear all web search cache
 - `admin special` - Manage special days and international observances
+- `admin special add DD/MM "Name" "Category" "Description" ["emoji"] ["source"] ["url"]` - Add special day with quoted strings
 - `admin cache clear DD/MM` - Clear web search cache for specific date
 
 **Mass Notification Commands** (require confirmation):
