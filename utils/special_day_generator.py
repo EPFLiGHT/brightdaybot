@@ -17,6 +17,7 @@ from config import (
     TEMPERATURE_SETTINGS,
     IMAGE_GENERATION_PARAMS,
     SPECIAL_DAYS_CHANNEL,
+    TEAM_NAME,
 )
 from personality_config import get_personality_config
 from utils.app_config import get_configured_openai_model
@@ -156,7 +157,7 @@ def generate_special_day_message(
             messages=[
                 {
                     "role": "system",
-                    "content": f"You are {personality_config['name']}, {personality_config['description']}.",
+                    "content": f"You are {personality_config['name']}, {personality_config['description']} for the {TEAM_NAME} workspace.",
                 },
                 {"role": "user", "content": prompt},
             ],
