@@ -426,6 +426,13 @@ Here's how you can interact with me:
    • `test [quality] [size] [--text-only]` - See a test birthday message for yourself (quality: low/medium/high/auto, size: auto/1024x1024/1536x1024/1024x1536, --text-only skips images)
    • `confirm` - Confirm pending announcement or reminder commands
 
+3. *Special Days Commands:*
+   • `special` - Show today's special observances
+   • `special week` - Show special days for the next 7 days
+   • `special month` - Show special days for the next 30 days
+   • `special search [term]` - Search for specific observances
+   • `special stats` - View special days statistics
+
 Admin commands are also available. Type `admin help` for more information.
 """
     say(help_text)
@@ -525,6 +532,14 @@ def handle_dm_admin_help(say, user_id, app):
 • `admin custom style [value]` - Set custom writing style
 • `admin custom format [value]` - Set custom format instruction
 • `admin custom template [value]` - Set custom template extension
+
+*Special Days Management:*
+• `admin special` - View special days help
+• `admin special add DD/MM "Name" "Category" "Description" [emoji]` - Add observance
+• `admin special remove DD/MM [name]` - Remove observance
+• `admin special list [category]` - List all observances
+• `admin special test [DD/MM]` - Test announcement
+• `admin special verify` - Verify data integrity
 """
     say(admin_help)
     logger.info(f"HELP: Sent admin help to {user_id}")
@@ -820,6 +835,9 @@ def handle_command(text, user_id, say, app):
             return
 
         handle_test_command(user_id, say, app, quality, image_size, text_only=text_only)
+
+    elif command == "special":
+        handle_special_command(parts[1:] if len(parts) > 1 else [], user_id, say, app)
 
     elif command == "hello":
         # Friendly greeting command using centralized personality config
@@ -2684,6 +2702,14 @@ def handle_test_bot_celebration_command(
         # Calculate estimated savings vs Billy bot
         yearly_savings = channel_members_count * 12  # $1 per user per month
 
+        # Get special days count
+        try:
+            from services.special_days import load_special_days
+
+            special_days_count = len(load_special_days())
+        except:
+            special_days_count = 0
+
         # Add logging for test start
         logger.info(
             f"TEST_BOT_CELEBRATION: Starting test for {username} ({user_id}) - bot age {bot_age}"
@@ -2715,6 +2741,7 @@ def handle_test_bot_celebration_command(
             f"_Configuration:_\n"
             f"• Bot age: {bot_age} years ({date_to_words(BOT_BIRTHDAY)}, {BOT_BIRTH_YEAR})\n"
             f"• Birthdays tracked: {total_birthdays}\n"
+            f"• Special days tracked: {special_days_count}\n"
             f"• Channel members: {channel_members_count}\n"
             f"• Estimated savings: ${yearly_savings}/year\n"
             f"• Quality: {display_quality} {'(custom)' if quality is not None else '(default)'}\n"
@@ -2732,6 +2759,7 @@ def handle_test_bot_celebration_command(
             total_birthdays=total_birthdays,
             yearly_savings=yearly_savings,
             channel_members_count=channel_members_count,
+            special_days_count=special_days_count,
         )
 
         # Determine whether to include image: respect --text-only flag first, then global setting
@@ -3290,6 +3318,443 @@ def handle_archive_config_command(user_id, say, app):
         say(f"❌ Failed to get archive configuration: {str(e)}")
 
 
+def handle_special_command(args, user_id, say, app):
+    """Handle user special days commands"""
+    from services.special_days import (
+        get_todays_special_days,
+        get_upcoming_special_days,
+        get_special_day_statistics,
+        format_special_days_list,
+        load_special_days,
+    )
+    from datetime import datetime, timedelta
+
+    # Default to showing today if no args
+    if not args:
+        args = ["today"]
+
+    subcommand = args[0].lower()
+
+    if subcommand == "today":
+        # Show today's special days
+        special_days = get_todays_special_days()
+        if special_days:
+            message = (
+                f"📅 *Today's Special Days ({datetime.now().strftime('%B %d')}):*\n\n"
+            )
+            message += format_special_days_list(special_days)
+        else:
+            message = "No special days observed today."
+        say(message)
+
+    elif subcommand in ["week", "upcoming"]:
+        # Show upcoming special days for the week
+        upcoming = get_upcoming_special_days(7)
+        if upcoming:
+            message = "📅 *Special Days - Next 7 Days:*\n\n"
+            for date_str, days_list in sorted(upcoming.items()):
+                month, day = date_str.split("/")
+                formatted_date = f"{int(month):02d}/{int(day):02d}"
+                message += f"*{formatted_date}:*\n"
+                for day in days_list:
+                    emoji = f"{day.emoji} " if day.emoji else ""
+                    message += f"  • {emoji}{day.name} ({day.category})\n"
+                message += "\n"
+        else:
+            message = "No special days in the next 7 days."
+        say(message)
+
+    elif subcommand == "month":
+        # Show special days for the current month
+        upcoming = get_upcoming_special_days(30)
+        if upcoming:
+            message = "📅 *Special Days - Next 30 Days:*\n\n"
+            for date_str, days_list in sorted(upcoming.items()):
+                month, day = date_str.split("/")
+                formatted_date = f"{int(month):02d}/{int(day):02d}"
+                message += f"*{formatted_date}:*\n"
+                for day in days_list:
+                    emoji = f"{day.emoji} " if day.emoji else ""
+                    message += f"  • {emoji}{day.name}\n"
+                message += "\n"
+        else:
+            message = "No special days in the next 30 days."
+        say(message)
+
+    elif subcommand == "search":
+        # Search for specific special days
+        if len(args) < 2:
+            say("Please provide a search term. Example: `special search mental health`")
+            return
+
+        search_term = " ".join(args[1:]).lower()
+        all_days = load_special_days()
+
+        # Search in name and description
+        matches = [
+            day
+            for day in all_days
+            if search_term in day.name.lower() or search_term in day.description.lower()
+        ]
+
+        if matches:
+            message = f"📅 *Special Days matching '{search_term}':*\n\n"
+            for day in matches:
+                emoji = f"{day.emoji} " if day.emoji else ""
+                status = "✅" if day.enabled else "❌"
+                message += f"{status} {emoji}*{day.date} - {day.name}*\n"
+                message += f"   Category: {day.category}\n"
+                if day.description:
+                    message += f"   _{day.description}_\n"
+                message += "\n"
+        else:
+            message = f"No special days found matching '{search_term}'"
+        say(message)
+
+    elif subcommand == "stats":
+        # Show statistics
+        stats = get_special_day_statistics()
+        message = "📊 *Special Days Statistics:*\n\n"
+        message += f"• Total special days: {stats['total_days']}\n"
+        message += f"• Currently enabled: {stats['enabled_days']}\n"
+        message += f"• Feature status: {'✅ Enabled' if stats['feature_enabled'] else '❌ Disabled'}\n"
+        message += f"• Current personality: {stats['current_personality']}\n\n"
+
+        message += "*By Category:*\n"
+        for category, cat_stats in stats["by_category"].items():
+            cat_status = "✅" if cat_stats["category_enabled"] else "❌"
+            message += f"  {cat_status} {category}: {cat_stats['enabled']}/{cat_stats['total']} days\n"
+
+        say(message)
+
+    else:
+        # Help message
+        help_text = """*Special Days Commands:*
+
+• `special` or `special today` - Show today's special days
+• `special week` - Show special days for the next 7 days
+• `special month` - Show special days for the next 30 days
+• `special search [term]` - Search for specific special days
+• `special stats` - Show special days statistics
+
+_Special days include global health observances, technology celebrations, and cultural events._"""
+        say(help_text)
+
+    logger.info(
+        f"SPECIAL: {get_username(app, user_id)} used special command: {' '.join(args)}"
+    )
+
+
+def handle_admin_special_command(args, user_id, say, app):
+    """Handle admin special days commands"""
+    from services.special_days import (
+        SpecialDay,
+        save_special_day,
+        remove_special_day,
+        load_special_days,
+        update_category_status,
+        load_special_days_config,
+        save_special_days_config,
+        format_special_days_list,
+        get_special_days_for_date,
+        mark_special_day_announced,
+    )
+    from utils.special_day_generator import generate_special_day_message
+    from datetime import datetime
+    import csv
+
+    username = get_username(app, user_id)
+
+    if not args:
+        args = ["help"]
+
+    subcommand = args[0].lower()
+
+    if subcommand == "add":
+        # Add a new special day: admin special add DD/MM "Name" "Category" "Description" [emoji]
+        if len(args) < 4:
+            say(
+                'Usage: `admin special add DD/MM "Name" "Category" "Description" [emoji]`'
+            )
+            return
+
+        try:
+            date_str = args[1]
+            # Validate date format
+            month, day = map(int, date_str.split("/"))
+            if not (1 <= month <= 12 and 1 <= day <= 31):
+                raise ValueError("Invalid date")
+
+            name = args[2]
+            category = args[3]
+            description = args[4] if len(args) > 4 else ""
+            emoji = args[5] if len(args) > 5 else ""
+
+            # Validate category
+            from config import SPECIAL_DAYS_CATEGORIES
+
+            if category not in SPECIAL_DAYS_CATEGORIES:
+                say(
+                    f"Invalid category. Must be one of: {', '.join(SPECIAL_DAYS_CATEGORIES)}"
+                )
+                return
+
+            special_day = SpecialDay(
+                date=f"{month:02d}/{day:02d}",
+                name=name,
+                category=category,
+                description=description,
+                emoji=emoji,
+                enabled=True,
+            )
+
+            if save_special_day(special_day, app, username):
+                say(
+                    f"✅ Added special day: {emoji} *{name}* on {date_str} ({category})"
+                )
+                logger.info(
+                    f"ADMIN_SPECIAL: {username} added special day: {name} on {date_str}"
+                )
+            else:
+                say("❌ Failed to add special day. Check logs for details.")
+
+        except (ValueError, IndexError) as e:
+            say(
+                f'❌ Invalid format. Use: `admin special add DD/MM "Name" "Category" "Description" [emoji]`'
+            )
+
+    elif subcommand == "remove":
+        # Remove a special day: admin special remove DD/MM [name]
+        if len(args) < 2:
+            say("Usage: `admin special remove DD/MM [name]`")
+            return
+
+        date_str = args[1]
+        name = args[2] if len(args) > 2 else None
+
+        if remove_special_day(date_str, name, app, username):
+            say(f"✅ Removed special day(s) for {date_str}")
+            logger.info(f"ADMIN_SPECIAL: {username} removed special day for {date_str}")
+        else:
+            say(f"❌ No special day found for {date_str}")
+
+    elif subcommand == "list":
+        # List all special days or by category
+        category_filter = args[1] if len(args) > 1 else None
+        all_days = load_special_days()
+
+        if category_filter:
+            all_days = [
+                d for d in all_days if d.category.lower() == category_filter.lower()
+            ]
+
+        if all_days:
+            message = f"📅 *All Special Days{f' ({category_filter})' if category_filter else ''}:*\n\n"
+
+            # Group by month
+            from collections import defaultdict
+
+            by_month = defaultdict(list)
+            for day in all_days:
+                month = int(day.date.split("/")[0])
+                by_month[month].append(day)
+
+            for month in sorted(by_month.keys()):
+                from calendar import month_name
+
+                message += f"*{month_name[month]}:*\n"
+                for day in sorted(
+                    by_month[month], key=lambda d: int(d.date.split("/")[1])
+                ):
+                    emoji = f"{day.emoji} " if day.emoji else ""
+                    status = "✅" if day.enabled else "❌"
+                    message += (
+                        f"  {status} {day.date}: {emoji}{day.name} ({day.category})\n"
+                    )
+                message += "\n"
+        else:
+            message = f"No special days found{f' for category {category_filter}' if category_filter else ''}."
+
+        say(message)
+
+    elif subcommand == "categories":
+        # Manage category settings
+        config = load_special_days_config()
+        categories_enabled = config.get("categories_enabled", {})
+
+        if len(args) == 1:
+            # Show current status
+            message = "📋 *Special Days Categories:*\n\n"
+            from config import SPECIAL_DAYS_CATEGORIES
+
+            for category in SPECIAL_DAYS_CATEGORIES:
+                status = "✅" if categories_enabled.get(category, True) else "❌"
+                message += f"{status} {category}\n"
+            say(message)
+
+        elif len(args) >= 3 and args[1] in ["enable", "disable"]:
+            # Enable/disable a category
+            action = args[1]
+            category = " ".join(args[2:])
+            enabled = action == "enable"
+
+            if update_category_status(category, enabled):
+                say(f"✅ {category} category {'enabled' if enabled else 'disabled'}")
+                logger.info(f"ADMIN_SPECIAL: {username} {action}d category: {category}")
+            else:
+                say(f"❌ Invalid category: {category}")
+
+    elif subcommand == "test":
+        # Test announcement for a specific date
+        if len(args) < 2:
+            # Test today
+            test_date = datetime.now()
+        else:
+            try:
+                # Parse date
+                date_str = args[1]
+                month, day = map(int, date_str.split("/"))
+                test_date = datetime.now().replace(month=month, day=day)
+            except:
+                say("Invalid date format. Use DD/MM")
+                return
+
+        special_days = get_special_days_for_date(test_date)
+
+        if special_days:
+            say(
+                f"🧪 Testing special day announcement for {test_date.strftime('%B %d')}..."
+            )
+
+            # Generate message
+            message = generate_special_day_message(special_days, test_mode=True)
+
+            if message:
+                say(f"*Generated Message:*\n\n{message}")
+            else:
+                say("❌ Failed to generate message")
+        else:
+            say(f"No special days found for {test_date.strftime('%B %d')}")
+
+    elif subcommand == "config":
+        # Show or update configuration
+        config = load_special_days_config()
+
+        if len(args) == 1:
+            # Show current config
+            message = "⚙️ *Special Days Configuration:*\n\n"
+            message += f"• Feature: {'✅ Enabled' if config.get('enabled', False) else '❌ Disabled'}\n"
+            message += f"• Personality: {config.get('personality', 'chronicler')}\n"
+            message += (
+                f"• Announcement time: {config.get('announcement_time', '09:00')}\n"
+            )
+            message += f"• Channel: {config.get('channel_override') or 'Using birthday channel'}\n"
+            message += f"• Image generation: {'✅' if config.get('image_generation', False) else '❌'}\n"
+            say(message)
+
+        elif len(args) >= 3:
+            # Update config
+            setting = args[1].lower()
+            value = " ".join(args[2:])
+
+            if setting == "personality":
+                config["personality"] = value
+            elif setting == "time":
+                config["announcement_time"] = value
+            elif setting == "channel":
+                config["channel_override"] = value if value != "none" else None
+            elif setting == "images":
+                config["image_generation"] = value.lower() in ["true", "on", "yes", "1"]
+            elif setting == "enable":
+                config["enabled"] = True
+            elif setting == "disable":
+                config["enabled"] = False
+            else:
+                say(f"Unknown setting: {setting}")
+                return
+
+            if save_special_days_config(config):
+                say(f"✅ Updated special days {setting}")
+                logger.info(
+                    f"ADMIN_SPECIAL: {username} updated config: {setting} = {value}"
+                )
+            else:
+                say("❌ Failed to save configuration")
+
+    elif subcommand == "verify":
+        # Verify special days data
+        from services.special_days import verify_special_days
+
+        results = verify_special_days()
+
+        message = "🔍 *Special Days Verification Report:*\n\n"
+        message += f"*Statistics:*\n"
+        message += f"• Total days: {results['stats']['total']}\n"
+        message += f"• Days with source: {results['stats']['with_source']}\n"
+        message += f"• Days with URL: {results['stats']['with_url']}\n\n"
+
+        message += "*By Category:*\n"
+        for cat, count in results["stats"]["by_category"].items():
+            message += f"• {cat}: {count}\n"
+
+        # Report issues
+        issues_found = False
+        if results["missing_sources"]:
+            issues_found = True
+            message += (
+                f"\n⚠️ *Missing Sources:* {len(results['missing_sources'])} days\n"
+            )
+            if len(results["missing_sources"]) <= 5:
+                for day in results["missing_sources"]:
+                    message += f"  - {day}\n"
+            else:
+                message += f"  (showing first 5)\n"
+                for day in results["missing_sources"][:5]:
+                    message += f"  - {day}\n"
+
+        if results["duplicate_dates"]:
+            issues_found = True
+            message += f"\n⚠️ *Duplicate Dates:*\n"
+            for date, names in results["duplicate_dates"].items():
+                message += f"  • {date}: {', '.join(names)}\n"
+
+        if results["invalid_dates"]:
+            issues_found = True
+            message += f"\n❌ *Invalid Dates:* {len(results['invalid_dates'])}\n"
+
+        if not issues_found:
+            message += "\n✅ All data validation checks passed!"
+
+        say(message)
+        logger.info(f"ADMIN_SPECIAL: {username} ran verification")
+
+    elif subcommand == "import":
+        # Import special days from CSV
+        say(
+            "📥 Import feature not yet implemented. Please add special days individually or edit the CSV file directly."
+        )
+
+    else:
+        # Help message
+        help_text = """*Admin Special Days Commands:*
+
+• `admin special add DD/MM "Name" "Category" "Description" [emoji]` - Add a special day
+• `admin special remove DD/MM [name]` - Remove a special day
+• `admin special list [category]` - List all special days
+• `admin special categories [enable/disable category]` - Manage categories
+• `admin special test [DD/MM]` - Test announcement for a date
+• `admin special config [setting value]` - View/update configuration
+• `admin special verify` - Verify data accuracy and completeness
+• `admin special import` - Import from CSV (coming soon)
+
+*Categories:* Global Health, Tech, Culture, Company"""
+        say(help_text)
+
+    logger.info(
+        f"ADMIN_SPECIAL: {username} ({user_id}) used admin special command: {' '.join(args)}"
+    )
+
+
 def handle_admin_command(subcommand, args, say, user_id, app):
     """Handle admin-specific commands"""
     # Add global declaration
@@ -3591,6 +4056,9 @@ def handle_admin_command(subcommand, args, say, user_id, app):
 
     elif subcommand == "archive":
         handle_archive_command(args, user_id, say, app)
+
+    elif subcommand == "special":
+        handle_admin_special_command(args, user_id, say, app)
 
     else:
         say(

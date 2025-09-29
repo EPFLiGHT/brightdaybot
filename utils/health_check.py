@@ -29,6 +29,10 @@ from config import (
     TEMPERATURE_SETTINGS,
     IMAGE_GENERATION_PARAMS,
     AI_IMAGE_GENERATION_ENABLED,
+    SPECIAL_DAYS_FILE,
+    SPECIAL_DAYS_ENABLED,
+    SPECIAL_DAYS_PERSONALITY,
+    SPECIAL_DAYS_CHANNEL,
 )
 from utils.logging_config import LOG_FILES
 from utils.config_storage import ADMINS_FILE, PERSONALITY_FILE
@@ -761,6 +765,119 @@ def check_testing_infrastructure():
         return {"status": STATUS_ERROR, "error": str(e), "components": {}}
 
 
+def check_special_days_system():
+    """
+    Check special days functionality health and status
+
+    Returns:
+        dict: Status information about special days system
+    """
+    try:
+        status = {
+            "status": STATUS_OK,
+            "enabled": SPECIAL_DAYS_ENABLED,
+            "personality": SPECIAL_DAYS_PERSONALITY,
+            "channel": SPECIAL_DAYS_CHANNEL,
+        }
+
+        # Check if special days file exists
+        if not os.path.exists(SPECIAL_DAYS_FILE):
+            status["status"] = STATUS_MISSING
+            status["error"] = f"Special days file not found: {SPECIAL_DAYS_FILE}"
+            return status
+
+        # Try to load and analyze special days
+        try:
+            from services.special_days import (
+                load_special_days,
+                get_special_days_for_date,
+            )
+            from datetime import datetime
+
+            # Load all special days
+            special_days = load_special_days()
+            status["total_days"] = len(special_days)
+
+            # Count by category
+            categories = {}
+            enabled_count = 0
+            for day in special_days:
+                categories[day.category] = categories.get(day.category, 0) + 1
+                if day.enabled:
+                    enabled_count += 1
+
+            status["categories"] = categories
+            status["enabled_count"] = enabled_count
+            status["disabled_count"] = len(special_days) - enabled_count
+
+            # Check for today's special days
+            today = datetime.now()
+            today_days = get_special_days_for_date(today)
+            if today_days:
+                status["today_special_days"] = [
+                    {"name": day.name, "category": day.category, "emoji": day.emoji}
+                    for day in today_days
+                ]
+            else:
+                status["today_special_days"] = []
+
+            # Check if today's special days have been announced
+            tracking_file = os.path.join(
+                TRACKING_DIR, f"special_days_{today.strftime('%Y-%m-%d')}.txt"
+            )
+            status["today_announced"] = os.path.exists(tracking_file)
+
+            # Check backup status
+            special_days_backups = (
+                [
+                    f
+                    for f in os.listdir(BACKUP_DIR)
+                    if f.startswith("special_days_") and f.endswith(".csv")
+                ]
+                if os.path.exists(BACKUP_DIR)
+                else []
+            )
+
+            if special_days_backups:
+                special_days_backups.sort()
+                status["latest_backup"] = special_days_backups[-1]
+                status["backup_count"] = len(special_days_backups)
+            else:
+                status["latest_backup"] = None
+                status["backup_count"] = 0
+
+            # Check Chronicler personality status
+            try:
+                from personality_config import PERSONALITIES
+
+                if SPECIAL_DAYS_PERSONALITY in PERSONALITIES:
+                    status["personality_configured"] = True
+                else:
+                    status["personality_configured"] = False
+                    status["warning"] = (
+                        f"Personality '{SPECIAL_DAYS_PERSONALITY}' not found in config"
+                    )
+            except Exception as e:
+                status["personality_configured"] = False
+                status["warning"] = f"Could not check personality: {str(e)}"
+
+        except ImportError as e:
+            status["status"] = STATUS_ERROR
+            status["error"] = f"Could not import special days module: {str(e)}"
+        except Exception as e:
+            status["status"] = STATUS_ERROR
+            status["error"] = f"Error loading special days: {str(e)}"
+
+        return status
+
+    except Exception as e:
+        logger.error(f"Error checking special days system: {e}")
+        return {
+            "status": STATUS_ERROR,
+            "error": str(e),
+        }
+
+
 def check_message_archive_system():
     """
     Check message archive system health and status
@@ -1299,6 +1416,14 @@ def get_system_status():
             logger.warning(
                 "Message archive system has issues but not marking as critical"
             )
+
+        # Check special days system
+        special_days_status = check_special_days_system()
+        status["components"]["special_days"] = special_days_status
+
+        # Special days issues are not critical for overall system health
+        if special_days_status.get("status") == STATUS_ERROR:
+            logger.warning("Special days system has issues but not marking as critical")
 
         # Check log files status
         log_status = check_log_files()
@@ -1921,6 +2046,56 @@ def get_status_summary():
                 summary_lines.append(
                     f"   Issues: {len(archive_status['issues'])} warnings"
                 )
+
+        # Special Days system
+        special_days_status = status["components"].get("special_days", {})
+        if special_days_status.get("enabled"):
+            if special_days_status.get("status") == STATUS_OK:
+                total_days = special_days_status.get("total_days", 0)
+                enabled_count = special_days_status.get("enabled_count", 0)
+                categories = special_days_status.get("categories", {})
+                today_days = special_days_status.get("today_special_days", [])
+
+                summary_lines.append(
+                    f"✅ *Special Days*: {enabled_count}/{total_days} active observances"
+                )
+
+                # Show category distribution
+                if categories:
+                    cat_summary = ", ".join(
+                        [f"{cat}: {count}" for cat, count in categories.items()]
+                    )
+                    summary_lines.append(f"   Categories: {cat_summary}")
+
+                # Show today's special days if any
+                if today_days:
+                    today_names = ", ".join(
+                        [f"{day['emoji']} {day['name']}" for day in today_days]
+                    )
+                    announced = (
+                        "✓ announced"
+                        if special_days_status.get("today_announced")
+                        else "pending"
+                    )
+                    summary_lines.append(f"   Today: {today_names} ({announced})")
+
+                # Show Chronicler personality status
+                if special_days_status.get("personality_configured"):
+                    summary_lines.append(
+                        f"   Personality: {special_days_status.get('personality', 'chronicler')} ✓"
+                    )
+                else:
+                    summary_lines.append(
+                        f"   ⚠️ Personality not configured: {special_days_status.get('warning', 'Unknown issue')}"
+                    )
+            elif special_days_status.get("status") == STATUS_MISSING:
+                summary_lines.append("❌ *Special Days*: Configuration file missing")
+            else:
+                summary_lines.append(
+                    f"❌ *Special Days*: {special_days_status.get('error', 'Unknown error')}"
+                )
+        else:
+            summary_lines.append("ℹ️ *Special Days*: Feature disabled")
 
         # Overall status
         summary_lines.append("")

@@ -29,7 +29,11 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
 def generate_bot_celebration_message(
-    bot_age, total_birthdays, yearly_savings, channel_members_count
+    bot_age,
+    total_birthdays,
+    yearly_savings,
+    channel_members_count,
+    special_days_count=0,
 ):
     """
     Generate AI-powered mystical celebration message for BrightDayBot's birthday using Ludo.
@@ -39,6 +43,7 @@ def generate_bot_celebration_message(
         total_birthdays: Number of birthdays currently tracked
         yearly_savings: Estimated yearly savings vs Billy bot
         channel_members_count: Number of people in birthday channel
+        special_days_count: Number of special days being tracked
 
     Returns:
         str: AI-generated celebration message
@@ -67,6 +72,7 @@ def generate_bot_celebration_message(
         total_birthdays=total_birthdays,
         yearly_savings=yearly_savings,
         monthly_savings=monthly_savings,
+        special_days_count=special_days_count,
         bot_age=bot_age,
         bot_birth_year=BOT_BIRTH_YEAR,
         bot_birthday=bot_birthday_formatted,  # "5th of March"
@@ -112,7 +118,7 @@ def generate_bot_celebration_message(
 
 <!here> The mystic energies converge! Today marks BrightDayBot's {bot_age} year anniversary! 🔮
 
-Ludo's crystal ball reveals: {total_birthdays} souls protected, ${yearly_savings} saved from Billy bot's greed!
+Ludo's crystal ball reveals: {total_birthdays} souls protected, {special_days_count} special days chronicled, ${yearly_savings} saved from Billy bot's greed!
 
 May the birthday forces be with you always! 🌌
 - Ludo, Mystic Birthday Dog ✨🐕"""

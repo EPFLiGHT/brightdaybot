@@ -7,7 +7,8 @@ A Slack bot that records and wishes workspace members happy birthday with AI-gen
 - **🎯 AI-Generated Messages**: Personalized birthday wishes using OpenAI GPT-4.1
 - **🖼️ AI Birthday Images**: Face-accurate images using your Slack profile photo and GPT-Image-1
 - **🌍 Multi-Timezone Support**: Celebrates birthdays at 9 AM by default in each user's local timezone (configurable)
-- **🎭 8 Unique Personalities**: From mystic dog to superhero to pirate themes
+- **🎭 9 Unique Personalities**: From mystic dog to superhero to pirate themes (plus Chronicler for special days)
+- **📅 Special Days Tracking**: 75+ UN/WHO/UNESCO international observances with AI announcements
 - **📈 Smart Consolidation**: Single message for multiple birthdays to avoid spam
 - **🔧 Dynamic Configuration**: Change AI models and settings without restart
 - **📊 Admin Management**: User management, statistics, and system health monitoring
@@ -152,6 +153,7 @@ python app.py
 - `add DD/MM` or `add DD/MM/YYYY` - Set your birthday
 - `check` - View your saved birthday
 - `remove` - Remove your birthday
+- `special` - View today's special days and upcoming observances
 - `test [quality] [size] [--text-only]` - See a sample birthday message with image (--text-only skips image generation)
 - `help` - Show all commands
 
@@ -189,6 +191,7 @@ python app.py
 - `admin backup` - Create manual backup of birthday data
 - `admin restore latest` - Restore from the latest backup
 - `admin cache clear` - Clear all web search cache
+- `admin special` - Manage special days and international observances
 - `admin cache clear DD/MM` - Clear web search cache for specific date
 
 **Mass Notification Commands** (require confirmation):

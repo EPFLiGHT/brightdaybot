@@ -110,12 +110,21 @@ def celebrate_bot_birthday(app, moment):
         # Calculate estimated savings vs Billy bot
         yearly_savings = channel_members_count * 12  # $1 per user per month
 
+        # Get special days count for celebration
+        try:
+            from services.special_days import load_special_days
+
+            special_days_count = len(load_special_days())
+        except:
+            special_days_count = 0
+
         # Generate Ludo's mystical celebration message
         celebration_message = generate_bot_celebration_message(
             bot_age=bot_age,
             total_birthdays=total_birthdays,
             yearly_savings=yearly_savings,
             channel_members_count=channel_members_count,
+            special_days_count=special_days_count,
         )
 
         # Generate birthday image if enabled
@@ -199,6 +208,108 @@ def celebrate_bot_birthday(app, moment):
 
     except Exception as e:
         logger.error(f"BOT_BIRTHDAY_ERROR: Failed to celebrate bot birthday: {e}")
+        return False
+
+
+def check_and_announce_special_days(app, moment):
+    """
+    Check for special days/holidays and announce them if enabled
+
+    Args:
+        app: Slack app instance
+        moment: Current datetime with timezone info
+
+    Returns:
+        bool: True if special days were announced, False otherwise
+    """
+    from config import SPECIAL_DAYS_ENABLED, SPECIAL_DAYS_CHANNEL
+    from services.special_days import (
+        get_special_days_for_date,
+        has_announced_special_day_today,
+        mark_special_day_announced,
+    )
+    from utils.special_day_generator import (
+        generate_special_day_message,
+        generate_special_day_image,
+    )
+    from utils.slack_utils import send_message, send_message_with_image
+
+    # Check if feature is enabled
+    if not SPECIAL_DAYS_ENABLED:
+        return False
+
+    # Check if we've already announced today
+    if has_announced_special_day_today(moment):
+        logger.debug("SPECIAL_DAYS: Already announced today, skipping")
+        return False
+
+    # Get special days for today
+    special_days = get_special_days_for_date(moment)
+
+    if not special_days:
+        logger.debug(f"SPECIAL_DAYS: No special days for {moment.strftime('%Y-%m-%d')}")
+        return False
+
+    try:
+        logger.info(
+            f"SPECIAL_DAYS: Found {len(special_days)} special day(s) for {moment.strftime('%Y-%m-%d')}: "
+            + ", ".join([d.name for d in special_days])
+        )
+
+        # Generate the announcement message
+        message = generate_special_day_message(special_days)
+
+        if not message:
+            logger.error("SPECIAL_DAYS: Failed to generate message")
+            return False
+
+        # Determine channel to use
+        channel = SPECIAL_DAYS_CHANNEL or BIRTHDAY_CHANNEL
+
+        if not channel:
+            logger.error("SPECIAL_DAYS: No channel configured for announcements")
+            return False
+
+        # Send the message
+        result = send_message(app, channel, message)
+
+        if result:
+            logger.info(f"SPECIAL_DAYS: Successfully sent announcement to {channel}")
+
+            # Optionally generate and send image
+            from config import SPECIAL_DAYS_IMAGE_ENABLED
+
+            if SPECIAL_DAYS_IMAGE_ENABLED:
+                try:
+                    image_data = generate_special_day_image(special_days)
+                    if image_data:
+                        # Send image as a reply in thread
+                        thread_ts = result.get("ts")
+                        title = f"Today's Special Observance{'s' if len(special_days) > 1 else ''}"
+
+                        send_message_with_image(
+                            app,
+                            channel,
+                            title,  # Use title as the message text
+                            image_data=image_data,
+                            context={
+                                "message_type": "special_day_image",
+                                "thread_ts": thread_ts,
+                            },
+                        )
+                        logger.info("SPECIAL_DAYS: Sent special day image")
+                except Exception as e:
+                    logger.warning(f"SPECIAL_DAYS: Failed to generate/send image: {e}")
+
+            # Mark as announced
+            mark_special_day_announced(moment)
+            return True
+        else:
+            logger.error("SPECIAL_DAYS: Failed to send message")
+            return False
+
+    except Exception as e:
+        logger.error(f"SPECIAL_DAYS_ERROR: Failed to announce special days: {e}")
         return False
 
 
@@ -462,6 +573,9 @@ def timezone_aware_check(app, moment):
 
     # Check if today is BrightDayBot's birthday and celebrate if so
     celebrate_bot_birthday(app, utc_moment)
+
+    # Check for special days and announce if enabled
+    check_and_announce_special_days(app, utc_moment)
 
     # Get current birthday channel members (for opt-out respect)
     try:
@@ -782,6 +896,9 @@ def simple_daily_check(app, moment):
 
     # Check if today is BrightDayBot's birthday and celebrate if so
     celebrate_bot_birthday(app, moment)
+
+    # Check for special days and announce if enabled
+    check_and_announce_special_days(app, moment)
 
     # Get current birthday channel members (for opt-out respect)
     try:

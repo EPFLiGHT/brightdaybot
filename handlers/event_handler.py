@@ -51,6 +51,7 @@ def register_event_handlers(app):
             "admin",
             "test",
             "confirm",
+            "special",
         ]
 
         if first_word in command_words:

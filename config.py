@@ -195,6 +195,37 @@ BOT_BIRTHDAY = "05/03"  # DD/MM format
 BOT_BIRTH_YEAR = 2025  # Year the bot was created
 BOT_USER_ID = "BRIGHTDAYBOT"  # Special identifier for the bot itself
 
+# ----- SPECIAL DAYS CONFIGURATION -----
+
+# Enable or disable special days/holidays announcements
+SPECIAL_DAYS_ENABLED = os.getenv("SPECIAL_DAYS_ENABLED", "true").lower() == "true"
+
+# Default personality for special day announcements
+SPECIAL_DAYS_PERSONALITY = os.getenv("SPECIAL_DAYS_PERSONALITY", "chronicler")
+
+# Channel for special day announcements (defaults to birthday channel)
+SPECIAL_DAYS_CHANNEL = os.getenv("SPECIAL_DAYS_CHANNEL_ID", BIRTHDAY_CHANNEL)
+
+# Time to check for special days (default: 9:00 AM server time)
+SPECIAL_DAYS_CHECK_TIME = time(9, 0)
+
+# Categories of special days to track
+SPECIAL_DAYS_CATEGORIES = [
+    "Global Health",
+    "Tech",
+    "Culture",
+    "Company",
+]
+
+# File paths for special days data
+SPECIAL_DAYS_FILE = os.path.join(STORAGE_DIR, "special_days.csv")
+SPECIAL_DAYS_CONFIG_FILE = os.path.join(STORAGE_DIR, "special_days_config.json")
+
+# Enable AI image generation for special days
+SPECIAL_DAYS_IMAGE_ENABLED = (
+    os.getenv("SPECIAL_DAYS_IMAGE_ENABLED", "false").lower() == "true"
+)
+
 # ----- PERSONALITY CONFIGURATION -----
 
 # Import centralized personality configurations
