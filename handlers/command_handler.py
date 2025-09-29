@@ -430,6 +430,7 @@ Here's how you can interact with me:
    • `special` - Show today's special observances
    • `special week` - Show special days for the next 7 days
    • `special month` - Show special days for the next 30 days
+   • `special list [category]` - List all special days (optionally by category)
    • `special search [term]` - Search for specific observances
    • `special stats` - View special days statistics
 
@@ -3352,9 +3353,19 @@ def handle_special_command(args, user_id, say, app):
         upcoming = get_upcoming_special_days(7)
         if upcoming:
             message = "📅 *Special Days - Next 7 Days:*\n\n"
-            for date_str, days_list in sorted(upcoming.items()):
-                month, day = date_str.split("/")
-                formatted_date = f"{int(month):02d}/{int(day):02d}"
+            # Sort by actual date objects, not string keys
+            from datetime import timedelta
+
+            today = datetime.now()
+            date_objects = []
+            for i in range(7):
+                check_date = today + timedelta(days=i)
+                date_str = check_date.strftime("%d/%m")
+                if date_str in upcoming:
+                    date_objects.append((check_date, date_str, upcoming[date_str]))
+
+            for check_date, date_str, days_list in date_objects:
+                formatted_date = check_date.strftime("%d/%m")
                 message += f"*{formatted_date}:*\n"
                 for day in days_list:
                     emoji = f"{day.emoji} " if day.emoji else ""
@@ -3369,9 +3380,17 @@ def handle_special_command(args, user_id, say, app):
         upcoming = get_upcoming_special_days(30)
         if upcoming:
             message = "📅 *Special Days - Next 30 Days:*\n\n"
-            for date_str, days_list in sorted(upcoming.items()):
-                month, day = date_str.split("/")
-                formatted_date = f"{int(month):02d}/{int(day):02d}"
+            # Sort by actual date objects, not string keys
+            today = datetime.now()
+            date_objects = []
+            for i in range(30):
+                check_date = today + timedelta(days=i)
+                date_str = check_date.strftime("%d/%m")
+                if date_str in upcoming:
+                    date_objects.append((check_date, date_str, upcoming[date_str]))
+
+            for check_date, date_str, days_list in date_objects:
+                formatted_date = check_date.strftime("%d/%m")
                 message += f"*{formatted_date}:*\n"
                 for day in days_list:
                     emoji = f"{day.emoji} " if day.emoji else ""
@@ -3411,6 +3430,72 @@ def handle_special_command(args, user_id, say, app):
             message = f"No special days found matching '{search_term}'"
         say(message)
 
+    elif subcommand == "list":
+        # List all special days by category
+        category_filter = args[1] if len(args) > 1 else None
+        all_days = load_special_days()
+
+        if category_filter:
+            all_days = [
+                d for d in all_days if d.category.lower() == category_filter.lower()
+            ]
+
+        if all_days:
+            message = f"📅 *All Special Days{f' ({category_filter})' if category_filter else ''}:*\n\n"
+
+            # Group by month for better organization
+            months = {}
+            for day in all_days:
+                month_num = int(day.date.split("/")[1])
+                month_name = [
+                    "",
+                    "January",
+                    "February",
+                    "March",
+                    "April",
+                    "May",
+                    "June",
+                    "July",
+                    "August",
+                    "September",
+                    "October",
+                    "November",
+                    "December",
+                ][month_num]
+                if month_name not in months:
+                    months[month_name] = []
+                months[month_name].append(day)
+
+            # Sort months chronologically
+            month_order = [
+                "January",
+                "February",
+                "March",
+                "April",
+                "May",
+                "June",
+                "July",
+                "August",
+                "September",
+                "October",
+                "November",
+                "December",
+            ]
+
+            for month in month_order:
+                if month in months:
+                    message += f"*{month}:*\n"
+                    # Sort days within month by date
+                    months[month].sort(key=lambda d: int(d.date.split("/")[0]))
+                    for day in months[month]:
+                        emoji = f"{day.emoji} " if day.emoji else ""
+                        message += f"  {emoji}{day.date} - {day.name}\n"
+                    message += "\n"
+        else:
+            message = f"No special days found{f' for category {category_filter}' if category_filter else ''}."
+
+        say(message)
+
     elif subcommand == "stats":
         # Show statistics
         stats = get_special_day_statistics()
@@ -3434,6 +3519,7 @@ def handle_special_command(args, user_id, say, app):
 • `special` or `special today` - Show today's special days
 • `special week` - Show special days for the next 7 days
 • `special month` - Show special days for the next 30 days
+• `special list [category]` - List all special days (optionally by category)
 • `special search [term]` - Search for specific special days
 • `special stats` - Show special days statistics
 
