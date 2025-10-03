@@ -43,10 +43,9 @@ SLACK FORMATTING RULES - VERY IMPORTANT:
 4. For hyperlinks use <https://example.com|text> format (Note: <!here> and <@USER_ID> are mentions, not links)
 5. For code blocks use `single backticks` NOT ```triple backticks```
 6. For headers use *bold text* NOT # markdown headers
-7. For blockquotes use >>> at the start of line NOT > markdown style
-8. To mention active members use <!here> exactly as written
-9. To mention a user use <@USER_ID> exactly as provided to you
-10. NEVER use HTML tags like <b></b> or <i></i> - use Slack formatting only
+7. To mention active members use <!here> exactly as written
+8. To mention a user use <@USER_ID> exactly as provided to you
+9. NEVER use HTML tags like <b></b> or <i></i> - use Slack formatting only
 
 CONTENT GUIDELINES:
 1. Be {{style}} but BRIEF (aim for 4-6 lines total)
