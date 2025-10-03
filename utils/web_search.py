@@ -38,7 +38,7 @@ def process_facts_for_personality(facts_text, formatted_date, personality):
 
     Args:
         facts_text: Raw facts from the web search
-        formatted_date: The date in "Month Day" format
+        formatted_date: The date in "DD Month" format (e.g., "15 April")
         personality: The bot personality to format facts for ("mystic_dog", "time_traveler", etc.)
 
     Returns:
@@ -153,7 +153,10 @@ def get_birthday_facts(date_str, personality="mystic_dog"):
         date_obj = datetime.strptime(date_str, DATE_FORMAT)
         # Use any year for search formatting - year doesn't matter for historical events
         search_date = datetime(2025, date_obj.month, date_obj.day)
-        formatted_date = search_date.strftime("%B %d")  # e.g. "April 15"
+        # Format in European style: DD Month
+        from utils.date_utils import format_date_european_short
+
+        formatted_date = format_date_european_short(search_date)  # e.g. "15 April"
 
         # Customize search query based on personality
         if personality == "pirate":
@@ -406,7 +409,12 @@ def main():
         print(f"\n=== Searching for facts about {args.date} ===")
         # Use any year for formatting - year doesn't matter for historical facts
         formatted_date_obj = datetime(2025, date_obj.month, date_obj.day)
-        formatted_date = formatted_date_obj.strftime("%B %d")
+        # Format in European style: DD Month
+        from utils.date_utils import format_date_european_short
+
+        formatted_date = format_date_european_short(
+            formatted_date_obj
+        )  # e.g. "15 April"
         print(f"Searching for: {formatted_date}\n")
 
         if WEB_SEARCH_CACHE_ENABLED:

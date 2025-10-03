@@ -222,7 +222,11 @@ def check_and_announce_special_days(app, moment):
     Returns:
         bool: True if special days were announced, False otherwise
     """
-    from config import SPECIAL_DAYS_ENABLED, SPECIAL_DAYS_CHANNEL
+    from config import (
+        SPECIAL_DAYS_ENABLED,
+        SPECIAL_DAYS_CHANNEL,
+        SPECIAL_DAYS_CHECK_TIME,
+    )
     from services.special_days import (
         get_special_days_for_date,
         has_announced_special_day_today,
@@ -236,6 +240,14 @@ def check_and_announce_special_days(app, moment):
 
     # Check if feature is enabled
     if not SPECIAL_DAYS_ENABLED:
+        return False
+
+    # Check if it's time to announce (must be at or after check time)
+    local_time = datetime.now()
+    if local_time.hour < SPECIAL_DAYS_CHECK_TIME.hour:
+        logger.debug(
+            f"SPECIAL_DAYS: Too early for announcement (current: {local_time.hour:02d}:00, required: {SPECIAL_DAYS_CHECK_TIME.hour:02d}:00)"
+        )
         return False
 
     # Check if we've already announced today
@@ -257,7 +269,7 @@ def check_and_announce_special_days(app, moment):
         )
 
         # Generate the announcement message
-        message = generate_special_day_message(special_days)
+        message = generate_special_day_message(special_days, app=app)
 
         if not message:
             logger.error("SPECIAL_DAYS: Failed to generate message")

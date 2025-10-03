@@ -248,7 +248,7 @@ def create_birthday_announcement(
 
 {get_user_mention(user_id)}
 {emoji1} Birthday Extraordinaire {emoji2}
-{month_name_str} {day_num}{age_text}
+{day_num} {month_name_str}{age_text}
 {star_sign_text}
 
 {f"✨ {age_fact} ✨" if age_fact else ""}
@@ -424,35 +424,13 @@ def completion(
         age = datetime.now().year - birth_year
         age_text = f" They're turning {age} today!"
 
-    # Format list of emojis for the prompt (include custom ones if enabled)
-    emoji_list = SAFE_SLACK_EMOJIS
-    emoji_instruction = "ONLY USE STANDARD SLACK EMOJIS"
-    emoji_warning = "DO NOT use custom emojis like :birthday_party_parrot: or :rave: as they won't work"
+    # Get emoji context for AI message generation (uses config default: 50)
+    from utils.emoji_utils import get_emoji_context_for_ai
 
-    # Get custom emojis if enabled and app is provided
-    if USE_CUSTOM_EMOJIS and app:
-        try:
-            # Get all emojis including custom ones
-            from utils.slack_utils import get_all_emojis
-
-            all_emojis = get_all_emojis(app, include_custom=True)
-            if len(all_emojis) > len(SAFE_SLACK_EMOJIS):
-                emoji_list = all_emojis
-                custom_count = len(all_emojis) - len(SAFE_SLACK_EMOJIS)
-                emoji_instruction = f"USE STANDARD OR CUSTOM SLACK EMOJIS"
-                emoji_warning = (
-                    f"The workspace has {custom_count} custom emoji(s) that you can use"
-                )
-                logger.info(
-                    f"AI: Including {custom_count} custom emojis in message generation"
-                )
-        except Exception as e:
-            logger.error(f"AI_ERROR: Failed to get custom emojis: {e}")
-            # Fall back to standard emojis if there's an error
-
-    # Get a random sample of emojis to show as examples
-    emoji_sample_size = min(20, len(emoji_list))
-    safe_emoji_examples = ", ".join(random.sample(emoji_list, emoji_sample_size))
+    emoji_ctx = get_emoji_context_for_ai(app)
+    safe_emoji_examples = emoji_ctx["emoji_examples"]
+    emoji_instruction = emoji_ctx["emoji_instruction"]
+    emoji_warning = emoji_ctx["emoji_warning"]
 
     # Get birthday facts for personalities that use web search
     birthday_facts_text = ""
@@ -519,19 +497,32 @@ def completion(
     if include_image and user_profile:
         image_context = f"\n\nNote: A personalized birthday image will be generated for them in {selected_personality_name} style. Do NOT mention the image in your message as it will be sent automatically with your text."
 
+    # Format date in European style for organic inclusion
+    from utils.date_utils import format_date_european_short
+
+    date_obj = datetime.strptime(date, DATE_FORMAT)
+    date_formatted = format_date_european_short(date_obj)  # e.g., "15 April"
+    day_of_week = datetime.now().strftime("%A")  # e.g., "Monday"
+
     user_content = f"""
         {name}'s birthday is on {date}.{star_sign_text}{age_text} Please write them a fun, enthusiastic birthday message for a workplace Slack channel.
-        
+
         IMPORTANT REQUIREMENTS:
         1. Include their Slack mention "{user_mention}" somewhere in the message
         2. Make sure to address active members with <!here> to notify those currently online
-        3. Create a message that's lively and engaging with good structure and flow
-        4. {emoji_instruction} like: {safe_emoji_examples}
-        5. {emoji_warning}
-        6. Remember to use Slack emoji format with colons (e.g., :cake:), not Unicode emojis (e.g., 🎂)
-        7. Your name is {personality["name"]} and you are {personality["description"]}
+        3. **DATE INCLUSION**: Organically mention the date ({date_formatted}) somewhere in your message. Examples:
+           - "Born on {date_formatted}..."
+           - "On this {day_of_week}, {date_formatted}..."
+           - "Celebrating {date_formatted} today..."
+           - "{date_formatted} marks another year..."
+           Keep it natural - don't force it awkwardly
+        4. Create a message that's lively and engaging with good structure and flow
+        5. {emoji_instruction} like: {safe_emoji_examples}
+        6. {emoji_warning}
+        7. Remember to use Slack emoji format with colons (e.g., :cake:), not Unicode emojis (e.g., 🎂)
+        8. Your name is {personality["name"]} and you are {personality["description"]}
         {birthday_facts_text}{profile_context}{image_context}
-        
+
         Today is {datetime.now().strftime('%Y-%m-%d')}.
     """
 
@@ -921,11 +912,16 @@ def _generate_ai_consolidated_message(
         "standard",
     ]
 
+    # Format shared birthday date in European style for organic inclusion
+    shared_birthday_date = birthday_people[0]["date"]  # DD/MM format
+    from utils.date_utils import format_date_european_short
+
+    date_obj = datetime.strptime(shared_birthday_date, DATE_FORMAT)
+    shared_date_formatted = format_date_european_short(date_obj)  # e.g., "15 April"
+    day_of_week = datetime.now().strftime("%A")  # e.g., "Monday"
+
     if selected_personality_name in personalities_using_web_search and birthday_people:
         try:
-            # Since all people share the same birthday date, use the first person's date
-            shared_birthday_date = birthday_people[0]["date"]  # DD/MM format
-
             # Get facts formatted for this specific personality
             birthday_facts = get_birthday_facts(
                 shared_birthday_date, selected_personality_name
@@ -958,27 +954,12 @@ def _generate_ai_consolidated_message(
             )
             # Continue without facts if there's an error
 
-    # Get emoji instructions and list
-    emoji_list = SAFE_SLACK_EMOJIS
-    emoji_instruction = "ONLY USE STANDARD SLACK EMOJIS"
+    # Get emoji context for AI message generation (uses config default: 50)
+    from utils.emoji_utils import get_emoji_context_for_ai
 
-    if USE_CUSTOM_EMOJIS and app:
-        try:
-            from utils.slack_utils import get_all_emojis
-
-            all_emojis = get_all_emojis(app)
-            if all_emojis:
-                emoji_list = all_emojis
-                emoji_instruction = (
-                    "You can use both STANDARD SLACK EMOJIS and CUSTOM WORKSPACE EMOJIS"
-                )
-                logger.info(
-                    "CONSOLIDATED_AI: Using custom emojis for consolidated message"
-                )
-        except Exception as e:
-            logger.warning(
-                f"CONSOLIDATED_AI: Failed to get custom emojis, using standard: {e}"
-            )
+    emoji_ctx = get_emoji_context_for_ai(app)
+    emoji_list = emoji_ctx["emoji_list"]  # Keep for backward compatibility if needed
+    emoji_instruction = emoji_ctx["emoji_instruction"]
 
     # Build the consolidated prompt based on personality
     system_prompt = _build_consolidated_system_prompt(
@@ -999,7 +980,12 @@ CRITICAL FORMATTING REQUIREMENTS (MUST FOLLOW EXACTLY):
 2. **NOTIFICATION**: Include <!here> exactly as written to notify active members
 3. **LENGTH**: Keep the message to 8-12 lines maximum
 4. **EMOJIS**: {emoji_instruction}
-5. **AVAILABLE EMOJIS**: {', '.join(emoji_list[:20])}{'...' if len(emoji_list) > 20 else ''}
+5. **AVAILABLE EMOJIS**: {emoji_ctx['emoji_examples']}
+6. **DATE INCLUSION**: Organically mention today's date ({shared_date_formatted}) in your message. Examples:
+   - "All born on {shared_date_formatted}..."
+   - "{shared_date_formatted} is extra special this year..."
+   - "This {day_of_week}, {shared_date_formatted}, we celebrate..."
+   Keep it natural and coherent - don't make it sound forced
 
 CREATIVE REQUIREMENTS:
 - Make this feel special and unique for {count_word} celebrating together

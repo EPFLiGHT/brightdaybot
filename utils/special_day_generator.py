@@ -39,6 +39,7 @@ def generate_special_day_message(
     personality_name: Optional[str] = None,
     include_facts: bool = True,
     test_mode: bool = False,
+    app=None,
 ) -> Optional[str]:
     """
     Generate an AI message for special day(s).
@@ -48,6 +49,7 @@ def generate_special_day_message(
         personality_name: Optional personality override (defaults to SPECIAL_DAYS_PERSONALITY)
         include_facts: Whether to include web search facts
         test_mode: Whether this is a test (affects token limits)
+        app: Optional Slack app instance for custom emoji support
 
     Returns:
         Generated message string or None if generation fails
@@ -68,14 +70,26 @@ def generate_special_day_message(
         personality = "chronicler"
         personality_config = get_personality_config(personality)
 
+    # Get emoji context for AI message generation (uses config default: 50)
+    from utils.emoji_utils import get_emoji_context_for_ai
+
+    emoji_ctx = get_emoji_context_for_ai(app)
+    emoji_examples = emoji_ctx["emoji_examples"]
+
     try:
+        # Get current date in European format for organic inclusion
+        from utils.date_utils import format_date_european
+
+        today = datetime.now()
+        today_formatted = format_date_european(today)  # e.g., "15 April 2025"
+        day_of_week = today.strftime("%A")  # e.g., "Monday"
+
         # Get historical facts if enabled
         facts_text = ""
         if include_facts:
-            today = datetime.now()
-            facts = get_birthday_facts(today.strftime("%B %d"))
-            if facts:
-                facts_text = facts
+            facts = get_birthday_facts(today.strftime("%d/%m"), personality)
+            if facts and facts.get("facts"):
+                facts_text = facts["facts"]
 
         # Prepare the prompt based on number of special days
         if len(special_days) == 1:
@@ -108,6 +122,17 @@ def generate_special_day_message(
             if category_emphasis:
                 prompt += f"\n\n{category_emphasis}"
 
+            # Add date requirement
+            prompt += f"\n\nTODAY'S DATE: {today_formatted} ({day_of_week})"
+            prompt += f"\n\nDATE REQUIREMENT: Organically mention today's date somewhere in your announcement. Examples:"
+            prompt += f"\n- 'On {today_formatted}, we observe...'"
+            prompt += f"\n- 'This {day_of_week}, {today_formatted}, marks...'"
+            prompt += f"\n- '{today_formatted} brings us...'"
+            prompt += f"\nIntegrate naturally - keep it coherent and not forced."
+
+            # Add emoji instructions for single day
+            prompt += f"\n\nEMOJI USAGE: Include 3-5 relevant emojis throughout your message for visual appeal. Available emojis: {emoji_examples}"
+
         else:
             # Multiple special days
             days_list = ", ".join(
@@ -136,6 +161,13 @@ def generate_special_day_message(
             prompt = personality_config.get("special_day_multiple", "").format(
                 days_list=days_list, sources=sources_text
             )
+
+            # Add date requirement for multiple days
+            prompt += f"\n\nTODAY'S DATE: {today_formatted} ({day_of_week})"
+            prompt += f"\n\nDATE REQUIREMENT: Organically reference today's date when introducing the observances. Keep it natural."
+
+            # Add emoji instructions for multiple days
+            prompt += f"\n\nEMOJI USAGE: Include 4-6 emojis throughout your message (at least one per observance) for visual appeal. Available emojis: {emoji_examples}"
 
         # Add facts if available
         if facts_text:
@@ -323,7 +355,9 @@ async def send_special_day_announcement(
 
     try:
         # Generate the message
-        message = generate_special_day_message(special_days, test_mode=test_mode)
+        message = generate_special_day_message(
+            special_days, test_mode=test_mode, app=app
+        )
 
         if not message:
             logger.error("Failed to generate special day message")

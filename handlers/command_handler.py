@@ -3348,9 +3348,10 @@ def handle_special_command(args, user_id, say, app):
         # Show today's special days
         special_days = get_todays_special_days()
         if special_days:
-            message = (
-                f"📅 *Today's Special Days ({datetime.now().strftime('%B %d')}):*\n\n"
-            )
+            from utils.date_utils import format_date_european_short
+
+            today_str = format_date_european_short(datetime.now())
+            message = f"📅 *Today's Special Days ({today_str}):*\n\n"
             message += format_special_days_list(special_days)
         else:
             message = "No special days observed today."
@@ -3807,19 +3808,25 @@ def handle_admin_special_command(args, user_id, say, app):
         special_days = get_special_days_for_date(test_date)
 
         if special_days:
-            say(
-                f"🧪 Testing special day announcement for {test_date.strftime('%B %d')}..."
-            )
+            from utils.date_utils import format_date_european_short
+
+            test_date_str = format_date_european_short(test_date)
+            say(f"🧪 Testing special day announcement for {test_date_str}...")
 
             # Generate message
-            message = generate_special_day_message(special_days, test_mode=True)
+            message = generate_special_day_message(
+                special_days, test_mode=True, app=app
+            )
 
             if message:
                 say(f"*Generated Message:*\n\n{message}")
             else:
                 say("❌ Failed to generate message")
         else:
-            say(f"No special days found for {test_date.strftime('%B %d')}")
+            from utils.date_utils import format_date_european_short
+
+            test_date_str = format_date_european_short(test_date)
+            say(f"No special days found for {test_date_str}")
 
     elif subcommand == "config":
         # Show or update configuration

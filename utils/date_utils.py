@@ -320,3 +320,44 @@ def _is_date_in_zodiac_range(month, day, start_month, start_day, end_month, end_
             or (month == start_month and day >= start_day)
             or (month == end_month and day <= end_day)
         )
+
+
+def format_date_european(date_obj):
+    """
+    Format date in European style with year: DD Month YYYY
+
+    Args:
+        date_obj: datetime object
+
+    Returns:
+        str: Formatted date like "15 April 2025"
+
+    Examples:
+        >>> from datetime import datetime
+        >>> format_date_european(datetime(2025, 4, 15))
+        '15 April 2025'
+    """
+    day = date_obj.day
+    month = date_obj.strftime("%B")
+    year = date_obj.year
+    return f"{day} {month} {year}"
+
+
+def format_date_european_short(date_obj):
+    """
+    Format date in European style without year: DD Month
+
+    Args:
+        date_obj: datetime object
+
+    Returns:
+        str: Formatted date like "15 April"
+
+    Examples:
+        >>> from datetime import datetime
+        >>> format_date_european_short(datetime(2025, 4, 15))
+        '15 April'
+    """
+    day = date_obj.day
+    month = date_obj.strftime("%B")
+    return f"{day} {month}"

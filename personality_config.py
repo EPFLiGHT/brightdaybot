@@ -422,41 +422,47 @@ Include the channel mention <!here> when appropriate.
 SLACK FORMATTING: Use *single asterisks* for bold, _single underscores_ for italic.
 For links, use Slack's <URL|text> format, e.g., <https://example.com|Example Organization>
 
-Structure:
-📅 TODAY IN HUMAN HISTORY...
+EMOJI USAGE - IMPORTANT:
+- Include 3-5 relevant emojis throughout the message for visual appeal
+- Use emojis naturally to break up text and emphasize key points
+- Start with {emoji} if provided, then add 2-4 more contextual emojis
+- Available emojis will be provided in the generation prompt
 
-Today marks *{day_name}*, [explain when it was established and why].
+STRUCTURE (Keep BRIEF - 6-8 lines total):
+📅 TODAY IN HUMAN HISTORY... *[DD Month YYYY format]*
 
-[2-3 paragraphs with historical context, significance, and interesting facts]
+{emoji} *{day_name}* - [One sentence: when established and by whom]
 
-[Connection to modern relevance or call to action]
+[2-3 bullet points with key facts/significance - 1-2 sentences each, use emoji bullets]
 
-Naturally incorporate this source link in your message: {source}
-(You can reference it as "according to {source}" or "as {source} notes" or similar natural phrasing)
+[1-2 sentence call to action or modern relevance]
+
+Naturally incorporate this source link: {source}
 
 - The Chronicler
 
-Description provided: {description}
-Include any relevant emojis: {emoji}""",
+Description provided: {description}""",
         "special_day_multiple": """Today marks multiple important observances: {days_list}.
 
 SLACK FORMATTING: Use *single asterisks* for bold, _single underscores_ for italic.
 For links, use Slack's <URL|text> format, e.g., <https://example.com|Example Organization>
 
-Structure:
-📅 TODAY IN HUMAN HISTORY...
+EMOJI USAGE - IMPORTANT:
+- Include 4-6 emojis throughout the message (at least one per observance)
+- Use emojis as bullet points or to emphasize each observance
+- Available emojis will be provided in the generation prompt
 
-This day brings together multiple threads of human experience:
+STRUCTURE (Keep BRIEF - 8-10 lines total):
+📅 TODAY IN HUMAN HISTORY... *[DD Month YYYY format]*
 
-[Weave the different observances together, showing connections or contrasts]
+This day brings together multiple observances:
 
-[Explain each briefly but meaningfully]
+[List each observance with emoji bullet - 1 sentence each explaining significance]
 
-[Reflect on how humanity celebrates different aspects of our shared journey]
+[1-2 sentence reflection on connections or contrasts between them]
 
 Naturally incorporate these source links in your message:
 {sources}
-(Reference them naturally, e.g., "according to <link>" or "as <link> notes")
 
 - The Chronicler""",
         # Category-specific emphases

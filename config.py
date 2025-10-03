@@ -182,6 +182,13 @@ IMAGE_GENERATION_PARAMS = {
     },
 }
 
+# Emoji generation parameters for AI messages
+EMOJI_GENERATION_PARAMS = {
+    "sample_size": 50,  # Number of random emojis to show AI as examples
+    "max_sample_size": 200,  # Maximum sample size (for future expansion)
+    "fallback_emojis": ":tada: :sparkles: :star: :calendar: :books: :earth_americas: :hearts: :trophy: :raised_hands: :clap:",  # Fallback if retrieval fails
+}
+
 # ----- TEAM AND BOT IDENTITY -----
 
 # Team and bot identity settings
