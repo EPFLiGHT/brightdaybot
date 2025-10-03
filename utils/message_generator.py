@@ -497,30 +497,34 @@ def completion(
     if include_image and user_profile:
         image_context = f"\n\nNote: A personalized birthday image will be generated for them in {selected_personality_name} style. Do NOT mention the image in your message as it will be sent automatically with your text."
 
-    # Format date in European style for organic inclusion
-    from utils.date_utils import format_date_european_short
+    # Format date in European style for organic inclusion (only if birth_date available)
+    date_inclusion_req = ""
+    if birth_date:
+        from utils.date_utils import format_date_european_short
 
-    date_obj = datetime.strptime(date, DATE_FORMAT)
-    date_formatted = format_date_european_short(date_obj)  # e.g., "15 April"
-    day_of_week = datetime.now().strftime("%A")  # e.g., "Monday"
+        date_obj = datetime.strptime(birth_date, DATE_FORMAT)
+        date_formatted = format_date_european_short(date_obj)  # e.g., "15 April"
+        day_of_week = datetime.now().strftime("%A")  # e.g., "Monday"
+
+        date_inclusion_req = f"""
+        3. **DATE INCLUSION**: Organically mention the date ({date_formatted}) somewhere in your message. Examples:
+           - "Born on {date_formatted}..."
+           - "On this {day_of_week}, {date_formatted}..."
+           - "Celebrating {date_formatted} today..."
+           - "{date_formatted} marks another year..."
+           Keep it natural - don't force it awkwardly"""
 
     user_content = f"""
         {name}'s birthday is on {date}.{star_sign_text}{age_text} Please write them a fun, enthusiastic birthday message for a workplace Slack channel.
 
         IMPORTANT REQUIREMENTS:
         1. Include their Slack mention "{user_mention}" somewhere in the message
-        2. Make sure to address active members with <!here> to notify those currently online
-        3. **DATE INCLUSION**: Organically mention the date ({date_formatted}) somewhere in your message. Examples:
-           - "Born on {date_formatted}..."
-           - "On this {day_of_week}, {date_formatted}..."
-           - "Celebrating {date_formatted} today..."
-           - "{date_formatted} marks another year..."
-           Keep it natural - don't force it awkwardly
-        4. Create a message that's lively and engaging with good structure and flow
-        5. {emoji_instruction} like: {safe_emoji_examples}
-        6. {emoji_warning}
-        7. Remember to use Slack emoji format with colons (e.g., :cake:), not Unicode emojis (e.g., 🎂)
-        8. Your name is {personality["name"]} and you are {personality["description"]}
+        2. Make sure to address active members with <!here> to notify those currently online{date_inclusion_req}
+        - Create a message that's lively and engaging with good structure and flow
+        - {emoji_instruction} like: {safe_emoji_examples}
+        - {emoji_warning}
+        - Remember to use Slack emoji format with colons (e.g., :cake:), not Unicode emojis (e.g., 🎂)
+        - Your name is {personality["name"]} and you are {personality["description"]}
         {birthday_facts_text}{profile_context}{image_context}
 
         Today is {datetime.now().strftime('%Y-%m-%d')}.
