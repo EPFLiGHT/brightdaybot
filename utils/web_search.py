@@ -7,7 +7,6 @@ people born on specific dates, with personality-specific formatting and caching.
 Key functions: get_birthday_facts(), process_facts_for_personality().
 """
 
-from openai import OpenAI
 import json
 import os
 from datetime import datetime
@@ -21,11 +20,12 @@ from config import (
 )
 import argparse
 import sys
+from utils.openai_client import get_openai_client
 
 logger = get_logger("web_search")
 
 # Initialize OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = get_openai_client()
 
 # Import centralized model configuration function
 from utils.app_config import get_configured_openai_model

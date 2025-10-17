@@ -7,8 +7,6 @@ Ludo the Mystic Dog, featuring all 8 personalities and Billy bot replacement sto
 Main function: generate_bot_celebration_message().
 """
 
-import os
-from openai import OpenAI
 from config import (
     BOT_BIRTH_YEAR,
     BOT_BIRTHDAY,
@@ -21,11 +19,12 @@ from utils.app_config import get_configured_openai_model
 from utils.usage_logging import log_chat_completion_usage
 from utils.slack_formatting import fix_slack_formatting
 from utils.date_utils import date_to_words
+from utils.openai_client import get_openai_client
 
 logger = get_logger("birthday")
 
 # Initialize OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = get_openai_client()
 
 
 def generate_bot_celebration_message(

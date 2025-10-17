@@ -1680,7 +1680,9 @@ def check_live_openai_connectivity():
         )
 
         # Initialize client
-        client = OpenAI(api_key=openai_key)
+        from utils.openai_client import get_openai_client
+
+        client = get_openai_client()
 
         # Make a simple API call to test connectivity (list models)
         start_time = datetime.now()

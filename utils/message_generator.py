@@ -9,7 +9,6 @@ Main functions: create_birthday_announcement(), create_consolidated_birthday_ann
 Supports dynamic personality selection and configurable AI models.
 """
 
-from openai import OpenAI
 import logging
 import os
 import random
@@ -31,11 +30,12 @@ from utils.constants import SAFE_SLACK_EMOJIS
 from utils.slack_formatting import get_user_mention, fix_slack_formatting
 from utils.web_search import get_birthday_facts
 from utils.usage_logging import log_chat_completion_usage
+from utils.openai_client import get_openai_client
 
 logger = get_logger("llm")
 
 # Initialize OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = get_openai_client()
 
 
 # Import centralized model configuration function

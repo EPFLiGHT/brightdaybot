@@ -8,7 +8,6 @@ Main functions: generate_birthday_image(), download_profile_photo(), cleanup_old
 Uses OpenAI API, PIL for processing, with automatic cache management.
 """
 
-from openai import OpenAI
 import os
 import requests
 import glob
@@ -20,11 +19,12 @@ import json
 import base64
 from PIL import Image
 import io
+from utils.openai_client import get_openai_client
 
 logger = get_logger("image_generator")
 
 # Initialize OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = get_openai_client()
 
 
 def generate_birthday_image(

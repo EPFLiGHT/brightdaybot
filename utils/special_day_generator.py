@@ -25,13 +25,13 @@ from utils.logging_config import get_logger
 from utils.web_search import get_birthday_facts
 from utils.usage_logging import log_chat_completion_usage
 from utils.image_generator import generate_birthday_image
-from openai import OpenAI
+from utils.openai_client import get_openai_client
 
 # Get dedicated logger
 logger = get_logger("special_days")
 
 # Initialize OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = get_openai_client()
 
 
 def generate_special_day_message(
