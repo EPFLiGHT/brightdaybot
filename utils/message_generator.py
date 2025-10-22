@@ -142,14 +142,17 @@ def get_template():
 
 def get_random_personality_name():
     """
-    Get a random personality name from the available personalities (excluding 'random' and 'custom')
+    Get a random personality name from the available personalities (excluding 'random', 'custom', and 'chronicler')
 
     Returns:
         str: Name of a randomly selected personality
     """
-    # Get a list of all available personalities, excluding 'random' and 'custom'
+    # Get a list of all available personalities, excluding 'random', 'custom', and 'chronicler'
+    # Chronicler is reserved for special days only, not birthday celebrations
     available_personalities = [
-        name for name in BOT_PERSONALITIES.keys() if name not in ["random", "custom"]
+        name
+        for name in BOT_PERSONALITIES.keys()
+        if name not in ["random", "custom", "chronicler"]
     ]
 
     # Select a random personality
