@@ -41,6 +41,7 @@ def generate_special_day_message(
     test_mode: bool = False,
     app=None,
     use_teaser: bool = True,
+    test_date=None,
 ) -> Optional[str]:
     """
     Generate an AI message for special day(s).
@@ -52,6 +53,7 @@ def generate_special_day_message(
         test_mode: Whether this is a test (affects token limits)
         app: Optional Slack app instance for custom emoji support
         use_teaser: If True, generate SHORT teaser (3-4 lines). If False, use full format (backward compat)
+        test_date: Optional datetime object for testing specific dates (defaults to today)
 
     Returns:
         Generated message string or None if generation fails
@@ -80,9 +82,10 @@ def generate_special_day_message(
 
     try:
         # Get current date in European format for organic inclusion
+        # Use test_date if provided (for testing specific dates), otherwise use today
         from utils.date_utils import format_date_european
 
-        today = datetime.now()
+        today = test_date if test_date else datetime.now()
         today_formatted = format_date_european(today)  # e.g., "15 April 2025"
         day_of_week = today.strftime("%A")  # e.g., "Monday"
 
@@ -281,6 +284,7 @@ def generate_special_day_details(
     special_days: List,
     personality_name: Optional[str] = None,
     app=None,
+    test_date=None,
 ) -> Optional[str]:
     """
     Generate DETAILED content for special day(s) - used for "View Details" button.
@@ -289,6 +293,7 @@ def generate_special_day_details(
         special_days: List of SpecialDay objects
         personality_name: Optional personality override (defaults to SPECIAL_DAYS_PERSONALITY)
         app: Optional Slack app instance for custom emoji support
+        test_date: Optional datetime object for testing specific dates (defaults to today)
 
     Returns:
         Detailed message string or None if generation fails
@@ -315,6 +320,12 @@ def generate_special_day_details(
     emoji_ctx = get_emoji_context_for_ai(app)
     emoji_examples = emoji_ctx["emoji_examples"]
 
+    # Get today's date for web search
+    # Use test_date if provided (for testing specific dates), otherwise use today
+    from datetime import datetime
+
+    today = test_date if test_date else datetime.now()
+
     try:
         # For single special day
         if len(special_days) == 1:
@@ -328,6 +339,21 @@ def generate_special_day_details(
                 else:
                     source_info = day.source
 
+            # Get additional facts via web search to supplement the brief CSV description
+            facts_text = ""
+            try:
+                logger.info(
+                    f"Fetching web search facts for {day.name} to enrich details"
+                )
+                facts_result = get_birthday_facts(today.strftime("%d/%m"), personality)
+                if facts_result and facts_result.get("facts"):
+                    facts_text = facts_result["facts"]
+                    logger.info(f"Successfully retrieved historical facts for context")
+            except Exception as e:
+                logger.warning(
+                    f"Could not fetch web facts for details: {e}. Continuing without them."
+                )
+
             prompt = personality_config.get("special_day_details", "")
 
             # Fill in template variables
@@ -340,7 +366,11 @@ def generate_special_day_details(
             )
 
             # Add emoji instructions
-            prompt += f"\n\nEMOJI USAGE: Include 4-6 relevant emojis throughout for visual appeal. Available emojis: {emoji_examples}"
+            prompt += f"\n\nEMOJI USAGE: Include 6-8 relevant emojis throughout for visual appeal. Available emojis: {emoji_examples}"
+
+            # Add historical facts if available to provide real-world context
+            if facts_text:
+                prompt += f"\n\nADDITIONAL CONTEXT: Historical events on this date that may provide relevant context:\n{facts_text}\n\nYou may reference these if they connect meaningfully to the observance, but they are not required."
 
         else:
             # Multiple special days - provide condensed details for each
@@ -364,7 +394,9 @@ def generate_special_day_details(
 
         # Generate the detailed message
         model = get_configured_openai_model()
-        max_tokens = 600  # More tokens for detailed content
+        max_tokens = TOKEN_LIMITS.get(
+            "special_day_details", 1000
+        )  # Comprehensive details
         temperature = TEMPERATURE_SETTINGS.get("default", 0.7)
 
         logger.info(f"Generating special day details with {personality} personality")
@@ -391,13 +423,13 @@ def generate_special_day_details(
             f"Successfully generated special day details ({response.usage.total_tokens} tokens)"
         )
 
-        # Truncate if too long for Slack button value (3000 char limit)
-        if len(details) > 2900:
+        # Truncate if too long for Slack button value (2000 char limit, using 1950 for safety buffer)
+        if len(details) > 1950:
             logger.warning(
-                f"Details too long ({len(details)} chars), truncating to 2900"
+                f"Details too long ({len(details)} chars), truncating to 1950"
             )
             details = (
-                details[:2900] + "...\n\nSee official source for complete information."
+                details[:1950] + "...\n\nSee official source for complete information."
             )
 
         return details

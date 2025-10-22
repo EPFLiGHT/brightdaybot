@@ -8,6 +8,7 @@ Main function: register_event_handlers(). Processes message events, team_join
 events, and app mentions with comprehensive error handling.
 """
 
+import re
 from slack_sdk.errors import SlackApiError
 
 from utils.date_utils import extract_date
@@ -20,7 +21,11 @@ events_logger = get_logger("events")
 
 
 def register_event_handlers(app):
-    @app.action({"action_id": {"starts_with": "special_day_details_"}})
+    events_logger.info(
+        "EVENT_HANDLER: Registering event handlers including button actions"
+    )
+
+    @app.action(re.compile("^special_day_details_"))
     def handle_special_day_details(ack, body, action, client):
         """
         Handle View Details button clicks for special day announcements.
@@ -28,8 +33,21 @@ def register_event_handlers(app):
         Shows an ephemeral message (visible only to the user) with the full
         description of the special day observance.
         """
+        # DEBUG: Log immediately when button is clicked
+        events_logger.info("BUTTON_CLICKED: Received button interaction!")
+        events_logger.info(
+            f"BUTTON_CLICKED: action_id={action.get('action_id', 'UNKNOWN')}"
+        )
+        events_logger.info(
+            f"BUTTON_CLICKED: user={body.get('user', {}).get('id', 'UNKNOWN')}"
+        )
+        events_logger.info(
+            f"BUTTON_CLICKED: channel={body.get('channel', {}).get('id', 'UNKNOWN')}"
+        )
+
         # Acknowledge the interaction immediately (required within 3 seconds)
         ack()
+        events_logger.info("BUTTON_CLICKED: Acknowledged interaction")
 
         try:
             # Extract the description from the button value
@@ -61,25 +79,40 @@ def register_event_handlers(app):
             channel_type = body.get("channel", {}).get("type", "unknown")
             events_logger.info(f"SPECIAL_DAY_DETAILS: Channel type: {channel_type}")
 
+            # Build Block Kit structure for detailed content
+            blocks = [
+                {
+                    "type": "header",
+                    "text": {
+                        "type": "plain_text",
+                        "text": f"📖 {observance_name}",
+                    },
+                },
+                {"type": "divider"},
+                {"type": "section", "text": {"type": "mrkdwn", "text": description}},
+            ]
+
             if channel_type == "im":
                 # For DMs, send a regular message instead of ephemeral
                 # (ephemeral messages don't work well in DMs)
                 client.chat_postMessage(
                     channel=channel_id,
-                    text=f"📖 *{observance_name} - Details*\n\n{description}",
+                    blocks=blocks,
+                    text=f"📖 {observance_name} - Details",  # Fallback text
                 )
                 events_logger.info(
-                    f"SPECIAL_DAY_DETAILS: Sent regular message to DM for user {user_id}"
+                    f"SPECIAL_DAY_DETAILS: Sent Block Kit message to DM for user {user_id}"
                 )
             else:
                 # For channels, use ephemeral message (only visible to the user who clicked)
                 client.chat_postEphemeral(
                     channel=channel_id,
                     user=user_id,
-                    text=f"📖 *{observance_name} - Details*\n\n{description}",
+                    blocks=blocks,
+                    text=f"📖 {observance_name} - Details",  # Fallback text
                 )
                 events_logger.info(
-                    f"SPECIAL_DAY_DETAILS: Sent ephemeral message in channel for user {user_id}"
+                    f"SPECIAL_DAY_DETAILS: Sent Block Kit ephemeral message in channel for user {user_id}"
                 )
 
         except Exception as e:
@@ -91,25 +124,38 @@ def register_event_handlers(app):
 
             # Try to send error message to user
             try:
+                error_blocks = [
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": "⚠️ Sorry, I couldn't load the details for this special day. Please try again later.",
+                        },
+                    }
+                ]
                 channel_type = body.get("channel", {}).get("type", "unknown")
                 if channel_type == "im":
                     # For DMs, send regular message
                     client.chat_postMessage(
                         channel=body["channel"]["id"],
-                        text="⚠️ Sorry, I couldn't load the details for this special day. Please try again later.",
+                        blocks=error_blocks,
+                        text="⚠️ Error loading details",  # Fallback
                     )
                 else:
                     # For channels, send ephemeral
                     client.chat_postEphemeral(
                         channel=body["channel"]["id"],
                         user=body["user"]["id"],
-                        text="⚠️ Sorry, I couldn't load the details for this special day. Please try again later.",
+                        blocks=error_blocks,
+                        text="⚠️ Error loading details",  # Fallback
                     )
             except Exception as error_send_error:
                 events_logger.error(
                     f"SPECIAL_DAY_DETAILS_ERROR: Could not send error message: {error_send_error}"
                 )
                 pass  # Silently fail if we can't even send error message
+
+    events_logger.info("EVENT_HANDLER: Button action handler registered successfully")
 
     @app.event("message")
     def handle_message(event, say, client, logger):
@@ -182,20 +228,15 @@ def register_event_handlers(app):
             try:
                 username = get_username(app, user)
 
-                welcome_msg = f"""🎉 Welcome to {get_channel_mention(BIRTHDAY_CHANNEL)}, {get_user_mention(user)}!
+                # Build Block Kit welcome message
+                from utils.block_builder import build_welcome_blocks
 
-Here in {get_channel_mention(BIRTHDAY_CHANNEL)} I celebrate everyone's birthdays with personalized messages and AI-generated images!
+                blocks, fallback = build_welcome_blocks(
+                    user_mention=get_user_mention(user),
+                    channel_mention=get_channel_mention(BIRTHDAY_CHANNEL),
+                )
 
-📅 *To add your birthday:* Send me a DM with your date in DD/MM format (e.g., 25/12) or DD/MM/YYYY format (e.g., 25/12/1990)
-
-💡 *Commands:* Type `help` in a DM to see all available options
-
-Hope to celebrate your special day soon! 🎂
-
-*Not interested in birthday celebrations?*
-No worries! If you'd prefer to opt out, simply leave {get_channel_mention(BIRTHDAY_CHANNEL)}. This applies whether you have your birthday registered or not."""
-
-                send_message(app, user, welcome_msg)
+                send_message(app, user, fallback, blocks)
 
                 # Use our custom logger for events.log
                 events_logger.info(
@@ -218,3 +259,8 @@ No worries! If you'd prefer to opt out, simply leave {get_channel_mention(BIRTHD
             events_logger.debug(
                 f"CHANNEL_JOIN: User {user} joined non-birthday channel {channel} - no action taken"
             )
+
+    # Final confirmation that all handlers are registered
+    events_logger.info(
+        "EVENT_HANDLER: All event handlers registered successfully (message, member_joined_channel, button actions)"
+    )

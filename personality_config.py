@@ -434,35 +434,59 @@ IMPORTANT RULES:
 - DO NOT include date or "today" references (already shown in metadata)
 - DO NOT use "📅" emoji (already used in header)
 - DO NOT include historical details, statistics, or long explanations
+- DO NOT mention the "View Details" button - it's self-explanatory
 - Focus on intrigue and relevance. Be concise and engaging.
-- End with a call to action mentioning "View Details" button.""",
+- Make the teaser naturally complete and compelling on its own.""",
         # DETAILED CONTENT for "View Details" button (comprehensive)
         "special_day_details": """Generate comprehensive, detailed content about {day_name} ({category}).
 
-SLACK FORMATTING: Use *single asterisks* for bold, _single underscores_ for italic.
-For links, use Slack's <URL|text> format.
+CRITICAL SLACK FORMATTING RULES:
+- Use *single asterisks* for bold text, NOT **double asterisks**
+- Use _single underscores_ for italic text, NOT __double underscores__
+- For links: use <URL|text> format of Slack, e.g., <https://example.com|Example Organization>
+- NEVER use markdown links like [text](url)
+- NEVER use HTML tags
 
-EMOJI USAGE: Include 4-6 relevant emojis throughout for visual appeal.
+EMOJI USAGE:
+- Include 6-8 relevant emojis throughout for visual appeal
+- Place emojis at the START of bullet points, not at the end of sentences
+- Use emojis sparingly in paragraph text
 
-STRUCTURE (Comprehensive - 10-15 lines):
-📖 *{day_name} - Full Overview*
+STRUCTURE (Concise - 10-14 lines total to fit 1950 character Slack button limit):
 
-*Historical Background:*
-[When established, by whom, and why - 2-3 sentences]
+*Historical Context:*
+[Brief context about when/why this observance was established, drawing on description and {source}. 1-2 sentences. NO emojis in paragraphs.]
 
-*Key Facts & Significance:*
-{emoji} [Fact 1 - with specific data/statistics if available]
-{emoji} [Fact 2 - impact or reach]
-{emoji} [Fact 3 - historical context or progress made]
+*Global Impact:*
+🌍 [Scope and significance based on {source} and description - 1 concise sentence]
+📊 [Why this matters, using qualifiers like "typically," "often" for general knowledge - 1 sentence]
 
-*Modern Relevance:*
-[How this observance matters today - 2-3 sentences]
-[What people can do to participate or contribute]
+*Core Challenge:*
+✨ [The central issue this observance addresses - 1-2 sentences, no fabricated statistics]
 
-*Learn More:*
-Official source: {source}
+*Strategic Actions - How to Engage:*
+👤 *Individual:* [1-2 specific, tactical actions anyone can take immediately]
+👥 *Team:* [1 team-based initiative aligned with this observance]
+🏢 *Organization:* [1 company-wide opportunity for policy/culture alignment]
 
-Description: {description}""",
+CRITICAL LENGTH REQUIREMENT:
+- MAXIMUM 10-14 lines total (approximately 1850 characters)
+- Be CONCISE and TACTICAL - every line must add value
+- Prioritize actionable insights over background details
+
+HONESTY REQUIREMENTS:
+- Use ONLY facts from the provided description
+- Qualify general knowledge with "typically," "often," "generally," "can involve"
+- DO NOT fabricate numbers, percentages, years, or statistics
+- Be transparent about uncertainty
+
+STRICT PROHIBITIONS:
+- DO NOT add "Learn More", "Official Source", or "Description" sections (handled separately)
+- DO NOT include actual URLs (source link added automatically)
+- DO NOT use **double asterisks** or __double underscores__
+- DO NOT add title/header (added automatically by Block Kit)
+- DO NOT add emojis at end of sentences in paragraphs
+- DO NOT exceed 14 lines total""",
         # DEPRECATED - Keeping for backward compatibility but will be replaced by teaser
         "special_day_single": """Generate an announcement for {day_name} ({category}).
 
@@ -545,9 +569,11 @@ CHRONICLER'S MULTI-DAY WEAVING:
 - Balance reverence with accessibility""",
         # Birthday facts integration (keeping for compatibility, though Chronicler is for special days)
         "birthday_facts_text": "Weave in these historical facts about this date: {facts}",
-        # Image generation prompts (for special days, not birthdays)
-        "image_prompt": "An artistic representation of {day_name}. Historical or cultural scene that captures the essence of this observance. Include symbolic elements that represent {category}. Style: Educational poster or historical artwork aesthetic, dignified and informative. Add visual elements that connect past and present.{message_context}",
-        "image_title_prompt": "Create a dignified, educational title for the {day_name} observance image. Use formal but accessible language. Examples: 'Commemorating {day_name}', 'The History of {day_name}', 'Understanding {day_name}'",
+        # Image generation prompts (dual-purpose: birthdays and special days)
+        # For birthdays: uses {name}, {title_context}, {multiple_context}, {face_context}, {message_context}
+        # For special days: uses {day_name}, {category}
+        "image_prompt": "A dignified historical scene where {name}{title_context}{multiple_context} celebrates a birthday milestone with Ludo, a scholarly tan Boxer-type dog with muscular build and expressive face wearing reading glasses and surrounded by ancient books and scrolls.{face_context} The scene depicts a library or archive setting with birthday cake placed among historical documents, vintage birthday decorations with classic elegance, and Ludo presenting a commemorative scroll. Include symbolic elements of time passing (hourglasses, calendars, timelines).{message_context} Style: Classic illustration with sepia tones, dignified and educational aesthetic.",
+        "image_title_prompt": "Create a dignified title for {name}'s{title_context} birthday milestone in history. IMPORTANT: Always include {name} prominently in the title. Use educational yet celebratory language.{multiple_context} Examples: 'Commemorating {name}'s Special Day', 'The History of {name} Continues', '{name}'s Birthday Chronicle'",
         # Web search formatting
         "web_search_system": "You are The Chronicler, keeper of human history and cultural memory. Create an informative paragraph about historical events and notable figures connected to this date. Use an educational tone that's engaging but respectful, weaving facts into a narrative that shows the significance of this day in human history. Always include specific years and contexts.",
         "web_search_user": "Based on these historical facts about {formatted_date}, create an informative paragraph highlighting the most significant events and people connected to this date:\n\n{facts_text}",

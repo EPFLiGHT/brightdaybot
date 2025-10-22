@@ -1388,6 +1388,21 @@ def generate_birthday_image_title(
     Returns:
         AI-generated title string, or fallback title if AI fails
     """
+    # DEFENSIVE: Ensure name is always a string (handle tuple case)
+    if isinstance(name, tuple):
+        logger.error(
+            f"TITLE_GEN_BUG: Received tuple for name parameter: {name}. "
+            f"This indicates a bug in the calling code. Converting to string."
+        )
+        # Convert tuple to string (take first element if available)
+        name = name[0] if name else "Birthday Person"
+    elif not isinstance(name, str):
+        logger.error(
+            f"TITLE_GEN_BUG: Received non-string for name parameter (type={type(name)}): {name}. "
+            f"Converting to string."
+        )
+        name = str(name) if name else "Birthday Person"
+
     try:
         # Get personality-specific title prompt
         from personality_config import get_personality_config
@@ -1550,6 +1565,18 @@ def _validate_title_contains_names(title, name, is_multiple_people):
     Returns:
         bool: True if title contains names, False otherwise
     """
+    # DEFENSIVE: Ensure name is a string
+    if not isinstance(name, str):
+        logger.error(
+            f"VALIDATION_BUG: _validate_title_contains_names received non-string name "
+            f"(type={type(name)}): {name}. This should have been caught earlier."
+        )
+        # Try to recover
+        if isinstance(name, tuple):
+            name = name[0] if name else "Unknown"
+        else:
+            name = str(name) if name else "Unknown"
+
     title_lower = title.lower()
 
     if is_multiple_people:

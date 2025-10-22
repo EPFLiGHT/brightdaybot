@@ -253,8 +253,24 @@ def build_special_day_blocks(
         {"type": "section", "text": {"type": "mrkdwn", "text": message}},
     ]
 
-    # Add context block for metadata (minimal - just source and personality)
+    # Add context block for metadata (date, source, and personality)
     context_elements = []
+
+    # Add date if provided
+    if observance_date:
+        from datetime import datetime
+        from utils.date_utils import format_date_european_short
+
+        # Parse DD/MM format and format as European style (e.g., "08/03" → "8 March")
+        try:
+            date_obj = datetime.strptime(observance_date, "%d/%m")
+            formatted_date = format_date_european_short(date_obj)
+        except ValueError:
+            formatted_date = observance_date  # Fallback to original if parsing fails
+
+        context_elements.append(
+            {"type": "mrkdwn", "text": f"📅 *Date:* {formatted_date}"}
+        )
 
     if source:
         context_elements.append({"type": "mrkdwn", "text": f"📋 *Source:* {source}"})
@@ -279,11 +295,12 @@ def build_special_day_blocks(
 
         # If we have detailed content, add a "View Details" button
         if details_to_use:
-            # Ensure we don't exceed Slack's 3000 char limit for button values
+            # Ensure we don't exceed Slack's 2000 char limit for button values
+            # Using 1950 for safety buffer
             truncated_details = (
-                details_to_use[:2900] if len(details_to_use) > 2900 else details_to_use
+                details_to_use[:1950] if len(details_to_use) > 1950 else details_to_use
             )
-            if len(details_to_use) > 2900:
+            if len(details_to_use) > 1950:
                 truncated_details += (
                     "...\n\nSee official source for complete information."
                 )
@@ -419,6 +436,8 @@ def build_test_blocks(
     image_title: Optional[str] = None,
 ) -> tuple[List[Dict[str, Any]], str]:
     """
+    DEPRECATED: Use build_birthday_blocks() instead for consistent formatting.
+
     Build Block Kit structure for test birthday messages (admin/user testing)
 
     Args:
@@ -486,5 +505,1182 @@ def build_test_blocks(
 
     # Fallback text
     fallback_text = f"🧪 Test Birthday Message for {username}"
+
+    return blocks, fallback_text
+
+
+def build_confirmation_blocks(
+    title: str,
+    message: str,
+    action_type: str = "success",
+    details: Optional[Dict[str, str]] = None,
+    actions: Optional[List[Dict[str, str]]] = None,
+) -> tuple[List[Dict[str, Any]], str]:
+    """
+    Build Block Kit structure for confirmation messages (birthday saved, updated, removed, etc.)
+
+    Args:
+        title: Main confirmation title (e.g., "Birthday Updated!")
+        message: Main confirmation message
+        action_type: Type of action - "success", "error", "warning", "info"
+        details: Optional key-value pairs to display (e.g., {"Birthday": "25 December", "Age": "30"})
+        actions: Optional list of action buttons (e.g., [{"text": "Edit", "action_id": "edit_birthday"}])
+
+    Returns:
+        Tuple of (blocks list, fallback_text string)
+    """
+    # Map action types to emojis
+    emoji_map = {
+        "success": "✅",
+        "error": "❌",
+        "warning": "⚠️",
+        "info": "ℹ️",
+    }
+    emoji = emoji_map.get(action_type, "ℹ️")
+
+    blocks = [
+        {
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": f"{emoji} {title}",
+            },
+        },
+        {"type": "section", "text": {"type": "mrkdwn", "text": message}},
+    ]
+
+    # Add details as fields if provided
+    if details:
+        fields = []
+        for key, value in details.items():
+            fields.append({"type": "mrkdwn", "text": f"*{key}:*\n{value}"})
+
+        if fields:
+            blocks.append({"type": "section", "fields": fields})
+
+    # Add action buttons if provided
+    if actions:
+        button_elements = []
+        for action in actions:
+            button_elements.append(
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": action["text"]},
+                    "action_id": action.get(
+                        "action_id", f"action_{action['text'].lower()}"
+                    ),
+                    "value": action.get("value", ""),
+                }
+            )
+        blocks.append({"type": "actions", "elements": button_elements})
+
+    # Fallback text
+    fallback_text = f"{emoji} {title}: {message}"
+
+    return blocks, fallback_text
+
+
+def build_welcome_blocks(
+    user_mention: str, channel_mention: str
+) -> tuple[List[Dict[str, Any]], str]:
+    """
+    Build Block Kit structure for welcome message when user joins birthday channel
+
+    Args:
+        user_mention: Formatted user mention (e.g., "<@U123456>")
+        channel_mention: Formatted channel mention (e.g., "<#C123456|birthdays>")
+
+    Returns:
+        Tuple of (blocks list, fallback_text string)
+    """
+    blocks = [
+        {
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": f"🎉 Welcome {user_mention}!",
+                "emoji": True,
+            },
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"Welcome to {channel_mention}! Here I celebrate everyone's birthdays with personalized AI messages and images.",
+            },
+        },
+        {"type": "divider"},
+        {
+            "type": "section",
+            "fields": [
+                {
+                    "type": "mrkdwn",
+                    "text": "*📅 Add Your Birthday:*\nSend me a DM with your date:\n• DD/MM (e.g., 25/12)\n• DD/MM/YYYY (e.g., 25/12/1990)",
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": "*💡 Get Help:*\nType `help` in a DM to see all commands and options.",
+                },
+            ],
+        },
+        {
+            "type": "context",
+            "elements": [
+                {
+                    "type": "mrkdwn",
+                    "text": f"🎂 Hope to celebrate your special day soon! Not interested? Simply leave {channel_mention}.",
+                }
+            ],
+        },
+    ]
+
+    fallback_text = f"🎉 Welcome to {channel_mention}, {user_mention}! Send me a DM with your birthday in DD/MM format."
+
+    return blocks, fallback_text
+
+
+def build_hello_blocks(
+    greeting: str, personality_name: str = "BrightDay"
+) -> tuple[List[Dict[str, Any]], str]:
+    """
+    Build Block Kit structure for hello/greeting messages
+
+    Args:
+        greeting: Personalized greeting from personality (e.g., "Hello @user! 👋")
+        personality_name: Display name of current personality
+
+    Returns:
+        Tuple of (blocks list, fallback_text string)
+    """
+    blocks = [
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": greeting,
+            },
+        },
+        {"type": "divider"},
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"I'm *{personality_name}*, your friendly birthday celebration bot! I help make everyone's special day memorable with personalized AI messages and images.",
+            },
+        },
+        {
+            "type": "section",
+            "fields": [
+                {
+                    "type": "mrkdwn",
+                    "text": "*📅 Get Started:*\nSend your birthday:\n• DD/MM (e.g., 25/12)\n• DD/MM/YYYY (e.g., 25/12/1990)",
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": "*💡 Need Help?*\nType `help` to see all commands and features",
+                },
+            ],
+        },
+        {
+            "type": "context",
+            "elements": [
+                {"type": "mrkdwn", "text": "🎂 Hope to celebrate with you soon!"}
+            ],
+        },
+    ]
+
+    fallback_text = f"{greeting}\n\nI'm {personality_name}, your birthday bot! Send me your birthday in DD/MM format or type 'help' for more info."
+
+    return blocks, fallback_text
+
+
+def build_birthday_list_blocks(
+    birthdays: List[tuple],
+    list_type: str = "upcoming",
+    total_count: int = None,
+    current_utc: str = None,
+) -> tuple[List[Dict[str, Any]], str]:
+    """
+    Build Block Kit structure for birthday list (upcoming or all)
+
+    Args:
+        birthdays: List of birthday tuples (user_mention, date_words, age_text, days_text/month)
+        list_type: "upcoming" or "all" - determines formatting
+        total_count: Total number of birthdays (for context)
+        current_utc: Current UTC time string (for context)
+
+    Returns:
+        Tuple of (blocks list, fallback_text string)
+    """
+    # Build header
+    if list_type == "upcoming":
+        header_text = "📅 Upcoming Birthdays"
+        if current_utc:
+            header_text += f" (UTC: {current_utc})"
+    else:
+        header_text = "📅 All Birthdays by Month"
+
+    blocks = [
+        {
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": header_text,
+            },
+        }
+    ]
+
+    # Add birthday entries
+    if list_type == "upcoming":
+        # For upcoming birthdays, show in a compact format
+        birthday_text = ""
+        for user_mention, date_words, age_text, days_text in birthdays:
+            birthday_text += (
+                f"• {user_mention} ({date_words}{age_text}): *{days_text}*\n"
+            )
+
+        if birthday_text:
+            blocks.append(
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": birthday_text.strip(),
+                    },
+                }
+            )
+    else:
+        # For all birthdays, organize by month with dividers
+        # Group birthdays by month to avoid 50 block limit
+        current_month = None
+        month_birthdays = []
+
+        for month_name, day_str, user_mention, year_str in birthdays:
+            # When month changes, add the previous month's block
+            if month_name != current_month:
+                if current_month is not None and month_birthdays:
+                    # Add previous month's birthdays as a single block
+                    month_text = "\n".join(month_birthdays)
+                    blocks.append(
+                        {
+                            "type": "section",
+                            "text": {"type": "mrkdwn", "text": month_text},
+                        }
+                    )
+                    blocks.append({"type": "divider"})
+                    month_birthdays = []
+
+                current_month = month_name
+                # Add month header
+                month_birthdays.append(f"*{month_name}*")
+
+            # Add birthday entry to current month
+            month_birthdays.append(f"• {day_str}: {user_mention}{year_str}")
+
+        # Don't forget the last month
+        if month_birthdays:
+            month_text = "\n".join(month_birthdays)
+            blocks.append(
+                {
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": month_text},
+                }
+            )
+
+    # Add context footer
+    if total_count:
+        context_text = f"Showing {len(birthdays)} of {total_count} total birthdays"
+        blocks.append(
+            {
+                "type": "context",
+                "elements": [{"type": "mrkdwn", "text": context_text}],
+            }
+        )
+
+    # Fallback text
+    fallback_lines = [header_text]
+    for entry in birthdays[:10]:  # Limit fallback to 10
+        fallback_lines.append(f"• {entry[0]}")
+    fallback_text = "\n".join(fallback_lines)
+
+    return blocks, fallback_text
+
+
+def build_health_status_blocks(
+    status_data: Dict[str, Any], detailed: bool = False
+) -> tuple[List[Dict[str, Any]], str]:
+    """
+    Build Block Kit structure for system health status
+
+    Args:
+        status_data: Full status dictionary from get_system_status()
+        detailed: If True, include additional diagnostic information
+
+    Returns:
+        Tuple of (blocks list, fallback_text string)
+    """
+    from utils.health_check import STATUS_OK
+
+    blocks = []
+    components = status_data.get("components", {})
+    timestamp = status_data.get("timestamp", "Unknown")
+
+    # Header
+    blocks.append(
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": "🤖 System Health Check"},
+        }
+    )
+    blocks.append(
+        {
+            "type": "context",
+            "elements": [{"type": "mrkdwn", "text": f"Last checked: {timestamp}"}],
+        }
+    )
+    blocks.append({"type": "divider"})
+
+    # Core System Section
+    blocks.append(
+        {"type": "section", "text": {"type": "mrkdwn", "text": "*📁 Core System*"}}
+    )
+
+    core_fields = []
+    storage = components.get("storage_directory", {})
+    storage_emoji = "✅" if storage.get("status") == STATUS_OK else "❌"
+    core_fields.append(
+        {
+            "type": "mrkdwn",
+            "text": f"{storage_emoji} *Storage*\n{'Available' if storage.get('status') == STATUS_OK else 'Unavailable'}",
+        }
+    )
+
+    birthdays = components.get("birthdays_file", {})
+    birthday_emoji = "✅" if birthdays.get("status") == STATUS_OK else "❌"
+    birthday_count = birthdays.get("birthdays_count", "Unknown")
+    core_fields.append(
+        {
+            "type": "mrkdwn",
+            "text": f"{birthday_emoji} *Birthdays*\n{birthday_count} records",
+        }
+    )
+
+    admins = components.get("admin_config", {})
+    admin_emoji = "✅" if admins.get("status") == STATUS_OK else "❌"
+    admin_count = admins.get("admin_count", "Unknown")
+    core_fields.append(
+        {"type": "mrkdwn", "text": f"{admin_emoji} *Admins*\n{admin_count} configured"}
+    )
+
+    personality = components.get("personality_config", {})
+    personality_emoji = "✅" if personality.get("status") == STATUS_OK else "ℹ️"
+    personality_name = personality.get("personality", "standard")
+    core_fields.append(
+        {
+            "type": "mrkdwn",
+            "text": f"{personality_emoji} *Personality*\n{personality_name}",
+        }
+    )
+
+    blocks.append({"type": "section", "fields": core_fields})
+    blocks.append({"type": "divider"})
+
+    # API & Services Section
+    blocks.append(
+        {"type": "section", "text": {"type": "mrkdwn", "text": "*🔌 APIs & Services*"}}
+    )
+
+    api_fields = []
+    openai = components.get("openai_api", {})
+    openai_emoji = "✅" if openai.get("status") == STATUS_OK else "❌"
+    api_fields.append(
+        {
+            "type": "mrkdwn",
+            "text": f"{openai_emoji} *OpenAI API*\n{'Configured' if openai.get('status') == STATUS_OK else 'Not configured'}",
+        }
+    )
+
+    model = components.get("openai_model", {})
+    model_emoji = "✅" if model.get("status") == STATUS_OK else "⚠️"
+    model_name = model.get("model", "unknown")
+    model_source = model.get("source", "default")
+    api_fields.append(
+        {
+            "type": "mrkdwn",
+            "text": f"{model_emoji} *AI Model*\n{model_name} ({model_source})",
+        }
+    )
+
+    slack_bot = components.get("slack_bot_token", {})
+    slack_bot_emoji = "✅" if slack_bot.get("status") == STATUS_OK else "❌"
+    api_fields.append(
+        {
+            "type": "mrkdwn",
+            "text": f"{slack_bot_emoji} *Slack Bot*\n{'Configured' if slack_bot.get('status') == STATUS_OK else 'Not configured'}",
+        }
+    )
+
+    slack_app = components.get("slack_app_token", {})
+    slack_app_emoji = "✅" if slack_app.get("status") == STATUS_OK else "❌"
+    api_fields.append(
+        {
+            "type": "mrkdwn",
+            "text": f"{slack_app_emoji} *Socket Mode*\n{'Configured' if slack_app.get('status') == STATUS_OK else 'Not configured'}",
+        }
+    )
+
+    blocks.append({"type": "section", "fields": api_fields})
+    blocks.append({"type": "divider"})
+
+    # Features Section
+    blocks.append(
+        {
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": "*⚙️ Features & Settings*"},
+        }
+    )
+
+    feature_fields = []
+    timezone = components.get("timezone_settings", {})
+    timezone_emoji = "✅" if timezone.get("status") == STATUS_OK else "❌"
+    timezone_mode = timezone.get("mode", "unknown")
+    timezone_enabled = "Enabled" if timezone.get("enabled", True) else "Disabled"
+    feature_fields.append(
+        {
+            "type": "mrkdwn",
+            "text": f"{timezone_emoji} *Timezone Mode*\n{timezone_mode.title()} ({timezone_enabled})",
+        }
+    )
+
+    cache = components.get("cache", {})
+    cache_emoji = "✅" if cache.get("status") == STATUS_OK else "ℹ️"
+    cache_count = cache.get("file_count", 0)
+    cache_enabled = "Enabled" if cache.get("enabled", False) else "Disabled"
+    feature_fields.append(
+        {
+            "type": "mrkdwn",
+            "text": f"{cache_emoji} *Web Cache*\n{cache_count} facts ({cache_enabled})",
+        }
+    )
+
+    logs = components.get("log_files", {})
+    logs_emoji = "✅" if logs.get("status") == STATUS_OK else "ℹ️"
+    logs_count = logs.get("total_files", 0)
+    logs_size = logs.get("total_size_mb", 0)
+    feature_fields.append(
+        {
+            "type": "mrkdwn",
+            "text": f"{logs_emoji} *Log Files*\n{logs_count} files ({logs_size} MB)",
+        }
+    )
+
+    channel = components.get("birthday_channel", {})
+    channel_emoji = "✅" if channel.get("status") == STATUS_OK else "❌"
+    channel_name = channel.get("channel", "Not configured")
+    feature_fields.append(
+        {
+            "type": "mrkdwn",
+            "text": f"{channel_emoji} *Birthday Channel*\n{channel_name}",
+        }
+    )
+
+    blocks.append({"type": "section", "fields": feature_fields})
+
+    if detailed:
+        blocks.append({"type": "divider"})
+        blocks.append(
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": "💡 Detailed mode - showing additional diagnostics",
+                    }
+                ],
+            }
+        )
+
+    fallback_text = f"🤖 System Health Check ({timestamp})\nBirthdays: {birthday_count} | Admins: {admin_count} | Model: {model_name}"
+
+    return blocks, fallback_text
+
+
+def build_help_blocks(is_admin: bool = False) -> tuple[List[Dict[str, Any]], str]:
+    """
+    Build Block Kit structure for help messages
+
+    Args:
+        is_admin: If True, show admin help; otherwise show user help
+
+    Returns:
+        Tuple of (blocks list, fallback_text string)
+    """
+    blocks = []
+
+    if is_admin:
+        # Admin help - comprehensive command reference with organized sections
+        blocks.append(
+            {
+                "type": "header",
+                "text": {"type": "plain_text", "text": "🔧 Admin Commands Reference"},
+            }
+        )
+
+        blocks.append(
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "Complete admin command reference organized by category. All commands require admin privileges.",
+                },
+            }
+        )
+
+        blocks.append({"type": "divider"})
+
+        # Core Admin Management
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*👥 Admin Management*"},
+            }
+        )
+        admin_mgmt = """• `admin list` - List configured admin users
+• `admin add USER_ID` - Add a user as admin
+• `admin remove USER_ID` - Remove a user from admin list"""
+        blocks.append(
+            {"type": "section", "text": {"type": "mrkdwn", "text": admin_mgmt}}
+        )
+
+        blocks.append({"type": "divider"})
+
+        # Birthday Management
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*🎂 Birthday Management*"},
+            }
+        )
+        birthday_mgmt = """• `list` - List upcoming birthdays
+• `list all` - List all birthdays organized by month
+• `stats` - View birthday statistics
+• `remind` or `remind new` - Send reminders to users without birthdays
+• `remind update` - Send profile update reminders
+• `remind new [message]` - Custom reminder to new users
+• `remind update [message]` - Custom profile update reminder"""
+        blocks.append(
+            {"type": "section", "text": {"type": "mrkdwn", "text": birthday_mgmt}}
+        )
+
+        blocks.append({"type": "divider"})
+
+        # System Management
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*⚙️ System Management*"},
+            }
+        )
+        system_mgmt = """• `admin status` - View system health and component status
+• `admin status detailed` - View detailed system information
+• `admin timezone` - View birthday celebration schedule
+• `config` - View command permissions
+• `config COMMAND true/false` - Change command permissions"""
+        blocks.append(
+            {"type": "section", "text": {"type": "mrkdwn", "text": system_mgmt}}
+        )
+
+        blocks.append({"type": "divider"})
+
+        # Testing Commands
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*🧪 Testing Commands*"},
+            }
+        )
+        testing = """• `admin test @user1 [@user2...] [quality] [size] [--text-only]` - Test birthday message/images
+• `admin test-join [@user]` - Test birthday channel welcome
+• `admin test-bot-celebration [quality] [size] [--text-only]` - Test bot self-celebration
+• `admin test-block [type]` - Test Block Kit rendering
+• `admin test-upload` - Test image upload functionality
+• `admin test-upload-multi` - Test multiple image attachments
+• `admin test-blockkit [mode]` - Test Block Kit image embedding
+• `admin test-file-upload` - Test text file upload"""
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": testing}})
+
+        blocks.append({"type": "divider"})
+
+        # Announcements
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*📣 Announcements*"},
+            }
+        )
+        announcements = """• `admin announce image` - Announce AI image generation feature
+• `admin announce [message]` - Send custom announcement to birthday channel
+_(All announcements require confirmation)_"""
+        blocks.append(
+            {"type": "section", "text": {"type": "mrkdwn", "text": announcements}}
+        )
+
+        blocks.append({"type": "divider"})
+
+        # Data Management
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*💾 Data Management*"},
+            }
+        )
+        data_mgmt = """• `admin backup` - Create a manual backup of birthdays data
+• `admin restore latest` - Restore from the latest backup
+• `admin cache clear` - Clear all web search cache
+• `admin cache clear DD/MM` - Clear web search cache for specific date
+• `admin test-external-backup` - Test external backup system"""
+        blocks.append(
+            {"type": "section", "text": {"type": "mrkdwn", "text": data_mgmt}}
+        )
+
+        blocks.append({"type": "divider"})
+
+        # Message Archive
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*📁 Message Archive Management*"},
+            }
+        )
+        archive = """• `admin archive stats` - View archive system status and statistics
+• `admin archive search [query]` - Search archived messages with filters
+• `admin archive export [format] [days]` - Export messages (csv/json)
+• `admin archive cleanup` - Manually trigger archive cleanup
+• `admin archive cleanup force` - Force cleanup regardless of age"""
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": archive}})
+
+        blocks.append({"type": "divider"})
+
+        # AI Configuration
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*🤖 AI Model Configuration*"},
+            }
+        )
+        ai_config = """• `admin model` - Show current OpenAI model and configuration
+• `admin model list` - List all supported OpenAI models
+• `admin model set <model>` - Change to specified model (e.g., gpt-4o)
+• `admin model reset` - Reset to default model (gpt-4.1)"""
+        blocks.append(
+            {"type": "section", "text": {"type": "mrkdwn", "text": ai_config}}
+        )
+
+        blocks.append({"type": "divider"})
+
+        # Timezone Configuration
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*🌍 Timezone Configuration*"},
+            }
+        )
+        timezone = """• `admin timezone` - View current timezone status
+• `admin timezone status` - Show detailed timezone schedule
+• `admin timezone enable` - Enable timezone-aware mode (hourly checks)
+• `admin timezone disable` - Disable timezone-aware mode (daily check)"""
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": timezone}})
+
+        blocks.append({"type": "divider"})
+
+        # Bot Personality
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*🎭 Bot Personality*"},
+            }
+        )
+        personality = """• `admin personality` - Show current bot personality
+• `admin personality [name]` - Change bot personality
+
+*Available Personalities:*
+`standard`, `mystic_dog`, `poet`, `tech_guru`, `chef`, `superhero`, `time_traveler`, `pirate`, `random`, `custom`
+
+*Custom Personality Commands:*
+• `admin custom name [value]` - Set custom bot name
+• `admin custom description [value]` - Set custom bot description
+• `admin custom style [value]` - Set custom writing style
+• `admin custom format [value]` - Set custom format instruction
+• `admin custom template [value]` - Set custom template extension"""
+        blocks.append(
+            {"type": "section", "text": {"type": "mrkdwn", "text": personality}}
+        )
+
+        blocks.append({"type": "divider"})
+
+        # Special Days Management
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*🌟 Special Days Management*"},
+            }
+        )
+        special_days = """• `admin special` - View special days help
+• `admin special add DD/MM "Name" "Category" "Description" ["emoji"] ["source"] ["url"]` - Add observance
+• `admin special remove DD/MM [name]` - Remove observance
+• `admin special list [category]` - List all observances
+• `admin special test [DD/MM]` - Test announcement
+• `admin special verify` - Verify data integrity"""
+        blocks.append(
+            {"type": "section", "text": {"type": "mrkdwn", "text": special_days}}
+        )
+
+        # Footer
+        blocks.append(
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": "💡 Most destructive commands require confirmation. Use `confirm` to proceed with pending actions.",
+                    }
+                ],
+            }
+        )
+
+        fallback_text = "Admin Commands Reference - Complete list of admin commands organized by category"
+
+    else:
+        # User help - friendly and organized
+        blocks.append(
+            {
+                "type": "header",
+                "text": {"type": "plain_text", "text": "💡 How to Use BrightDay"},
+            }
+        )
+
+        blocks.append({"type": "divider"})
+
+        # Quick Start Section
+        blocks.append(
+            {"type": "section", "text": {"type": "mrkdwn", "text": "*📅 Quick Start*"}}
+        )
+
+        blocks.append(
+            {
+                "type": "section",
+                "fields": [
+                    {
+                        "type": "mrkdwn",
+                        "text": "*Add Your Birthday:*\nSend: `25/12` or `25/12/1990`\n_(DD/MM or DD/MM/YYYY)_",
+                    },
+                    {
+                        "type": "mrkdwn",
+                        "text": "*Get a Greeting:*\nType: `hello`\nGet a friendly bot greeting!",
+                    },
+                ],
+            }
+        )
+
+        blocks.append({"type": "divider"})
+
+        # Birthday Commands
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*🎂 Birthday Commands*"},
+            }
+        )
+
+        birthday_commands = """• `add DD/MM` or `add DD/MM/YYYY` - Add/update birthday
+• `check` - Check your saved birthday
+• `check @user` - Check someone else's birthday
+• `remove` - Remove your birthday
+• `test [quality] [size] [--text-only]` - Test birthday message
+  _Quality: low/medium/high/auto, Size: auto/1024x1024/etc_"""
+
+        blocks.append(
+            {"type": "section", "text": {"type": "mrkdwn", "text": birthday_commands}}
+        )
+
+        blocks.append({"type": "divider"})
+
+        # Special Days Commands
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*🌍 Special Days Commands*"},
+            }
+        )
+
+        special_commands = """• `special` - Show today's special observances
+• `special week` - Show next 7 days
+• `special month` - Show next 30 days
+• `special list [category]` - List all special days
+• `special search [term]` - Search observances
+• `special stats` - View statistics"""
+
+        blocks.append(
+            {"type": "section", "text": {"type": "mrkdwn", "text": special_commands}}
+        )
+
+        blocks.append({"type": "divider"})
+
+        # Other Commands
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*⚙️ Other Commands*"},
+            }
+        )
+
+        other_commands = """• `help` - Show this help message
+• `confirm` - Confirm pending commands
+• `admin help` - View admin commands _(if admin)_"""
+
+        blocks.append(
+            {"type": "section", "text": {"type": "mrkdwn", "text": other_commands}}
+        )
+
+        # Footer
+        blocks.append(
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": "💡 Tip: Just send your birthday date directly (e.g., `25/12`) - no command needed!",
+                    }
+                ],
+            }
+        )
+
+        fallback_text = "BrightDay Help - Send your birthday in DD/MM format or type 'hello' for a greeting. Use 'admin help' for admin commands."
+
+    return blocks, fallback_text
+
+
+def build_special_days_list_blocks(
+    special_days: List[Any],
+    view_mode: str = "list",
+    category_filter: Optional[str] = None,
+    date_filter: Optional[str] = None,
+) -> tuple[List[Dict[str, Any]], str]:
+    """
+    Build Block Kit structure for special days list display
+
+    Args:
+        special_days: List of SpecialDay objects
+        view_mode: Display mode ("list", "today", "week", "month", "search")
+        category_filter: Optional category filter for list view
+        date_filter: Optional date string for today/week/month views
+
+    Returns:
+        Tuple of (blocks list, fallback_text string)
+    """
+    # Build header based on view mode
+    if view_mode == "today":
+        header_text = (
+            f"📅 Today's Special Days{f' ({date_filter})' if date_filter else ''}"
+        )
+    elif view_mode == "week":
+        header_text = "📅 Special Days - Next 7 Days"
+    elif view_mode == "month":
+        header_text = "📅 Special Days - Next 30 Days"
+    elif view_mode == "search":
+        header_text = f"📅 Special Days Search Results"
+    else:  # list
+        if category_filter:
+            header_text = f"📅 All Special Days ({category_filter})"
+        else:
+            header_text = "📅 All Special Days"
+
+    blocks = [
+        {
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": header_text,
+            },
+        }
+    ]
+
+    # No special days found
+    if not special_days:
+        no_results_msg = {
+            "today": "No special days observed today.",
+            "week": "No special days in the next 7 days.",
+            "month": "No special days in the next 30 days.",
+            "search": "No special days found matching your search.",
+            "list": f"No special days found{f' for category {category_filter}' if category_filter else ''}.",
+        }
+
+        blocks.append(
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": no_results_msg.get(view_mode, "No special days found."),
+                },
+            }
+        )
+        return blocks, f"{header_text}: None found"
+
+    # Format special days based on view mode
+    if view_mode in ["today", "search"]:
+        # Simple list with status indicators
+        for day in special_days:
+            emoji_str = f"{day.emoji} " if day.emoji else ""
+            status = "✅" if day.enabled else "❌"
+
+            # Build main text
+            day_text = f"{status} {emoji_str}*{day.name}*"
+            if view_mode == "search":
+                day_text += f" ({day.date})"
+
+            blocks.append(
+                {"type": "section", "text": {"type": "mrkdwn", "text": day_text}}
+            )
+
+            # Add description as context if available
+            if day.description:
+                blocks.append(
+                    {
+                        "type": "context",
+                        "elements": [
+                            {
+                                "type": "mrkdwn",
+                                "text": f"_{day.description}_\n• Category: {day.category}",
+                            }
+                        ],
+                    }
+                )
+
+            # Add divider between days
+            if day != special_days[-1]:
+                blocks.append({"type": "divider"})
+
+    elif view_mode in ["week", "month"]:
+        # Group by date, similar to current format
+        # special_days is expected to be a dict like {date_str: [day1, day2]}
+        if isinstance(special_days, dict):
+            date_entries = list(special_days.items())
+            for idx, (date_str, days_list) in enumerate(date_entries):
+                # Date header
+                date_text = f"*{date_str}:*\n"
+                for day in days_list:
+                    emoji = f"{day.emoji} " if day.emoji else ""
+                    date_text += f"  • {emoji}{day.name}"
+                    if view_mode == "month":
+                        # For month view, just show name (more compact)
+                        date_text += "\n"
+                    else:
+                        # For week view, add category
+                        date_text += f" ({day.category})\n"
+
+                blocks.append(
+                    {"type": "section", "text": {"type": "mrkdwn", "text": date_text}}
+                )
+
+                # Add divider between dates (but not after last one)
+                if idx < len(date_entries) - 1:
+                    blocks.append({"type": "divider"})
+        else:
+            # Fallback if not a dict (shouldn't happen)
+            blocks.append(
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": "⚠️ Data format error. Please contact an admin.",
+                    },
+                }
+            )
+
+    elif view_mode == "list":
+        # Group by month for better organization
+        from datetime import datetime
+
+        months_dict = {}
+        for day in special_days:
+            month_num = int(day.date.split("/")[1])
+            month_name = [
+                "",
+                "January",
+                "February",
+                "March",
+                "April",
+                "May",
+                "June",
+                "July",
+                "August",
+                "September",
+                "October",
+                "November",
+                "December",
+            ][month_num]
+            if month_name not in months_dict:
+                months_dict[month_name] = []
+            months_dict[month_name].append(day)
+
+        # Sort months chronologically
+        month_order = [
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
+        ]
+
+        for month in month_order:
+            if month in months_dict:
+                # Month header
+                blocks.append(
+                    {
+                        "type": "section",
+                        "text": {"type": "mrkdwn", "text": f"*{month}*"},
+                    }
+                )
+
+                # Sort days within month by date
+                months_dict[month].sort(key=lambda d: int(d.date.split("/")[0]))
+
+                # Build month entries
+                month_text = ""
+                for day in months_dict[month]:
+                    emoji = f"{day.emoji} " if day.emoji else ""
+                    month_text += f"  {emoji}{day.date} - {day.name}\n"
+
+                blocks.append(
+                    {"type": "section", "text": {"type": "mrkdwn", "text": month_text}}
+                )
+                blocks.append({"type": "divider"})
+
+        # Remove last divider
+        if blocks[-1]["type"] == "divider":
+            blocks.pop()
+
+    # Add context footer
+    total_count = (
+        len(special_days)
+        if isinstance(special_days, list)
+        else sum(len(days) for days in special_days.values())
+    )
+    context_text = (
+        f"📊 Total: {total_count} special day{'s' if total_count != 1 else ''}"
+    )
+    if category_filter:
+        context_text += f" in {category_filter}"
+
+    blocks.append(
+        {
+            "type": "context",
+            "elements": [{"type": "mrkdwn", "text": context_text}],
+        }
+    )
+
+    # Fallback text
+    fallback_text = f"{header_text}: {total_count} special days"
+
+    return blocks, fallback_text
+
+
+def build_special_day_stats_blocks(
+    stats: Dict[str, Any]
+) -> tuple[List[Dict[str, Any]], str]:
+    """
+    Build Block Kit structure for special days statistics
+
+    Args:
+        stats: Statistics dictionary with total_days, enabled_days, feature_enabled,
+               current_personality, and by_category breakdown
+
+    Returns:
+        Tuple of (blocks list, fallback_text string)
+    """
+    blocks = [
+        {
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": "📊 Special Days Statistics",
+            },
+        }
+    ]
+
+    # Overview section with fields
+    feature_status = "✅ Enabled" if stats.get("feature_enabled") else "❌ Disabled"
+
+    blocks.append(
+        {
+            "type": "section",
+            "fields": [
+                {
+                    "type": "mrkdwn",
+                    "text": f"*Total Special Days:*\n{stats.get('total_days', 0)}",
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": f"*Currently Enabled:*\n{stats.get('enabled_days', 0)}",
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": f"*Feature Status:*\n{feature_status}",
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": f"*Current Personality:*\n{stats.get('current_personality', 'N/A')}",
+                },
+            ],
+        }
+    )
+
+    blocks.append({"type": "divider"})
+
+    # Category breakdown
+    by_category = stats.get("by_category", {})
+    if by_category:
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*By Category:*"},
+            }
+        )
+
+        category_text = ""
+        for category, cat_stats in by_category.items():
+            cat_status = "✅" if cat_stats.get("category_enabled") else "❌"
+            enabled_count = cat_stats.get("enabled", 0)
+            total_count = cat_stats.get("total", 0)
+            category_text += (
+                f"  {cat_status} *{category}:* {enabled_count}/{total_count} days\n"
+            )
+
+        blocks.append(
+            {"type": "section", "text": {"type": "mrkdwn", "text": category_text}}
+        )
+
+    # Context footer
+    blocks.append(
+        {
+            "type": "context",
+            "elements": [
+                {
+                    "type": "mrkdwn",
+                    "text": "💡 Use `admin special` to manage special days",
+                }
+            ],
+        }
+    )
+
+    # Fallback text
+    fallback_text = f"Special Days Statistics: {stats.get('total_days', 0)} total, {stats.get('enabled_days', 0)} enabled"
 
     return blocks, fallback_text

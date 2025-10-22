@@ -156,6 +156,7 @@ TOKEN_LIMITS = {
     "consolidated_birthday": 2000,  # Multiple birthday messages
     "web_search_facts": 1000,  # Historical date summarization
     "image_title_generation": 200,  # AI-generated image titles
+    "special_day_details": 600,  # Concise special day details (View Details button - 1950 char Slack limit)
 }
 
 # Temperature settings for creativity control

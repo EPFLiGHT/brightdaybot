@@ -33,7 +33,10 @@ from utils.slack_utils import (
     send_message_with_multiple_attachments,
 )
 from utils.storage import mark_timezone_birthday_announced, mark_birthday_announced
-from utils.block_builder import build_consolidated_birthday_blocks
+from utils.block_builder import (
+    build_consolidated_birthday_blocks,
+    build_birthday_blocks,
+)
 from utils.app_config import get_current_personality_name
 
 logger = get_logger("birthday")
@@ -398,20 +401,39 @@ class BirthdayCelebrationPipeline:
             historical_fact = None  # TODO: Extract from message if needed
 
             # Build blocks WITH embedded images using file IDs
-            blocks, fallback_text = build_consolidated_birthday_blocks(
-                birthday_people_for_blocks,
-                message,
-                historical_fact,
-                personality,
-                image_file_ids=(
-                    file_ids if file_ids else None
-                ),  # Pass file IDs for embedding
-            )
-
-            logger.info(
-                f"{self.mode}: Built Block Kit structure with {len(blocks)} blocks"
-                + (f" (with {len(file_ids)} embedded images)" if file_ids else "")
-            )
+            # Use different block builders based on number of people
+            if len(valid_people) == 1:
+                # Single birthday - use individual layout
+                person = birthday_people_for_blocks[0]
+                blocks, fallback_text = build_birthday_blocks(
+                    username=person["username"],
+                    user_id=person["user_id"],
+                    age=person["age"],
+                    star_sign=person["star_sign"],
+                    message=message,
+                    historical_fact=historical_fact,
+                    personality=personality,
+                    image_file_id=file_ids[0] if file_ids else None,
+                )
+                logger.info(
+                    f"{self.mode}: Built single birthday Block Kit structure with {len(blocks)} blocks"
+                    + (f" (with embedded image)" if file_ids else "")
+                )
+            else:
+                # Multiple birthdays - use consolidated layout
+                blocks, fallback_text = build_consolidated_birthday_blocks(
+                    birthday_people_for_blocks,
+                    message,
+                    historical_fact,
+                    personality,
+                    image_file_ids=(
+                        file_ids if file_ids else None
+                    ),  # Pass file IDs for embedding
+                )
+                logger.info(
+                    f"{self.mode}: Built consolidated birthday Block Kit structure with {len(blocks)} blocks"
+                    + (f" (with {len(file_ids)} embedded images)" if file_ids else "")
+                )
         except Exception as block_error:
             logger.warning(
                 f"{self.mode}: Failed to build Block Kit blocks: {block_error}. Using plain text."

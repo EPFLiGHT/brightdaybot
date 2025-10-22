@@ -365,23 +365,59 @@ def send_immediate_birthday_announcement(
         say(notification)
 
         try:
-            # Send personalized AI message to birthday channel
-            ai_message = completion(username, date_words, user_id, date, year, app=app)
-            send_message(app, BIRTHDAY_CHANNEL, ai_message)
+            # Use centralized celebration pipeline (same as scheduled announcements)
+            from utils.birthday_celebration_pipeline import BirthdayCelebrationPipeline
+            from utils.slack_utils import get_user_profile
+
+            # Get user profile for personalization
+            user_profile = get_user_profile(app, user_id)
+
+            # Build birthday person data (matching scheduled announcement format)
+            birthday_person = {
+                "user_id": user_id,
+                "username": username,
+                "date": date,
+                "year": year,
+                "date_words": date_words,
+                "profile": user_profile,
+            }
+
             logger.info(
-                f"IMMEDIATE_BIRTHDAY: Sent individual AI-generated announcement for {username} ({user_id})"
+                f"IMMEDIATE_BIRTHDAY: Using centralized pipeline for {username} ({user_id})"
             )
+
+            # Use centralized pipeline with Block Kit formatting
+            pipeline = BirthdayCelebrationPipeline(
+                app, BIRTHDAY_CHANNEL, mode="immediate"
+            )
+            result = pipeline.celebrate(
+                [birthday_person],
+                include_image=AI_IMAGE_GENERATION_ENABLED,
+            )
+
+            if result.get("success"):
+                logger.info(
+                    f"IMMEDIATE_BIRTHDAY: Successfully celebrated {username} ({user_id}) via pipeline"
+                )
+            else:
+                logger.warning(
+                    f"IMMEDIATE_BIRTHDAY: Pipeline returned non-success for {username} ({user_id})"
+                )
+
         except Exception as e:
             logger.error(
                 f"AI_ERROR: Failed to generate immediate birthday message for {username}: {e}"
             )
-            # Fallback to generated announcement if AI fails
+            import traceback
+
+            logger.error(f"AI_ERROR_TRACEBACK: {traceback.format_exc()}")
+            # Fallback to simple announcement if pipeline fails
             announcement = create_birthday_announcement(
                 user_id, username, date, year, test_mode=False, quality=None
             )
             send_message(app, BIRTHDAY_CHANNEL, announcement)
             logger.info(
-                f"IMMEDIATE_BIRTHDAY: Sent individual fallback announcement for {username} ({user_id})"
+                f"IMMEDIATE_BIRTHDAY: Sent fallback announcement for {username} ({user_id})"
             )
 
         # CRITICAL: Mark birthday as announced to prevent duplicate announcements during daily check
@@ -408,145 +444,25 @@ def send_immediate_birthday_announcement(
 
 def handle_dm_help(say):
     """Send help information for DM commands"""
-    help_text = """
-Here's how you can interact with me:
+    # Build Block Kit help message
+    from utils.block_builder import build_help_blocks
 
-1. *Set your birthday:*
-   • Send a date in DD/MM format (e.g., `25/12` for December 25th)
-   • Or include the year: DD/MM/YYYY (e.g., `25/12/1990`)
-
-2. *Commands:*
-   • `hello` - Get a friendly greeting from the bot
-   • `add DD/MM` - Add or update your birthday
-   • `add DD/MM/YYYY` - Add or update your birthday with year
-   • `remove` - Remove your birthday
-   • `help` - Show this help message
-   • `check` - Check your saved birthday
-   • `check @user` - Check someone else's birthday
-   • `test [quality] [size] [--text-only]` - See a test birthday message for yourself (quality: low/medium/high/auto, size: auto/1024x1024/1536x1024/1024x1536, --text-only skips images)
-   • `confirm` - Confirm pending announcement or reminder commands
-
-3. *Special Days Commands:*
-   • `special` - Show today's special observances
-   • `special week` - Show special days for the next 7 days
-   • `special month` - Show special days for the next 30 days
-   • `special list [category]` - List all special days (optionally by category)
-   • `special search [term]` - Search for specific observances
-   • `special stats` - View special days statistics
-
-Admin commands are also available. Type `admin help` for more information.
-"""
-    say(help_text)
+    blocks, fallback = build_help_blocks(is_admin=False)
+    say(blocks=blocks, text=fallback)
     logger.info("HELP: Sent DM help information")
 
 
 def handle_dm_admin_help(say, user_id, app):
-    """Send admin help information"""
+    """Send admin help information using fully structured Block Kit"""
     if not is_admin(app, user_id):
         say("You don't have permission to view admin commands.")
         return
 
-    # Get all available personalities
-    personalities = list(BOT_PERSONALITIES.keys())
-    personality_list = ", ".join([f"`{p}`" for p in personalities])
+    # Build fully structured Block Kit admin help
+    from utils.block_builder import build_help_blocks
 
-    admin_help = f"""
-*Admin Commands:*
-
-• `admin list` - List configured admin users
-• `admin add USER_ID` - Add a user as admin
-• `admin remove USER_ID` - Remove a user from admin list
-
-• `list` - List upcoming birthdays
-• `list all` - List all birthdays organized by month
-• `stats` - View birthday statistics
-• `remind` or `remind new` - Send reminders to users without birthdays (requires confirmation)
-• `remind update` - Send profile update reminders to users with birthdays (requires confirmation)
-• `remind new [message]` - Send custom reminder to new users (requires confirmation)
-• `remind update [message]` - Send custom profile update reminder (requires confirmation)
-
-• `admin status` - View system health and component status
-• `admin status detailed` - View detailed system information
-• `admin timezone` - View birthday celebration schedule across timezones
-• `admin test @user1 [@user2 @user3...] [quality] [size] [--text-only]` - Generate test birthday message & images (single or multiple users, stays in DM)
-• `admin test-join [@user]` - Test birthday channel welcome message
-• `admin test-bot-celebration [quality] [size] [--text-only]` - Test BrightDayBot's self-celebration (Ludo's mystical birthday message)
-
-• `config` - View command permissions
-• `config COMMAND true/false` - Change command permissions
-
-*Announcements:*
-• `admin announce image` - Announce AI image generation feature to birthday channel (requires confirmation)
-• `admin announce [message]` - Send custom announcement to birthday channel (requires confirmation)
-
-*Data Management:*
-• `admin backup` - Create a manual backup of birthdays data
-• `admin restore latest` - Restore from the latest backup
-• `admin cache clear` - Clear all web search cache
-• `admin cache clear DD/MM` - Clear web search cache for a specific date
-
-*Testing Commands:*
-• `admin test-block [type]` - Test Block Kit rendering (birthday/multi/special/bot)
-• `admin test-upload` - Test the image upload functionality
-• `admin test-upload-multi` - Test multiple image attachment functionality (new consolidated system)
-• `admin test-blockkit [mode]` - Test Block Kit image embedding (modes: with-channel, private, url-only, simple, all)
-• `admin test-file-upload` - Test text file upload functionality (like backup files)
-• `admin test-external-backup` - Test the external backup system with detailed diagnostics
-
-*Message Archive Management:*
-• `admin archive stats` - View archive system status and statistics
-• `admin archive search [query]` - Search archived messages with filters
-• `admin archive export [format] [days]` - Export archived messages (csv/json)
-• `admin archive cleanup` - Manually trigger archive cleanup
-• `admin archive cleanup force` - Force cleanup regardless of age
-
-*AI Model Configuration:*
-• `admin model` - Show current OpenAI model and configuration
-• `admin model list` - List all supported OpenAI models
-• `admin model set <model>` - Change to specified model (e.g., gpt-4o)
-• `admin model reset` - Reset to default model (gpt-4.1)
-
-*Timezone Configuration:*
-• `admin timezone` - View current timezone status
-• `admin timezone status` - Show detailed timezone schedule
-• `admin timezone enable` - Enable timezone-aware mode (hourly checks)
-• `admin timezone disable` - Disable timezone-aware mode (daily check)
-
-*Bot Personality:*
-• `admin personality` - Show current bot personality
-• `admin personality [name]` - Change bot personality
-  
-*Available Personalities:*
-{personality_list}
-
-*Personality Descriptions:*
-• `standard` - Friendly, enthusiastic birthday bot
-• `mystic_dog` - Ludo the cosmic birthday dog with mystical predictions
-• `poet` - Lyrical birthday messages in verse
-• `tech_guru` - Programming-themed birthday messages
-• `chef` - Culinary-themed birthday celebrations
-• `superhero` - Comic book style birthday announcements
-• `time_traveler` - Futuristic birthday messages from Chrono
-• `pirate` - Nautical-themed celebrations from Captain BirthdayBeard
-• `random` - Randomly selects a personality for each birthday
-• `custom` - Fully customizable personality
-  
-*Custom Personality:*
-• `admin custom name [value]` - Set custom bot name
-• `admin custom description [value]` - Set custom bot description
-• `admin custom style [value]` - Set custom writing style
-• `admin custom format [value]` - Set custom format instruction
-• `admin custom template [value]` - Set custom template extension
-
-*Special Days Management:*
-• `admin special` - View special days help
-• `admin special add DD/MM "Name" "Category" "Description" ["emoji"] ["source"] ["url"]` - Add observance
-• `admin special remove DD/MM [name]` - Remove observance
-• `admin special list [category]` - List all observances
-• `admin special test [DD/MM]` - Test announcement
-• `admin special verify` - Verify data integrity
-"""
-    say(admin_help)
+    blocks, fallback = build_help_blocks(is_admin=True)
+    say(blocks=blocks, text=fallback)
     logger.info(f"HELP: Sent admin help to {user_id}")
 
 
@@ -573,17 +489,43 @@ def handle_dm_date(say, user, result, app):
             user, username, date, year, date_words, age_text, say, app
         )
     else:
-        # Enhanced confirmation messages with emojis and safe formatting
+        # Enhanced confirmation messages with Block Kit
         try:
+            from utils.block_builder import build_confirmation_blocks
+
             if updated:
-                confirmation_msg = f"✅ *Birthday Updated!*\nYour birthday has been updated to {date_words}{age_text}\n\nIf this is incorrect, please send the correct date."
-                say(confirmation_msg)
+                blocks, fallback = build_confirmation_blocks(
+                    title="Birthday Updated!",
+                    message="Your birthday has been updated successfully.\n\nIf this is incorrect, please send the correct date.",
+                    action_type="success",
+                    details={
+                        "Birthday": date_words,
+                        "Age": (
+                            age_text.replace(" (Age: ", "").replace(")", "")
+                            if age_text
+                            else "Not specified"
+                        ),
+                    },
+                )
+                say(blocks=blocks, text=fallback)
                 logger.info(
                     f"BIRTHDAY_UPDATE: Successfully notified {username} ({user}) of birthday update to {date_words} via date input"
                 )
             else:
-                confirmation_msg = f"🎉 *Birthday Saved!*\nYour birthday ({date_words}{age_text}) has been saved successfully!\n\nIf this is incorrect, please send the correct date."
-                say(confirmation_msg)
+                blocks, fallback = build_confirmation_blocks(
+                    title="Birthday Saved!",
+                    message="Your birthday has been saved successfully!\n\nIf this is incorrect, please send the correct date.",
+                    action_type="success",
+                    details={
+                        "Birthday": date_words,
+                        "Age": (
+                            age_text.replace(" (Age: ", "").replace(")", "")
+                            if age_text
+                            else "Not specified"
+                        ),
+                    },
+                )
+                say(blocks=blocks, text=fallback)
                 logger.info(
                     f"BIRTHDAY_ADD: Successfully notified {username} ({user}) of new birthday {date_words} via date input"
                 )
@@ -703,17 +645,43 @@ def handle_command(text, user_id, say, app):
                 user_id, username, date, year, date_words, age_text, say, app
             )
         else:
-            # Enhanced confirmation messages with emojis and safe formatting
+            # Enhanced confirmation messages with Block Kit
             try:
+                from utils.block_builder import build_confirmation_blocks
+
                 if updated:
-                    confirmation_msg = f"✅ *Birthday Updated!*\nYour birthday has been updated to {date_words}{age_text}"
-                    say(confirmation_msg)
+                    blocks, fallback = build_confirmation_blocks(
+                        title="Birthday Updated!",
+                        message="Your birthday has been updated successfully.",
+                        action_type="success",
+                        details={
+                            "Birthday": date_words,
+                            "Age": (
+                                age_text.replace(" (Age: ", "").replace(")", "")
+                                if age_text
+                                else "Not specified"
+                            ),
+                        },
+                    )
+                    say(blocks=blocks, text=fallback)
                     logger.info(
                         f"BIRTHDAY_UPDATE: Successfully notified {username} ({user_id}) of birthday update to {date_words}"
                     )
                 else:
-                    confirmation_msg = f"🎉 *Birthday Saved!*\nYour birthday ({date_words}{age_text}) has been saved successfully!"
-                    say(confirmation_msg)
+                    blocks, fallback = build_confirmation_blocks(
+                        title="Birthday Saved!",
+                        message="Your birthday has been saved successfully!",
+                        action_type="success",
+                        details={
+                            "Birthday": date_words,
+                            "Age": (
+                                age_text.replace(" (Age: ", "").replace(")", "")
+                                if age_text
+                                else "Not specified"
+                            ),
+                        },
+                    )
+                    say(blocks=blocks, text=fallback)
                     logger.info(
                         f"BIRTHDAY_ADD: Successfully notified {username} ({user_id}) of new birthday {date_words}"
                     )
@@ -761,17 +729,27 @@ def handle_command(text, user_id, say, app):
 
     elif command == "remove":
         removed = remove_birthday(user_id, username)
-        # Enhanced confirmation messages with emojis and safe formatting
+        # Enhanced confirmation messages with Block Kit
         try:
+            from utils.block_builder import build_confirmation_blocks
+
             if removed:
-                confirmation_msg = f"🗑️ *Birthday Removed*\nYour birthday has been successfully removed from our records."
-                say(confirmation_msg)
+                blocks, fallback = build_confirmation_blocks(
+                    title="Birthday Removed",
+                    message="Your birthday has been successfully removed from our records.",
+                    action_type="success",
+                )
+                say(blocks=blocks, text=fallback)
                 logger.info(
                     f"BIRTHDAY_REMOVE: Successfully notified {username} ({user_id}) of birthday removal"
                 )
             else:
-                confirmation_msg = f"ℹ️ *No Birthday Found*\nYou don't currently have a birthday saved in our records.\n\nUse `add DD/MM` or `add DD/MM/YYYY` to save your birthday."
-                say(confirmation_msg)
+                blocks, fallback = build_confirmation_blocks(
+                    title="No Birthday Found",
+                    message="You don't currently have a birthday saved in our records.\n\nUse `add DD/MM` or `add DD/MM/YYYY` to save your birthday.",
+                    action_type="info",
+                )
+                say(blocks=blocks, text=fallback)
                 logger.info(
                     f"BIRTHDAY_REMOVE: Notified {username} ({user_id}) that no birthday was found to remove"
                 )
@@ -866,15 +844,13 @@ def handle_command(text, user_id, say, app):
         )
         greeting = greeting_template.format(user_mention=get_user_mention(user_id))
 
-        hello_message = f"""{greeting}
+        # Build Block Kit hello message
+        from utils.block_builder import build_hello_blocks
 
-I'm BrightDay, your friendly birthday celebration bot! I'm here to help make everyone's special day memorable with personalized messages and AI-generated images.
+        personality_display_name = personality_config.get("name", "BrightDay")
+        blocks, fallback = build_hello_blocks(greeting, personality_display_name)
 
-Want to get started? Just send me your birthday in DD/MM or DD/MM/YYYY format, or type `help` to see all available commands!
-
-Hope to celebrate with you soon! 🎂"""
-
-        say(hello_message)
+        say(blocks=blocks, text=fallback)
         logger.info(
             f"HELLO: Sent greeting to {username} ({user_id}) with {current_personality} personality"
         )
@@ -1070,13 +1046,13 @@ def handle_list_command(parts, user_id, say, app):
         precise_candidates.sort(key=lambda x: x[4])  # Sort by days_until
         birthday_list = precise_candidates[:10]
 
-    # Format response
-    response = f"{title}\n\n"
+    # Format birthday data for Block Kit
+    from utils.block_builder import build_birthday_list_blocks
 
-    # For list all, organize by month
+    formatted_birthdays = []
+
     if list_all:
-        current_month = None
-
+        # For "list all", format as (month_name, day_str, user_mention, year_str)
         for (
             uid,
             bdate,
@@ -1088,25 +1064,21 @@ def handle_list_command(parts, user_id, say, app):
             day,
             user_mention,
         ) in birthday_list:
-            # Add month header if it's a new month
-            if month != current_month:
-                current_month = month
-                month_name_str = month_name[month]
-                response += f"\n*{month_name_str}*\n"
-
-            # Format the date
-            date_obj = datetime(
-                2025, month, day
-            )  # Using fixed year just for formatting
+            month_name_str = month_name[month]
+            date_obj = datetime(2025, month, day)
             day_str = date_obj.strftime("%d")
-
-            # Format the year
             year_str = f" ({birth_year})" if birth_year else ""
+            formatted_birthdays.append(
+                (month_name_str, day_str, user_mention, year_str)
+            )
 
-            # Add the entry with user mention
-            response += f"• {day_str}: {user_mention}{year_str}\n"
+        blocks, fallback = build_birthday_list_blocks(
+            birthdays=formatted_birthdays,
+            list_type="all",
+            total_count=len(birthdays),  # Total birthdays loaded from file
+        )
     else:
-        # Standard "list" command - show next 10 birthdays with days until
+        # For "list" command, format as (user_mention, date_words, age_text, days_text)
         for (
             uid,
             bdate,
@@ -1117,12 +1089,19 @@ def handle_list_command(parts, user_id, say, app):
             _,
             _,
             user_mention,
-        ) in birthday_list:  # birthday_list is already limited to 10 items
+        ) in birthday_list:
             date_words = date_to_words(bdate)
             days_text = "Today! 🎉" if days == 0 else f"in {days} days"
-            response += f"• {user_mention} ({date_words}{age_text}): {days_text}\n"
+            formatted_birthdays.append((user_mention, date_words, age_text, days_text))
 
-    say(response)
+        blocks, fallback = build_birthday_list_blocks(
+            birthdays=formatted_birthdays,
+            list_type="upcoming",
+            total_count=len(birthdays),  # Total birthdays loaded from file
+            current_utc=current_utc,
+        )
+
+    say(blocks=blocks, text=fallback)
     logger.info(f"LIST: Generated birthday list for {len(birthday_list)} users")
 
 
@@ -1540,16 +1519,24 @@ def handle_test_command(
 
                     # Step 2: Build Block Kit blocks with embedded image (using file ID tuple)
                     try:
-                        from utils.block_builder import build_test_blocks
+                        from utils.block_builder import build_birthday_blocks
+                        from utils.date_utils import get_star_sign, calculate_age
 
                         # Use actual personality from result for proper attribution
                         personality = actual_personality
 
-                        blocks, fallback_text = build_test_blocks(
-                            username,
-                            target_user_id,
-                            test_message,
-                            personality,
+                        # Calculate age and star sign for realistic testing
+                        age = calculate_age(birth_year) if birth_year else None
+                        star_sign = get_star_sign(user_date) if user_date else None
+
+                        blocks, fallback_text = build_birthday_blocks(
+                            username=username,
+                            user_id=target_user_id,
+                            age=age,
+                            star_sign=star_sign,
+                            message=test_message,
+                            historical_fact=None,  # Could add this for even more realism
+                            personality=personality,
                             image_file_id=file_id_tuple,  # Pass tuple (file_id, title) for embedding
                         )
 
@@ -1620,10 +1607,22 @@ def handle_test_command(
 
                 # Try to build blocks for text-only display
                 try:
-                    from utils.block_builder import build_test_blocks
+                    from utils.block_builder import build_birthday_blocks
+                    from utils.date_utils import get_star_sign, calculate_age
 
-                    blocks, _ = build_test_blocks(
-                        username, target_user_id, test_message, actual_personality
+                    # Calculate age and star sign for realistic testing
+                    age = calculate_age(birth_year) if birth_year else None
+                    star_sign = get_star_sign(user_date) if user_date else None
+
+                    blocks, _ = build_birthday_blocks(
+                        username=username,
+                        user_id=target_user_id,
+                        age=age,
+                        star_sign=star_sign,
+                        message=test_message,
+                        historical_fact=None,
+                        personality=actual_personality,
+                        image_file_id=None,
                     )
                 except Exception:
                     blocks = None
@@ -1655,12 +1654,25 @@ def handle_test_command(
 
             # Build Block Kit blocks for text-only mode too
             try:
-                from utils.block_builder import build_test_blocks
+                from utils.block_builder import build_birthday_blocks
+                from utils.date_utils import get_star_sign, calculate_age
 
                 # Use actual personality from result for proper attribution
                 personality = actual_personality
-                blocks, fallback_text = build_test_blocks(
-                    username, target_user_id, test_message, personality
+
+                # Calculate age and star sign for realistic testing
+                age = calculate_age(birth_year) if birth_year else None
+                star_sign = get_star_sign(user_date) if user_date else None
+
+                blocks, fallback_text = build_birthday_blocks(
+                    username=username,
+                    user_id=target_user_id,
+                    age=age,
+                    star_sign=star_sign,
+                    message=test_message,
+                    historical_fact=None,
+                    personality=personality,
+                    image_file_id=None,
                 )
                 logger.info("TEST: Built Block Kit blocks for text-only mode")
             except Exception as block_error:
@@ -1910,7 +1922,7 @@ def handle_test_block_command(user_id, args, say, app):
 
         elif block_type == "special":
             # Test special day block with interactive buttons
-            test_message = "🌍 Today we celebrate World Block Kit Day! This special observance demonstrates the power of structured, interactive messaging in modern workplace communication. Click the buttons below to explore more!"
+            test_message = "🌍 Today we celebrate World Block Kit Day! This special observance demonstrates the power of structured, interactive messaging in modern workplace communication."
 
             blocks, fallback_text = build_special_day_blocks(
                 observance_name="World Block Kit Day",
@@ -3012,6 +3024,7 @@ def handle_test_multiple_birthday_command(
                     try:
                         from utils.block_builder import (
                             build_consolidated_birthday_blocks,
+                            build_birthday_blocks,
                         )
 
                         # Use the actual personality that was used for message generation
@@ -3029,24 +3042,41 @@ def handle_test_multiple_birthday_command(
                                 }
                             )
 
-                        blocks, fallback_text = build_consolidated_birthday_blocks(
-                            birthday_people_for_blocks,
-                            message,
-                            historical_fact=None,  # Test mode doesn't need historical facts
-                            personality=personality,
-                            image_file_ids=(
-                                file_ids if file_ids else None
-                            ),  # Pass file IDs for embedding
-                        )
-
-                        image_note = (
-                            f" (with {len(file_ids)} embedded images)"
-                            if file_ids
-                            else ""
-                        )
-                        logger.info(
-                            f"TEST_MULTI: Built Block Kit structure with {len(blocks)} blocks{image_note}"
-                        )
+                        # DEFENSIVE: Use appropriate block builder based on count
+                        # (Routing should prevent len==1, but handle it just in case)
+                        if len(birthday_people) == 1:
+                            person = birthday_people_for_blocks[0]
+                            blocks, fallback_text = build_birthday_blocks(
+                                username=person["username"],
+                                user_id=person["user_id"],
+                                age=person["age"],
+                                star_sign=person["star_sign"],
+                                message=message,
+                                historical_fact=None,
+                                personality=personality,
+                                image_file_id=file_ids[0] if file_ids else None,
+                            )
+                            logger.info(
+                                f"TEST_MULTI: Built single birthday Block Kit (defensive case)"
+                            )
+                        else:
+                            blocks, fallback_text = build_consolidated_birthday_blocks(
+                                birthday_people_for_blocks,
+                                message,
+                                historical_fact=None,  # Test mode doesn't need historical facts
+                                personality=personality,
+                                image_file_ids=(
+                                    file_ids if file_ids else None
+                                ),  # Pass file IDs for embedding
+                            )
+                            image_note = (
+                                f" (with {len(file_ids)} embedded images)"
+                                if file_ids
+                                else ""
+                            )
+                            logger.info(
+                                f"TEST_MULTI: Built consolidated birthday Block Kit with {len(blocks)} blocks{image_note}"
+                            )
                     except Exception as block_error:
                         logger.warning(
                             f"TEST_MULTI: Failed to build Block Kit blocks: {block_error}. Using plain text."
@@ -3136,7 +3166,10 @@ def handle_test_multiple_birthday_command(
                 # No images generated - still send with blocks
                 # Build Block Kit blocks for text-only multi-birthday test
                 try:
-                    from utils.block_builder import build_consolidated_birthday_blocks
+                    from utils.block_builder import (
+                        build_consolidated_birthday_blocks,
+                        build_birthday_blocks,
+                    )
 
                     # Use the actual personality that was used for message generation
                     personality = actual_personality
@@ -3153,12 +3186,26 @@ def handle_test_multiple_birthday_command(
                             }
                         )
 
-                    blocks, fallback_text = build_consolidated_birthday_blocks(
-                        birthday_people_for_blocks,
-                        message,
-                        historical_fact=None,
-                        personality=personality,
-                    )
+                    # DEFENSIVE: Use appropriate block builder based on count
+                    if len(birthday_people) == 1:
+                        person = birthday_people_for_blocks[0]
+                        blocks, fallback_text = build_birthday_blocks(
+                            username=person["username"],
+                            user_id=person["user_id"],
+                            age=person["age"],
+                            star_sign=person["star_sign"],
+                            message=message,
+                            historical_fact=None,
+                            personality=personality,
+                            image_file_id=None,
+                        )
+                    else:
+                        blocks, fallback_text = build_consolidated_birthday_blocks(
+                            birthday_people_for_blocks,
+                            message,
+                            historical_fact=None,
+                            personality=personality,
+                        )
 
                     logger.info(
                         f"TEST_MULTI: Built Block Kit structure for text-only mode with {len(blocks)} blocks"
@@ -3194,7 +3241,10 @@ def handle_test_multiple_birthday_command(
 
             # Build Block Kit blocks for basic multi-birthday test
             try:
-                from utils.block_builder import build_consolidated_birthday_blocks
+                from utils.block_builder import (
+                    build_consolidated_birthday_blocks,
+                    build_birthday_blocks,
+                )
 
                 # Fallback to standard personality if result format is unexpected
                 personality = "standard"
@@ -3211,12 +3261,26 @@ def handle_test_multiple_birthday_command(
                         }
                     )
 
-                blocks, fallback_text = build_consolidated_birthday_blocks(
-                    birthday_people_for_blocks,
-                    message,
-                    historical_fact=None,
-                    personality=personality,
-                )
+                # DEFENSIVE: Use appropriate block builder based on count
+                if len(birthday_people) == 1:
+                    person = birthday_people_for_blocks[0]
+                    blocks, fallback_text = build_birthday_blocks(
+                        username=person["username"],
+                        user_id=person["user_id"],
+                        age=person["age"],
+                        star_sign=person["star_sign"],
+                        message=message,
+                        historical_fact=None,
+                        personality=personality,
+                        image_file_id=None,
+                    )
+                else:
+                    blocks, fallback_text = build_consolidated_birthday_blocks(
+                        birthday_people_for_blocks,
+                        message,
+                        historical_fact=None,
+                        personality=personality,
+                    )
 
                 logger.info(
                     f"TEST_MULTI: Built Block Kit structure for basic mode with {len(blocks)} blocks"
@@ -3403,13 +3467,19 @@ def handle_cache_command(parts, user_id, say, app):
 def handle_status_command(parts, user_id, say, app):
     """Handler for the status command"""
     from utils.slack_utils import get_username
-    from utils.health_check import get_status_summary, get_system_status
+    from utils.health_check import get_system_status
+    from utils.block_builder import build_health_status_blocks
 
     username = get_username(app, user_id)
-    summary = get_status_summary()
 
     # Check if the user wants detailed information
     is_detailed = len(parts) > 1 and parts[1] == "detailed"
+
+    # Get system status data
+    status = get_system_status()
+
+    # Build Block Kit status display
+    blocks, fallback = build_health_status_blocks(status, detailed=is_detailed)
 
     if is_detailed:
         # Add detailed information for advanced users
@@ -3504,17 +3574,23 @@ def handle_status_command(parts, user_id, say, app):
 
             detailed_info.extend(archive_info)
 
-        summary += "\n" + "\n".join(detailed_info)
-
-    # Archive this important status report
-    say_with_archive(
-        say,
-        app,
-        user_id,
-        summary,
-        message_type="admin" if is_detailed else "command",
-        context={"command_name": "admin status", "is_detailed": is_detailed},
-    )
+        # For detailed mode, append additional text info after Block Kit
+        detailed_text = "\n" + "\n".join(detailed_info)
+        # Send Block Kit first
+        say(blocks=blocks, text=fallback)
+        # Then send detailed text separately
+        say(detailed_text)
+    else:
+        # Standard mode - just send Block Kit
+        say_with_archive(
+            say,
+            app,
+            user_id,
+            fallback,  # Use fallback for archive
+            blocks=blocks,
+            message_type="command",
+            context={"command_name": "admin status", "is_detailed": is_detailed},
+        )
     logger.info(
         f"STATUS: {username} ({user_id}) requested system status {'with details' if is_detailed else ''}"
     )
@@ -4297,13 +4373,16 @@ def handle_archive_config_command(user_id, say, app):
 
 
 def handle_special_command(args, user_id, say, app):
-    """Handle user special days commands"""
+    """Handle user special days commands using Block Kit"""
     from services.special_days import (
         get_todays_special_days,
         get_upcoming_special_days,
         get_special_day_statistics,
-        format_special_days_list,
         load_special_days,
+    )
+    from utils.block_builder import (
+        build_special_days_list_blocks,
+        build_special_day_stats_blocks,
     )
     from datetime import datetime, timedelta
 
@@ -4314,72 +4393,56 @@ def handle_special_command(args, user_id, say, app):
     subcommand = args[0].lower()
 
     if subcommand == "today":
-        # Show today's special days
+        # Show today's special days using Block Kit
         special_days = get_todays_special_days()
-        if special_days:
-            from utils.date_utils import format_date_european_short
+        from utils.date_utils import format_date_european_short
 
-            today_str = format_date_european_short(datetime.now())
-            message = f"📅 *Today's Special Days ({today_str}):*\n\n"
-            message += format_special_days_list(special_days)
-        else:
-            message = "No special days observed today."
-        say(message)
+        today_str = format_date_european_short(datetime.now())
+        blocks, fallback = build_special_days_list_blocks(
+            special_days, view_mode="today", date_filter=today_str
+        )
+        say(blocks=blocks, text=fallback)
 
     elif subcommand in ["week", "upcoming"]:
-        # Show upcoming special days for the week
+        # Show upcoming special days for the week using Block Kit
         upcoming = get_upcoming_special_days(7)
-        if upcoming:
-            message = "📅 *Special Days - Next 7 Days:*\n\n"
-            # Sort by actual date objects, not string keys
-            from datetime import timedelta
 
-            today = datetime.now()
-            date_objects = []
-            for i in range(7):
-                check_date = today + timedelta(days=i)
-                date_str = check_date.strftime("%d/%m")
-                if date_str in upcoming:
-                    date_objects.append((check_date, date_str, upcoming[date_str]))
+        # Build dict structure for Block Kit (date_str -> [days])
+        # Sort by actual date objects for proper chronological order
+        today = datetime.now()
+        sorted_upcoming = {}
+        for i in range(7):
+            check_date = today + timedelta(days=i)
+            date_str = check_date.strftime("%d/%m")
+            if date_str in upcoming:
+                sorted_upcoming[date_str] = upcoming[date_str]
 
-            for check_date, date_str, days_list in date_objects:
-                formatted_date = check_date.strftime("%d/%m")
-                message += f"*{formatted_date}:*\n"
-                for day in days_list:
-                    emoji = f"{day.emoji} " if day.emoji else ""
-                    message += f"  • {emoji}{day.name} ({day.category})\n"
-                message += "\n"
-        else:
-            message = "No special days in the next 7 days."
-        say(message)
+        blocks, fallback = build_special_days_list_blocks(
+            sorted_upcoming, view_mode="week"
+        )
+        say(blocks=blocks, text=fallback)
 
     elif subcommand == "month":
-        # Show special days for the current month
+        # Show special days for the next 30 days using Block Kit
         upcoming = get_upcoming_special_days(30)
-        if upcoming:
-            message = "📅 *Special Days - Next 30 Days:*\n\n"
-            # Sort by actual date objects, not string keys
-            today = datetime.now()
-            date_objects = []
-            for i in range(30):
-                check_date = today + timedelta(days=i)
-                date_str = check_date.strftime("%d/%m")
-                if date_str in upcoming:
-                    date_objects.append((check_date, date_str, upcoming[date_str]))
 
-            for check_date, date_str, days_list in date_objects:
-                formatted_date = check_date.strftime("%d/%m")
-                message += f"*{formatted_date}:*\n"
-                for day in days_list:
-                    emoji = f"{day.emoji} " if day.emoji else ""
-                    message += f"  • {emoji}{day.name}\n"
-                message += "\n"
-        else:
-            message = "No special days in the next 30 days."
-        say(message)
+        # Build dict structure for Block Kit (date_str -> [days])
+        # Sort by actual date objects for proper chronological order
+        today = datetime.now()
+        sorted_upcoming = {}
+        for i in range(30):
+            check_date = today + timedelta(days=i)
+            date_str = check_date.strftime("%d/%m")
+            if date_str in upcoming:
+                sorted_upcoming[date_str] = upcoming[date_str]
+
+        blocks, fallback = build_special_days_list_blocks(
+            sorted_upcoming, view_mode="month"
+        )
+        say(blocks=blocks, text=fallback)
 
     elif subcommand == "search":
-        # Search for specific special days
+        # Search for specific special days using Block Kit
         if len(args) < 2:
             say("Please provide a search term. Example: `special search mental health`")
             return
@@ -4394,22 +4457,11 @@ def handle_special_command(args, user_id, say, app):
             if search_term in day.name.lower() or search_term in day.description.lower()
         ]
 
-        if matches:
-            message = f"📅 *Special Days matching '{search_term}':*\n\n"
-            for day in matches:
-                emoji = f"{day.emoji} " if day.emoji else ""
-                status = "✅" if day.enabled else "❌"
-                message += f"{status} {emoji}*{day.date} - {day.name}*\n"
-                message += f"   Category: {day.category}\n"
-                if day.description:
-                    message += f"   _{day.description}_\n"
-                message += "\n"
-        else:
-            message = f"No special days found matching '{search_term}'"
-        say(message)
+        blocks, fallback = build_special_days_list_blocks(matches, view_mode="search")
+        say(blocks=blocks, text=fallback)
 
     elif subcommand == "list":
-        # List all special days by category
+        # List all special days by category using Block Kit
         category_filter = args[1] if len(args) > 1 else None
         all_days = load_special_days()
 
@@ -4418,80 +4470,19 @@ def handle_special_command(args, user_id, say, app):
                 d for d in all_days if d.category.lower() == category_filter.lower()
             ]
 
-        if all_days:
-            message = f"📅 *All Special Days{f' ({category_filter})' if category_filter else ''}:*\n\n"
-
-            # Group by month for better organization
-            months = {}
-            for day in all_days:
-                month_num = int(day.date.split("/")[1])
-                month_name = [
-                    "",
-                    "January",
-                    "February",
-                    "March",
-                    "April",
-                    "May",
-                    "June",
-                    "July",
-                    "August",
-                    "September",
-                    "October",
-                    "November",
-                    "December",
-                ][month_num]
-                if month_name not in months:
-                    months[month_name] = []
-                months[month_name].append(day)
-
-            # Sort months chronologically
-            month_order = [
-                "January",
-                "February",
-                "March",
-                "April",
-                "May",
-                "June",
-                "July",
-                "August",
-                "September",
-                "October",
-                "November",
-                "December",
-            ]
-
-            for month in month_order:
-                if month in months:
-                    message += f"*{month}:*\n"
-                    # Sort days within month by date
-                    months[month].sort(key=lambda d: int(d.date.split("/")[0]))
-                    for day in months[month]:
-                        emoji = f"{day.emoji} " if day.emoji else ""
-                        message += f"  {emoji}{day.date} - {day.name}\n"
-                    message += "\n"
-        else:
-            message = f"No special days found{f' for category {category_filter}' if category_filter else ''}."
-
-        say(message)
+        blocks, fallback = build_special_days_list_blocks(
+            all_days, view_mode="list", category_filter=category_filter
+        )
+        say(blocks=blocks, text=fallback)
 
     elif subcommand == "stats":
-        # Show statistics
+        # Show statistics using Block Kit
         stats = get_special_day_statistics()
-        message = "📊 *Special Days Statistics:*\n\n"
-        message += f"• Total special days: {stats['total_days']}\n"
-        message += f"• Currently enabled: {stats['enabled_days']}\n"
-        message += f"• Feature status: {'✅ Enabled' if stats['feature_enabled'] else '❌ Disabled'}\n"
-        message += f"• Current personality: {stats['current_personality']}\n\n"
-
-        message += "*By Category:*\n"
-        for category, cat_stats in stats["by_category"].items():
-            cat_status = "✅" if cat_stats["category_enabled"] else "❌"
-            message += f"  {cat_status} {category}: {cat_stats['enabled']}/{cat_stats['total']} days\n"
-
-        say(message)
+        blocks, fallback = build_special_day_stats_blocks(stats)
+        say(blocks=blocks, text=fallback)
 
     else:
-        # Help message
+        # Help message (keeping as plain text for now)
         help_text = """*Special Days Commands:*
 
 • `special` or `special today` - Show today's special days
@@ -4783,14 +4774,22 @@ def handle_admin_special_command(args, user_id, say, app):
             say(f"🧪 Testing special day announcement for {test_date_str}...")
 
             # Generate SHORT teaser message (NEW: use_teaser=True by default)
+            # Pass test_date so web search uses the correct date
             message = generate_special_day_message(
-                special_days, test_mode=True, app=app, use_teaser=True
+                special_days,
+                test_mode=True,
+                app=app,
+                use_teaser=True,
+                test_date=test_date,
             )
 
             # Generate DETAILED content for "View Details" button (NEW)
+            # Pass test_date so web search uses the correct date
             from utils.special_day_generator import generate_special_day_details
 
-            detailed_content = generate_special_day_details(special_days, app=app)
+            detailed_content = generate_special_day_details(
+                special_days, app=app, test_date=test_date
+            )
 
             if message:
                 # Build Block Kit blocks exactly like formal announcements

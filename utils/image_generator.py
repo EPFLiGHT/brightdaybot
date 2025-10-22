@@ -60,6 +60,18 @@ def generate_birthday_image(
         name = user_profile.get("preferred_name", "Birthday Person")
         title = user_profile.get("title", "")
 
+        # DEFENSIVE: Ensure name is always a string
+        if not isinstance(name, str):
+            logger.error(
+                f"IMAGE_GEN_BUG: user_profile['preferred_name'] is not a string "
+                f"(type={type(name)}): {name}. user_profile={user_profile}"
+            )
+            # Try to recover
+            if isinstance(name, tuple):
+                name = name[0] if name else "Birthday Person"
+            else:
+                name = str(name) if name else "Birthday Person"
+
         # Try to download and use profile photo as reference
         profile_photo_path = None
         use_reference_mode = False
@@ -112,41 +124,79 @@ def generate_birthday_image(
         # Generate image using either reference-based editing or text-only generation
         if use_reference_mode and profile_photo_path:
             # Use GPT-Image-1's image editing API with reference photo
-            try:
-                with open(profile_photo_path, "rb") as image_file:
-                    response = client.images.edit(
-                        model="gpt-image-1",
-                        image=image_file,
-                        prompt=prompt,
-                        size=final_image_size,
-                        input_fidelity=input_fidelity,
+            # Retry once if safety system rejects the request
+            max_attempts = 2
+            for attempt in range(max_attempts):
+                try:
+                    with open(profile_photo_path, "rb") as image_file:
+                        response = client.images.edit(
+                            model="gpt-image-1",
+                            image=image_file,
+                            prompt=prompt,
+                            size=final_image_size,
+                            input_fidelity=input_fidelity,
+                            quality=image_quality,
+                        )
+
+                    # Log usage for monitoring
+                    log_image_generation_usage(
+                        response,
+                        "IMAGE_EDIT_REFERENCE",
+                        logger,
+                        image_count=1,
                         quality=image_quality,
+                        image_size=final_image_size,
+                        model="gpt-image-1",
                     )
 
-                # Log usage for monitoring
-                log_image_generation_usage(
-                    response,
-                    "IMAGE_EDIT_REFERENCE",
-                    logger,
-                    image_count=1,
-                    quality=image_quality,
-                    image_size=final_image_size,
-                    model="gpt-image-1",
-                )
+                    logger.info(
+                        f"IMAGE_GEN: Successfully used reference photo for {name}"
+                    )
+                    break  # Success - exit retry loop
 
-                logger.info(f"IMAGE_GEN: Successfully used reference photo for {name}")
-            except Exception as e:
-                logger.error(
-                    f"IMAGE_GEN_ERROR: Reference photo generation failed for {name}: {e}"
-                )
-                logger.info(
-                    f"IMAGE_GEN: Falling back to text-only generation for {name}"
-                )
-                # Fall back to text-only generation
-                use_reference_mode = False
-                prompt = create_image_prompt(
-                    name, title, personality, user_profile, birthday_message, False
-                )
+                except Exception as e:
+                    error_str = str(e)
+                    is_safety_rejection = (
+                        "safety system" in error_str.lower()
+                        or "moderation_blocked" in error_str.lower()
+                    )
+
+                    if is_safety_rejection and attempt < max_attempts - 1:
+                        # Safety rejection on first attempt - retry with slightly modified prompt
+                        logger.warning(
+                            f"IMAGE_GEN_RETRY: Safety rejection for {name} (attempt {attempt + 1}/{max_attempts}). "
+                            f"Retrying with modified prompt..."
+                        )
+                        # Simplify prompt slightly to reduce safety concerns
+                        prompt = create_image_prompt(
+                            name,
+                            title,
+                            personality,
+                            user_profile,
+                            birthday_message=None,
+                            use_reference_mode=True,
+                        )
+                        continue  # Retry with modified prompt
+                    else:
+                        # Non-safety error, or final attempt failed
+                        logger.error(
+                            f"IMAGE_GEN_ERROR: Reference photo generation failed for {name} "
+                            f"(attempt {attempt + 1}/{max_attempts}): {e}"
+                        )
+                        logger.info(
+                            f"IMAGE_GEN: Falling back to text-only generation for {name}"
+                        )
+                        # Fall back to text-only generation
+                        use_reference_mode = False
+                        prompt = create_image_prompt(
+                            name,
+                            title,
+                            personality,
+                            user_profile,
+                            birthday_message,
+                            False,
+                        )
+                        break  # Exit retry loop
 
         if not use_reference_mode:
             # Standard text-only generation
