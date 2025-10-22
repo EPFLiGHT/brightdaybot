@@ -8,7 +8,7 @@ This single pipeline handles:
 1. Message + image generation
 2. Pre-posting validation (race condition prevention)
 3. Regeneration/filtering decisions
-4. Message posting with multiple attachments
+4. Message posting with multiple attachments (and Block Kit formatting)
 5. Marking people as celebrated
 6. Comprehensive logging
 
@@ -33,6 +33,8 @@ from utils.slack_utils import (
     send_message_with_multiple_attachments,
 )
 from utils.storage import mark_timezone_birthday_announced, mark_birthday_announced
+from utils.block_builder import build_consolidated_birthday_blocks
+from utils.app_config import get_current_personality_name
 
 logger = get_logger("birthday")
 
@@ -164,13 +166,15 @@ class BirthdayCelebrationPipeline:
                 }
 
             # Step 5: Decide whether to regenerate message or filter images
-            final_message, final_images = self._handle_validation_results(
-                result,
-                validation_result,
-                include_image and AI_IMAGE_GENERATION_ENABLED,
-                test_mode,
-                quality,
-                image_size,
+            final_message, final_images, actual_personality = (
+                self._handle_validation_results(
+                    result,
+                    validation_result,
+                    include_image and AI_IMAGE_GENERATION_ENABLED,
+                    test_mode,
+                    quality,
+                    image_size,
+                )
             )
 
             # Step 6: Post the validated message and images
@@ -181,6 +185,7 @@ class BirthdayCelebrationPipeline:
                 valid_people,
                 invalid_people,
                 validation_summary,
+                actual_personality,  # Pass actual personality used for proper attribution
             )
 
             # Step 7: Mark validated people as celebrated
@@ -233,7 +238,7 @@ class BirthdayCelebrationPipeline:
         Handle validation results - decide whether to regenerate message or filter images.
 
         Returns:
-            tuple: (final_message, final_images)
+            tuple: (final_message, final_images, actual_personality)
         """
         valid_people = validation_result["valid_people"]
         invalid_people = validation_result["invalid_people"]
@@ -244,14 +249,20 @@ class BirthdayCelebrationPipeline:
             log_validation_action_taken(
                 "proceeded", len(valid_people), validation_summary["total"], self.mode
             )
-            if isinstance(result, tuple) and include_images:
+            if isinstance(result, tuple) and len(result) == 3:
+                final_message, final_images, actual_personality = result
+                final_images = final_images or []
+            elif isinstance(result, tuple) and len(result) == 2:
+                # Backward compatibility for old 2-tuple format (should not happen)
                 final_message, final_images = result
                 final_images = final_images or []
+                actual_personality = "standard"  # Fallback
             else:
                 final_message = result
                 final_images = []
+                actual_personality = "standard"  # Fallback
 
-            return final_message, final_images
+            return final_message, final_images, actual_personality
 
         # Some people became invalid - decide action
         if should_regenerate_message(validation_result, regeneration_threshold=0.3):
@@ -273,12 +284,18 @@ class BirthdayCelebrationPipeline:
                 image_size=image_size,
             )
 
-            if isinstance(regenerated_result, tuple) and include_images:
+            if isinstance(regenerated_result, tuple) and len(regenerated_result) == 3:
+                final_message, final_images, actual_personality = regenerated_result
+                final_images = final_images or []
+            elif isinstance(regenerated_result, tuple) and len(regenerated_result) == 2:
+                # Backward compatibility for old 2-tuple format
                 final_message, final_images = regenerated_result
                 final_images = final_images or []
+                actual_personality = "standard"  # Fallback
             else:
                 final_message = regenerated_result
                 final_images = []
+                actual_personality = "standard"  # Fallback
         else:
             # Minor changes (<30% invalid) - use original message but filter images
             logger.info(
@@ -288,16 +305,24 @@ class BirthdayCelebrationPipeline:
                 "filtered", len(valid_people), validation_summary["total"], self.mode
             )
 
-            if isinstance(result, tuple) and include_images:
+            if isinstance(result, tuple) and len(result) == 3:
+                final_message, original_images, actual_personality = result
+                final_images = filter_images_for_valid_people(
+                    original_images, valid_people
+                )
+            elif isinstance(result, tuple) and len(result) == 2:
+                # Backward compatibility for old 2-tuple format
                 final_message, original_images = result
                 final_images = filter_images_for_valid_people(
                     original_images, valid_people
                 )
+                actual_personality = "standard"  # Fallback
             else:
                 final_message = result
                 final_images = []
+                actual_personality = "standard"  # Fallback
 
-        return final_message, final_images
+        return final_message, final_images, actual_personality
 
     def _post_celebration(
         self,
@@ -307,9 +332,13 @@ class BirthdayCelebrationPipeline:
         valid_people,
         invalid_people,
         validation_summary,
+        actual_personality,
     ):
         """
-        Post the celebration message with images to the channel.
+        Post the celebration message with images to the channel using Block Kit formatting.
+
+        Args:
+            actual_personality: The actual personality used (important for "random" personality)
 
         Returns:
             dict: {"message_sent": bool, "images_sent": int}
@@ -320,37 +349,118 @@ class BirthdayCelebrationPipeline:
             else ""
         )
 
+        # NEW FLOW: Upload images first → Get file IDs → Build blocks with embedded images → Send unified message
+
+        # Step 1: Upload images to get file IDs (if images provided)
+        file_ids = []
         if images and include_images:
-            # Send message with multiple attachments in a single post
-            send_results = send_message_with_multiple_attachments(
-                self.app, self.birthday_channel, message, images
+            from utils.slack_utils import upload_birthday_images_for_blocks
+
+            logger.info(
+                f"{self.mode}: Uploading {len(images)} images to get file IDs for Block Kit embedding"
+            )
+            file_ids = upload_birthday_images_for_blocks(
+                self.app,
+                self.birthday_channel,
+                images,
+                context={"message_type": "birthday", "personality": actual_personality},
             )
 
+            if file_ids:
+                logger.info(
+                    f"{self.mode}: Successfully uploaded {len(file_ids)} images, got file IDs: {file_ids}"
+                )
+            else:
+                logger.warning(
+                    f"{self.mode}: Image upload failed or returned no file IDs, proceeding without embedded images"
+                )
+
+        # Step 2: Build Block Kit blocks with embedded images (using file IDs)
+        try:
+            # Use the actual personality that was used for message generation
+            # (important for "random" personality - shows which personality was randomly selected)
+            personality = actual_personality
+
+            # Build birthday data for block builder
+            birthday_people_for_blocks = []
+            for person in valid_people:
+                birthday_people_for_blocks.append(
+                    {
+                        "username": person.get("username", "Unknown"),
+                        "user_id": person.get("user_id"),
+                        "age": person.get("age"),  # May be None
+                        "star_sign": person.get("star_sign", ""),
+                    }
+                )
+
+            # Extract historical fact from message if available (it's embedded in the message)
+            # For now, we'll pass None and let the block builder handle it
+            historical_fact = None  # TODO: Extract from message if needed
+
+            # Build blocks WITH embedded images using file IDs
+            blocks, fallback_text = build_consolidated_birthday_blocks(
+                birthday_people_for_blocks,
+                message,
+                historical_fact,
+                personality,
+                image_file_ids=(
+                    file_ids if file_ids else None
+                ),  # Pass file IDs for embedding
+            )
+
+            logger.info(
+                f"{self.mode}: Built Block Kit structure with {len(blocks)} blocks"
+                + (f" (with {len(file_ids)} embedded images)" if file_ids else "")
+            )
+        except Exception as block_error:
+            logger.warning(
+                f"{self.mode}: Failed to build Block Kit blocks: {block_error}. Using plain text."
+            )
+            blocks = None
+            fallback_text = message
+
+        # Step 3: Send unified Block Kit message (images already embedded in blocks)
+        if images and include_images:
+            # Images are now embedded in blocks - just send the Block Kit message
+            from utils.slack_utils import send_message
+
+            success = send_message(
+                self.app,
+                self.birthday_channel,
+                fallback_text,
+                blocks=blocks,
+                context={"message_type": "birthday", "personality": actual_personality},
+            )
+
+            send_results = {
+                "success": success,
+                "message_sent": success,
+                "attachments_sent": len(file_ids) if success and file_ids else 0,
+            }
+
             if send_results["success"]:
-                fallback_note = (
-                    " (using fallback method)"
-                    if send_results.get("fallback_used")
+                images_note = (
+                    f" with {send_results['attachments_sent']} embedded images"
+                    if send_results["attachments_sent"] > 0
                     else ""
                 )
                 logger.info(
-                    f"{self.mode}: Successfully sent consolidated birthday post with "
-                    f"{send_results['attachments_sent']} images{fallback_note}{validation_note}"
+                    f"{self.mode}: Successfully sent unified Block Kit birthday message{images_note}{validation_note}"
                 )
                 return {
                     "message_sent": True,
                     "images_sent": send_results["attachments_sent"],
                 }
             else:
-                logger.warning(
-                    f"{self.mode}: Failed to send birthday images - "
-                    f"{send_results['attachments_failed']}/{send_results['total_attachments']} attachments failed"
-                )
+                logger.warning(f"{self.mode}: Failed to send unified birthday message")
                 return {"message_sent": False, "images_sent": 0}
         else:
-            # No images or images disabled - send message only
-            success = send_message(self.app, self.birthday_channel, message)
+            # No images or images disabled - send message only with blocks
+            success = send_message(
+                self.app, self.birthday_channel, fallback_text, blocks
+            )
             logger.info(
-                f"{self.mode}: Successfully sent consolidated birthday message{validation_note}"
+                f"{self.mode}: Successfully sent consolidated birthday message with Block Kit formatting{validation_note}"
             )
             return {"message_sent": success, "images_sent": 0}
 

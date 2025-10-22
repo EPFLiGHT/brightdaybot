@@ -40,6 +40,7 @@ def generate_special_day_message(
     include_facts: bool = True,
     test_mode: bool = False,
     app=None,
+    use_teaser: bool = True,
 ) -> Optional[str]:
     """
     Generate an AI message for special day(s).
@@ -50,6 +51,7 @@ def generate_special_day_message(
         include_facts: Whether to include web search facts
         test_mode: Whether this is a test (affects token limits)
         app: Optional Slack app instance for custom emoji support
+        use_teaser: If True, generate SHORT teaser (3-4 lines). If False, use full format (backward compat)
 
     Returns:
         Generated message string or None if generation fails
@@ -104,34 +106,47 @@ def generate_special_day_message(
                 else:
                     source_info = day.source
 
-            prompt = personality_config.get("special_day_single", "")
+            # Choose prompt based on use_teaser flag
+            if use_teaser:
+                prompt_key = "special_day_teaser"
+                # For teasers, we don't need date/facts complexity
+            else:
+                prompt_key = "special_day_single"
+
+            prompt = personality_config.get(
+                prompt_key, personality_config.get("special_day_single", "")
+            )
 
             # Fill in template variables including source
             prompt = prompt.format(
                 day_name=day.name,
                 category=day.category,
-                description=day.description,
+                description=(
+                    day.description[:150] if use_teaser else day.description
+                ),  # Truncate for teaser
                 emoji=day.emoji or "",
                 source=source_info if source_info else "UN/WHO observance",
             )
 
-            # Add category-specific emphasis
-            category_emphasis = personality_config.get("special_day_category", {}).get(
-                day.category, ""
-            )
-            if category_emphasis:
-                prompt += f"\n\n{category_emphasis}"
+            if not use_teaser:
+                # Add category-specific emphasis only for full messages
+                category_emphasis = personality_config.get(
+                    "special_day_category", {}
+                ).get(day.category, "")
+                if category_emphasis:
+                    prompt += f"\n\n{category_emphasis}"
 
-            # Add date requirement
-            prompt += f"\n\nTODAY'S DATE: {today_formatted} ({day_of_week})"
-            prompt += f"\n\nDATE REQUIREMENT: Organically mention today's date somewhere in your announcement. Examples:"
-            prompt += f"\n- 'On {today_formatted}, we observe...'"
-            prompt += f"\n- 'This {day_of_week}, {today_formatted}, marks...'"
-            prompt += f"\n- '{today_formatted} brings us...'"
-            prompt += f"\nIntegrate naturally - keep it coherent and not forced."
+                # Add date requirement for full messages
+                prompt += f"\n\nTODAY'S DATE: {today_formatted} ({day_of_week})"
+                prompt += f"\n\nDATE REQUIREMENT: Organically mention today's date somewhere in your announcement. Examples:"
+                prompt += f"\n- 'On {today_formatted}, we observe...'"
+                prompt += f"\n- 'This {day_of_week}, {today_formatted}, marks...'"
+                prompt += f"\n- '{today_formatted} brings us...'"
+                prompt += f"\nIntegrate naturally - keep it coherent and not forced."
 
-            # Add emoji instructions for single day
-            prompt += f"\n\nEMOJI USAGE: Include 3-5 relevant emojis throughout your message for visual appeal. Available emojis: {emoji_examples}"
+            # Add emoji instructions
+            emoji_count = "2-3" if use_teaser else "3-5"
+            prompt += f"\n\nEMOJI USAGE: Include {emoji_count} relevant emojis throughout your message for visual appeal. Available emojis: {emoji_examples}"
 
         else:
             # Multiple special days
@@ -139,18 +154,24 @@ def generate_special_day_message(
                 [f"{d.emoji} {d.name}" if d.emoji else d.name for d in special_days]
             )
 
-            # Prepare source information for all days with Slack link format
+            # Choose prompt based on use_teaser flag
+            if use_teaser:
+                prompt_key = "special_day_multiple_teaser"
+            else:
+                prompt_key = "special_day_multiple"
+
+            # Prepare source information for all days with Slack link format (only for full messages)
             sources_info = []
-            for day in special_days:
-                if hasattr(day, "source") and day.source:
-                    if hasattr(day, "url") and day.url:
-                        # Use Slack's <URL|text> format for clean inline links
-                        source_line = f"{day.name}: <{day.url}|{day.source}>"
+            if not use_teaser:
+                for day in special_days:
+                    if hasattr(day, "source") and day.source:
+                        if hasattr(day, "url") and day.url:
+                            source_line = f"{day.name}: <{day.url}|{day.source}>"
+                        else:
+                            source_line = f"{day.name}: {day.source}"
+                        sources_info.append(source_line)
                     else:
-                        source_line = f"{day.name}: {day.source}"
-                    sources_info.append(source_line)
-                else:
-                    sources_info.append(f"{day.name}: UN/WHO observance")
+                        sources_info.append(f"{day.name}: UN/WHO observance")
 
             sources_text = (
                 "\n".join(sources_info)
@@ -158,19 +179,27 @@ def generate_special_day_message(
                 else "Various UN/WHO observances"
             )
 
-            prompt = personality_config.get("special_day_multiple", "").format(
-                days_list=days_list, sources=sources_text
+            prompt = personality_config.get(
+                prompt_key, personality_config.get("special_day_multiple", "")
             )
 
-            # Add date requirement for multiple days
-            prompt += f"\n\nTODAY'S DATE: {today_formatted} ({day_of_week})"
-            prompt += f"\n\nDATE REQUIREMENT: Organically reference today's date when introducing the observances. Keep it natural."
+            # Format with appropriate parameters
+            if use_teaser:
+                prompt = prompt.format(days_list=days_list, count=len(special_days))
+            else:
+                prompt = prompt.format(days_list=days_list, sources=sources_text)
 
-            # Add emoji instructions for multiple days
-            prompt += f"\n\nEMOJI USAGE: Include 4-6 emojis throughout your message (at least one per observance) for visual appeal. Available emojis: {emoji_examples}"
+            if not use_teaser:
+                # Add date requirement for multiple days (full messages only)
+                prompt += f"\n\nTODAY'S DATE: {today_formatted} ({day_of_week})"
+                prompt += f"\n\nDATE REQUIREMENT: Organically reference today's date when introducing the observances. Keep it natural."
 
-        # Add facts if available
-        if facts_text:
+            # Add emoji instructions
+            emoji_count = "3-4" if use_teaser else "4-6"
+            prompt += f"\n\nEMOJI USAGE: Include {emoji_count} emojis throughout your message{' (at least one per observance)' if not use_teaser else ''} for visual appeal. Available emojis: {emoji_examples}"
+
+        # Add facts if available (only for full messages)
+        if facts_text and not use_teaser:
             prompt += f"\n\nHistorical context for today: {facts_text}"
 
         # Add channel mention
@@ -178,10 +207,13 @@ def generate_special_day_message(
 
         # Generate the message
         model = get_configured_openai_model()
-        max_tokens = TOKEN_LIMITS.get("single_birthday", 500)
+        # Use lower token limit for teasers (shorter messages)
+        max_tokens = 200 if use_teaser else TOKEN_LIMITS.get("single_birthday", 500)
         temperature = TEMPERATURE_SETTINGS.get("default", 0.7)
 
-        logger.info(f"Generating special day message with {personality} personality")
+        logger.info(
+            f"Generating special day {'teaser' if use_teaser else 'message'} with {personality} personality"
+        )
         logger.debug(f"Prompt preview: {prompt[:200]}...")
 
         response = client.chat.completions.create(
@@ -243,6 +275,144 @@ def generate_fallback_special_day_message(
         message += f"- {personality_config.get('name', 'The Chronicler')}"
 
     return message
+
+
+def generate_special_day_details(
+    special_days: List,
+    personality_name: Optional[str] = None,
+    app=None,
+) -> Optional[str]:
+    """
+    Generate DETAILED content for special day(s) - used for "View Details" button.
+
+    Args:
+        special_days: List of SpecialDay objects
+        personality_name: Optional personality override (defaults to SPECIAL_DAYS_PERSONALITY)
+        app: Optional Slack app instance for custom emoji support
+
+    Returns:
+        Detailed message string or None if generation fails
+    """
+    if not special_days:
+        logger.warning("No special days provided for details generation")
+        return None
+
+    # Get personality configuration
+    personality = personality_name or SPECIAL_DAYS_PERSONALITY
+    personality_config = get_personality_config(personality)
+
+    # Check if personality has special day prompts
+    if "special_day_details" not in personality_config and personality != "chronicler":
+        logger.info(
+            f"Personality {personality} doesn't have special day detail prompts, using Chronicler"
+        )
+        personality = "chronicler"
+        personality_config = get_personality_config(personality)
+
+    # Get emoji context for AI message generation
+    from utils.emoji_utils import get_emoji_context_for_ai
+
+    emoji_ctx = get_emoji_context_for_ai(app)
+    emoji_examples = emoji_ctx["emoji_examples"]
+
+    try:
+        # For single special day
+        if len(special_days) == 1:
+            day = special_days[0]
+
+            # Prepare source information with Slack link format
+            source_info = ""
+            if hasattr(day, "source") and day.source:
+                if hasattr(day, "url") and day.url:
+                    source_info = f"<{day.url}|{day.source}>"
+                else:
+                    source_info = day.source
+
+            prompt = personality_config.get("special_day_details", "")
+
+            # Fill in template variables
+            prompt = prompt.format(
+                day_name=day.name,
+                category=day.category,
+                description=day.description,
+                emoji=day.emoji or "",
+                source=source_info if source_info else "UN/WHO observance",
+            )
+
+            # Add emoji instructions
+            prompt += f"\n\nEMOJI USAGE: Include 4-6 relevant emojis throughout for visual appeal. Available emojis: {emoji_examples}"
+
+        else:
+            # Multiple special days - provide condensed details for each
+            message = "📖 *Today's Special Observances - Details*\n\n"
+            for i, day in enumerate(special_days, 1):
+                emoji = f"{day.emoji} " if day.emoji else ""
+                message += f"{emoji}*{i}. {day.name}*\n"
+                message += f"_{day.category}_\n\n"
+                message += f"{day.description}\n\n"
+                if hasattr(day, "source") and day.source:
+                    if hasattr(day, "url") and day.url:
+                        message += f"Source: <{day.url}|{day.source}>\n\n"
+                    else:
+                        message += f"Source: {day.source}\n\n"
+                message += "---\n\n"
+
+            logger.info(
+                f"Generated static details for {len(special_days)} special days"
+            )
+            return message.strip()
+
+        # Generate the detailed message
+        model = get_configured_openai_model()
+        max_tokens = 600  # More tokens for detailed content
+        temperature = TEMPERATURE_SETTINGS.get("default", 0.7)
+
+        logger.info(f"Generating special day details with {personality} personality")
+
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": f"You are {personality_config['name']}, {personality_config['description']} for the {TEAM_NAME} workspace.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+
+        details = response.choices[0].message.content.strip()
+
+        # Log usage
+        log_chat_completion_usage(response, "SPECIAL_DAY_DETAILS", logger)
+
+        logger.info(
+            f"Successfully generated special day details ({response.usage.total_tokens} tokens)"
+        )
+
+        # Truncate if too long for Slack button value (3000 char limit)
+        if len(details) > 2900:
+            logger.warning(
+                f"Details too long ({len(details)} chars), truncating to 2900"
+            )
+            details = (
+                details[:2900] + "...\n\nSee official source for complete information."
+            )
+
+        return details
+
+    except Exception as e:
+        logger.error(f"Error generating special day details: {e}")
+        # Fallback to simple description
+        if len(special_days) == 1:
+            day = special_days[0]
+            return f"📖 *{day.name} - Details*\n\n{day.description}"
+        else:
+            message = "📖 *Today's Special Observances*\n\n"
+            for day in special_days:
+                message += f"• *{day.name}*: {day.description}\n\n"
+            return message.strip()
 
 
 def generate_special_day_image(

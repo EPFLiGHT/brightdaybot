@@ -484,8 +484,12 @@ def handle_dm_admin_help(say, user_id, app):
 • `admin restore latest` - Restore from the latest backup
 • `admin cache clear` - Clear all web search cache
 • `admin cache clear DD/MM` - Clear web search cache for a specific date
+
+*Testing Commands:*
+• `admin test-block [type]` - Test Block Kit rendering (birthday/multi/special/bot)
 • `admin test-upload` - Test the image upload functionality
 • `admin test-upload-multi` - Test multiple image attachment functionality (new consolidated system)
+• `admin test-blockkit [mode]` - Test Block Kit image embedding (modes: with-channel, private, url-only, simple, all)
 • `admin test-file-upload` - Test text file upload functionality (like backup files)
 • `admin test-external-backup` - Test the external backup system with detailed diagnostics
 
@@ -637,9 +641,6 @@ def handle_command(text, user_id, say, app):
     username = get_username(app, user_id)
 
     logger.info(f"COMMAND: {username} ({user_id}) used DM command: {text}")
-
-    # Debug logging for say function
-    logger.debug(f"COMMAND_DEBUG: say function type: {type(say)}, user_id: {user_id}")
 
     if command == "help":
         handle_dm_help(say)
@@ -1497,50 +1498,111 @@ def handle_test_command(
             image_size=image_size,  # Allow image size override
         )
 
-        if isinstance(result, tuple) and include_image:
-            test_message, image_data = result
-            if image_data:
-                # Send the message with image in one go (no duplicate message)
+        if isinstance(result, tuple) and len(result) == 3:
+            test_message, image_data, actual_personality = result
+            if image_data and include_image:
+                # NEW FLOW: Upload image → Get file ID → Build blocks with embedded image → Send unified message
                 try:
-                    # Send the test message with the generated image
-                    if send_message_with_image(
+                    # Step 1: Upload image to get file ID
+                    from utils.slack_utils import upload_birthday_images_for_blocks
+
+                    logger.info(
+                        f"TEST: Uploading test image to get file ID for Block Kit embedding"
+                    )
+                    file_ids = upload_birthday_images_for_blocks(
                         app,
                         user_id,
-                        (
+                        [image_data],
+                        context={"message_type": "test", "command_name": "test"},
+                    )
+
+                    # Extract file_id and title from tuple (new format)
+                    file_id_tuple = file_ids[0] if file_ids else None
+                    if file_id_tuple:
+                        if isinstance(file_id_tuple, tuple):
+                            file_id, image_title = file_id_tuple
+                            logger.info(
+                                f"TEST: Successfully uploaded image, got file ID: {file_id}, title: {image_title}"
+                            )
+                        else:
+                            # Backward compatibility: handle old string format
+                            file_id = file_id_tuple
+                            image_title = None
+                            logger.info(
+                                f"TEST: Successfully uploaded image, got file ID: {file_id} (no title)"
+                            )
+                    else:
+                        file_id = None
+                        image_title = None
+                        logger.warning(
+                            f"TEST: Image upload failed, proceeding without embedded image"
+                        )
+
+                    # Step 2: Build Block Kit blocks with embedded image (using file ID tuple)
+                    try:
+                        from utils.block_builder import build_test_blocks
+
+                        # Use actual personality from result for proper attribution
+                        personality = actual_personality
+
+                        blocks, fallback_text = build_test_blocks(
+                            username,
+                            target_user_id,
+                            test_message,
+                            personality,
+                            image_file_id=file_id_tuple,  # Pass tuple (file_id, title) for embedding
+                        )
+
+                        # Wrap with explanation
+                        if is_admin_test:
+                            wrapped_text = f"Here's what {username}'s birthday message would look like:\n\n{fallback_text}"
+                        else:
+                            wrapped_text = f"Here's what your birthday message would look like:\n\n{fallback_text}"
+
+                        image_note = (
+                            f" (with embedded image: {image_title})" if file_id else ""
+                        )
+                        logger.info(
+                            f"TEST: Built Block Kit structure with {len(blocks)} blocks{image_note}"
+                        )
+                    except Exception as block_error:
+                        logger.warning(
+                            f"TEST: Failed to build Block Kit blocks: {block_error}. Using plain text."
+                        )
+                        blocks = None
+                        wrapped_text = (
                             f"Here's what {username}'s birthday message would look like:\n\n{test_message}"
                             if is_admin_test
                             else f"Here's what your birthday message would look like:\n\n{test_message}"
-                        ),
-                        image_data,
+                        )
+
+                    # Step 3: Send unified Block Kit message (image already embedded)
+                    success = send_message(
+                        app,
+                        user_id,
+                        wrapped_text,
+                        blocks=blocks,
                         context={"message_type": "test", "command_name": "test"},
-                    ):
+                    )
+
+                    if success:
                         logger.info(
-                            f"TEST: Successfully sent test message with image to {username} ({target_user_id})"
+                            f"TEST: Successfully sent unified test message with embedded image to {username} ({target_user_id})"
                         )
                     else:
-                        # Fallback to text-only if image upload fails
-                        full_message = (
-                            f"Here's what {username}'s birthday message would look like:\n\n{test_message}"
-                            if is_admin_test
-                            else f"Here's what your birthday message would look like:\n\n{test_message}"
-                        )
-                        full_message += "\n\nNote: Image was generated but couldn't be sent. Check the logs for details."
-                        send_message(
-                            app,
-                            user_id,
-                            full_message,
-                            context={"message_type": "test", "command_name": "test"},
-                        )
+                        logger.warning(f"TEST: Failed to send test message")
+
                 except Exception as e:
-                    logger.error(
-                        f"IMAGE_ERROR: Failed to send test image to user {target_user_id}: {e}"
-                    )
+                    logger.error(f"TEST_ERROR: Failed to process test with image: {e}")
+                    # Fallback to text-only message
                     full_message = (
                         f"Here's what {username}'s birthday message would look like:\n\n{test_message}"
                         if is_admin_test
                         else f"Here's what your birthday message would look like:\n\n{test_message}"
                     )
-                    full_message += "\n\nNote: Image was generated but couldn't be sent. Check the logs for details."
+                    full_message += (
+                        "\n\nNote: Image upload failed. Check the logs for details."
+                    )
                     send_message(
                         app,
                         user_id,
@@ -1548,29 +1610,70 @@ def handle_test_command(
                         context={"message_type": "test", "command_name": "test"},
                     )
             else:
+                # Image generation was attempted but failed (no image_data returned)
                 full_message = (
                     f"Here's what {username}'s birthday message would look like:\n\n{test_message}"
                     if is_admin_test
                     else f"Here's what your birthday message would look like:\n\n{test_message}"
                 )
                 full_message += "\n\nNote: Image generation was attempted but failed. Check the logs for details."
+
+                # Try to build blocks for text-only display
+                try:
+                    from utils.block_builder import build_test_blocks
+
+                    blocks, _ = build_test_blocks(
+                        username, target_user_id, test_message, actual_personality
+                    )
+                except Exception:
+                    blocks = None
+
                 send_message(
                     app,
                     user_id,
                     full_message,
+                    blocks=blocks,
                     context={"message_type": "test", "command_name": "test"},
                 )
         else:
-            test_message = result
+            # Handle both 3-tuple (new format) and string (fallback)
+            if isinstance(result, tuple) and len(result) == 3:
+                test_message, _, actual_personality = result
+            elif isinstance(result, tuple) and len(result) == 2:
+                # Backward compatibility for old 2-tuple format
+                test_message, _ = result
+                actual_personality = "standard"  # Fallback
+            else:
+                test_message = result
+                actual_personality = "standard"  # Fallback
+
             full_message = (
                 f"Here's what {username}'s birthday message would look like:\n\n{test_message}"
                 if is_admin_test
                 else f"Here's what your birthday message would look like:\n\n{test_message}"
             )
+
+            # Build Block Kit blocks for text-only mode too
+            try:
+                from utils.block_builder import build_test_blocks
+
+                # Use actual personality from result for proper attribution
+                personality = actual_personality
+                blocks, fallback_text = build_test_blocks(
+                    username, target_user_id, test_message, personality
+                )
+                logger.info("TEST: Built Block Kit blocks for text-only mode")
+            except Exception as block_error:
+                logger.warning(
+                    f"TEST: Failed to build blocks for text-only: {block_error}"
+                )
+                blocks = None
+
             send_message(
                 app,
                 user_id,
                 full_message,
+                blocks=blocks,
                 context={"message_type": "test", "command_name": "test"},
             )
         logger.info(
@@ -1680,6 +1783,191 @@ def handle_announce_command(args, user_id, say, app):
     logger.info(
         f"ADMIN: {username} ({user_id}) requested announcement confirmation for {args[0].lower()} type"
     )
+
+
+def handle_test_block_command(user_id, args, say, app):
+    """
+    Handles the admin test-block command to test Block Kit rendering.
+
+    Usage:
+        admin test-block birthday [@user]     - Test birthday block
+        admin test-block multi @user1 @user2  - Test multiple birthdays block
+        admin test-block special              - Test special day block
+        admin test-block bot                  - Test bot celebration block
+    """
+    from utils.block_builder import (
+        build_birthday_blocks,
+        build_consolidated_birthday_blocks,
+        build_special_day_blocks,
+        build_bot_celebration_blocks,
+    )
+    from utils.slack_utils import send_message, get_username, get_user_profile
+    from utils.app_config import get_current_personality_name
+    from datetime import datetime
+
+    username = get_username(app, user_id)
+
+    if not args:
+        say(
+            "📦 *Block Kit Testing Commands*\n\n"
+            "Usage:\n"
+            "• `admin test-block birthday [@user]` - Test single birthday block\n"
+            "• `admin test-block multi @user1 @user2 [...]` - Test multiple birthdays block\n"
+            "• `admin test-block special` - Test special day block with buttons\n"
+            "• `admin test-block bot` - Test bot celebration block\n\n"
+            "These commands test Block Kit rendering without generating AI content."
+        )
+        return
+
+    block_type = args[0].lower()
+
+    try:
+        personality = get_current_personality_name()
+
+        if block_type == "birthday":
+            # Test single birthday block
+            target_user_id = None
+            if len(args) > 1 and args[1].startswith("<@"):
+                # Extract user ID from mention
+                target_user_id = args[1].strip("<@>").split("|")[0]
+            else:
+                target_user_id = user_id
+
+            target_username = get_username(app, target_user_id)
+            user_profile = get_user_profile(app, target_user_id)
+
+            # Build test birthday block
+            test_message = f"🎉 Happy birthday {target_username}! This is a test Block Kit message to demonstrate the visual layout without AI generation. The actual message would be personalized and creative!"
+
+            blocks, fallback_text = build_birthday_blocks(
+                username=target_username,
+                user_id=target_user_id,
+                age=28,  # Dummy age
+                star_sign="♒ Aquarius",
+                message=test_message,
+                historical_fact="On this day in 1955, Steve Jobs was born, co-founder of Apple Inc.",
+                personality=personality,
+            )
+
+            send_message(app, user_id, fallback_text, blocks=blocks)
+            say(
+                f"✅ *Birthday Block Test Sent!*\n"
+                f"• User: {target_username}\n"
+                f"• Blocks: {len(blocks)}\n"
+                f"• Personality: {personality}\n"
+                f"Check the message above to see the Block Kit layout!"
+            )
+            logger.info(
+                f"TEST_BLOCK: {username} tested birthday block for {target_username}"
+            )
+
+        elif block_type == "multi":
+            # Test multiple birthdays block
+            user_mentions = [arg for arg in args[1:] if arg.startswith("<@")]
+
+            if len(user_mentions) < 2:
+                say(
+                    "❌ Please mention at least 2 users for multiple birthday testing.\nExample: `admin test-block multi @alice @bob`"
+                )
+                return
+
+            # Extract user IDs and build birthday people data
+            birthday_people = []
+            for mention in user_mentions[:5]:  # Limit to 5 for testing
+                test_user_id = mention.strip("<@>").split("|")[0]
+                test_username = get_username(app, test_user_id)
+                birthday_people.append(
+                    {
+                        "username": test_username,
+                        "user_id": test_user_id,
+                        "age": 25 + len(birthday_people),  # Dummy ages
+                        "star_sign": "♒ Aquarius",
+                    }
+                )
+
+            # Build test consolidated block
+            mentions = ", ".join([f"<@{p['user_id']}>" for p in birthday_people])
+            test_message = f"🎉 Let's celebrate {mentions}! This is a test Block Kit message showing how multiple birthdays appear with proper structure and dividers."
+
+            blocks, fallback_text = build_consolidated_birthday_blocks(
+                birthday_people=birthday_people,
+                message=test_message,
+                historical_fact="On this day in history, multiple amazing people were born, proving that great minds think alike!",
+                personality=personality,
+            )
+
+            send_message(app, user_id, fallback_text, blocks=blocks)
+            say(
+                f"✅ *Multiple Birthday Block Test Sent!*\n"
+                f"• Users: {len(birthday_people)}\n"
+                f"• Blocks: {len(blocks)}\n"
+                f"• Personality: {personality}\n"
+                f"Check the message above to see the consolidated layout!"
+            )
+            logger.info(
+                f"TEST_BLOCK: {username} tested multi-birthday block with {len(birthday_people)} users"
+            )
+
+        elif block_type == "special":
+            # Test special day block with interactive buttons
+            test_message = "🌍 Today we celebrate World Block Kit Day! This special observance demonstrates the power of structured, interactive messaging in modern workplace communication. Click the buttons below to explore more!"
+
+            blocks, fallback_text = build_special_day_blocks(
+                observance_name="World Block Kit Day",
+                message=test_message,
+                observance_date="21/01",
+                source="Slack Technologies",
+                personality="chronicler",
+                description="World Block Kit Day celebrates the revolutionary UI framework that enables developers to create rich, interactive messages in Slack. Introduced in 2019, Block Kit transformed how apps communicate, making messages more visual, structured, and engaging. This test demonstrates interactive buttons, structured layouts, and proper information hierarchy.",
+                category="Technology",
+                url="https://api.slack.com/block-kit",
+            )
+
+            send_message(app, user_id, fallback_text, blocks=blocks)
+            say(
+                f"✅ *Special Day Block Test Sent!*\n"
+                f"• Blocks: {len(blocks)}\n"
+                f"• Interactive buttons: ✅ (Click '📖 View Details' to test ephemeral message!)\n"
+                f"• Official URL button: ✅\n"
+                f"Check the message above and test the interactive elements!"
+            )
+            logger.info(f"TEST_BLOCK: {username} tested special day block with buttons")
+
+        elif block_type == "bot":
+            # Test bot celebration block
+            current_year = datetime.now().year
+            from config import BOT_BIRTH_YEAR
+
+            bot_age = current_year - BOT_BIRTH_YEAR
+
+            test_message = "🌟 COSMIC BIRTHDAY ALIGNMENT DETECTED! 🌟\n\nGreetings, mortals! Today marks the digital manifestation of Ludo | LiGHT BrightDay Coordinator. This is a test of the mystical celebration blocks that Ludo uses to announce the bot's birthday. All 9 Sacred Forms unite in cosmic harmony!"
+
+            blocks, fallback_text = build_bot_celebration_blocks(
+                message=test_message, bot_age=bot_age, personality="mystic_dog"
+            )
+
+            send_message(app, user_id, fallback_text, blocks=blocks)
+            say(
+                f"✅ *Bot Celebration Block Test Sent!*\n"
+                f"• Bot Age: {bot_age} years\n"
+                f"• Blocks: {len(blocks)}\n"
+                f"• Personality: Ludo the Mystic Dog\n"
+                f"Check the message above to see the mystical layout!"
+            )
+            logger.info(f"TEST_BLOCK: {username} tested bot celebration block")
+
+        else:
+            say(
+                f"❌ Unknown block type: `{block_type}`\n\n"
+                f"Valid options: `birthday`, `multi`, `special`, `bot`\n"
+                f"Type `admin test-block` for usage examples."
+            )
+
+    except Exception as e:
+        logger.error(f"TEST_BLOCK: Failed to execute test-block command: {e}")
+        say(
+            f"❌ An error occurred during block testing: {e}\n\nCheck logs for details."
+        )
 
 
 def handle_test_upload_command(user_id, say, app):
@@ -1862,7 +2150,7 @@ def handle_test_file_upload_command(user_id, say, app):
         # Create a temporary test file with sample birthday data
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        test_content = f"""# BrightDayBot Test File Upload
+        test_content = f"""# Ludo | LiGHT BrightDay Coordinator Test File Upload
 # Generated: {timestamp}
 # Command: admin test-file-upload
 # Requested by: {username} ({user_id})
@@ -2039,6 +2327,384 @@ def handle_test_external_backup_command(user_id, say, app):
         logger.error(
             f"TEST_EXTERNAL_BACKUP: Test failed for {username} ({user_id}): {e}"
         )
+
+
+def handle_test_blockkit_command(user_id, args, say, app):
+    """
+    Handles the admin test-blockkit [mode] command to test Block Kit image embedding.
+
+    Test modes:
+    - with-channel: Upload with channel parameter (current failing approach)
+    - private: Upload without channel parameter
+    - url-only: Use image_url instead of slack_file
+    - simple: Simplest possible block structure
+    - all: Run all modes sequentially
+    """
+    from utils.slack_utils import get_username
+    from PIL import Image, ImageDraw
+    import io
+
+    username = get_username(app, user_id)
+
+    # Parse mode argument
+    mode = "all"  # Default to testing all modes
+    if args and len(args) > 0:
+        mode = args[0].lower()
+
+    valid_modes = ["with-channel", "private", "url-only", "simple", "all"]
+    if mode not in valid_modes:
+        say(f"❌ Invalid test mode: `{mode}`\n\nValid modes: {', '.join(valid_modes)}")
+        return
+
+    say(
+        f"🧪 *Testing Block Kit Image Embedding*\nMode: `{mode}`\n\nCreating test image and uploading..."
+    )
+    logger.info(
+        f"TEST_BLOCKKIT: {username} ({user_id}) testing Block Kit embedding with mode: {mode}"
+    )
+
+    # Create a simple test image using PIL
+    try:
+        img = Image.new("RGB", (400, 200), color="blue")
+        d = ImageDraw.Draw(img)
+        d.text((10, 10), "Block Kit Test Image", fill="white")
+        d.text((10, 50), f"Mode: {mode}", fill="white")
+        d.text((10, 90), f"User: {username}", fill="white")
+
+        buffer = io.BytesIO()
+        img.save(buffer, format="PNG")
+        image_bytes = buffer.getvalue()
+
+    except Exception as e:
+        logger.error(f"TEST_BLOCKKIT: Failed to create test image: {e}")
+        say(f"❌ Failed to create test image: {e}")
+        return
+
+    # Determine which modes to test
+    modes_to_test = (
+        [mode] if mode != "all" else ["with-channel", "private", "url-only", "simple"]
+    )
+
+    # Test each mode
+    for test_mode in modes_to_test:
+        say(f"\n📋 *Testing Mode: `{test_mode}`*")
+        logger.info(f"TEST_BLOCKKIT: Testing mode: {test_mode}")
+
+        try:
+            if test_mode == "with-channel":
+                _test_blockkit_with_channel(app, user_id, username, image_bytes, say)
+            elif test_mode == "private":
+                _test_blockkit_private(app, user_id, username, image_bytes, say)
+            elif test_mode == "url-only":
+                _test_blockkit_url_only(app, user_id, username, image_bytes, say)
+            elif test_mode == "simple":
+                _test_blockkit_simple(app, user_id, username, image_bytes, say)
+        except Exception as e:
+            logger.error(
+                f"TEST_BLOCKKIT: Mode {test_mode} failed with exception: {e}",
+                exc_info=True,
+            )
+            say(f"❌ Mode `{test_mode}` failed with exception: {e}")
+
+    say("\n✅ *Block Kit testing complete!* Check logs for detailed results.")
+
+
+def _test_blockkit_with_channel(app, user_id, username, image_bytes, say):
+    """Test Mode 1: Upload with channel parameter (current failing approach)"""
+    import time
+
+    say("Uploading image WITH channel parameter...")
+    logger.info("TEST_BLOCKKIT_WITH_CHANNEL: Uploading image with channel parameter")
+
+    # Upload with channel parameter
+    file_uploads = [
+        {
+            "file": image_bytes,
+            "filename": f"blockkit_test_with_channel_{int(time.time())}.png",
+            "title": "Block Kit Test (With Channel)",
+        }
+    ]
+
+    upload_response = app.client.files_upload_v2(
+        channel=user_id, file_uploads=file_uploads
+    )
+
+    if not upload_response["ok"]:
+        say(f"❌ Upload failed: {upload_response.get('error', 'Unknown error')}")
+        logger.error(f"TEST_BLOCKKIT_WITH_CHANNEL: Upload failed: {upload_response}")
+        return
+
+    # Extract file info
+    uploaded_file = upload_response.get("files", [{}])[0]
+    file_id = uploaded_file.get("id")
+    file_url = uploaded_file.get("url_private")
+
+    logger.info(
+        f"TEST_BLOCKKIT_WITH_CHANNEL: Upload successful - ID: {file_id}, URL: {file_url}"
+    )
+    say(f"✅ Upload successful\nFile ID: `{file_id}`\nURL: `{file_url}`")
+
+    # Build Block Kit message with slack_file using URL
+    blocks = [
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": "🧪 Block Kit Test: With Channel"},
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"Testing image embedding using `slack_file` with URL.\n\nUser: <@{user_id}>",
+            },
+        },
+        {
+            "type": "image",
+            "slack_file": {"url": file_url},
+            "alt_text": f"Block Kit test image for {username}",
+            "title": {
+                "type": "plain_text",
+                "text": "🧪 Test Image (With Channel Mode)",
+            },
+        },
+    ]
+
+    logger.info(f"TEST_BLOCKKIT_WITH_CHANNEL: Sending message with blocks: {blocks}")
+    say("Sending Block Kit message with embedded image...")
+
+    # Send message with blocks
+    try:
+        result = app.client.chat_postMessage(
+            channel=user_id, text="Block Kit Test: With Channel", blocks=blocks
+        )
+
+        if result["ok"]:
+            say(f"✅ Block Kit message sent successfully!")
+            logger.info(f"TEST_BLOCKKIT_WITH_CHANNEL: Success!")
+        else:
+            say(f"❌ Block Kit message failed: {result.get('error', 'Unknown')}")
+            logger.error(f"TEST_BLOCKKIT_WITH_CHANNEL: Failed: {result}")
+    except Exception as e:
+        say(f"❌ Block Kit message exception: {str(e)}")
+        logger.error(f"TEST_BLOCKKIT_WITH_CHANNEL: Exception: {e}", exc_info=True)
+
+
+def _test_blockkit_private(app, user_id, username, image_bytes, say):
+    """Test Mode 2: Upload without channel parameter (private upload)"""
+    import time
+
+    say("Uploading image WITHOUT channel parameter (private)...")
+    logger.info("TEST_BLOCKKIT_PRIVATE: Uploading image without channel parameter")
+
+    # Upload WITHOUT channel parameter
+    file_uploads = [
+        {
+            "file": image_bytes,
+            "filename": f"blockkit_test_private_{int(time.time())}.png",
+            "title": "Block Kit Test (Private)",
+        }
+    ]
+
+    upload_response = app.client.files_upload_v2(
+        file_uploads=file_uploads  # NO channel parameter
+    )
+
+    if not upload_response["ok"]:
+        say(f"❌ Upload failed: {upload_response.get('error', 'Unknown error')}")
+        logger.error(f"TEST_BLOCKKIT_PRIVATE: Upload failed: {upload_response}")
+        return
+
+    # Extract file info
+    uploaded_file = upload_response.get("files", [{}])[0]
+    file_id = uploaded_file.get("id")
+    file_url = uploaded_file.get("url_private")
+
+    logger.info(
+        f"TEST_BLOCKKIT_PRIVATE: Upload successful - ID: {file_id}, URL: {file_url}"
+    )
+    say(f"✅ Upload successful\nFile ID: `{file_id}`\nURL: `{file_url}`")
+
+    # Build Block Kit message with slack_file using URL
+    blocks = [
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": "🧪 Block Kit Test: Private Upload"},
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"Testing image embedding using `slack_file` with URL (private upload).\n\nUser: <@{user_id}>",
+            },
+        },
+        {
+            "type": "image",
+            "slack_file": {"url": file_url},
+            "alt_text": f"Block Kit test image for {username}",
+            "title": {"type": "plain_text", "text": "🧪 Test Image (Private Mode)"},
+        },
+    ]
+
+    logger.info(f"TEST_BLOCKKIT_PRIVATE: Sending message with blocks: {blocks}")
+    say("Sending Block Kit message with embedded image...")
+
+    # Send message with blocks
+    try:
+        result = app.client.chat_postMessage(
+            channel=user_id, text="Block Kit Test: Private Upload", blocks=blocks
+        )
+
+        if result["ok"]:
+            say(f"✅ Block Kit message sent successfully!")
+            logger.info(f"TEST_BLOCKKIT_PRIVATE: Success!")
+        else:
+            say(f"❌ Block Kit message failed: {result.get('error', 'Unknown')}")
+            logger.error(f"TEST_BLOCKKIT_PRIVATE: Failed: {result}")
+    except Exception as e:
+        say(f"❌ Block Kit message exception: {str(e)}")
+        logger.error(f"TEST_BLOCKKIT_PRIVATE: Exception: {e}", exc_info=True)
+
+
+def _test_blockkit_url_only(app, user_id, username, image_bytes, say):
+    """Test Mode 3: Use image_url instead of slack_file"""
+    import time
+
+    say("Uploading image and using `image_url` instead of `slack_file`...")
+    logger.info("TEST_BLOCKKIT_URL_ONLY: Uploading image for image_url test")
+
+    # Upload with channel parameter
+    file_uploads = [
+        {
+            "file": image_bytes,
+            "filename": f"blockkit_test_url_only_{int(time.time())}.png",
+            "title": "Block Kit Test (URL Only)",
+        }
+    ]
+
+    upload_response = app.client.files_upload_v2(
+        channel=user_id, file_uploads=file_uploads
+    )
+
+    if not upload_response["ok"]:
+        say(f"❌ Upload failed: {upload_response.get('error', 'Unknown error')}")
+        logger.error(f"TEST_BLOCKKIT_URL_ONLY: Upload failed: {upload_response}")
+        return
+
+    # Extract file info
+    uploaded_file = upload_response.get("files", [{}])[0]
+    file_id = uploaded_file.get("id")
+    file_url = uploaded_file.get("url_private")
+
+    logger.info(
+        f"TEST_BLOCKKIT_URL_ONLY: Upload successful - ID: {file_id}, URL: {file_url}"
+    )
+    say(f"✅ Upload successful\nFile ID: `{file_id}`\nURL: `{file_url}`")
+
+    # Build Block Kit message with image_url instead of slack_file
+    blocks = [
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": "🧪 Block Kit Test: image_url"},
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"Testing image embedding using `image_url` instead of `slack_file`.\n\nUser: <@{user_id}>",
+            },
+        },
+        {
+            "type": "image",
+            "image_url": file_url,  # Use image_url instead of slack_file
+            "alt_text": f"Block Kit test image for {username}",
+            "title": {"type": "plain_text", "text": "🧪 Test Image (URL Only Mode)"},
+        },
+    ]
+
+    logger.info(f"TEST_BLOCKKIT_URL_ONLY: Sending message with blocks: {blocks}")
+    say("Sending Block Kit message with `image_url`...")
+
+    # Send message with blocks
+    try:
+        result = app.client.chat_postMessage(
+            channel=user_id, text="Block Kit Test: URL Only", blocks=blocks
+        )
+
+        if result["ok"]:
+            say(f"✅ Block Kit message sent successfully!")
+            logger.info(f"TEST_BLOCKKIT_URL_ONLY: Success!")
+        else:
+            say(f"❌ Block Kit message failed: {result.get('error', 'Unknown')}")
+            logger.error(f"TEST_BLOCKKIT_URL_ONLY: Failed: {result}")
+    except Exception as e:
+        say(f"❌ Block Kit message exception: {str(e)}")
+        logger.error(f"TEST_BLOCKKIT_URL_ONLY: Exception: {e}", exc_info=True)
+
+
+def _test_blockkit_simple(app, user_id, username, image_bytes, say):
+    """Test Mode 4: Simplest possible block structure"""
+    import time
+
+    say("Uploading image and using SIMPLEST possible block structure...")
+    logger.info("TEST_BLOCKKIT_SIMPLE: Uploading image for simple test")
+
+    # Upload without channel parameter (private)
+    file_uploads = [
+        {
+            "file": image_bytes,
+            "filename": f"blockkit_test_simple_{int(time.time())}.png",
+            "title": "Block Kit Test (Simple)",
+        }
+    ]
+
+    upload_response = app.client.files_upload_v2(
+        file_uploads=file_uploads  # Private upload
+    )
+
+    if not upload_response["ok"]:
+        say(f"❌ Upload failed: {upload_response.get('error', 'Unknown error')}")
+        logger.error(f"TEST_BLOCKKIT_SIMPLE: Upload failed: {upload_response}")
+        return
+
+    # Extract file info
+    uploaded_file = upload_response.get("files", [{}])[0]
+    file_id = uploaded_file.get("id")
+    file_url = uploaded_file.get("url_private")
+
+    logger.info(
+        f"TEST_BLOCKKIT_SIMPLE: Upload successful - ID: {file_id}, URL: {file_url}"
+    )
+    say(f"✅ Upload successful\nFile ID: `{file_id}`\nURL: `{file_url}`")
+
+    # Build SIMPLEST Block Kit message - no title, minimal structure
+    blocks = [
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"🧪 *Simple Test*\n\nMinimal block structure with `slack_file`.",
+            },
+        },
+        {"type": "image", "slack_file": {"url": file_url}, "alt_text": "Test image"},
+    ]
+
+    logger.info(f"TEST_BLOCKKIT_SIMPLE: Sending message with blocks: {blocks}")
+    say("Sending Block Kit message with SIMPLEST structure...")
+
+    # Send message with blocks
+    try:
+        result = app.client.chat_postMessage(
+            channel=user_id, text="Block Kit Test: Simple", blocks=blocks
+        )
+
+        if result["ok"]:
+            say(f"✅ Block Kit message sent successfully!")
+            logger.info(f"TEST_BLOCKKIT_SIMPLE: Success!")
+        else:
+            say(f"❌ Block Kit message failed: {result.get('error', 'Unknown')}")
+            logger.error(f"TEST_BLOCKKIT_SIMPLE: Failed: {result}")
+    except Exception as e:
+        say(f"❌ Block Kit message exception: {str(e)}")
+        logger.error(f"TEST_BLOCKKIT_SIMPLE: Exception: {e}", exc_info=True)
 
 
 def handle_test_join_command(args, user_id, say, app):
@@ -2314,14 +2980,116 @@ def handle_test_multiple_birthday_command(
             image_size=image_size,
         )
 
-        if isinstance(result, tuple):
-            message, images_list = result
+        if isinstance(result, tuple) and len(result) == 3:
+            message, images_list, actual_personality = result
 
             if images_list:
-                # Send using the new multiple attachment system
-                send_results = send_message_with_multiple_attachments(
-                    app, admin_user_id, message, images_list
-                )
+                # NEW FLOW: Upload images → Get file IDs → Build blocks with embedded images → Send unified message
+                try:
+                    # Step 1: Upload images to get file IDs
+                    from utils.slack_utils import upload_birthday_images_for_blocks
+
+                    logger.info(
+                        f"TEST_MULTI: Uploading {len(images_list)} test images to get file IDs for Block Kit embedding"
+                    )
+                    file_ids = upload_birthday_images_for_blocks(
+                        app,
+                        admin_user_id,
+                        images_list,
+                        context={"message_type": "test", "command_name": "admin test"},
+                    )
+
+                    if file_ids:
+                        logger.info(
+                            f"TEST_MULTI: Successfully uploaded {len(file_ids)} images, got file IDs: {file_ids}"
+                        )
+                    else:
+                        logger.warning(
+                            f"TEST_MULTI: Image upload failed, proceeding without embedded images"
+                        )
+
+                    # Step 2: Build Block Kit blocks with embedded images (using file IDs)
+                    try:
+                        from utils.block_builder import (
+                            build_consolidated_birthday_blocks,
+                        )
+
+                        # Use the actual personality that was used for message generation
+                        personality = actual_personality
+
+                        # Prepare birthday people data for block builder
+                        birthday_people_for_blocks = []
+                        for person in birthday_people:
+                            birthday_people_for_blocks.append(
+                                {
+                                    "username": person.get("username", "Unknown"),
+                                    "user_id": person.get("user_id"),
+                                    "age": person.get("age"),  # May be None
+                                    "star_sign": person.get("star_sign", ""),
+                                }
+                            )
+
+                        blocks, fallback_text = build_consolidated_birthday_blocks(
+                            birthday_people_for_blocks,
+                            message,
+                            historical_fact=None,  # Test mode doesn't need historical facts
+                            personality=personality,
+                            image_file_ids=(
+                                file_ids if file_ids else None
+                            ),  # Pass file IDs for embedding
+                        )
+
+                        image_note = (
+                            f" (with {len(file_ids)} embedded images)"
+                            if file_ids
+                            else ""
+                        )
+                        logger.info(
+                            f"TEST_MULTI: Built Block Kit structure with {len(blocks)} blocks{image_note}"
+                        )
+                    except Exception as block_error:
+                        logger.warning(
+                            f"TEST_MULTI: Failed to build Block Kit blocks: {block_error}. Using plain text."
+                        )
+                        blocks = None
+                        fallback_text = message
+
+                    # Step 3: Send unified Block Kit message (images already embedded)
+                    from utils.slack_utils import send_message
+
+                    success = send_message(
+                        app,
+                        admin_user_id,
+                        fallback_text,
+                        blocks=blocks,
+                        context={"message_type": "test", "command_name": "admin test"},
+                    )
+
+                    send_results = {
+                        "success": success,
+                        "message_sent": success,
+                        "attachments_sent": (
+                            len(file_ids) if success and file_ids else 0
+                        ),
+                        "total_attachments": len(images_list),
+                        "attachments_failed": (
+                            len(images_list) - len(file_ids)
+                            if file_ids
+                            else len(images_list)
+                        ),
+                        "fallback_used": False,
+                    }
+
+                except Exception as e:
+                    logger.error(f"TEST_MULTI_ERROR: Failed to process test: {e}")
+                    send_results = {
+                        "success": False,
+                        "message_sent": False,
+                        "attachments_sent": 0,
+                        "total_attachments": len(images_list),
+                        "attachments_failed": len(images_list),
+                        "fallback_used": False,
+                    }
 
                 # Report detailed results to admin
                 # Determine data source description
@@ -2365,24 +3133,111 @@ def handle_test_multiple_birthday_command(
                 )
 
             else:
-                # No images generated
-                say(
-                    f"✅ *Multi-Birthday Test - Message Only*\n\n"
-                    f"Generated consolidated message for {len(test_user_ids)} users, but no images were created.\n"
-                    f"This could be due to API limitations or missing profile photos.\n\n"
-                    f"_Message preview:_\n{message[:200]}..."
-                )
+                # No images generated - still send with blocks
+                # Build Block Kit blocks for text-only multi-birthday test
+                try:
+                    from utils.block_builder import build_consolidated_birthday_blocks
+
+                    # Use the actual personality that was used for message generation
+                    personality = actual_personality
+
+                    # Prepare birthday people data for block builder
+                    birthday_people_for_blocks = []
+                    for person in birthday_people:
+                        birthday_people_for_blocks.append(
+                            {
+                                "username": person.get("username", "Unknown"),
+                                "user_id": person.get("user_id"),
+                                "age": person.get("age"),  # May be None
+                                "star_sign": person.get("star_sign", ""),
+                            }
+                        )
+
+                    blocks, fallback_text = build_consolidated_birthday_blocks(
+                        birthday_people_for_blocks,
+                        message,
+                        historical_fact=None,
+                        personality=personality,
+                    )
+
+                    logger.info(
+                        f"TEST_MULTI: Built Block Kit structure for text-only mode with {len(blocks)} blocks"
+                    )
+
+                    # Send with blocks
+                    from utils.slack_utils import send_message
+
+                    send_message(app, admin_user_id, fallback_text, blocks)
+
+                except Exception as block_error:
+                    logger.warning(
+                        f"TEST_MULTI: Failed to build blocks for text-only: {block_error}"
+                    )
+                    # Fallback to plain text
+                    say(
+                        f"✅ *Multi-Birthday Test - Message Only*\n\n"
+                        f"Generated consolidated message for {len(test_user_ids)} users, but no images were created.\n"
+                        f"This could be due to API limitations or missing profile photos.\n\n"
+                        f"_Message preview:_\n{message[:200]}..."
+                    )
+
                 logger.info(
                     f"TEST_MULTI: Message-only test for {admin_username} - no images generated"
                 )
 
         else:
-            # Just a message returned
-            say(
-                f"✅ *Multi-Birthday Test - Basic*\n\n"
-                f"Generated basic consolidated message for {len(test_user_ids)} users:\n\n"
-                f"_Message preview:_\n{result[:200]}..."
+            # Backward compatibility: handle old return format (should not happen with updated code)
+            logger.warning(
+                f"TEST_MULTI: Received unexpected result format - falling back to standard personality"
             )
+            message = result if not isinstance(result, tuple) else result[0]
+
+            # Build Block Kit blocks for basic multi-birthday test
+            try:
+                from utils.block_builder import build_consolidated_birthday_blocks
+
+                # Fallback to standard personality if result format is unexpected
+                personality = "standard"
+
+                # Prepare birthday people data for block builder
+                birthday_people_for_blocks = []
+                for person in birthday_people:
+                    birthday_people_for_blocks.append(
+                        {
+                            "username": person.get("username", "Unknown"),
+                            "user_id": person.get("user_id"),
+                            "age": person.get("age"),  # May be None
+                            "star_sign": person.get("star_sign", ""),
+                        }
+                    )
+
+                blocks, fallback_text = build_consolidated_birthday_blocks(
+                    birthday_people_for_blocks,
+                    message,
+                    historical_fact=None,
+                    personality=personality,
+                )
+
+                logger.info(
+                    f"TEST_MULTI: Built Block Kit structure for basic mode with {len(blocks)} blocks"
+                )
+
+                # Send with blocks
+                from utils.slack_utils import send_message
+
+                send_message(app, admin_user_id, fallback_text, blocks)
+
+            except Exception as block_error:
+                logger.warning(
+                    f"TEST_MULTI: Failed to build blocks for basic mode: {block_error}"
+                )
+                # Fallback to plain text
+                say(
+                    f"✅ *Multi-Birthday Test - Basic*\n\n"
+                    f"Generated basic consolidated message for {len(test_user_ids)} users:\n\n"
+                    f"_Message preview:_\n{result[:200]}..."
+                )
+
             logger.info(f"TEST_MULTI: Basic test for {admin_username}")
 
     except Exception as e:
@@ -2692,7 +3547,7 @@ def handle_test_bot_celebration_command(
 
     username = get_username(app, user_id)
     say(
-        "🤖 *Testing BrightDayBot's Self-Celebration* 🤖\n_Test message will stay in this DM._"
+        "🤖 *Testing Ludo | LiGHT BrightDay Coordinator's Self-Celebration* 🤖\n_Test message will stay in this DM._"
     )
 
     try:
@@ -2781,8 +3636,8 @@ def handle_test_bot_celebration_command(
 
                 # Generate the birthday image using a fake user profile for bot
                 bot_profile = {
-                    "real_name": "BrightDayBot",
-                    "display_name": "BrightDayBot",
+                    "real_name": "Ludo | LiGHT BrightDay Coordinator",
+                    "display_name": "Ludo | LiGHT BrightDay Coordinator",
                     "title": "Mystical Birthday Guardian",
                     "user_id": "BRIGHTDAYBOT",  # Critical for bot celebration detection
                 }
@@ -2822,18 +3677,86 @@ def handle_test_bot_celebration_command(
                             f"BOT_CELEBRATION_TEST: Custom title set successfully: '{image_title}'"
                         )
 
-                    # Send message with image to admin's DM using correct function signature
-                    image_success = send_message_with_image(
-                        app,
-                        user_id,
-                        celebration_message,
-                        image_result,  # Pass the full image_result dict containing image_data
-                        context={
-                            "message_type": "test",
-                            "command_name": "admin test-bot-celebration",
-                        },
-                    )
-                    if image_success:
+                    # NEW FLOW: Upload image → Get file ID → Build blocks with embedded image → Send unified message
+                    try:
+                        # Step 1: Upload image to get file ID
+                        from utils.slack_utils import upload_birthday_images_for_blocks
+
+                        logger.info(
+                            "TEST_BOT_CELEBRATION: Uploading test celebration image to get file ID for Block Kit embedding"
+                        )
+                        file_ids = upload_birthday_images_for_blocks(
+                            app,
+                            user_id,
+                            [image_result],
+                            context={
+                                "message_type": "test",
+                                "command_name": "admin test-bot-celebration",
+                            },
+                        )
+
+                        # Extract file_id and title from tuple (new format)
+                        file_id_tuple = file_ids[0] if file_ids else None
+                        if file_id_tuple:
+                            if isinstance(file_id_tuple, tuple):
+                                file_id, image_title = file_id_tuple
+                                logger.info(
+                                    f"TEST_BOT_CELEBRATION: Successfully uploaded image, got file ID: {file_id}, title: {image_title}"
+                                )
+                            else:
+                                # Backward compatibility: handle old string format
+                                file_id = file_id_tuple
+                                image_title = None
+                                logger.info(
+                                    f"TEST_BOT_CELEBRATION: Successfully uploaded image, got file ID: {file_id} (no title)"
+                                )
+                        else:
+                            file_id = None
+                            image_title = None
+                            logger.warning(
+                                "TEST_BOT_CELEBRATION: Image upload failed or returned no file ID"
+                            )
+
+                        # Step 2: Build Block Kit blocks with embedded image (using file ID tuple)
+                        try:
+                            from utils.block_builder import build_bot_celebration_blocks
+
+                            blocks, fallback_text = build_bot_celebration_blocks(
+                                celebration_message,
+                                bot_age,
+                                personality="mystic_dog",
+                                image_file_id=file_id_tuple if file_id_tuple else None,
+                            )
+
+                            image_note = (
+                                f" (with embedded image: {image_title})"
+                                if file_id
+                                else ""
+                            )
+                            logger.info(
+                                f"TEST_BOT_CELEBRATION: Built Block Kit structure with {len(blocks)} blocks{image_note}"
+                            )
+                        except Exception as block_error:
+                            logger.warning(
+                                f"TEST_BOT_CELEBRATION: Failed to build Block Kit blocks: {block_error}. Using plain text."
+                            )
+                            blocks = None
+                            fallback_text = celebration_message
+
+                        # Step 3: Send unified Block Kit message (image already embedded in blocks)
+                        from utils.slack_utils import send_message
+
+                        image_success = send_message(
+                            app, user_id, fallback_text, blocks
+                        )
+
+                    except Exception as upload_error:
+                        logger.error(
+                            f"TEST_BOT_CELEBRATION: Upload/block building failed: {upload_error}"
+                        )
+                        image_success = False
+
+                    if image_success and file_id:
                         # Enhanced success message with detailed results
                         say(
                             f"✅ *Bot Celebration Test Completed!* ✅\n\n"
@@ -2848,58 +3771,104 @@ def handle_test_bot_celebration_command(
                             f"TEST_BOT_CELEBRATION: Successfully completed with image for {username}"
                         )
                     else:
-                        # Fallback to message only if image upload fails
-                        say(celebration_message)
+                        # Fallback to message only if image upload fails - but with blocks
+                        from utils.block_builder import build_bot_celebration_blocks
+
+                        try:
+                            blocks, fallback_text = build_bot_celebration_blocks(
+                                celebration_message, bot_age, personality="mystic_dog"
+                            )
+                        except:
+                            blocks = None
+                            fallback_text = celebration_message
+
+                        send_message_with_image(
+                            app, user_id, fallback_text, None, blocks=blocks
+                        )
                         say(
                             f"⚠️ *Bot Celebration Test - Image Upload Failed* ⚠️\n\n"
                             f"_Results:_\n"
-                            f"• Ludo's mystical message: ✅ Generated and sent above\n"
+                            f"• Ludo's mystical message: ✅ Generated and sent above with blocks\n"
                             f"• AI image generation: ✅ Generated successfully\n"
                             f"• Image upload: ❌ Failed to send to Slack\n"
                             f"• Fallback: Message-only mode used\n\n"
                             f"🔧 _Admin tip:_ Check Slack API permissions or image file format."
                         )
                         logger.warning(
-                            f"TEST_BOT_CELEBRATION: Image upload failed for {username}, fell back to message-only"
+                            f"TEST_BOT_CELEBRATION: Image upload failed for {username}, fell back to message-only with blocks"
                         )
                 else:
-                    # Send message only if image failed
-                    say(celebration_message)
+                    # Send message only if image failed - but with blocks
+                    from utils.block_builder import build_bot_celebration_blocks
+
+                    try:
+                        blocks, fallback_text = build_bot_celebration_blocks(
+                            celebration_message, bot_age, personality="mystic_dog"
+                        )
+                    except:
+                        blocks = None
+                        fallback_text = celebration_message
+
+                    send_message_with_image(
+                        app, user_id, fallback_text, None, blocks=blocks
+                    )
                     say(
                         f"⚠️ *Bot Celebration Test - Partial Success* ⚠️\n\n"
                         f"_Results:_\n"
-                        f"• Ludo's mystical message: ✅ Generated and sent above\n"
+                        f"• Ludo's mystical message: ✅ Generated and sent above with blocks\n"
                         f"• AI image generation: ❌ Failed\n"
                         f"• Reason: Image generation error (check logs)\n"
                         f"• Impact: Message-only mode for this test\n\n"
                         f"💡 _Note:_ Actual {date_to_words(BOT_BIRTHDAY)} celebration would retry image generation."
                     )
                     logger.warning(
-                        f"TEST_BOT_CELEBRATION: Completed with image failure for {username}"
+                        f"TEST_BOT_CELEBRATION: Completed with image failure for {username}, sent with blocks"
                     )
 
             except Exception as image_error:
                 logger.warning(
                     f"TEST_BOT_CELEBRATION: Image generation exception for {username}: {image_error}"
                 )
-                # Fallback to message only
-                say(celebration_message)
+                # Fallback to message only - but with blocks
+                from utils.block_builder import build_bot_celebration_blocks
+
+                try:
+                    blocks, fallback_text = build_bot_celebration_blocks(
+                        celebration_message, bot_age, personality="mystic_dog"
+                    )
+                except:
+                    blocks = None
+                    fallback_text = celebration_message
+
+                send_message_with_image(
+                    app, user_id, fallback_text, None, blocks=blocks
+                )
                 say(
                     f"⚠️ *Bot Celebration Test - Image Error* ⚠️\n\n"
                     f"_Results:_\n"
-                    f"• Ludo's mystical message: ✅ Generated and sent above\n"
+                    f"• Ludo's mystical message: ✅ Generated and sent above with blocks\n"
                     f"• AI image generation: ❌ Exception occurred\n"
                     f"• Error details: Check logs for technical details\n"
                     f"• Fallback: Message-only mode used\n\n"
                     f"🔧 _Admin tip:_ Review image generation logs for troubleshooting."
                 )
         else:
-            # Images disabled - send message only
-            say(celebration_message)
+            # Images disabled - send message only but with blocks
+            from utils.block_builder import build_bot_celebration_blocks
+
+            try:
+                blocks, fallback_text = build_bot_celebration_blocks(
+                    celebration_message, bot_age, personality="mystic_dog"
+                )
+            except:
+                blocks = None
+                fallback_text = celebration_message
+
+            send_message_with_image(app, user_id, fallback_text, None, blocks=blocks)
             say(
                 f"✅ *Bot Celebration Test Completed!* ✅\n\n"
                 f"_Results:_\n"
-                f"• Ludo's mystical message: ✅ Generated and sent above\n"
+                f"• Ludo's mystical message: ✅ Generated and sent above with blocks\n"
                 f"• AI image generation: ⚠️ Disabled in configuration\n"
                 f"• Mode: Message-only celebration\n"
                 f"• Processing: Complete - ready for {date_to_words(BOT_BIRTHDAY)} automatic celebration\n\n"
@@ -3813,13 +4782,63 @@ def handle_admin_special_command(args, user_id, say, app):
             test_date_str = format_date_european_short(test_date)
             say(f"🧪 Testing special day announcement for {test_date_str}...")
 
-            # Generate message
+            # Generate SHORT teaser message (NEW: use_teaser=True by default)
             message = generate_special_day_message(
-                special_days, test_mode=True, app=app
+                special_days, test_mode=True, app=app, use_teaser=True
             )
 
+            # Generate DETAILED content for "View Details" button (NEW)
+            from utils.special_day_generator import generate_special_day_details
+
+            detailed_content = generate_special_day_details(special_days, app=app)
+
             if message:
-                say(f"*Generated Message:*\n\n{message}")
+                # Build Block Kit blocks exactly like formal announcements
+                try:
+                    from utils.block_builder import build_special_day_blocks
+                    from config import SPECIAL_DAYS_PERSONALITY
+
+                    # Handle single or multiple special days (same logic as formal code)
+                    if len(special_days) == 1:
+                        special_day = special_days[0]
+                        blocks, fallback_text = build_special_day_blocks(
+                            observance_name=special_day.name,
+                            message=message,
+                            observance_date=special_day.date,
+                            source=special_day.source,
+                            personality=SPECIAL_DAYS_PERSONALITY,
+                            detailed_content=detailed_content,  # NEW: Use detailed content instead of description
+                            category=special_day.category,
+                            url=special_day.url,
+                        )
+                    else:
+                        # For multiple special days
+                        primary_day = special_days[0]
+                        blocks, fallback_text = build_special_day_blocks(
+                            observance_name=f"{len(special_days)} Special Observances Today",
+                            message=message,
+                            observance_date=primary_day.date,
+                            source="Multiple Sources",
+                            personality=SPECIAL_DAYS_PERSONALITY,
+                            detailed_content=detailed_content,  # NEW: Use detailed content for multiple days too
+                            category=None,
+                            url=None,
+                        )
+
+                    logger.info(
+                        f"ADMIN_SPECIAL_TEST: Built Block Kit structure with {len(blocks)} blocks"
+                    )
+
+                    # Send with Block Kit blocks to admin DM
+                    from utils.slack_utils import send_message
+
+                    send_message(app, user_id, fallback_text, blocks)
+
+                except Exception as block_error:
+                    logger.warning(
+                        f"ADMIN_SPECIAL_TEST: Failed to build blocks: {block_error}. Using plain text."
+                    )
+                    say(f"*Generated Message:*\n\n{message}")
             else:
                 say("❌ Failed to generate message")
         else:
@@ -4223,11 +5242,17 @@ def handle_admin_command(subcommand, args, say, user_id, app):
                 "Invalid timezone command. Use: `admin timezone [enable|disable|status]`"
             )
 
+    elif subcommand == "test-block":
+        handle_test_block_command(user_id, args, say, app)
+
     elif subcommand == "test-upload":
         handle_test_upload_command(user_id, say, app)
 
     elif subcommand == "test-upload-multi":
         handle_test_upload_multi_command(user_id, say, app)
+
+    elif subcommand == "test-blockkit":
+        handle_test_blockkit_command(user_id, args, say, app)
 
     elif subcommand == "test-file-upload":
         handle_test_file_upload_command(user_id, say, app)

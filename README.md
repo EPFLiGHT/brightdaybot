@@ -6,9 +6,10 @@ A Slack bot that records and wishes workspace members happy birthday with AI-gen
 
 - **🎯 AI-Generated Messages**: Personalized birthday wishes using OpenAI GPT-4.1
 - **🖼️ AI Birthday Images**: Face-accurate images using your Slack profile photo and GPT-Image-1
-- **🌍 Multi-Timezone Support**: Celebrates birthdays at 9 AM by default in each user's local timezone (configurable)
-- **🎭 9 Unique Personalities**: From mystic dog to superhero to pirate themes (plus Chronicler for special days)
-- **📅 Special Days Tracking**: 75+ UN/WHO/UNESCO international observances with AI announcements
+- **📱 Slack Block Kit UI**: Professional structured layouts with headers, fields, and interactive buttons
+- **🌍 Multi-Timezone Support**: Celebrates birthdays at 9 AM in each user's local timezone (configurable)
+- **🎭 9 Unique Personalities**: Ludo the Mystic Dog, Captain BirthdayBeard, TechBot 3000, and more
+- **📅 Special Days**: 75+ UN/WHO/UNESCO observances with concise teasers + detailed "View Details" button
 - **📈 Smart Consolidation**: Single message for multiple birthdays to avoid spam
 - **🔧 Dynamic Configuration**: Change AI models and settings without restart
 - **📊 Admin Management**: User management, statistics, and system health monitoring

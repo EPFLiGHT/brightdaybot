@@ -610,9 +610,10 @@ def completion(
                             f"IMAGE_ERROR: Failed to generate birthday image: {e}"
                         )
 
+                # Return actual personality used (important for "random" personality)
                 if include_image:
-                    return reply, generated_image
-                return reply
+                    return reply, generated_image, selected_personality_name
+                return reply, None, selected_personality_name
 
             # If validation failed and we have retries left, try again
             if retry_count < max_retries:
@@ -669,9 +670,10 @@ def completion(
                             f"IMAGE_ERROR: Failed to generate birthday image: {e}"
                         )
 
+                # Return actual personality used (important for "random" personality)
                 if include_image:
-                    return reply, generated_image
-                return reply
+                    return reply, generated_image, selected_personality_name
+                return reply, None, selected_personality_name
 
         except Exception as e:
             logger.error(f"AI_ERROR: Failed to generate completion: {e}")
@@ -715,17 +717,20 @@ def completion(
                 except Exception as e:
                     logger.error(f"IMAGE_ERROR: Failed to generate birthday image: {e}")
 
+            # Return actual personality used (important for "random" personality)
             if include_image:
-                return formatted_message, generated_image
-            return formatted_message
+                return formatted_message, generated_image, selected_personality_name
+            return formatted_message, None, selected_personality_name
 
         # End of retry loop
 
     # We should never get here due to the returns in the loop
     logger.error("AI_ERROR: Unexpected flow in completion function")
-    return create_birthday_announcement(
+    fallback_message = create_birthday_announcement(
         user_id, name, birth_date, birth_year, test_mode=test_mode, quality=quality
     )
+    # Return with "standard" personality for fallback
+    return fallback_message, None, "standard"
 
 
 def create_consolidated_birthday_announcement(
@@ -773,8 +778,16 @@ def create_consolidated_birthday_announcement(
             )
 
             # Convert single person result to consistent list format
-            if include_image and isinstance(result, tuple):
-                message, single_image = result
+            # Unpack result (now returns 3 elements: message, image, personality)
+            if isinstance(result, tuple) and len(result) == 3:
+                message, single_image, actual_personality = result
+            else:
+                # Fallback for old format (should not happen)
+                message = result if isinstance(result, str) else result[0]
+                single_image = None
+                actual_personality = None
+
+            if include_image:
                 if single_image:
                     # Add person identification to image metadata for consistency
                     single_image["birthday_person"] = {
@@ -783,11 +796,19 @@ def create_consolidated_birthday_announcement(
                         "date": person.get("date"),
                         "year": person.get("year"),
                     }
-                    return message, [single_image]  # Return as list for consistency
+                    return (
+                        message,
+                        [single_image],
+                        actual_personality,
+                    )  # Return personality as 3rd element
                 else:
-                    return message, []  # Empty list if no image
+                    return message, [], actual_personality  # Empty list if no image
             else:
-                return result  # Just message for non-image case
+                return (
+                    message,
+                    None,
+                    actual_personality,
+                )  # Return personality even for message-only case
 
         except Exception as e:
             logger.error(
@@ -800,8 +821,16 @@ def create_consolidated_birthday_announcement(
                 person.get("year"),
             )
             if include_image:
-                return fallback_message, []  # Return consistent format
-            return fallback_message
+                return (
+                    fallback_message,
+                    [],
+                    "standard",
+                )  # Return with standard personality for fallback
+            return (
+                fallback_message,
+                None,
+                "standard",
+            )  # Return with standard personality for fallback
 
     # Multiple birthdays - use AI to create creative consolidated message
     try:
@@ -815,8 +844,13 @@ def create_consolidated_birthday_announcement(
             return (
                 _generate_fallback_consolidated_message(birthday_people),
                 [],
-            )  # Return empty list instead of None
-        return _generate_fallback_consolidated_message(birthday_people)
+                "standard",  # Return with standard personality for fallback
+            )
+        return (
+            _generate_fallback_consolidated_message(birthday_people),
+            None,
+            "standard",
+        )  # Return with standard personality for fallback
 
 
 def _generate_ai_consolidated_message(
@@ -839,8 +873,10 @@ def _generate_ai_consolidated_message(
         image_size: Override image size ("auto", "1024x1024", "1536x1024", "1024x1536"). If None, defaults to "auto"
 
     Returns:
-        If include_image is True: tuple of (message, image_data)
-        Otherwise: AI-generated consolidated birthday message
+        tuple of (message, image_data, actual_personality):
+        - message: AI-generated consolidated birthday message
+        - image_data: List of generated images (or None if include_image=False)
+        - actual_personality: The actual personality used (important for "random" personality)
     """
     # Prepare birthday people information
     people_info = []
@@ -1099,13 +1135,18 @@ Happy Birthday {mention_text}! [Continue with creative content...]"{birthday_fac
                     f"IMAGE_ERROR: Failed to generate individual birthday images: {e}"
                 )
 
-        # Return tuple if images were requested, otherwise just message
+        # Return tuple with actual personality used (important for "random" personality)
         if include_image:
             return (
                 message,
                 generated_images,
-            )  # Return list of individual images instead of single group image
-        return message
+                selected_personality_name,  # Return actual personality used
+            )
+        return (
+            message,
+            None,
+            selected_personality_name,
+        )  # Return actual personality even for message-only case
 
     except Exception as e:
         logger.error(f"CONSOLIDATED_AI_ERROR: {e}")
@@ -1740,18 +1781,30 @@ def test_consolidated_announcement():
 
         print(f"\n--- Birthday Twins with {personality} personality ---")
         try:
-            twins_message = create_consolidated_birthday_announcement(
+            result = create_consolidated_birthday_announcement(
                 birthday_twins, test_mode=False, quality=None, image_size=None
             )
+            # Unpack the 3-tuple (message, images, personality)
+            if isinstance(result, tuple) and len(result) == 3:
+                twins_message, _, actual_personality = result
+                print(f"(Used personality: {actual_personality})")
+            else:
+                twins_message = result
             print(twins_message)
         except Exception as e:
             print(f"ERROR: {e}")
 
         print(f"\n--- Birthday Triplets with {personality} personality ---")
         try:
-            triplets_message = create_consolidated_birthday_announcement(
+            result = create_consolidated_birthday_announcement(
                 birthday_triplets, test_mode=False, quality=None, image_size=None
             )
+            # Unpack the 3-tuple (message, images, personality)
+            if isinstance(result, tuple) and len(result) == 3:
+                triplets_message, _, actual_personality = result
+                print(f"(Used personality: {actual_personality})")
+            else:
+                triplets_message = result
             print(triplets_message)
         except Exception as e:
             print(f"ERROR: {e}")

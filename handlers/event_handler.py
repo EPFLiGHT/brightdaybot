@@ -20,6 +20,97 @@ events_logger = get_logger("events")
 
 
 def register_event_handlers(app):
+    @app.action({"action_id": {"starts_with": "special_day_details_"}})
+    def handle_special_day_details(ack, body, action, client):
+        """
+        Handle View Details button clicks for special day announcements.
+
+        Shows an ephemeral message (visible only to the user) with the full
+        description of the special day observance.
+        """
+        # Acknowledge the interaction immediately (required within 3 seconds)
+        ack()
+
+        try:
+            # Extract the description from the button value
+            description = action.get("value", "No description available")
+
+            # Get the observance name from the button text context
+            observance_name = (
+                body.get("message", {})
+                .get("blocks", [{}])[0]
+                .get("text", {})
+                .get("text", "Special Day")
+            )
+
+            # Remove the emoji prefix if present
+            if observance_name.startswith("🌍 "):
+                observance_name = observance_name[3:]
+
+            channel_id = body["channel"]["id"]
+            user_id = body["user"]["id"]
+
+            events_logger.info(
+                f"SPECIAL_DAY_DETAILS: User {user_id} clicked View Details for {observance_name} in channel {channel_id}"
+            )
+            events_logger.info(
+                f"SPECIAL_DAY_DETAILS: Description length: {len(description)} chars"
+            )
+
+            # Check if this is a DM (channel type is "im")
+            channel_type = body.get("channel", {}).get("type", "unknown")
+            events_logger.info(f"SPECIAL_DAY_DETAILS: Channel type: {channel_type}")
+
+            if channel_type == "im":
+                # For DMs, send a regular message instead of ephemeral
+                # (ephemeral messages don't work well in DMs)
+                client.chat_postMessage(
+                    channel=channel_id,
+                    text=f"📖 *{observance_name} - Details*\n\n{description}",
+                )
+                events_logger.info(
+                    f"SPECIAL_DAY_DETAILS: Sent regular message to DM for user {user_id}"
+                )
+            else:
+                # For channels, use ephemeral message (only visible to the user who clicked)
+                client.chat_postEphemeral(
+                    channel=channel_id,
+                    user=user_id,
+                    text=f"📖 *{observance_name} - Details*\n\n{description}",
+                )
+                events_logger.info(
+                    f"SPECIAL_DAY_DETAILS: Sent ephemeral message in channel for user {user_id}"
+                )
+
+        except Exception as e:
+            events_logger.error(
+                f"SPECIAL_DAY_DETAILS_ERROR: Failed to show details: {e}"
+            )
+            events_logger.error(f"SPECIAL_DAY_DETAILS_ERROR: Body: {body}")
+            events_logger.error(f"SPECIAL_DAY_DETAILS_ERROR: Action: {action}")
+
+            # Try to send error message to user
+            try:
+                channel_type = body.get("channel", {}).get("type", "unknown")
+                if channel_type == "im":
+                    # For DMs, send regular message
+                    client.chat_postMessage(
+                        channel=body["channel"]["id"],
+                        text="⚠️ Sorry, I couldn't load the details for this special day. Please try again later.",
+                    )
+                else:
+                    # For channels, send ephemeral
+                    client.chat_postEphemeral(
+                        channel=body["channel"]["id"],
+                        user=body["user"]["id"],
+                        text="⚠️ Sorry, I couldn't load the details for this special day. Please try again later.",
+                    )
+            except Exception as error_send_error:
+                events_logger.error(
+                    f"SPECIAL_DAY_DETAILS_ERROR: Could not send error message: {error_send_error}"
+                )
+                pass  # Silently fail if we can't even send error message
+
     @app.event("message")
     def handle_message(event, say, client, logger):
         """Handle direct message events"""

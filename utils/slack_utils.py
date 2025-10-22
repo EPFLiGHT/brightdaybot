@@ -457,12 +457,16 @@ def send_message_with_image(
     """
     Send a message to a Slack channel with optional image attachment and automatic archiving
 
+    Strategy:
+    - If blocks provided: Send rich Block Kit message first, then upload image separately
+    - If no blocks: Use files_upload_v2 with initial_comment (legacy behavior)
+
     Args:
         app: Slack app instance
         channel: Channel ID or user ID (for DMs)
-        text: Message text
+        text: Message text (used as fallback text for blocks and file comment)
         image_data: Optional image data dict from image_generator
-        blocks: Optional blocks for rich formatting
+        blocks: Optional Block Kit blocks for rich formatting (text is used as fallback)
         context: Optional context for archiving (message_type, personality, etc.)
 
     Returns:
@@ -532,14 +536,33 @@ def send_message_with_image(
                         # Fallback to original static title
                         final_title = f"🎂 Birthday Image - {image_data.get('personality', 'standard').title()} Style"
 
-                # Use files_upload_v2 for both channels and DMs (now that we have proper channel ID)
-                upload_response = app.client.files_upload_v2(
-                    channel=target_channel,
-                    initial_comment=text,
-                    file=image_data["image_data"],
-                    filename=filename,
-                    title=final_title,
-                )
+                # Strategy: If blocks provided, send structured message first, then image
+                if blocks:
+                    logger.info(f"IMAGE: Sending structured Block Kit message first")
+                    # Send the Block Kit message first
+                    message_sent = send_message(app, channel, text, blocks, context)
+                    if not message_sent:
+                        logger.warning(
+                            f"IMAGE: Block Kit message failed, continuing with image upload"
+                        )
+
+                    # Then upload the image without initial_comment (image appears after structured message)
+                    upload_response = app.client.files_upload_v2(
+                        channel=target_channel,
+                        file=image_data["image_data"],
+                        filename=filename,
+                        title=final_title,
+                    )
+                else:
+                    # Legacy behavior: Upload with initial_comment (plain text)
+                    logger.info(f"IMAGE: Using legacy upload with initial_comment")
+                    upload_response = app.client.files_upload_v2(
+                        channel=target_channel,
+                        initial_comment=text,
+                        file=image_data["image_data"],
+                        filename=filename,
+                        title=final_title,
+                    )
 
                 if upload_response["ok"]:
                     logger.info(
@@ -728,6 +751,225 @@ def send_message_with_multiple_images(
         return results
 
 
+def upload_birthday_images_for_blocks(
+    app, channel: str, image_list: list, context: dict = None
+):
+    """
+    Upload birthday images to Slack and return file IDs for embedding in Block Kit
+
+    This is a pre-upload helper that uploads images BEFORE building blocks,
+    allowing us to embed images directly in Block Kit using file IDs from files_upload_v2.
+
+    Strategy:
+    - Uploads all images using files_upload_v2 (batch upload)
+    - Extracts file IDs from upload response
+    - Returns file IDs for block builders to use with slack_file property
+
+    Args:
+        app: Slack app instance
+        channel: Target channel/user ID
+        image_list: List of image data dicts (from generate_birthday_image)
+        context: Optional context for archiving
+
+    Returns:
+        List of file IDs (e.g., ["F12345", "F12346"])
+        Empty list if upload fails (graceful degradation)
+    """
+    if not image_list:
+        return []
+
+    try:
+        # Prepare file uploads list for files_upload_v2 (reuse existing logic)
+        file_uploads = []
+
+        for i, image_data in enumerate(image_list):
+            try:
+                if not image_data or not image_data.get("image_data"):
+                    logger.warning(
+                        f"BLOCK_IMAGE_UPLOAD: Skipping attachment {i+1} - no image data"
+                    )
+                    continue
+
+                # Generate personalized filename for each image
+                person_info = image_data.get("birthday_person", {})
+                person_name = person_info.get("username", f"Person {i+1}")
+
+                # Create safe filename
+                safe_name = (
+                    "".join(
+                        c for c in person_name if c.isalnum() or c in (" ", "-", "_")
+                    )
+                    .rstrip()
+                    .replace(" ", "_")
+                )
+                timestamp = datetime.now().strftime("%H%M%S")
+                filename = f"birthday_{safe_name}_{i+1}_{timestamp}.png"
+
+                # Generate AI title for this image
+                try:
+                    from utils.message_generator import generate_birthday_image_title
+
+                    ai_title = generate_birthday_image_title(
+                        person_name,
+                        image_data.get("personality", "standard"),
+                        image_data.get("user_profile"),
+                        None,  # birthday_message - not needed for individual titles
+                        False,  # is_multiple_people - each image is individual
+                    )
+                    final_title = f"🎂 {ai_title}"
+                except Exception as e:
+                    logger.error(
+                        f"BLOCK_IMAGE_UPLOAD_TITLE_ERROR: Failed to generate AI title for {person_name}: {e}"
+                    )
+                    # Fallback to simple title
+                    personality_name = (
+                        image_data.get("personality", "standard")
+                        .replace("_", " ")
+                        .title()
+                    )
+                    final_title = (
+                        f"🎂 {person_name}'s Birthday - {personality_name} Style"
+                    )
+
+                # Add to file uploads list
+                file_uploads.append(
+                    {
+                        "file": image_data["image_data"],
+                        "filename": filename,
+                        "title": final_title,
+                    }
+                )
+
+                logger.info(
+                    f"BLOCK_IMAGE_UPLOAD: Prepared file {i+1}/{len(image_list)} for {person_name}"
+                )
+
+            except Exception as e:
+                logger.error(
+                    f"BLOCK_IMAGE_UPLOAD_PREP_ERROR: Failed to prepare file {i+1}: {e}"
+                )
+                continue
+
+        # If no valid files prepared, return empty list
+        if not file_uploads:
+            logger.warning("BLOCK_IMAGE_UPLOAD: No valid files prepared for upload")
+            return []
+
+        # Get target channel (handle DMs - reuse existing logic)
+        target_channel = channel
+        if channel.startswith("U"):
+            # Open a DM channel to get the proper channel ID for files_upload_v2
+            dm_response = app.client.conversations_open(users=channel)
+            if dm_response["ok"]:
+                target_channel = dm_response["channel"]["id"]
+                logger.info(
+                    f"BLOCK_IMAGE_UPLOAD: Opened DM channel {target_channel} for user {channel}"
+                )
+            else:
+                logger.error(
+                    f"BLOCK_IMAGE_UPLOAD: Failed to open DM channel for {channel}"
+                )
+                return []
+
+        # Upload files using files_upload_v2 WITHOUT channel parameter (private upload)
+        # This matches the working pattern from admin test-blockkit private/simple modes
+        # Files are uploaded privately and then referenced by URL in Block Kit
+        logger.info(
+            f"BLOCK_IMAGE_UPLOAD: Uploading {len(file_uploads)} files privately for Block Kit embedding"
+        )
+
+        upload_response = app.client.files_upload_v2(file_uploads=file_uploads)
+
+        if upload_response["ok"]:
+            # Extract file info from response
+            uploaded_files = upload_response.get("files", [])
+
+            # CRITICAL: Wait for Slack to process files before using in Block Kit
+            # Per community forum: files need processing time before they're usable in slack_file property
+            # Poll files.info API until mimetype is populated (indicates processing complete)
+            import time
+
+            # Build mapping of file_id to title from our upload list
+            file_id_to_title = {}
+            for file_upload in file_uploads:
+                # We'll match by filename since we don't have file_id yet
+                filename = file_upload.get("filename", "")
+                title = file_upload.get("title", "")
+                if filename and title:
+                    file_id_to_title[filename] = title
+
+            processed_file_data = []  # List of (file_id, title) tuples
+            for uploaded_file in uploaded_files:
+                file_id = uploaded_file.get("id")
+                file_name = uploaded_file.get("name", "unknown")
+                file_title = uploaded_file.get(
+                    "title", ""
+                )  # Get title from upload response
+
+                if not file_id:
+                    logger.warning(
+                        f"BLOCK_IMAGE_UPLOAD: No file ID for {file_name}, skipping"
+                    )
+                    continue
+
+                # If title not in response, try to get it from our mapping
+                if not file_title:
+                    file_title = file_id_to_title.get(file_name, "")
+
+                # Poll for file processing completion (max 10 seconds)
+                max_attempts = 10
+                for attempt in range(max_attempts):
+                    try:
+                        file_info_response = app.client.files_info(file=file_id)
+                        if file_info_response["ok"]:
+                            file_data = file_info_response.get("file", {})
+                            mimetype = file_data.get("mimetype")
+
+                            if mimetype:
+                                # File is processed and ready for Block Kit
+                                logger.info(
+                                    f"BLOCK_IMAGE_UPLOAD: File {file_name} (ID: {file_id}) processed after {attempt}s"
+                                )
+                                processed_file_data.append((file_id, file_title))
+                                break
+                            else:
+                                # File still processing, wait 1 second
+                                if attempt < max_attempts - 1:
+                                    time.sleep(1)
+                                else:
+                                    logger.warning(
+                                        f"BLOCK_IMAGE_UPLOAD: File {file_name} (ID: {file_id}) not processed after {max_attempts}s, using anyway"
+                                    )
+                                    processed_file_data.append((file_id, file_title))
+                        else:
+                            logger.error(
+                                f"BLOCK_IMAGE_UPLOAD: files.info failed for {file_id}: {file_info_response.get('error')}"
+                            )
+                            break
+                    except Exception as e:
+                        logger.error(
+                            f"BLOCK_IMAGE_UPLOAD: Error checking file status for {file_id}: {e}"
+                        )
+                        break
+
+            logger.info(
+                f"BLOCK_IMAGE_UPLOAD: Successfully uploaded and processed {len(processed_file_data)} files for Block Kit"
+            )
+
+            return processed_file_data  # Return list of (file_id, title) tuples
+        else:
+            error = upload_response.get("error", "Unknown error")
+            logger.error(f"BLOCK_IMAGE_UPLOAD_ERROR: Failed to upload files: {error}")
+            return []
+
+    except SlackApiError as e:
+        logger.error(f"BLOCK_IMAGE_UPLOAD_API_ERROR: Slack API error: {e}")
+        return []
+    except Exception as e:
+        logger.error(f"BLOCK_IMAGE_UPLOAD_ERROR: Unexpected error: {e}")
+        return []
+
+
 def send_message_with_multiple_attachments(
     app, channel: str, text: str, image_list: list, blocks=None, context: dict = None
 ):
@@ -867,17 +1109,84 @@ def send_message_with_multiple_attachments(
             f"MULTI_ATTACH: Uploading {len(file_uploads)} files to {target_channel}"
         )
 
-        upload_response = app.client.files_upload_v2(
-            channel=target_channel, initial_comment=text, file_uploads=file_uploads
-        )
+        # Strategy: If blocks provided, send structured message first, then files
+        if blocks:
+            logger.info(f"MULTI_ATTACH: Sending structured Block Kit message first")
+            # Send the Block Kit message first
+            message_sent = send_message(app, channel, text, blocks, context)
+            if not message_sent:
+                logger.warning(
+                    f"MULTI_ATTACH: Block Kit message failed, continuing with file upload"
+                )
+
+            # Then upload files without initial_comment (files appear after structured message)
+            upload_response = app.client.files_upload_v2(
+                channel=target_channel, file_uploads=file_uploads
+            )
+        else:
+            # Legacy behavior: Upload with initial_comment (plain text)
+            upload_response = app.client.files_upload_v2(
+                channel=target_channel, initial_comment=text, file_uploads=file_uploads
+            )
 
         if upload_response["ok"]:
+            # CRITICAL: Wait for Slack to process files before they're usable
+            # Per community forum: files need processing time before they're fully available
+            # This prevents issues when files are immediately accessed/displayed
+            import time
+
+            uploaded_files = upload_response.get("files", [])
+            processed_count = 0
+
+            for uploaded_file in uploaded_files:
+                file_id = uploaded_file.get("id")
+                file_name = uploaded_file.get("name", "unknown")
+
+                if not file_id:
+                    continue
+
+                # Poll for file processing completion (max 10 seconds)
+                max_attempts = 10
+                for attempt in range(max_attempts):
+                    try:
+                        file_info_response = app.client.files_info(file=file_id)
+                        if file_info_response["ok"]:
+                            file_data = file_info_response.get("file", {})
+                            mimetype = file_data.get("mimetype")
+
+                            if mimetype:
+                                # File is processed and ready
+                                logger.info(
+                                    f"MULTI_ATTACH: File {file_name} (ID: {file_id}) processed after {attempt}s"
+                                )
+                                processed_count += 1
+                                break
+                            else:
+                                # File still processing, wait 1 second
+                                if attempt < max_attempts - 1:
+                                    time.sleep(1)
+                                else:
+                                    logger.warning(
+                                        f"MULTI_ATTACH: File {file_name} (ID: {file_id}) not processed after {max_attempts}s, continuing anyway"
+                                    )
+                                    processed_count += 1
+                        else:
+                            logger.error(
+                                f"MULTI_ATTACH: files.info failed for {file_id}: {file_info_response.get('error')}"
+                            )
+                            break
+                    except Exception as e:
+                        logger.error(
+                            f"MULTI_ATTACH: Error checking file status for {file_id}: {e}"
+                        )
+                        break
+
             results["success"] = True
             results["message_sent"] = True
             results["attachments_sent"] = len(file_uploads)
 
             logger.info(
-                f"MULTI_ATTACH: Successfully sent message with {len(file_uploads)} attachments to {target_channel}"
+                f"MULTI_ATTACH: Successfully sent message with {len(file_uploads)} attachments ({processed_count} processed) to {target_channel}"
             )
 
             # Archive the successful message with multiple attachments

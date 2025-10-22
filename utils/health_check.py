@@ -1736,7 +1736,10 @@ def get_status_summary():
     try:
         status = get_system_status()
 
-        summary_lines = [f"🤖 *BrightDayBot Health Check* ({status['timestamp']})", ""]
+        summary_lines = [
+            f"🤖 *Ludo | LiGHT BrightDay Coordinator Health Check* ({status['timestamp']})",
+            "",
+        ]
 
         # Storage directory status
         storage_dir_status = status["components"].get("storage_directory", {})

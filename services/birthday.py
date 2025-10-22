@@ -125,8 +125,8 @@ def celebrate_bot_birthday(app, moment):
 
                 # Generate the birthday image using a fake user profile for bot
                 bot_profile = {
-                    "real_name": "BrightDayBot",
-                    "display_name": "BrightDayBot",
+                    "real_name": "Ludo | LiGHT BrightDay Coordinator",
+                    "display_name": "Ludo | LiGHT BrightDay Coordinator",
                     "title": "Mystical Birthday Guardian",
                     "user_id": "BRIGHTDAYBOT",  # Critical for bot celebration detection
                 }
@@ -146,44 +146,147 @@ def celebrate_bot_birthday(app, moment):
                 )
 
                 if image_result and image_result.get("success"):
-                    # Add the bot celebration title to image_result for proper display
-                    image_result["custom_title"] = image_title
-                    # Validate the custom title was set properly
-                    if not image_title or not image_title.strip():
-                        logger.error(
-                            f"BOT_BIRTHDAY: Custom title is empty or None: '{image_title}' - AI title generation will run instead"
-                        )
-                    else:
+                    # NEW FLOW: Upload image → Get file ID → Build blocks with embedded image → Send unified message
+                    try:
+                        # Step 1: Upload image to get file ID
+                        from utils.slack_utils import upload_birthday_images_for_blocks
+
                         logger.info(
-                            f"BOT_BIRTHDAY: Custom title set successfully: '{image_title}'"
+                            "BOT_BIRTHDAY: Uploading celebration image to get file ID for Block Kit embedding"
+                        )
+                        file_ids = upload_birthday_images_for_blocks(
+                            app,
+                            BIRTHDAY_CHANNEL,
+                            [image_result],
+                            context={
+                                "message_type": "bot_celebration",
+                                "personality": "mystic_dog",
+                            },
                         )
 
-                    # Send message with image
-                    send_message_with_image(
-                        app,
-                        BIRTHDAY_CHANNEL,
-                        celebration_message,
-                        image_result,  # Pass the full image_result dict
-                    )
-                    logger.info("BOT_BIRTHDAY: Sent celebration message with AI image")
+                        # Extract file_id and title from tuple (new format)
+                        file_id_tuple = file_ids[0] if file_ids else None
+                        if file_id_tuple:
+                            if isinstance(file_id_tuple, tuple):
+                                file_id, image_title = file_id_tuple
+                                logger.info(
+                                    f"BOT_BIRTHDAY: Successfully uploaded image, got file ID: {file_id}, title: {image_title}"
+                                )
+                            else:
+                                # Backward compatibility: handle old string format
+                                file_id = file_id_tuple
+                                image_title = None
+                                logger.info(
+                                    f"BOT_BIRTHDAY: Successfully uploaded image, got file ID: {file_id} (no title)"
+                                )
+                        else:
+                            file_id = None
+                            image_title = None
+                            logger.warning(
+                                "BOT_BIRTHDAY: Image upload failed or returned no file ID, proceeding without embedded image"
+                            )
+
+                        # Step 2: Build Block Kit blocks with embedded image (using file ID tuple)
+                        try:
+                            from utils.block_builder import build_bot_celebration_blocks
+
+                            blocks, fallback_text = build_bot_celebration_blocks(
+                                celebration_message,
+                                bot_age,
+                                personality="mystic_dog",
+                                image_file_id=file_id_tuple if file_id_tuple else None,
+                            )
+
+                            image_note = (
+                                f" (with embedded image: {image_title})"
+                                if file_id
+                                else ""
+                            )
+                            logger.info(
+                                f"BOT_BIRTHDAY: Built Block Kit structure with {len(blocks)} blocks{image_note}"
+                            )
+                        except Exception as block_error:
+                            logger.warning(
+                                f"BOT_BIRTHDAY: Failed to build Block Kit blocks: {block_error}. Using plain text."
+                            )
+                            blocks = None
+                            fallback_text = celebration_message
+
+                        # Step 3: Send unified Block Kit message (image already embedded in blocks)
+                        send_message(app, BIRTHDAY_CHANNEL, fallback_text, blocks)
+                        logger.info(
+                            "BOT_BIRTHDAY: Sent celebration message with Block Kit embedded image"
+                        )
+
+                    except Exception as upload_error:
+                        logger.error(
+                            f"BOT_BIRTHDAY: Upload/block building failed: {upload_error}, falling back to message only"
+                        )
+                        # Fallback to message only with blocks (no image)
+                        try:
+                            from utils.block_builder import build_bot_celebration_blocks
+
+                            blocks, fallback_text = build_bot_celebration_blocks(
+                                celebration_message, bot_age, personality="mystic_dog"
+                            )
+                        except Exception as block_error:
+                            blocks = None
+                            fallback_text = celebration_message
+
+                        send_message(app, BIRTHDAY_CHANNEL, fallback_text, blocks)
+                        logger.info(
+                            "BOT_BIRTHDAY: Sent celebration message without image (upload error fallback)"
+                        )
                 else:
-                    # Fallback to message only
-                    send_message(app, BIRTHDAY_CHANNEL, celebration_message)
+                    # Fallback to message only with blocks
+                    try:
+                        from utils.block_builder import build_bot_celebration_blocks
+
+                        blocks, fallback_text = build_bot_celebration_blocks(
+                            celebration_message, bot_age, personality="mystic_dog"
+                        )
+                    except Exception as block_error:
+                        blocks = None
+                        fallback_text = celebration_message
+
+                    send_message(app, BIRTHDAY_CHANNEL, fallback_text, blocks)
                     logger.info(
-                        "BOT_BIRTHDAY: Sent celebration message (image generation failed)"
+                        "BOT_BIRTHDAY: Sent celebration message with Block Kit formatting (image generation failed)"
                     )
 
             except Exception as image_error:
                 logger.warning(f"BOT_BIRTHDAY: Image generation failed: {image_error}")
-                # Fallback to message only
-                send_message(app, BIRTHDAY_CHANNEL, celebration_message)
+                # Fallback to message only with blocks
+                try:
+                    from utils.block_builder import build_bot_celebration_blocks
+
+                    blocks, fallback_text = build_bot_celebration_blocks(
+                        celebration_message, bot_age, personality="mystic_dog"
+                    )
+                except Exception as block_error:
+                    blocks = None
+                    fallback_text = celebration_message
+
+                send_message(app, BIRTHDAY_CHANNEL, fallback_text, blocks)
                 logger.info(
-                    "BOT_BIRTHDAY: Sent celebration message (image error fallback)"
+                    "BOT_BIRTHDAY: Sent celebration message with Block Kit formatting (image error fallback)"
                 )
         else:
-            # Images disabled - send message only
-            send_message(app, BIRTHDAY_CHANNEL, celebration_message)
-            logger.info("BOT_BIRTHDAY: Sent celebration message (images disabled)")
+            # Images disabled - send message only with blocks
+            try:
+                from utils.block_builder import build_bot_celebration_blocks
+
+                blocks, fallback_text = build_bot_celebration_blocks(
+                    celebration_message, bot_age, personality="mystic_dog"
+                )
+            except Exception as block_error:
+                blocks = None
+                fallback_text = celebration_message
+
+            send_message(app, BIRTHDAY_CHANNEL, fallback_text, blocks)
+            logger.info(
+                "BOT_BIRTHDAY: Sent celebration message with Block Kit formatting (images disabled)"
+            )
 
         # Mark as celebrated today to prevent duplicates
         os.makedirs("data/tracking", exist_ok=True)
@@ -259,12 +362,22 @@ def check_and_announce_special_days(app, moment):
             + ", ".join([d.name for d in special_days])
         )
 
-        # Generate the announcement message
-        message = generate_special_day_message(special_days, app=app)
+        # Generate the SHORT teaser announcement message (NEW: use_teaser=True)
+        message = generate_special_day_message(special_days, app=app, use_teaser=True)
 
         if not message:
             logger.error("SPECIAL_DAYS: Failed to generate message")
             return False
+
+        # Generate DETAILED content for "View Details" button (NEW)
+        from utils.special_day_generator import generate_special_day_details
+
+        detailed_content = generate_special_day_details(special_days, app=app)
+
+        if not detailed_content:
+            logger.warning(
+                "SPECIAL_DAYS: Failed to generate detailed content, button will not be available"
+            )
 
         # Determine channel to use
         channel = SPECIAL_DAYS_CHANNEL or BIRTHDAY_CHANNEL
@@ -273,8 +386,51 @@ def check_and_announce_special_days(app, moment):
             logger.error("SPECIAL_DAYS: No channel configured for announcements")
             return False
 
-        # Send the message
-        result = send_message(app, channel, message)
+        # Build Block Kit blocks for special day announcement
+        try:
+            from utils.block_builder import build_special_day_blocks
+            from config import SPECIAL_DAYS_PERSONALITY
+
+            # Handle single or multiple special days
+            if len(special_days) == 1:
+                special_day = special_days[0]
+                blocks, fallback_text = build_special_day_blocks(
+                    observance_name=special_day.name,
+                    message=message,
+                    observance_date=special_day.date,
+                    source=special_day.source,
+                    personality=SPECIAL_DAYS_PERSONALITY,
+                    detailed_content=detailed_content,  # NEW: Use detailed content instead of description
+                    category=special_day.category,
+                    url=special_day.url,
+                )
+            else:
+                # For multiple special days, use the first one's info for the header
+                # The message already contains all the special days
+                primary_day = special_days[0]
+                blocks, fallback_text = build_special_day_blocks(
+                    observance_name=f"{len(special_days)} Special Observances Today",
+                    message=message,
+                    observance_date=primary_day.date,
+                    source="Multiple Sources",
+                    personality=SPECIAL_DAYS_PERSONALITY,
+                    detailed_content=detailed_content,  # NEW: Use detailed content for multiple days too
+                    category=None,  # Multiple categories
+                    url=None,  # No single URL for multiple days
+                )
+
+            logger.info(
+                f"SPECIAL_DAYS: Built Block Kit structure with {len(blocks)} blocks"
+            )
+        except Exception as block_error:
+            logger.warning(
+                f"SPECIAL_DAYS: Failed to build Block Kit blocks: {block_error}. Using plain text."
+            )
+            blocks = None
+            fallback_text = message
+
+        # Send the message with blocks
+        result = send_message(app, channel, fallback_text, blocks)
 
         if result:
             logger.info(f"SPECIAL_DAYS: Successfully sent announcement to {channel}")

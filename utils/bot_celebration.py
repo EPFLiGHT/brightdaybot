@@ -1,8 +1,8 @@
 """
-BrightDayBot self-celebration utilities.
+Ludo | LiGHT BrightDay Coordinator self-celebration utilities.
 
 Handles the bot's own birthday celebration with AI-generated messages from
-Ludo the Mystic Dog, featuring all 8 personalities and Billy bot replacement story.
+Ludo the Mystic Dog, featuring all 9 personalities and Billy bot replacement story.
 
 Main function: generate_bot_celebration_message().
 """
@@ -35,7 +35,7 @@ def generate_bot_celebration_message(
     special_days_count=0,
 ):
     """
-    Generate AI-powered mystical celebration message for BrightDayBot's birthday using Ludo.
+    Generate AI-powered mystical celebration message for Ludo | LiGHT BrightDay Coordinator's birthday using Ludo.
 
     Args:
         bot_age: How many years old the bot is
@@ -60,7 +60,7 @@ def generate_bot_celebration_message(
             "BOT_CELEBRATION: No bot_self_celebration prompt found in mystic_dog personality"
         )
         # Fallback to a simple message
-        return f"🌟 Happy Birthday BrightDayBot! 🎂 Today marks {bot_age} year(s) of free birthday celebrations!"
+        return f"🌟 Happy Birthday Ludo | LiGHT BrightDay Coordinator! 🎂 Today marks {bot_age} year(s) of free birthday celebrations!"
 
     # Format the prompt with actual statistics
     bot_birthday_formatted = date_to_words(
@@ -108,14 +108,14 @@ def generate_bot_celebration_message(
             logger.warning(
                 "BOT_CELEBRATION: AI generated empty message, using fallback"
             )
-            return f"🌟 Happy Birthday BrightDayBot! 🎂 Today marks {bot_age} year(s) of mystical birthday magic!"
+            return f"🌟 Happy Birthday Ludo | LiGHT BrightDay Coordinator! 🎂 Today marks {bot_age} year(s) of mystical birthday magic!"
 
     except Exception as e:
         logger.error(f"BOT_CELEBRATION: Failed to generate AI message: {e}")
         # Fallback to a simple but themed message
         return f"""🌟 COSMIC BIRTHDAY ALIGNMENT DETECTED! 🌟
 
-<!here> The mystic energies converge! Today marks BrightDayBot's {bot_age} year anniversary! 🔮
+<!here> The mystic energies converge! Today marks Ludo | LiGHT BrightDay Coordinator's {bot_age} year anniversary! 🔮
 
 Ludo's crystal ball reveals: {total_birthdays} souls protected, {special_days_count} special days chronicled, ${yearly_savings} saved from Billy bot's greed!
 
@@ -125,8 +125,8 @@ May the birthday forces be with you always! 🌌
 
 def get_bot_celebration_image_prompt():
     """
-    Get the special image prompt for BrightDayBot's birthday celebration from personality config.
-    Features Ludo and all 8 personalities in a mystical scene.
+    Get the special image prompt for Ludo | LiGHT BrightDay Coordinator's birthday celebration from personality config.
+    Features Ludo and all 9 personalities in a mystical scene.
 
     Returns:
         str: Image generation prompt
@@ -134,13 +134,13 @@ def get_bot_celebration_image_prompt():
     mystic_dog = PERSONALITIES.get("mystic_dog", {})
     return mystic_dog.get(
         "bot_celebration_image_prompt",
-        "A mystical birthday celebration for BrightDayBot with Ludo and all personality dogs.",
+        "A mystical birthday celebration for Ludo | LiGHT BrightDay Coordinator with Ludo and all personality dogs.",
     )
 
 
 def get_bot_celebration_image_title():
     """
-    Generate AI-powered title for BrightDayBot's birthday image using the special bot celebration prompt.
+    Generate AI-powered title for Ludo | LiGHT BrightDay Coordinator's birthday image using the special bot celebration prompt.
 
     Returns:
         str: AI-generated image title
@@ -154,7 +154,7 @@ def get_bot_celebration_image_title():
             logger.warning(
                 "BOT_CELEBRATION: No bot_celebration_image_title_prompt found, using fallback"
             )
-            return "🌟 BrightDayBot's Cosmic Birthday Celebration! 🎂✨"
+            return "🌟 Ludo | LiGHT BrightDay Coordinator's Cosmic Birthday Celebration! 🎂✨"
 
         # Generate title using OpenAI
         model = get_configured_openai_model()
@@ -184,12 +184,12 @@ def get_bot_celebration_image_title():
                 logger.warning(
                     "BOT_CELEBRATION: fix_slack_formatting returned empty, using fallback"
                 )
-                return "🌟 BrightDayBot's Mystical Birthday Vision! 🎂✨"
+                return "🌟 Ludo's Mystical Birthday Vision! 🎂✨"
         else:
             logger.warning("BOT_CELEBRATION: AI generated empty title, using fallback")
-            return "🌟 BrightDayBot's Mystical Birthday Vision! 🎂✨"
+            return "🌟 Ludo's Mystical Birthday Vision! 🎂✨"
 
     except Exception as e:
         logger.error(f"BOT_CELEBRATION: Failed to generate AI title: {e}")
         # Fallback to a cosmic but static title
-        return "🌟 Ludo's Cosmic Birthday Vision: BrightDayBot's Digital Manifestation! 🎂✨"
+        return "🌟 Ludo's Cosmic Birthday Vision: The Nine Sacred Forms! 🎂✨"
