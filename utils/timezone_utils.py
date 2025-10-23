@@ -37,7 +37,7 @@ def get_timezone_object(timezone_str):
 
 
 def is_celebration_time_for_user(
-    user_timezone_str, target_time=TIMEZONE_CELEBRATION_TIME
+    user_timezone_str, target_time=TIMEZONE_CELEBRATION_TIME, utc_moment=None
 ):
     """
     Check if it's celebration time in the user's timezone
@@ -45,22 +45,39 @@ def is_celebration_time_for_user(
     Args:
         user_timezone_str: User's timezone string (e.g., "America/New_York")
         target_time: Time to celebrate as datetime.time object (default: TIMEZONE_CELEBRATION_TIME)
+        utc_moment: Optional UTC datetime for consistent date checking across all users
 
     Returns:
-        True if it's currently at or after the celebration time in user's timezone
+        True if hour >= target AND date matches UTC date (prevents celebrating on wrong day)
     """
     try:
         user_tz = get_timezone_object(user_timezone_str)
 
-        # Get current time in user's timezone
-        current_user_time = datetime.now(user_tz)
+        # Use provided UTC moment if available (for consistency), otherwise use current time
+        if utc_moment:
+            current_user_time = utc_moment.astimezone(user_tz)
+        else:
+            # Fallback to current time (backward compatibility)
+            utc_now = datetime.now(pytz.UTC)
+            current_user_time = utc_now.astimezone(user_tz)
 
-        # Check if current time is at or after target celebration time
-        # Use >= logic to handle scheduler timing variations and delays
-        is_celebration_time = current_user_time.hour >= target_time.hour
+        # FIXED: Check both hour AND date
+        # Hour check: >= allows catch-up for travelers/missed celebrations
+        hour_check = current_user_time.hour >= target_time.hour
+
+        # Date check: Prevents celebrating on wrong day
+        # Example: Prevents celebrating at 20:00 Oct 22 instead of 09:00 Oct 23
+        if utc_moment:
+            date_check = current_user_time.date() == utc_moment.date()
+        else:
+            # If no UTC moment provided, skip date check (backward compatibility)
+            date_check = True
+
+        is_celebration_time = hour_check and date_check
 
         logger.debug(
-            f"TIMEZONE: User timezone {user_timezone_str}, current time: {current_user_time.hour:02d}:{current_user_time.minute:02d}, target: {target_time.hour:02d}:{target_time.minute:02d}, celebration_time: {is_celebration_time} (>= logic)"
+            f"TIMEZONE: User timezone {user_timezone_str}, current time: {current_user_time.strftime('%Y-%m-%d %H:%M')}, "
+            f"target: {target_time.hour:02d}:00, hour_check: {hour_check}, date_check: {date_check}, result: {is_celebration_time}"
         )
 
         return is_celebration_time
@@ -243,13 +260,22 @@ def test_timezone_functions():
         "invalid/timezone",
     ]
 
+    # Get current UTC moment for consistent testing
+    import pytz
+
+    utc_moment = datetime.now(pytz.UTC)
+
     for tz in test_timezones:
         current_time = get_user_current_time(tz)
-        is_celebration = is_celebration_time_for_user(tz)
+        # Test with utc_moment for accurate date validation
+        is_celebration = is_celebration_time_for_user(
+            tz, TIMEZONE_CELEBRATION_TIME, utc_moment
+        )
 
         print(f"Timezone: {tz}")
         print(f"  Current time: {current_time}")
-        print(f"  Is celebration time: {is_celebration}")
+        print(f"  UTC moment: {utc_moment.strftime('%Y-%m-%d %H:%M')}")
+        print(f"  Is celebration time (with date check): {is_celebration}")
         print()
 
     print("=== Celebration Schedule ===")

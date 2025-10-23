@@ -821,10 +821,16 @@ def timezone_aware_check(app, moment):
             all_birthday_people_today.append(birthday_person)
 
             # Check if this person is hitting celebration time right now (the trigger)
-            if is_celebration_time_for_user(user_timezone):
+            if is_celebration_time_for_user(
+                user_timezone, TIMEZONE_CELEBRATION_TIME, utc_moment
+            ):
                 trigger_people.append(birthday_person)
+                # Get actual current time in user's timezone for accurate logging
+                from utils.timezone_utils import get_user_current_time
+
+                user_current_time = get_user_current_time(user_timezone)
                 logger.info(
-                    f"TIMEZONE: It's {TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')} in {user_timezone} for {username} - triggering celebration for all today's birthdays!"
+                    f"TIMEZONE: It's {user_current_time.strftime('%H:%M')} in {user_timezone} for {username} - triggering celebration for all today's birthdays!"
                 )
             else:
                 logger.debug(
