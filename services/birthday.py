@@ -362,23 +362,6 @@ def check_and_announce_special_days(app, moment):
             + ", ".join([d.name for d in special_days])
         )
 
-        # Generate the SHORT teaser announcement message (NEW: use_teaser=True)
-        message = generate_special_day_message(special_days, app=app, use_teaser=True)
-
-        if not message:
-            logger.error("SPECIAL_DAYS: Failed to generate message")
-            return False
-
-        # Generate DETAILED content for "View Details" button (NEW)
-        from utils.special_day_generator import generate_special_day_details
-
-        detailed_content = generate_special_day_details(special_days, app=app)
-
-        if not detailed_content:
-            logger.warning(
-                "SPECIAL_DAYS: Failed to generate detailed content, button will not be available"
-            )
-
         # Determine channel to use
         channel = SPECIAL_DAYS_CHANNEL or BIRTHDAY_CHANNEL
 
@@ -386,51 +369,152 @@ def check_and_announce_special_days(app, moment):
             logger.error("SPECIAL_DAYS: No channel configured for announcements")
             return False
 
-        # Build Block Kit blocks for special day announcement
-        try:
-            from utils.block_builder import build_special_day_blocks
-            from config import SPECIAL_DAYS_PERSONALITY
+        # NEW: Check if observances should be split into separate announcements
+        from utils.observance_utils import should_split_observances
 
-            # Handle single or multiple special days
-            if len(special_days) == 1:
-                special_day = special_days[0]
-                blocks, fallback_text = build_special_day_blocks(
-                    observance_name=special_day.name,
-                    message=message,
-                    observance_date=special_day.date,
-                    source=special_day.source,
-                    personality=SPECIAL_DAYS_PERSONALITY,
-                    detailed_content=detailed_content,  # NEW: Use detailed content instead of description
-                    category=special_day.category,
-                    url=special_day.url,
-                )
-            else:
-                # For multiple special days, use the first one's info for the header
-                # The message already contains all the special days
-                primary_day = special_days[0]
-                blocks, fallback_text = build_special_day_blocks(
-                    observance_name=f"{len(special_days)} Special Observances Today",
-                    message=message,
-                    observance_date=primary_day.date,
-                    source="Multiple Sources",
-                    personality=SPECIAL_DAYS_PERSONALITY,
-                    detailed_content=detailed_content,  # NEW: Use detailed content for multiple days too
-                    category=None,  # Multiple categories
-                    url=None,  # No single URL for multiple days
-                )
+        should_split = should_split_observances(special_days)
 
+        if should_split and len(special_days) > 1:
+            # SPLIT APPROACH: Send individual announcements for each observance
             logger.info(
-                f"SPECIAL_DAYS: Built Block Kit structure with {len(blocks)} blocks"
+                f"SPECIAL_DAYS_SPLIT: Sending {len(special_days)} separate announcements for different categories"
             )
-        except Exception as block_error:
-            logger.warning(
-                f"SPECIAL_DAYS: Failed to build Block Kit blocks: {block_error}. Using plain text."
-            )
-            blocks = None
-            fallback_text = message
 
-        # Send the message with blocks
-        result = send_message(app, channel, fallback_text, blocks)
+            announcements_sent = 0
+            for special_day in special_days:
+                try:
+                    # Generate individual message for this observance
+                    message = generate_special_day_message(
+                        [special_day], app=app, use_teaser=True
+                    )
+
+                    if not message:
+                        logger.error(
+                            f"SPECIAL_DAYS_SPLIT: Failed to generate message for {special_day.name}"
+                        )
+                        continue
+
+                    # Generate detailed content for this observance
+                    from utils.special_day_generator import generate_special_day_details
+
+                    detailed_content = generate_special_day_details(
+                        [special_day], app=app
+                    )
+
+                    # Build blocks for this individual observance
+                    from utils.block_builder import build_special_day_blocks
+                    from config import SPECIAL_DAYS_PERSONALITY
+
+                    blocks, fallback_text = build_special_day_blocks(
+                        observance_name=special_day.name,
+                        message=message,
+                        observance_date=special_day.date,
+                        source=special_day.source,
+                        personality=SPECIAL_DAYS_PERSONALITY,
+                        detailed_content=detailed_content,
+                        category=special_day.category,
+                        url=special_day.url,
+                    )
+
+                    # Send this individual announcement
+                    result = send_message(app, channel, fallback_text, blocks)
+
+                    if result:
+                        announcements_sent += 1
+                        logger.info(
+                            f"SPECIAL_DAYS_SPLIT: Successfully sent announcement {announcements_sent}/{len(special_days)}: {special_day.name}"
+                        )
+                    else:
+                        logger.error(
+                            f"SPECIAL_DAYS_SPLIT: Failed to send announcement for {special_day.name}"
+                        )
+
+                except Exception as e:
+                    logger.error(
+                        f"SPECIAL_DAYS_SPLIT: Error announcing {special_day.name}: {e}"
+                    )
+
+            if announcements_sent > 0:
+                # Mark as announced if at least one announcement succeeded
+                mark_special_day_announced(moment)
+                logger.info(
+                    f"SPECIAL_DAYS_SPLIT: Successfully sent {announcements_sent}/{len(special_days)} announcements"
+                )
+                return True
+            else:
+                logger.error("SPECIAL_DAYS_SPLIT: Failed to send any announcements")
+                return False
+
+        else:
+            # COMBINED APPROACH: Send single announcement (original behavior)
+            logger.info(
+                f"SPECIAL_DAYS_COMBINED: Sending combined announcement for {len(special_days)} observance(s)"
+            )
+
+            # Generate the SHORT teaser announcement message (NEW: use_teaser=True)
+            message = generate_special_day_message(
+                special_days, app=app, use_teaser=True
+            )
+
+            if not message:
+                logger.error("SPECIAL_DAYS: Failed to generate message")
+                return False
+
+            # Generate DETAILED content for "View Details" button (NEW)
+            from utils.special_day_generator import generate_special_day_details
+
+            detailed_content = generate_special_day_details(special_days, app=app)
+
+            if not detailed_content:
+                logger.warning(
+                    "SPECIAL_DAYS: Failed to generate detailed content, button will not be available"
+                )
+
+            # Build Block Kit blocks for special day announcement
+            try:
+                from utils.block_builder import build_special_day_blocks
+                from config import SPECIAL_DAYS_PERSONALITY
+
+                # Handle single or multiple special days
+                if len(special_days) == 1:
+                    special_day = special_days[0]
+                    blocks, fallback_text = build_special_day_blocks(
+                        observance_name=special_day.name,
+                        message=message,
+                        observance_date=special_day.date,
+                        source=special_day.source,
+                        personality=SPECIAL_DAYS_PERSONALITY,
+                        detailed_content=detailed_content,  # NEW: Use detailed content instead of description
+                        category=special_day.category,
+                        url=special_day.url,
+                    )
+                else:
+                    # For multiple special days, use the first one's info for the header
+                    # The message already contains all the special days
+                    primary_day = special_days[0]
+                    blocks, fallback_text = build_special_day_blocks(
+                        observance_name=f"{len(special_days)} Special Observances Today",
+                        message=message,
+                        observance_date=primary_day.date,
+                        source="Multiple Sources",
+                        personality=SPECIAL_DAYS_PERSONALITY,
+                        detailed_content=detailed_content,  # NEW: Use detailed content for multiple days too
+                        category=None,  # Multiple categories
+                        url=None,  # No single URL for multiple days
+                    )
+
+                logger.info(
+                    f"SPECIAL_DAYS: Built Block Kit structure with {len(blocks)} blocks"
+                )
+            except Exception as block_error:
+                logger.warning(
+                    f"SPECIAL_DAYS: Failed to build Block Kit blocks: {block_error}. Using plain text."
+                )
+                blocks = None
+                fallback_text = message
+
+            # Send the message with blocks
+            result = send_message(app, channel, fallback_text, blocks)
 
         if result:
             logger.info(f"SPECIAL_DAYS: Successfully sent announcement to {channel}")

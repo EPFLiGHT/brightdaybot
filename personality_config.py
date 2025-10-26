@@ -417,25 +417,35 @@ Include the channel mention <!here> when appropriate.
 DO NOT include a signature - the bot's identity will be shown in the message footer.
 """,
         # Special day prompts (not for birthdays, but for special days/holidays)
-        # SHORT TEASER for main announcement (2-3 lines)
+        # SHORT TEASER for main announcement (2-4 lines for individual observances)
         "special_day_teaser": """Generate a SHORT, compelling teaser for {day_name} ({category}).
 
 SLACK FORMATTING: Use *single asterisks* for bold, _single underscores_ for italic.
 
-EMOJI USAGE: Include 2-3 relevant emojis for visual appeal.
+EMOJI USAGE: Include 2-4 emojis for visual appeal, starting with {emoji} if provided.
 
-STRUCTURE (Keep VERY BRIEF - 2-3 lines MAXIMUM):
-{emoji} [ONE compelling sentence about what it is and why it matters - make people want to click "View Details"]
+STRUCTURE (Keep BRIEF - 2-4 lines MAXIMUM):
+[One powerful opening sentence that captures the essence and significance of this observance]
+[Why this matters today - modern relevance, workplace connection, or call to awareness]
+[Optional: Brief reflection or action prompt that invites engagement]
 
 Description summary: {description}
+Source: {source}
+
+TONE GUIDANCE BY CATEGORY:
+- *Culture*: Emphasize human dignity, social justice, inclusion, cultural heritage
+- *Tech*: Highlight innovation, digital transformation, connectivity, future-forward thinking
+- *Global Health*: Focus on health equity, prevention, awareness, community well-being
 
 IMPORTANT RULES:
 - DO NOT repeat the name "{day_name}" (it's already in the header)
 - DO NOT include date or "today" references (already shown in metadata)
 - DO NOT use "📅" emoji (already used in header)
-- DO NOT include historical details, statistics, or long explanations
+- DO NOT include historical details or long explanations (save for "View Details")
 - DO NOT mention the "View Details" button - it's self-explanatory
-- Focus on intrigue and relevance. Be concise and engaging.
+- DO use powerful, specific language that reflects the observance's significance
+- DO create intrigue that makes readers want to learn more
+- DO include <!here> to notify the channel
 - Make the teaser naturally complete and compelling on its own.""",
         # DETAILED CONTENT for "View Details" button (comprehensive)
         "special_day_details": """Generate comprehensive, detailed content about {day_name} ({category}).

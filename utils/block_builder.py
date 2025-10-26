@@ -1593,7 +1593,7 @@ def build_special_days_list_blocks(
 
 
 def build_special_day_stats_blocks(
-    stats: Dict[str, Any]
+    stats: Dict[str, Any],
 ) -> tuple[List[Dict[str, Any]], str]:
     """
     Build Block Kit structure for special days statistics

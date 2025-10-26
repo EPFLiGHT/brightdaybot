@@ -4773,73 +4773,144 @@ def handle_admin_special_command(args, user_id, say, app):
             test_date_str = format_date_european_short(test_date)
             say(f"🧪 Testing special day announcement for {test_date_str}...")
 
-            # Generate SHORT teaser message (NEW: use_teaser=True by default)
-            # Pass test_date so web search uses the correct date
-            message = generate_special_day_message(
-                special_days,
-                test_mode=True,
-                app=app,
-                use_teaser=True,
-                test_date=test_date,
-            )
+            # NEW: Check if observances should be split
+            from utils.observance_utils import should_split_observances
 
-            # Generate DETAILED content for "View Details" button (NEW)
-            # Pass test_date so web search uses the correct date
-            from utils.special_day_generator import generate_special_day_details
+            should_split = should_split_observances(special_days)
 
-            detailed_content = generate_special_day_details(
-                special_days, app=app, test_date=test_date
-            )
+            if should_split and len(special_days) > 1:
+                # SPLIT APPROACH: Send individual test announcements
+                say(
+                    f"📋 Splitting {len(special_days)} observances into separate announcements (different categories)"
+                )
 
-            if message:
-                # Build Block Kit blocks exactly like formal announcements
-                try:
-                    from utils.block_builder import build_special_day_blocks
-                    from config import SPECIAL_DAYS_PERSONALITY
-
-                    # Handle single or multiple special days (same logic as formal code)
-                    if len(special_days) == 1:
-                        special_day = special_days[0]
-                        blocks, fallback_text = build_special_day_blocks(
-                            observance_name=special_day.name,
-                            message=message,
-                            observance_date=special_day.date,
-                            source=special_day.source,
-                            personality=SPECIAL_DAYS_PERSONALITY,
-                            detailed_content=detailed_content,  # NEW: Use detailed content instead of description
-                            category=special_day.category,
-                            url=special_day.url,
-                        )
-                    else:
-                        # For multiple special days
-                        primary_day = special_days[0]
-                        blocks, fallback_text = build_special_day_blocks(
-                            observance_name=f"{len(special_days)} Special Observances Today",
-                            message=message,
-                            observance_date=primary_day.date,
-                            source="Multiple Sources",
-                            personality=SPECIAL_DAYS_PERSONALITY,
-                            detailed_content=detailed_content,  # NEW: Use detailed content for multiple days too
-                            category=None,
-                            url=None,
+                for idx, special_day in enumerate(special_days, 1):
+                    try:
+                        say(
+                            f"\n**{idx}/{len(special_days)}: {special_day.name}** ({special_day.category})"
                         )
 
-                    logger.info(
-                        f"ADMIN_SPECIAL_TEST: Built Block Kit structure with {len(blocks)} blocks"
-                    )
+                        # Generate individual message
+                        message = generate_special_day_message(
+                            [special_day],
+                            test_mode=True,
+                            app=app,
+                            use_teaser=True,
+                            test_date=test_date,
+                        )
 
-                    # Send with Block Kit blocks to admin DM
-                    from utils.slack_utils import send_message
+                        # Generate detailed content
+                        from utils.special_day_generator import (
+                            generate_special_day_details,
+                        )
 
-                    send_message(app, user_id, fallback_text, blocks)
+                        detailed_content = generate_special_day_details(
+                            [special_day], app=app, test_date=test_date
+                        )
 
-                except Exception as block_error:
-                    logger.warning(
-                        f"ADMIN_SPECIAL_TEST: Failed to build blocks: {block_error}. Using plain text."
-                    )
-                    say(f"*Generated Message:*\n\n{message}")
+                        if message:
+                            # Build blocks for individual observance
+                            from utils.block_builder import build_special_day_blocks
+                            from config import SPECIAL_DAYS_PERSONALITY
+
+                            blocks, fallback_text = build_special_day_blocks(
+                                observance_name=special_day.name,
+                                message=message,
+                                observance_date=special_day.date,
+                                source=special_day.source,
+                                personality=SPECIAL_DAYS_PERSONALITY,
+                                detailed_content=detailed_content,
+                                category=special_day.category,
+                                url=special_day.url,
+                            )
+
+                            # Send individual announcement to admin DM
+                            from utils.slack_utils import send_message
+
+                            send_message(app, user_id, fallback_text, blocks)
+
+                        else:
+                            say(f"❌ Failed to generate message for {special_day.name}")
+
+                    except Exception as e:
+                        say(f"❌ Error testing {special_day.name}: {e}")
+
+                say(f"\n✅ Sent {len(special_days)} separate announcements to your DM")
+
             else:
-                say("❌ Failed to generate message")
+                # COMBINED APPROACH: Original behavior for same category or single observance
+                if len(special_days) > 1:
+                    say(
+                        f"📋 Combining {len(special_days)} observances into single announcement (same category)"
+                    )
+
+                # Generate SHORT teaser message (NEW: use_teaser=True by default)
+                # Pass test_date so web search uses the correct date
+                message = generate_special_day_message(
+                    special_days,
+                    test_mode=True,
+                    app=app,
+                    use_teaser=True,
+                    test_date=test_date,
+                )
+
+                # Generate DETAILED content for "View Details" button (NEW)
+                # Pass test_date so web search uses the correct date
+                from utils.special_day_generator import generate_special_day_details
+
+                detailed_content = generate_special_day_details(
+                    special_days, app=app, test_date=test_date
+                )
+
+                if message:
+                    # Build Block Kit blocks exactly like formal announcements
+                    try:
+                        from utils.block_builder import build_special_day_blocks
+                        from config import SPECIAL_DAYS_PERSONALITY
+
+                        # Handle single or multiple special days (same logic as formal code)
+                        if len(special_days) == 1:
+                            special_day = special_days[0]
+                            blocks, fallback_text = build_special_day_blocks(
+                                observance_name=special_day.name,
+                                message=message,
+                                observance_date=special_day.date,
+                                source=special_day.source,
+                                personality=SPECIAL_DAYS_PERSONALITY,
+                                detailed_content=detailed_content,  # NEW: Use detailed content instead of description
+                                category=special_day.category,
+                                url=special_day.url,
+                            )
+                        else:
+                            # For multiple special days
+                            primary_day = special_days[0]
+                            blocks, fallback_text = build_special_day_blocks(
+                                observance_name=f"{len(special_days)} Special Observances Today",
+                                message=message,
+                                observance_date=primary_day.date,
+                                source="Multiple Sources",
+                                personality=SPECIAL_DAYS_PERSONALITY,
+                                detailed_content=detailed_content,  # NEW: Use detailed content for multiple days too
+                                category=None,
+                                url=None,
+                            )
+
+                        logger.info(
+                            f"ADMIN_SPECIAL_TEST: Built Block Kit structure with {len(blocks)} blocks"
+                        )
+
+                        # Send with Block Kit blocks to admin DM
+                        from utils.slack_utils import send_message
+
+                        send_message(app, user_id, fallback_text, blocks)
+
+                    except Exception as block_error:
+                        logger.warning(
+                            f"ADMIN_SPECIAL_TEST: Failed to build blocks: {block_error}. Using plain text."
+                        )
+                        say(f"*Generated Message:*\n\n{message}")
+                else:
+                    say("❌ Failed to generate message")
         else:
             from utils.date_utils import format_date_european_short
 
