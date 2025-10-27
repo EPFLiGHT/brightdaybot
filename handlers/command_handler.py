@@ -4786,9 +4786,9 @@ def handle_admin_special_command(args, user_id, say, app):
 
                 for idx, special_day in enumerate(special_days, 1):
                     try:
-                        say(
-                            f"\n**{idx}/{len(special_days)}: {special_day.name}** ({special_day.category})"
-                        )
+                        # say(
+                        #     f"\n*{idx}/{len(special_days)}: {special_day.name}* ({special_day.category})"
+                        # )
 
                         # Generate individual message
                         message = generate_special_day_message(

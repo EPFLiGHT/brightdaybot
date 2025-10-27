@@ -81,7 +81,6 @@ def build_birthday_blocks(
     context_elements = []
 
     if historical_fact:
-        blocks.append({"type": "divider"})
         context_elements.append(
             {
                 "type": "mrkdwn",
@@ -173,9 +172,6 @@ def build_consolidated_birthday_blocks(
                 }
             )
 
-    # Add divider after images (or after message if no images)
-    blocks.append({"type": "divider"})
-
     # Add individual person information in two-column layout
     fields = []
     for person in birthday_people:
@@ -193,7 +189,6 @@ def build_consolidated_birthday_blocks(
     context_elements = []
 
     if historical_fact:
-        blocks.append({"type": "divider"})
         context_elements.append(
             {
                 "type": "mrkdwn",
@@ -282,8 +277,6 @@ def build_special_day_blocks(
     )
 
     if context_elements:
-        # Add divider before context
-        blocks.append({"type": "divider"})
         blocks.append({"type": "context", "elements": context_elements})
 
     # Add interactive "Learn More" button if detailed_content or URL is available
@@ -386,9 +379,6 @@ def build_bot_celebration_blocks(
                 "title": {"type": "plain_text", "text": display_title},
             }
         )
-
-    # Add divider after image (or after message if no image)
-    blocks.append({"type": "divider"})
 
     # Add bot information
     fields = [
@@ -767,7 +757,6 @@ def build_birthday_list_blocks(
                             "text": {"type": "mrkdwn", "text": month_text},
                         }
                     )
-                    blocks.append({"type": "divider"})
                     month_birthdays = []
 
                 current_month = month_name
@@ -1456,16 +1445,11 @@ def build_special_days_list_blocks(
                     }
                 )
 
-            # Add divider between days
-            if day != special_days[-1]:
-                blocks.append({"type": "divider"})
-
     elif view_mode in ["week", "month"]:
         # Group by date, similar to current format
         # special_days is expected to be a dict like {date_str: [day1, day2]}
         if isinstance(special_days, dict):
-            date_entries = list(special_days.items())
-            for idx, (date_str, days_list) in enumerate(date_entries):
+            for date_str, days_list in special_days.items():
                 # Date header
                 date_text = f"*{date_str}:*\n"
                 for day in days_list:
@@ -1481,10 +1465,6 @@ def build_special_days_list_blocks(
                 blocks.append(
                     {"type": "section", "text": {"type": "mrkdwn", "text": date_text}}
                 )
-
-                # Add divider between dates (but not after last one)
-                if idx < len(date_entries) - 1:
-                    blocks.append({"type": "divider"})
         else:
             # Fallback if not a dict (shouldn't happen)
             blocks.append(
@@ -1561,11 +1541,6 @@ def build_special_days_list_blocks(
                 blocks.append(
                     {"type": "section", "text": {"type": "mrkdwn", "text": month_text}}
                 )
-                blocks.append({"type": "divider"})
-
-        # Remove last divider
-        if blocks[-1]["type"] == "divider":
-            blocks.pop()
 
     # Add context footer
     total_count = (
@@ -1641,8 +1616,6 @@ def build_special_day_stats_blocks(
             ],
         }
     )
-
-    blocks.append({"type": "divider"})
 
     # Category breakdown
     by_category = stats.get("by_category", {})
