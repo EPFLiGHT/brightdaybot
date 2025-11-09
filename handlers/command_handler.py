@@ -196,7 +196,9 @@ def parse_test_command_args(args):
     return quality, image_size, text_only, None
 
 
-def say_with_archive(say, app, channel, text, message_type="command", context=None):
+def say_with_archive(
+    say, app, channel, text=None, blocks=None, message_type="command", context=None
+):
     """
     Wrapper function that sends a message via say() and archives it.
 
@@ -204,12 +206,18 @@ def say_with_archive(say, app, channel, text, message_type="command", context=No
         say: The Slack say function
         app: Slack app instance
         channel: Channel or user ID where message is sent
-        text: Message text
+        text: Message text (required for text-only, fallback for Block Kit)
+        blocks: Block Kit blocks (optional, for structured messages)
         message_type: Type of message for archiving (command, admin, system, etc.)
         context: Additional context for archiving
     """
     # Send the message using say()
-    say(text)
+    if blocks:
+        # Block Kit message with fallback text
+        say(blocks=blocks, text=text)
+    else:
+        # Text-only message
+        say(text)
 
     # Archive the message
     try:
