@@ -18,6 +18,7 @@ from utils.date_utils import (
     calculate_age,
     calculate_days_until_birthday,
     check_if_birthday_today,
+    get_star_sign,
 )
 from utils.storage import (
     save_birthday,
@@ -272,13 +273,16 @@ def handle_confirm_command(user_id, say, app):
 
             success = send_channel_announcement(app, announcement_type, custom_message)
 
+            from utils.block_builder import build_announce_result_blocks
+
+            blocks, fallback = build_announce_result_blocks(success)
+            say(blocks=blocks, text=fallback)
+
             if success:
-                say(f"✅ Announcement sent successfully to the birthday channel!")
                 logger.info(
                     f"CONFIRMATION: Successfully executed {announcement_type} announcement for {username} ({user_id})"
                 )
             else:
-                say(f"❌ Failed to send announcement. Check the logs for details.")
                 logger.error(
                     f"CONFIRMATION: Failed to execute {announcement_type} announcement for {username} ({user_id})"
                 )
@@ -297,16 +301,16 @@ def handle_confirm_command(user_id, say, app):
             skipped_bots = results["skipped_bots"]
             skipped_inactive = results.get("skipped_inactive", 0)
 
-            summary = f"✅ Reminders sent successfully!\n\n"
-            summary += f"• Successfully sent: {successful}\n"
-            if failed > 0:
-                summary += f"• Failed: {failed}\n"
-            if skipped_bots > 0:
-                summary += f"• Skipped (bots): {skipped_bots}\n"
-            if skipped_inactive > 0:
-                summary += f"• Skipped (inactive): {skipped_inactive}"
+            from utils.block_builder import build_remind_result_blocks
 
-            say(summary)
+            blocks, fallback = build_remind_result_blocks(
+                successful=successful,
+                failed=failed,
+                skipped_bots=skipped_bots,
+                skipped_inactive=skipped_inactive,
+            )
+            say(blocks=blocks, text=fallback)
+
             logger.info(
                 f"CONFIRMATION: Successfully executed {reminder_type} reminders for {username} ({user_id}) - {successful} sent, {failed} failed"
             )
@@ -455,7 +459,10 @@ def handle_dm_help(say):
 def handle_dm_admin_help(say, user_id, app):
     """Send admin help information using fully structured Block Kit"""
     if not is_admin(app, user_id):
-        say("You don't have permission to view admin commands.")
+        from utils.block_builder import build_permission_error_blocks
+
+        blocks, fallback = build_permission_error_blocks("admin help", "admin")
+        say(blocks=blocks, text=fallback)
         return
 
     # Build fully structured Block Kit admin help
@@ -596,7 +603,10 @@ def handle_command(text, user_id, say, app):
             return
 
         if not is_admin(app, user_id):
-            say("You don't have permission to use admin commands")
+            from utils.block_builder import build_permission_error_blocks
+
+            blocks, fallback = build_permission_error_blocks("admin commands", "admin")
+            say(blocks=blocks, text=fallback)
             logger.warning(
                 f"PERMISSIONS: {username} ({user_id}) attempted to use admin command without permission"
             )
@@ -619,11 +629,17 @@ def handle_command(text, user_id, say, app):
         result = extract_date(date_text)
 
         if result["status"] == "no_date":
-            say("No date found. Please use format: `add DD/MM` or `add DD/MM/YYYY`")
+            from utils.block_builder import build_birthday_error_blocks
+
+            blocks, fallback = build_birthday_error_blocks("no_date")
+            say(blocks=blocks, text=fallback)
             return
 
         if result["status"] == "invalid_date":
-            say("Invalid date. Please use format: `add DD/MM` or `add DD/MM/YYYY`")
+            from utils.block_builder import build_birthday_error_blocks
+
+            blocks, fallback = build_birthday_error_blocks("invalid_date")
+            say(blocks=blocks, text=fallback)
             return
 
         date = result["date"]
@@ -869,7 +885,12 @@ def handle_list_command(parts, user_id, say, app):
 
     # List upcoming birthdays
     if not check_command_permission(app, user_id, "list"):
-        say("You don't have permission to list birthdays")
+        from utils.block_builder import build_permission_error_blocks
+
+        blocks, fallback = build_permission_error_blocks(
+            "list birthdays", "configured permission"
+        )
+        say(blocks=blocks, text=fallback)
         username = get_username(app, user_id)
         logger.warning(
             f"PERMISSIONS: {username} ({user_id}) attempted to use list command without permission"
@@ -1119,24 +1140,34 @@ def handle_check_command(parts, user_id, say, app):
         if year:
             date_words = date_to_words(date, year)
             age = calculate_age(year)
-            age_text = f" (Age: {age})"
+            star_sign = get_star_sign(date)
         else:
             date_words = date_to_words(date)
-            age_text = ""
+            age = None
+            star_sign = get_star_sign(date)
 
-        if target_user == user_id:
-            say(f"Your birthday is set to {date_words}{age_text}")
-        else:
-            target_username = get_username(app, target_user)
-            say(f"{target_username}'s birthday is {date_words}{age_text}")
+        from utils.block_builder import build_birthday_check_blocks
+
+        target_username = get_username(app, target_user)
+        is_self = target_user == user_id
+        blocks, fallback = build_birthday_check_blocks(
+            user_id=target_user,
+            username=target_username,
+            date_words=date_words,
+            age=age,
+            star_sign=star_sign,
+            is_self=is_self,
+        )
+        say(blocks=blocks, text=fallback)
     else:
-        if target_user == user_id:
-            say(
-                "You don't have a birthday saved. Use `add DD/MM` or `add DD/MM/YYYY` to save it."
-            )
-        else:
-            target_username = get_username(app, target_user)
-            say(f"{target_username} doesn't have a birthday saved.")
+        from utils.block_builder import build_birthday_not_found_blocks
+
+        target_username = get_username(app, target_user)
+        is_self = target_user == user_id
+        blocks, fallback = build_birthday_not_found_blocks(
+            username=target_username, is_self=is_self
+        )
+        say(blocks=blocks, text=fallback)
 
 
 def handle_remind_command(parts, user_id, say, app):
@@ -1258,7 +1289,12 @@ def handle_remind_command(parts, user_id, say, app):
 def handle_stats_command(user_id, say, app):
     # Get birthday statistics
     if not check_command_permission(app, user_id, "stats"):
-        say("You don't have permission to view stats")
+        from utils.block_builder import build_permission_error_blocks
+
+        blocks, fallback = build_permission_error_blocks(
+            "stats", "configured permission"
+        )
+        say(blocks=blocks, text=fallback)
         username = get_username(app, user_id)
         logger.warning(
             f"PERMISSIONS: {username} ({user_id}) attempted to use stats command without permission"

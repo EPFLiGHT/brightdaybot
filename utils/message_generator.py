@@ -605,13 +605,60 @@ def completion(
                             )
                         else:
                             logger.warning(
-                                f"IMAGE: Failed to generate image for {name}"
+                                f"IMAGE: AI generation failed for {name}, trying profile photo fallback"
                             )
+                            # Try profile photo fallback when AI generation fails
+                            try:
+                                from utils.image_generator import (
+                                    create_profile_photo_birthday_image,
+                                )
+
+                                generated_image = create_profile_photo_birthday_image(
+                                    user_profile,
+                                    personality=selected_personality_name,
+                                    date_str=birth_date,
+                                    test_mode=test_mode,
+                                )
+                                if generated_image:
+                                    logger.info(
+                                        f"IMAGE: Successfully used profile photo as fallback for {name}"
+                                    )
+                                else:
+                                    logger.warning(
+                                        f"IMAGE: Profile photo fallback also failed for {name}"
+                                    )
+                            except Exception as fallback_error:
+                                logger.error(
+                                    f"IMAGE_FALLBACK_ERROR: Profile photo fallback failed: {fallback_error}"
+                                )
 
                     except Exception as e:
                         logger.error(
                             f"IMAGE_ERROR: Failed to generate birthday image: {e}"
                         )
+                        # Try profile photo fallback when AI generation throws exception
+                        try:
+                            from utils.image_generator import (
+                                create_profile_photo_birthday_image,
+                            )
+
+                            logger.info(
+                                f"IMAGE: Attempting profile photo fallback after AI error for {name}"
+                            )
+                            generated_image = create_profile_photo_birthday_image(
+                                user_profile,
+                                personality=selected_personality_name,
+                                date_str=birth_date,
+                                test_mode=test_mode,
+                            )
+                            if generated_image:
+                                logger.info(
+                                    f"IMAGE: Successfully used profile photo as fallback after AI error for {name}"
+                                )
+                        except Exception as fallback_error:
+                            logger.error(
+                                f"IMAGE_FALLBACK_ERROR: Profile photo fallback failed after AI error: {fallback_error}"
+                            )
 
                 # Return actual personality used (important for "random" personality)
                 if include_image:
@@ -681,17 +728,28 @@ def completion(
         except Exception as e:
             logger.error(f"AI_ERROR: Failed to generate completion: {e}")
 
-            # Use one of our backup messages if the API call fails
-            random_message = random.choice(BACKUP_MESSAGES)
+            # Use personality-specific fallback messages if available
+            from personality_config import get_personality_config
 
-            # Replace {name} with user mention if available
+            personality_cfg = get_personality_config(selected_personality_name)
+            fallback_templates = personality_cfg.get(
+                "fallback_messages", BACKUP_MESSAGES
+            )
+
+            random_message = random.choice(fallback_templates)
+
+            # Replace {mention} with user mention (new format) or {name} (old format)
             mention_text = user_mention if user_id else name
-            formatted_message = random_message.replace("{name}", mention_text)
+            formatted_message = random_message.replace(
+                "{mention}", mention_text
+            ).replace("{name}", mention_text)
 
             # Fix Slack formatting issues in fallback message
             formatted_message = fix_slack_formatting(formatted_message)
 
-            logger.info(f"AI: Used fallback birthday message")
+            logger.info(
+                f"AI: Used personality-specific fallback message ({selected_personality_name})"
+            )
 
             # Generate AI image if requested (after message is created)
             generated_image = None
@@ -715,10 +773,59 @@ def completion(
                     if generated_image:
                         logger.info(f"IMAGE: Successfully generated image for {name}")
                     else:
-                        logger.warning(f"IMAGE: Failed to generate image for {name}")
+                        logger.warning(
+                            f"IMAGE: AI generation failed for {name}, trying profile photo fallback"
+                        )
+                        # Try profile photo fallback when AI generation fails
+                        try:
+                            from utils.image_generator import (
+                                create_profile_photo_birthday_image,
+                            )
+
+                            generated_image = create_profile_photo_birthday_image(
+                                user_profile,
+                                personality=selected_personality_name,
+                                date_str=birth_date,
+                                test_mode=test_mode,
+                            )
+                            if generated_image:
+                                logger.info(
+                                    f"IMAGE: Successfully used profile photo as fallback for {name}"
+                                )
+                            else:
+                                logger.warning(
+                                    f"IMAGE: Profile photo fallback also failed for {name}"
+                                )
+                        except Exception as fallback_error:
+                            logger.error(
+                                f"IMAGE_FALLBACK_ERROR: Profile photo fallback failed: {fallback_error}"
+                            )
 
                 except Exception as e:
                     logger.error(f"IMAGE_ERROR: Failed to generate birthday image: {e}")
+                    # Try profile photo fallback when AI generation throws exception
+                    try:
+                        from utils.image_generator import (
+                            create_profile_photo_birthday_image,
+                        )
+
+                        logger.info(
+                            f"IMAGE: Attempting profile photo fallback after AI error for {name}"
+                        )
+                        generated_image = create_profile_photo_birthday_image(
+                            user_profile,
+                            personality=selected_personality_name,
+                            date_str=birth_date,
+                            test_mode=test_mode,
+                        )
+                        if generated_image:
+                            logger.info(
+                                f"IMAGE: Successfully used profile photo as fallback after AI error for {name}"
+                            )
+                    except Exception as fallback_error:
+                        logger.error(
+                            f"IMAGE_FALLBACK_ERROR: Profile photo fallback failed after AI error: {fallback_error}"
+                        )
 
             # Return actual personality used (important for "random" personality)
             if include_image:

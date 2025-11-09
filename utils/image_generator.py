@@ -754,5 +754,115 @@ def cleanup_old_profile_photos(days_to_keep=7):
         return 0
 
 
+def create_profile_photo_birthday_image(
+    user_profile, personality="standard", date_str=None, test_mode=False
+):
+    """
+    Create a birthday image using the user's profile photo as fallback.
+
+    This function is used when AI image generation is disabled or fails,
+    providing a visual birthday image by using the user's Slack profile photo
+    with a birthday-themed caption.
+
+    Args:
+        user_profile: Dictionary with user profile information
+        personality: Bot personality (for context, not used in image)
+        date_str: Date string in DD/MM format (optional, for logging)
+        test_mode: Whether this is a test generation
+
+    Returns:
+        Dictionary with image data in same format as generate_birthday_image(),
+        or None if profile photo unavailable
+    """
+    try:
+        name = user_profile.get("preferred_name") or user_profile.get("name", "User")
+
+        # Check if user has a profile photo
+        photo_url = (
+            user_profile.get("photo_original")
+            or user_profile.get("photo_512")
+            or user_profile.get("photo_192")
+        )
+
+        if not photo_url:
+            logger.info(
+                f"PROFILE_FALLBACK: No profile photo available for {name}, cannot create fallback image"
+            )
+            return None
+
+        logger.info(
+            f"PROFILE_FALLBACK: Creating birthday image from profile photo for {name}"
+        )
+
+        # Download and prepare the profile photo
+        profile_photo_path = download_and_prepare_profile_photo(user_profile, name)
+
+        if not profile_photo_path:
+            logger.error(
+                f"PROFILE_FALLBACK_ERROR: Failed to download profile photo for {name}"
+            )
+            return None
+
+        # Read the image file
+        with open(profile_photo_path, "rb") as f:
+            image_data = f.read()
+
+        # Convert to base64
+        image_base64 = base64.b64encode(image_data).decode("utf-8")
+
+        # Create result in same format as AI-generated images
+        result = {
+            "success": True,
+            "image_url": None,  # No URL for local file
+            "image_data": image_data,
+            "image_base64": image_base64,
+            "prompt_used": "Profile photo fallback (no AI generation)",
+            "personality": personality,
+            "generated_for": name,
+            "generated_at": datetime.now().isoformat(),
+            "model": "profile_photo_fallback",
+            "has_transparency": False,
+            "format": "png",
+            "generation_mode": "profile_photo_fallback",
+            "used_profile_photo": True,
+            "test_mode": test_mode,
+            "image_size": "original",
+            "image_quality": "original",
+            "input_fidelity": None,
+            "user_profile": user_profile,
+        }
+
+        # Save to birthday images cache for consistency
+        try:
+            safe_name = "".join(
+                c for c in name if c.isalnum() or c in (" ", "-", "_")
+            ).rstrip()
+            safe_name = safe_name.replace(" ", "_")
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"birthday_{safe_name}_profile_fallback_{timestamp}.png"
+
+            saved_path = save_image_to_file(image_data, filename)
+            result["file_path"] = saved_path
+            logger.info(
+                f"PROFILE_FALLBACK: Saved profile photo fallback to {saved_path}"
+            )
+        except Exception as save_error:
+            logger.warning(
+                f"PROFILE_FALLBACK: Could not save fallback image: {save_error}"
+            )
+            result["file_path"] = None
+
+        logger.info(
+            f"PROFILE_FALLBACK: Successfully created birthday image from profile photo for {name}"
+        )
+        return result
+
+    except Exception as e:
+        logger.error(
+            f"PROFILE_FALLBACK_ERROR: Failed to create profile photo birthday image for {user_profile.get('name', 'User')}: {e}"
+        )
+        return None
+
+
 if __name__ == "__main__":
     test_image_generation()

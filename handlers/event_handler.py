@@ -202,9 +202,10 @@ def register_event_handlers(app):
                 handle_dm_date(say, user, result, app)
             else:
                 # If no valid date found, provide help
-                say(
-                    "I didn't recognize a valid date format or command. Please send your birthday as DD/MM (e.g., 25/12) or DD/MM/YYYY (e.g., 25/12/1990).\n\nType `help` to see more options."
-                )
+                from utils.block_builder import build_unrecognized_input_blocks
+
+                blocks, fallback = build_unrecognized_input_blocks()
+                say(blocks=blocks, text=fallback)
 
     # team_join event handler removed - users only receive welcome when joining birthday channel
     # This eliminates redundant notifications since new members are automatically added to birthday channel

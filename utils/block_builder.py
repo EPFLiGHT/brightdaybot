@@ -328,6 +328,105 @@ def build_special_day_blocks(
     return blocks, fallback_text
 
 
+def build_announce_result_blocks(success: bool) -> tuple[List[Dict[str, Any]], str]:
+    """
+    Build Block Kit structure for announcement confirmation results
+
+    Args:
+        success: Whether the announcement was sent successfully
+
+    Returns:
+        Tuple of (blocks list, fallback_text string)
+    """
+    if success:
+        emoji = "✅"
+        title = "Announcement Sent"
+        message = "The announcement was sent successfully to the birthday channel!"
+    else:
+        emoji = "❌"
+        title = "Announcement Failed"
+        message = "Failed to send the announcement. Check the logs for details."
+
+    blocks = [
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": f"{emoji} {title}"},
+        },
+        {"type": "section", "text": {"type": "mrkdwn", "text": message}},
+    ]
+
+    fallback = f"{emoji} {title}: {message}"
+    return blocks, fallback
+
+
+def build_remind_result_blocks(
+    successful: int,
+    failed: int = 0,
+    skipped_bots: int = 0,
+    skipped_inactive: int = 0,
+) -> tuple[List[Dict[str, Any]], str]:
+    """
+    Build Block Kit structure for reminder confirmation results
+
+    Args:
+        successful: Number of reminders sent successfully
+        failed: Number of failed reminders
+        skipped_bots: Number of bots skipped
+        skipped_inactive: Number of inactive users skipped
+
+    Returns:
+        Tuple of (blocks list, fallback_text string)
+    """
+    # Build stats list
+    stats_lines = [f"• Successfully sent: {successful}"]
+    if failed > 0:
+        stats_lines.append(f"• Failed: {failed}")
+    if skipped_bots > 0:
+        stats_lines.append(f"• Skipped (bots): {skipped_bots}")
+    if skipped_inactive > 0:
+        stats_lines.append(f"• Skipped (inactive): {skipped_inactive}")
+
+    stats_text = "\n".join(stats_lines)
+
+    blocks = [
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": "✅ Reminders Sent"},
+        },
+        {"type": "section", "text": {"type": "mrkdwn", "text": stats_text}},
+    ]
+
+    # Add context if there were issues
+    if failed > 0 or skipped_bots > 0 or skipped_inactive > 0:
+        context_parts = []
+        if failed > 0:
+            context_parts.append("Some reminders failed to send")
+        if skipped_bots > 0 or skipped_inactive > 0:
+            context_parts.append("Some users were skipped")
+
+        blocks.append(
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": f"💡 {' and '.join(context_parts)}. Check logs for details.",
+                    }
+                ],
+            }
+        )
+
+    fallback = f"✅ Reminders sent: {successful} successful"
+    if failed > 0:
+        fallback += f", {failed} failed"
+    if skipped_bots > 0:
+        fallback += f", {skipped_bots} bots skipped"
+    if skipped_inactive > 0:
+        fallback += f", {skipped_inactive} inactive skipped"
+
+    return blocks, fallback
+
+
 def build_bot_celebration_blocks(
     message: str,
     bot_age: int,
@@ -1655,5 +1754,346 @@ def build_special_day_stats_blocks(
 
     # Fallback text
     fallback_text = f"Special Days Statistics: {stats.get('total_days', 0)} total, {stats.get('enabled_days', 0)} enabled"
+
+    return blocks, fallback_text
+
+
+def build_birthday_update_blocks(
+    success: bool,
+    action: str,
+    date_words: str = None,
+    age_text: str = None,
+    user_id: str = None,
+) -> tuple[List[Dict[str, Any]], str]:
+    """
+    Build Block Kit structure for birthday update confirmation
+
+    Args:
+        success: Whether the operation succeeded
+        action: Type of action - "saved", "updated", "removed"
+        date_words: Formatted date string (e.g., "25 December")
+        age_text: Age text (e.g., " - 30 years old")
+        user_id: Optional Slack user ID
+
+    Returns:
+        Tuple of (blocks list, fallback_text string)
+    """
+    if success:
+        if action == "removed":
+            emoji = "✅"
+            title = "Birthday Removed"
+            message = "Your birthday has been removed from our records."
+            fallback = "✅ Your birthday has been removed from our records"
+        else:
+            emoji = "✅"
+            verb = "Updated" if action == "updated" else "Saved"
+            title = f"Birthday {verb}!"
+            message = f"Your birthday has been {action} to **{date_words}**{age_text}"
+            fallback = f"✅ Your birthday has been {action} to {date_words}{age_text}"
+    else:
+        emoji = "❌"
+        title = "Birthday Update Failed"
+        message = (
+            "Failed to update your birthday. Please try again or contact an admin."
+        )
+        fallback = "❌ Failed to update birthday"
+
+    blocks = [
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": f"{emoji} {title}"},
+        },
+        {"type": "section", "text": {"type": "mrkdwn", "text": message}},
+    ]
+
+    return blocks, fallback
+
+
+def build_birthday_error_blocks(
+    error_type: str, format_hint: str = None
+) -> tuple[List[Dict[str, Any]], str]:
+    """
+    Build Block Kit structure for birthday validation errors
+
+    Args:
+        error_type: Type of error - "invalid_date", "invalid_format", "future_date", "invalid_year"
+        format_hint: Optional format hint text
+
+    Returns:
+        Tuple of (blocks list, fallback_text string)
+    """
+    error_messages = {
+        "invalid_date": {
+            "title": "Invalid Date",
+            "message": "The date you provided is not valid. Please check and try again.",
+        },
+        "invalid_format": {
+            "title": "Invalid Format",
+            "message": "Please use the format `DD/MM` (e.g., `25/12`) or `DD/MM/YYYY` (e.g., `25/12/1990`).",
+        },
+        "future_date": {
+            "title": "Future Date Not Allowed",
+            "message": "The date you provided is in the future. Please provide your actual birth date.",
+        },
+        "invalid_year": {
+            "title": "Invalid Year",
+            "message": "Please provide a year between 1900 and the current year.",
+        },
+        "no_date": {
+            "title": "No Date Found",
+            "message": "I couldn't find a valid date in your message.",
+        },
+    }
+
+    error_info = error_messages.get(
+        error_type, {"title": "Invalid Input", "message": "Please check your input."}
+    )
+
+    blocks = [
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": f"❌ {error_info['title']}"},
+        },
+        {"type": "section", "text": {"type": "mrkdwn", "text": error_info["message"]}},
+    ]
+
+    if format_hint:
+        blocks.append(
+            {
+                "type": "context",
+                "elements": [{"type": "mrkdwn", "text": f"💡 {format_hint}"}],
+            }
+        )
+
+    fallback_text = f"❌ {error_info['title']}: {error_info['message']}"
+
+    return blocks, fallback_text
+
+
+def build_permission_error_blocks(
+    command: str, required_level: str = "admin"
+) -> tuple[List[Dict[str, Any]], str]:
+    """
+    Build Block Kit structure for permission error messages
+
+    Args:
+        command: The command that was attempted
+        required_level: Required permission level (e.g., "admin")
+
+    Returns:
+        Tuple of (blocks list, fallback_text string)
+    """
+    blocks = [
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": "🔒 Permission Denied"},
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"You don't have permission to use this command.\n\n*Command:* `{command}`\n*Required Level:* {required_level.title()}",
+            },
+        },
+        {
+            "type": "context",
+            "elements": [
+                {
+                    "type": "mrkdwn",
+                    "text": "💡 Contact a workspace admin if you believe this is an error",
+                }
+            ],
+        },
+    ]
+
+    fallback_text = f"🔒 Permission denied: {command} requires {required_level} access"
+
+    return blocks, fallback_text
+
+
+def build_birthday_check_blocks(
+    user_id: str,
+    username: str,
+    date_words: str,
+    age: Optional[int] = None,
+    star_sign: Optional[str] = None,
+    is_self: bool = True,
+) -> tuple[List[Dict[str, Any]], str]:
+    """
+    Build Block Kit structure for birthday check command results
+
+    Args:
+        user_id: Slack user ID
+        username: Display name
+        date_words: Formatted date (e.g., "25 December")
+        age: Age in years (None if birth year not provided)
+        star_sign: Astrological sign with emoji
+        is_self: Whether checking own birthday or someone else's
+
+    Returns:
+        Tuple of (blocks list, fallback_text string)
+    """
+    age_text = f" • {age} years old" if age is not None else ""
+    possessive = "Your" if is_self else f"{username}'s"
+
+    blocks = [
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": f"🎂 {possessive} Birthday"},
+        },
+        {
+            "type": "section",
+            "fields": [
+                {"type": "mrkdwn", "text": f"*Person:*\n<@{user_id}>"},
+                {"type": "mrkdwn", "text": f"*Birthday:*\n{date_words}"},
+            ],
+        },
+    ]
+
+    # Add optional fields if available
+    if age is not None or star_sign:
+        optional_fields = []
+        if age is not None:
+            optional_fields.append({"type": "mrkdwn", "text": f"*Age:*\n{age} years"})
+        if star_sign:
+            optional_fields.append(
+                {"type": "mrkdwn", "text": f"*Star Sign:*\n{star_sign}"}
+            )
+
+        if optional_fields:
+            blocks.append({"type": "section", "fields": optional_fields})
+
+    fallback_text = f"🎂 {possessive} birthday is {date_words}{age_text}"
+
+    return blocks, fallback_text
+
+
+def build_birthday_not_found_blocks(
+    username: str, is_self: bool = True
+) -> tuple[List[Dict[str, Any]], str]:
+    """
+    Build Block Kit structure for birthday not found message
+
+    Args:
+        username: Display name of the user
+        is_self: Whether checking own birthday or someone else's
+
+    Returns:
+        Tuple of (blocks list, fallback_text string)
+    """
+    possessive = "You don't" if is_self else f"{username} doesn't"
+    message = f"{possessive} have a birthday saved in our records."
+
+    if is_self:
+        message += "\n\nTo add your birthday, send me a message in the format `DD/MM` (e.g., `25/12`) or `DD/MM/YYYY` (e.g., `25/12/1990`)."
+
+    blocks = [
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": "🔍 Birthday Not Found"},
+        },
+        {"type": "section", "text": {"type": "mrkdwn", "text": message}},
+    ]
+
+    fallback_text = f"🔍 {possessive} have a birthday saved"
+
+    return blocks, fallback_text
+
+
+def build_confirmation_result_blocks(
+    action_type: str, success: bool, stats: Optional[Dict[str, Any]] = None
+) -> tuple[List[Dict[str, Any]], str]:
+    """
+    Build Block Kit structure for confirmation action results
+
+    Args:
+        action_type: Type of action - "announce", "remind_new", "remind_update"
+        success: Whether the action succeeded
+        stats: Optional statistics dictionary with counts
+
+    Returns:
+        Tuple of (blocks list, fallback_text string)
+    """
+    if success:
+        emoji = "✅"
+        if action_type == "announce":
+            title = "Announcement Sent"
+            message = (
+                "Your announcement has been sent successfully to the birthday channel!"
+            )
+        elif action_type in ["remind_new", "remind_update"]:
+            title = "Reminders Sent"
+            if stats:
+                sent = stats.get("sent", 0)
+                failed = stats.get("failed", 0)
+                skipped = stats.get("skipped", 0)
+
+                message = f"**Reminder campaign completed:**\n\n"
+                message += f"• ✅ Sent: {sent}\n"
+                if failed > 0:
+                    message += f"• ❌ Failed: {failed}\n"
+                if skipped > 0:
+                    message += f"• ⏭️ Skipped: {skipped}\n"
+            else:
+                message = "Reminders have been sent successfully!"
+        else:
+            title = "Action Completed"
+            message = "The action has been completed successfully."
+    else:
+        emoji = "❌"
+        title = "Action Failed"
+        if action_type == "announce":
+            message = "Failed to send announcement. Check the logs for details."
+        else:
+            message = "The action failed to complete. Check the logs for details."
+
+    blocks = [
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": f"{emoji} {title}"},
+        },
+        {"type": "section", "text": {"type": "mrkdwn", "text": message}},
+    ]
+
+    fallback_text = f"{emoji} {title}"
+
+    return blocks, fallback_text
+
+
+def build_unrecognized_input_blocks() -> tuple[List[Dict[str, Any]], str]:
+    """
+    Build Block Kit structure for unrecognized DM input
+
+    Returns:
+        Tuple of (blocks list, fallback_text string)
+    """
+    blocks = [
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": "🤔 I Didn't Understand That"},
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "I didn't recognize a valid date format or command in your message.",
+            },
+        },
+        {
+            "type": "section",
+            "fields": [
+                {
+                    "type": "mrkdwn",
+                    "text": "*To add your birthday:*\nSend: `DD/MM` or `DD/MM/YYYY`\nExample: `25/12` or `25/12/1990`",
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": "*For help:*\nType: `help`\nSee all available commands",
+                },
+            ],
+        },
+    ]
+
+    fallback_text = "I didn't recognize a valid date format or command. Please send your birthday as DD/MM or type 'help' for more options."
 
     return blocks, fallback_text
