@@ -315,7 +315,9 @@ def build_special_day_blocks(
                     "type": "button",
                     "text": {"type": "plain_text", "text": "🔗 Official Source"},
                     "url": url,
-                    "action_id": f"special_day_url_{observance_date.replace('/', '_')}",
+                    # NOTE: action_id not needed for URL buttons - they open links client-side
+                    # Without action_id, Slack won't send action events, eliminating log warnings
+                    # "action_id": f"special_day_url_{observance_date.replace('/', '_')}",
                 }
             )
 
