@@ -365,7 +365,6 @@ Any exciting birthday plans to share? :eyes:
 
 
 def completion(
-    name: str,
     date: str,
     user_id: str = None,
     birth_date: str = None,
@@ -383,20 +382,26 @@ def completion(
     with validation to ensure proper mentions are included.
 
     Args:
-        name: User's name or Slack ID
         date: User's birthday in natural language format (e.g. "2nd of April")
         user_id: User's Slack ID for mentioning them with @
         birth_date: Original birth date in DD/MM format (for star sign)
         birth_year: Optional birth year for age-related content
         max_retries: Maximum number of retries if validation fails
         app: Slack app instance for fetching custom emojis
-        user_profile: Enhanced profile data with job title, timezone, etc.
+        user_profile: Enhanced profile data (includes preferred_name, formatted profile_details)
         include_image: Whether to generate AI birthday image
 
     Returns:
         If include_image is True: tuple of (message, image_data)
         Otherwise: birthday message string
     """
+    # Extract name from user_profile
+    name = (
+        user_profile.get("preferred_name", "Birthday Person")
+        if user_profile
+        else "Birthday Person"
+    )
+
     # Get current personality info for the request
     current_personality_name = get_current_personality_name()
 
@@ -480,20 +485,16 @@ def completion(
             )
             # Continue without facts if there's an error
 
-    # Extract profile information for personalization
+    # Extract profile information for personalization (pre-formatted in slack_utils.py)
     profile_context = ""
     if user_profile:
-        title = user_profile.get("title", "")
-        timezone_label = user_profile.get("timezone_label", "")
-
-        profile_details = []
-        if title:
-            profile_details.append(f"job title: {title}")
-        # if timezone_label:
-        #     profile_details.append(f"timezone: {timezone_label}")
+        profile_details = user_profile.get("profile_details", [])
+        name_context = user_profile.get("name_context", "")
 
         if profile_details:
             profile_context = f"\n\nPersonalize the message using this information about them: {', '.join(profile_details)}."
+
+        profile_context += name_context
 
     # Note: Image will be generated after the message is created
     image_context = ""
@@ -874,7 +875,6 @@ def create_consolidated_birthday_announcement(
         person = birthday_people[0]
         try:
             result = completion(
-                person["username"],
                 person["date_words"],
                 person["user_id"],
                 person["date"],
@@ -1001,20 +1001,63 @@ def _generate_ai_consolidated_message(
             age = datetime.now().year - person["year"]
             age_info = f" (turning {age})"
 
-        # Add profile information if available
+        # Add profile information if available (fields already parsed in slack_utils.py)
         profile_info = ""
+        name_info = ""
         if person.get("profile"):
             profile = person["profile"]
             profile_details = []
+
+            # Dual-name system for consolidated messages
+            display_name = profile.get("display_name", "")
+            real_name = profile.get("real_name", "")
+            if display_name and real_name and display_name != real_name:
+                name_info = (
+                    f" [display name: '{display_name}', full name: '{real_name}']"
+                )
+
+            # Pronouns (critical for inclusive language)
+            if profile.get("pronouns"):
+                profile_details.append(f"pronouns: {profile['pronouns']}")
+
+            # Job title
             if profile.get("title"):
                 profile_details.append(f"job: {profile['title']}")
-            # if profile.get("timezone_label"):
-            #     profile_details.append(f"timezone: {profile['timezone_label']}")
+
+            # Current status (adds humor and context)
+            if profile.get("status_text"):
+                status_display = (
+                    f"{profile['status_emoji']} {profile['status_text']}"
+                    if profile.get("status_emoji")
+                    else profile["status_text"]
+                )
+                profile_details.append(f"status: {status_display}")
+
+            # Start date (time with organization/lab) - abbreviated as "Xy" for consolidated
+            if profile.get("start_date"):
+                try:
+                    start = datetime.fromisoformat(profile["start_date"])
+                    years = (datetime.now() - start).days // 365
+                    if years > 0:
+                        profile_details.append(f"{years}y")
+                except (ValueError, TypeError):
+                    # Invalid date format, skip calculation
+                    pass
+
+            # Custom profile fields (already parsed in slack_utils, abbreviate for space)
+            custom_fields = profile.get("custom_fields", {})
+            for label, value in custom_fields.items():
+                if value:
+                    # Abbreviate for space: use first word of label and value
+                    label_short = label.split()[0] if " " in label else label
+                    value_short = value.split()[0] if " " in value else value
+                    profile_details.append(f"{label_short}: {value_short}")
+
             if profile_details:
                 profile_info = f" [{', '.join(profile_details)}]"
 
         people_info.append(
-            f"{person['username']} ({user_mention}){age_info}{profile_info}"
+            f"{person['username']} ({user_mention}){age_info}{name_info}{profile_info}"
         )
 
     # Format mentions for use in message
@@ -2044,7 +2087,7 @@ def main():
     else:
         try:
             message = completion(
-                args.name, args.date, args.user_id, args.birth_date, args.birth_year
+                args.date, args.user_id, args.birth_date, args.birth_year
             )
             print("\nGenerated Message:")
             print("-" * 60)

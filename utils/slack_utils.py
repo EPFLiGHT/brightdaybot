@@ -201,6 +201,72 @@ def get_user_profile(app, user_id):
             "is_restricted": user_info.get("is_restricted", False),  # Guest users
         }
 
+        # Parse custom profile fields (company-specific fields like Department, Hobbies, etc.)
+        custom_fields = profile.get("fields", {})
+        parsed_custom_fields = {}
+        if custom_fields and isinstance(custom_fields, dict):
+            for field_id, field_data in custom_fields.items():
+                if isinstance(field_data, dict) and "value" in field_data:
+                    # Extract value and label (label may come from field_data or need team profile lookup)
+                    field_value = field_data.get("value", "")
+                    field_label = field_data.get("label", field_id)
+                    if field_value:  # Only include non-empty fields
+                        parsed_custom_fields[field_label] = field_value
+
+        user_profile["custom_fields"] = parsed_custom_fields
+
+        # Build formatted profile details for AI prompts
+        profile_details = []
+
+        # Pronouns (critical for inclusive language)
+        if user_profile.get("pronouns"):
+            profile_details.append(f"pronouns: {user_profile['pronouns']}")
+
+        # Job title
+        if user_profile.get("title"):
+            profile_details.append(f"job title: {user_profile['title']}")
+
+        # Current status (adds humor and context)
+        if user_profile.get("status_text"):
+            status_display = (
+                f"{user_profile['status_emoji']} {user_profile['status_text']}"
+                if user_profile.get("status_emoji")
+                else user_profile["status_text"]
+            )
+            profile_details.append(f"current status: {status_display}")
+
+        # Time with organization/lab
+        if user_profile.get("start_date"):
+            try:
+                from datetime import datetime
+
+                start = datetime.fromisoformat(user_profile["start_date"])
+                years = (datetime.now() - start).days // 365
+                if years > 0:
+                    profile_details.append(
+                        f"time here: {years} {'year' if years == 1 else 'years'}"
+                    )
+            except (ValueError, TypeError):
+                # Invalid date format, skip calculation
+                pass
+
+        # Custom profile fields
+        for label, value in parsed_custom_fields.items():
+            if value:
+                profile_details.append(f"{label}: {value}")
+
+        user_profile["profile_details"] = profile_details
+
+        # Build name context for dual-name system
+        display_name = user_profile.get("display_name", "")
+        real_name = user_profile.get("real_name", "")
+        if display_name and real_name and display_name != real_name:
+            user_profile["name_context"] = (
+                f"\n\nNAME CONTEXT: Their full name is '{real_name}'. Feel free to use it when you want to be more formal or celebratory."
+            )
+        else:
+            user_profile["name_context"] = ""
+
         # Determine preferred name
         preferred_name = (
             user_profile["display_name"]

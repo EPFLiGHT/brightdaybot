@@ -1508,7 +1508,6 @@ def handle_test_command(
 
         # Try to get personalized AI message with profile data and optional image
         result = completion(
-            username,
             date_words,
             target_user_id,
             user_date,
