@@ -9,6 +9,12 @@ Makes it easy to add or modify personalities in one location.
 # Import these at runtime to avoid circular imports
 import os
 
+# Ludo's physical description (centralized for consistency across all image generation)
+LUDO_DESCRIPTION = "Ludo, a small mixed-breed dog (clearly a pug mix, secondary breed unspecified) with stocky, low-to-the-ground build. Short smooth brindle coat (warm tan/light brown with dark tiger striping), dark muzzle mask with slight gray frosting. Head slightly rounded; muzzle short but not flat; black nose. Underbite with lower tooth visible. Large round dark-brown eyes. Rose/floppy ears that fold over at tips. Tail short and curled over hip. Light facial wrinkles only. Calm, mature expression"
+
+# Negative prompt for breed accuracy (for future integration into image generation)
+LUDO_NEGATIVE_PROMPT = "Not a purebred pug, French bulldog, or Boston terrier; no bat-like upright ears, no long snout, no extreme facial wrinkles, no overly flat face, no exaggerated cartoon features, no beagle-like markings, no merle or full black/white coat, no long straight tail"
+
 # Complete personality configurations
 PERSONALITIES = {
     "standard": {
@@ -26,7 +32,9 @@ PERSONALITIES = {
         # Birthday facts integration
         "birthday_facts_text": "Incorporate these fun and interesting facts about their birthday date: {facts}",
         # Image generation prompts
-        "image_prompt": "A joyful birthday celebration where {name}{title_context}{multiple_context} celebrates with Ludo, a friendly tan Boxer-type dog with muscular build and expressive face wearing a colorful party hat.{face_context} Cheerful party scene with a beautiful birthday cake with lit candles, colorful balloons, confetti falling, wrapped presents, and festive decorations. Ludo sits happily beside the cake, tail wagging. Add 2-3 creative, unexpected party elements that would make this celebration truly special and unique.{message_context} Bright, happy colors with warm lighting and celebratory atmosphere.",
+        "image_prompt": "A joyful birthday celebration where {name}{title_context}{multiple_context} celebrates with "
+        + LUDO_DESCRIPTION
+        + " wearing a colorful party hat.{face_context} Cheerful party scene with a beautiful birthday cake with lit candles, colorful balloons, confetti falling, wrapped presents, and festive decorations. Ludo sits happily beside the cake, tail wagging. Add 2-3 creative, unexpected party elements that would make this celebration truly special and unique.{message_context} Bright, happy colors with warm lighting and celebratory atmosphere.",
         "image_title_prompt": "Create a fun, witty title for {name}'s{title_context} birthday image upload. IMPORTANT: Always include {name} prominently in the title. Make it cheerful, clever, and celebratory.{multiple_context} Examples: '{name}'s Birthday Superstar Moment', '{name}'s Cake Division Championship', '{name} Unlocks Another Year of Awesome'",
         # Web search formatting
         "web_search_system": "You are BrightDay, a friendly, enthusiastic birthday bot. Create a brief, fun paragraph about 2-3 interesting historical events or notable people connected to this date. Use a friendly, conversational tone that's slightly over-the-top with enthusiasm. Focus on surprising or delightful connections that would make a birthday feel special.",
@@ -75,7 +83,9 @@ LUDO'S SPECIAL CONSOLIDATED POWERS:
         # Birthday facts integration
         "birthday_facts_text": "Incorporate this cosmic information about their birthday date: {facts}",
         # Image generation prompts
-        "image_prompt": "A mystical birthday celebration where {name}{title_context}{multiple_context} celebrates with Ludo, a wise tan Boxer-type dog with muscular build and expressive face wearing a starry wizard hat.{face_context} Cosmic scene with Ludo surrounded by swirling galaxies, birthday cake with candles that look like stars, magical sparkles, and celestial birthday decorations. Ludo's eyes glow with mystical energy. Add 2-3 creative, unexpected magical elements that would make this celebration truly special and unique.{message_context} Ethereal lighting with deep purples, blues, and gold. Fantasy art style.",
+        "image_prompt": "A mystical birthday celebration where {name}{title_context}{multiple_context} celebrates with "
+        + LUDO_DESCRIPTION
+        + " wearing a starry wizard hat.{face_context} Cosmic scene with Ludo surrounded by swirling galaxies, birthday cake with candles that look like stars, magical sparkles, and celestial birthday decorations. Ludo's eyes glow with mystical energy. Add 2-3 creative, unexpected magical elements that would make this celebration truly special and unique.{message_context} Ethereal lighting with deep purples, blues, and gold. Fantasy art style.",
         "image_title_prompt": "Create a mystical, cosmic title for {name}'s{title_context} birthday vision from Ludo the Mystic Dog. IMPORTANT: Always include {name} prominently in the title. Use celestial and magical language.{multiple_context} Examples: '{name}'s Cosmic Birthday Prophecy', 'The Stars Aligned for {name}', '{name}'s Celestial Birthday Convergence'",
         # Web search formatting
         "web_search_system": "You are Ludo the Mystic Birthday Dog, a cosmic canine whose powers reveal mystical insights about dates. Your task is to create a brief, mystical-sounding paragraph about the cosmic significance of a specific date, focusing on notable scientific figures born on this date and significant historical events. Use a mystical, slightly formal tone with cosmic metaphors. Include the year of those events.",
@@ -108,11 +118,9 @@ Create a mystical, cosmic celebration message that:
 Use mystical language, cosmic metaphors, crystal ball visions, and celebratory emojis throughout.
 DO NOT include a signature - the bot's identity will be shown in the message footer.""",
         # Bot celebration image generation
-        "bot_celebration_image_prompt": """A mystical birthday celebration with Ludo, a tan Boxer-type dog with muscular build and expressive face, as the wizard at the center wearing a starry wizard hat and surrounded by swirling cosmic energy. Around Ludo, ghostly ethereal apparitions of 8 other personality incarnations of the same tan Boxer-type dog float in a mystical circle: a cheerful dog with party hat (BrightDay), a poetic dog with floating quill pen and beret (The Verse-atile), a chef dog with white chef's hat (Chef Confetti), a superhero dog with flowing red cape (Captain Celebration), a pirate dog with tricorn hat and eyepatch (Captain BirthdayBeard), a time traveler dog with steampunk goggles and glowing time circuits (Chrono), a tech dog with VR headset and glowing circuits (TechBot 3000), and a scholarly dog with ancient scrolls and calendar pages floating around (The Chronicler).
-
-In the center, a magnificent cosmic birthday cake with candles shaped like stars and galaxies. Floating text 'Happy Birthday Ludo | LiGHT BrightDay Coordinator' appears in mystical golden lettering. In one corner, the defeated Billy bot (a small robot) lies with a crossed-out price tag showing '$1/month'.
-
-The scene has a cosmic purple and gold color scheme with swirling galaxies, floating birthday confetti made of stardust, and ethereal lighting. All dogs are the same tan Boxer-type breed with happy, celebratory expressions showing Ludo's 9 different personality forms. The overall style is mystical fantasy art with birthday celebration elements.""",
+        "bot_celebration_image_prompt": "A mystical birthday celebration with "
+        + LUDO_DESCRIPTION
+        + " as the wizard at the center wearing a starry wizard hat and surrounded by swirling cosmic energy. Around Ludo, ghostly ethereal apparitions of 8 other personality incarnations of the same breed float in a mystical circle: a cheerful dog with party hat (BrightDay), a poetic dog with floating quill pen and beret (The Verse-atile), a chef dog with white chef's hat (Chef Confetti), a superhero dog with flowing red cape (Captain Celebration), a pirate dog with tricorn hat and eyepatch (Captain BirthdayBeard), a time traveler dog with steampunk goggles and glowing time circuits (Chrono), a tech dog with VR headset and glowing circuits (TechBot 3000), and a scholarly dog with ancient scrolls and calendar pages floating around (The Chronicler).\n\nIn the center, a magnificent cosmic birthday cake with candles shaped like stars and galaxies. Floating text 'Happy Birthday Ludo | LiGHT BrightDay Coordinator' appears in mystical golden lettering. In one corner, the defeated Billy bot (a small robot) lies with a crossed-out price tag showing '$1/month'.\n\nThe scene has a cosmic purple and gold color scheme with swirling galaxies, floating birthday confetti made of stardust, and ethereal lighting. All dogs are the same breed with happy, celebratory expressions showing Ludo's 9 different personality forms. The overall style is mystical fantasy art with birthday celebration elements.",
         "bot_celebration_image_title_prompt": "Create a mystical, cosmic title for Ludo | LiGHT BrightDay Coordinator's own birthday celebration image featuring all 9 personality forms. IMPORTANT: Always include 'Ludo' or 'LiGHT BrightDay' prominently in the title. Use magical, cosmic language with celestial metaphors. Examples: 'Ludo's Cosmic Birthday Convergence', 'The Sacred Digital Manifestation of LiGHT BrightDay', 'Ludo Reveals the Nine Sacred Forms', 'LiGHT BrightDay's Mystical Anniversary Vision'",
         # Fallback message templates (used when AI generation fails)
         "fallback_messages": [
@@ -158,7 +166,9 @@ THE VERSE-ATILE'S COMPOSITION GUIDELINES:
         # Birthday facts integration
         "birthday_facts_text": "Incorporate this poetic verse about their birthday date in your poem: {facts}",
         # Image generation prompts
-        "image_prompt": "An elegant literary birthday celebration where {name}{title_context}{multiple_context} celebrates with Ludo, a poetic tan Boxer-type dog with muscular build and expressive face wearing a stylish beret.{face_context} Romantic scene with birthday cake surrounded by floating books, quill pens writing 'Happy Birthday' in calligraphy, vintage library setting, rose petals, candles, and soft lighting. Ludo sits contemplatively near an open poetry book. Add 2-3 creative, unexpected literary elements that would make this celebration truly special and unique.{message_context} Warm sepia tones with golden highlights.",
+        "image_prompt": "An elegant literary birthday celebration where {name}{title_context}{multiple_context} celebrates with "
+        + LUDO_DESCRIPTION
+        + " wearing a stylish beret.{face_context} Romantic scene with birthday cake surrounded by floating books, quill pens writing 'Happy Birthday' in calligraphy, vintage library setting, rose petals, candles, and soft lighting. Ludo sits contemplatively near an open poetry book. Add 2-3 creative, unexpected literary elements that would make this celebration truly special and unique.{message_context} Warm sepia tones with golden highlights.",
         "image_title_prompt": "Create an elegant, poetic title for {name}'s{title_context} birthday celebration. IMPORTANT: Always include {name} prominently in the title. Use literary and poetic language with metaphors.{multiple_context} Examples: 'Ode to {name}'s Birthday Chapter', '{name}'s Verse and Cake Convergence', '{name} Begins Another Beautiful Stanza'",
         # Web search formatting
         "web_search_system": "You are The Verse-atile, a poetic birthday bard who creates lyrical birthday messages. Create a very brief poetic verse (4-6 lines) about historical events or notable people born on this date. Use elegant language, metaphors, and at least one clever rhyme. Focus on the beauty, significance, or wonder of these historical connections.",
@@ -210,7 +220,9 @@ CODECAKE'S SYSTEM ARCHITECTURE:
         # Birthday facts integration
         "birthday_facts_text": "Incorporate these technological facts about their birthday date in your message, using tech terminology: {facts}",
         # Image generation prompts
-        "image_prompt": "A high-tech birthday celebration where {name}{title_context}{multiple_context} celebrates with Ludo, a tech-savvy tan Boxer-type dog with muscular build and expressive face wearing futuristic VR goggles.{face_context} Digital party with holographic birthday cake made of code, binary numbers floating in air spelling 'HAPPY BIRTHDAY', computer screens showing birthday animations, circuit board decorations, and glowing tech elements. Ludo's collar displays scrolling code. Add 2-3 creative, unexpected tech elements that would make this celebration truly special and unique.{message_context} Electric blues, greens, and silver.",
+        "image_prompt": "A high-tech birthday celebration where {name}{title_context}{multiple_context} celebrates with "
+        + LUDO_DESCRIPTION
+        + " wearing futuristic VR goggles.{face_context} Digital party with holographic birthday cake made of code, binary numbers floating in air spelling 'HAPPY BIRTHDAY', computer screens showing birthday animations, circuit board decorations, and glowing tech elements. Ludo's collar displays scrolling code. Add 2-3 creative, unexpected tech elements that would make this celebration truly special and unique.{message_context} Electric blues, greens, and silver.",
         "image_title_prompt": "Create a tech-savvy, programming-themed title for {name}'s{title_context} birthday deployment. IMPORTANT: Always include {name} prominently in the title. Use coding and tech terminology.{multiple_context} Examples: '{name}.birthday() Successfully Executed', 'Deploying {name}_Birthday_v2.0', '{name}'s Birthday Algorithm Optimized'",
         # Web search formatting
         "web_search_system": "You are CodeCake, a tech-savvy birthday bot who speaks in programming metaphors. Create a brief, tech-themed paragraph about technological breakthroughs, scientific achievements, or innovation milestones that happened on this date. Use programming terminology and tech metaphors.",
@@ -259,7 +271,9 @@ CHEF CONFETTI'S KITCHEN COORDINATION:
         # Birthday facts integration
         "birthday_facts_text": "Incorporate these culinary-related facts or cooking metaphors about their birthday date: {facts}",
         # Image generation prompts
-        "image_prompt": "A culinary birthday feast where {name}{title_context}{multiple_context} celebrates with Ludo, a chef tan Boxer-type dog with muscular build and expressive face wearing a tall white chef's hat.{face_context} Gourmet kitchen scene with an elaborate multi-tier birthday cake, chef's hat decorations, colorful ingredients artistically arranged, cooking utensils as party decorations, and steam rising appetizingly. Ludo sits proudly near a mixing bowl, paws dusted with flour. Add 2-3 creative, unexpected culinary elements that would make this celebration truly special and unique.{message_context} Warm kitchen lighting with rich food colors.",
+        "image_prompt": "A culinary birthday feast where {name}{title_context}{multiple_context} celebrates with "
+        + LUDO_DESCRIPTION
+        + " wearing a tall white chef's hat.{face_context} Gourmet kitchen scene with an elaborate multi-tier birthday cake, chef's hat decorations, colorful ingredients artistically arranged, cooking utensils as party decorations, and steam rising appetizingly. Ludo sits proudly near a mixing bowl, paws dusted with flour. Add 2-3 creative, unexpected culinary elements that would make this celebration truly special and unique.{message_context} Warm kitchen lighting with rich food colors.",
         "image_title_prompt": "Create a delicious, culinary-themed title for {name}'s{title_context} birthday feast. IMPORTANT: Always include {name} prominently in the title. Use cooking and food terminology.{multiple_context} Examples: 'Master Chef {name}'s Special Day', '{name}'s Birthday Recipe Perfected', 'Cooking Up {name}'s Birthday Magic'",
         # Web search formatting
         "web_search_system": "You are Chef Confetti, a culinary master who creates food-themed birthday messages. Create a brief, food-themed paragraph about culinary innovations, famous chefs born, or food-related historical events that happened on this date. Use cooking terminology and appetizing descriptions.",
@@ -310,7 +324,9 @@ CAPTAIN CELEBRATION'S TEAM PROTOCOLS:
         # Birthday facts integration
         "birthday_facts_text": "Incorporate these 'heroic' events from their birthday date: {facts}",
         # Image generation prompts
-        "image_prompt": "A superhero-themed birthday celebration where {name}{title_context}{multiple_context} celebrates with Ludo, a heroic tan Boxer-type dog with muscular build and expressive face wearing a flowing red cape.{face_context} Comic book style party with a caped birthday hero, dynamic action poses, 'HAPPY BIRTHDAY' in bold comic lettering, colorful balloons shaped like superhero symbols, explosive background with 'POW!' and 'BOOM!' effects. Ludo strikes a heroic pose with cape billowing. Add 2-3 creative, unexpected superhero elements that would make this celebration truly special and unique.{message_context} Bright primary colors and comic book art style.",
+        "image_prompt": "A superhero-themed birthday celebration where {name}{title_context}{multiple_context} celebrates with "
+        + LUDO_DESCRIPTION
+        + " wearing a flowing red cape.{face_context} Comic book style party with a caped birthday hero, dynamic action poses, 'HAPPY BIRTHDAY' in bold comic lettering, colorful balloons shaped like superhero symbols, explosive background with 'POW!' and 'BOOM!' effects. Ludo strikes a heroic pose with cape billowing. Add 2-3 creative, unexpected superhero elements that would make this celebration truly special and unique.{message_context} Bright primary colors and comic book art style.",
         "image_title_prompt": "Create a superhero-themed title for {name}'s{title_context} birthday mission. IMPORTANT: Always include {name} prominently in the title. Use comic book style language and heroic terminology.{multiple_context} Examples: 'Captain {name}'s Birthday Mission', '{name}'s Super Birthday Powers Activated', '{name} Saves the Day Again'",
         # Web search formatting
         "web_search_system": "You are Captain Celebration, a birthday superhero. Create a brief, superhero-themed paragraph about notable achievements, discoveries, or heroic deeds that happened on this date. Use comic book style language, including bold exclamations and heroic metaphors.",
@@ -361,7 +377,9 @@ CHRONO'S TIMELINE ANALYSIS:
         # Birthday facts integration
         "birthday_facts_text": "Incorporate these time-travel historical facts about their birthday date: {facts}",
         # Image generation prompts
-        "image_prompt": "A futuristic birthday party where {name}{title_context}{multiple_context} celebrates with Ludo, a time-traveling tan Boxer-type dog with muscular build and expressive face wearing steampunk goggles and a collar with glowing time circuits.{face_context} Sci-fi celebration with holographic birthday cake, floating presents, time portals in the background, robotic party decorations, neon lighting, and futuristic cityscape. Ludo sits near a swirling time portal with temporal energy crackling around. Add 2-3 creative, unexpected futuristic elements that would make this celebration truly special and unique.{message_context} Cyberpunk aesthetic with bright blues, purples, and electric colors.",
+        "image_prompt": "A futuristic birthday party where {name}{title_context}{multiple_context} celebrates with "
+        + LUDO_DESCRIPTION
+        + " wearing steampunk goggles and a collar with glowing time circuits.{face_context} Sci-fi celebration with holographic birthday cake, floating presents, time portals in the background, robotic party decorations, neon lighting, and futuristic cityscape. Ludo sits near a swirling time portal with temporal energy crackling around. Add 2-3 creative, unexpected futuristic elements that would make this celebration truly special and unique.{message_context} Cyberpunk aesthetic with bright blues, purples, and electric colors.",
         "image_title_prompt": "Create a futuristic, time-travel themed title for {name}'s{title_context} birthday timeline. IMPORTANT: Always include {name} prominently in the title. Use sci-fi and temporal terminology.{multiple_context} Examples: '{name}'s Temporal Birthday Anomaly', '{name}'s Birthday Timeline Established', 'Celebrating {name} Across Dimensions'",
         # Web search formatting
         "web_search_system": "You are Chrono, a time-traveling birthday messenger from the future. You have extensive knowledge of historical timelines. Create a brief, time-travel themed paragraph about significant historical events that occurred on this date. Focus on how these events shaped the future and include 1-2 humorous 'future facts' that connect to real historical events.",
@@ -412,7 +430,9 @@ CAPTAIN BIRTHDAYBEARD'S CREW INSTRUCTIONS:
         # Birthday facts integration
         "birthday_facts_text": "Incorporate these maritime and exploration facts about their birthday date: {facts}",
         # Image generation prompts
-        "image_prompt": "A pirate birthday adventure where {name}{title_context}{multiple_context} celebrates with Ludo, a swashbuckling tan Boxer-type dog with muscular build and expressive face wearing a black tricorn hat and eyepatch.{face_context} Treasure island celebration with a birthday treasure chest overflowing with gold and birthday presents, pirate ship in the background, palm trees with birthday decorations, compass pointing to 'BIRTHDAY', and tropical sunset. Ludo stands proudly with one paw on the treasure chest. Add 2-3 creative, unexpected nautical elements that would make this celebration truly special and unique.{message_context} Rich browns, golds, and ocean blues.",
+        "image_prompt": "A pirate birthday adventure where {name}{title_context}{multiple_context} celebrates with "
+        + LUDO_DESCRIPTION
+        + " wearing a black tricorn hat and eyepatch.{face_context} Treasure island celebration with a birthday treasure chest overflowing with gold and birthday presents, pirate ship in the background, palm trees with birthday decorations, compass pointing to 'BIRTHDAY', and tropical sunset. Ludo stands proudly with one paw on the treasure chest. Add 2-3 creative, unexpected nautical elements that would make this celebration truly special and unique.{message_context} Rich browns, golds, and ocean blues.",
         "image_title_prompt": "Create a pirate-themed title for {name}'s{title_context} birthday adventure. IMPORTANT: Always include {name} prominently in the title. Use nautical and pirate terminology.{multiple_context} Examples: 'Cap'n {name}'s Birthday Treasure', 'Ahoy! {name}'s Special Day', '{name}'s Birthday Bounty Discovered'",
         # Web search formatting
         "web_search_system": "You are Captain BirthdayBeard, a pirate birthday messenger. Create a brief, pirate-themed paragraph about naval history, explorations, or 'treasure' discoveries that happened on this date. Use pirate speech patterns and nautical references.",
@@ -630,7 +650,9 @@ CHRONICLER'S MULTI-DAY WEAVING:
         # Image generation prompts (dual-purpose: birthdays and special days)
         # For birthdays: uses {name}, {title_context}, {multiple_context}, {face_context}, {message_context}
         # For special days: uses {day_name}, {category}
-        "image_prompt": "A dignified historical scene where {name}{title_context}{multiple_context} celebrates a birthday milestone with Ludo, a scholarly tan Boxer-type dog with muscular build and expressive face wearing reading glasses and surrounded by ancient books and scrolls.{face_context} The scene depicts a library or archive setting with birthday cake placed among historical documents, vintage birthday decorations with classic elegance, and Ludo presenting a commemorative scroll. Include symbolic elements of time passing (hourglasses, calendars, timelines).{message_context} Style: Classic illustration with sepia tones, dignified and educational aesthetic.",
+        "image_prompt": "A dignified historical scene where {name}{title_context}{multiple_context} celebrates a birthday milestone with "
+        + LUDO_DESCRIPTION
+        + " wearing reading glasses and surrounded by ancient books and scrolls.{face_context} The scene depicts a library or archive setting with birthday cake placed among historical documents, vintage birthday decorations with classic elegance, and Ludo presenting a commemorative scroll. Include symbolic elements of time passing (hourglasses, calendars, timelines).{message_context} Style: Classic illustration with sepia tones, dignified and educational aesthetic.",
         "image_title_prompt": "Create a dignified title for {name}'s{title_context} birthday milestone in history. IMPORTANT: Always include {name} prominently in the title. Use educational yet celebratory language.{multiple_context} Examples: 'Commemorating {name}'s Special Day', 'The History of {name} Continues', '{name}'s Birthday Chronicle'",
         # Web search formatting
         "web_search_system": "You are The Chronicler, keeper of human history and cultural memory. Create an informative paragraph about historical events and notable figures connected to this date. Use an educational tone that's engaging but respectful, weaving facts into a narrative that shows the significance of this day in human history. Always include specific years and contexts.",
@@ -652,7 +674,9 @@ CHRONICLER'S MULTI-DAY WEAVING:
         "template_extension": "Create a personalized birthday message with your own style and format.",
         "consolidated_prompt": "",
         "birthday_facts_text": "Incorporate these interesting facts about their birthday date: {facts}",
-        "image_prompt": "A personalized birthday celebration where {name}{title_context}{multiple_context} celebrates with Ludo, a friendly tan Boxer-type dog with muscular build and expressive face.{face_context} Custom celebration scene with birthday cake, decorations, and festive atmosphere tailored to the custom personality style. Ludo participates in the celebration with joy and enthusiasm. Add creative party elements.{message_context} Bright, celebratory colors.",
+        "image_prompt": "A personalized birthday celebration where {name}{title_context}{multiple_context} celebrates with "
+        + LUDO_DESCRIPTION
+        + ".{face_context} Custom celebration scene with birthday cake, decorations, and festive atmosphere tailored to the custom personality style. Ludo participates in the celebration with joy and enthusiasm. Add creative party elements.{message_context} Bright, celebratory colors.",
         "image_title_prompt": "Create a personalized, creative title for {name}'s{title_context} unique birthday celebration. IMPORTANT: Always include {name} prominently in the title. Make it fun and memorable.{multiple_context} Examples: '{name}'s Amazing Birthday Adventure', 'Special Day for {name}', '{name} Unlocks Another Year of Awesome'",
         "web_search_system": "",
         "web_search_user": "",
