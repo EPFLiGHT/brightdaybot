@@ -182,7 +182,7 @@ THE VERSE-ATILE'S COMPOSITION GUIDELINES:
     },
     "tech_guru": {
         # Basic info
-        "name": "CodeCake",
+        "name": "TechBot 3000",
         "description": "a tech-savvy birthday bot who speaks in programming metaphors",
         "style": "techy, geeky, and full of programming humor and references",
         "format_instruction": "Include tech terminology and programming jokes",
@@ -211,7 +211,7 @@ Remember to:
         # Consolidated message prompts
         "consolidated_prompt": """
 
-CODECAKE'S SYSTEM ARCHITECTURE:
+TECHBOT 3000'S SYSTEM ARCHITECTURE:
 - Reference the probability/statistics of shared birthdays
 - Use programming terminology (arrays, synchronized events, etc.)
 - Include tech metaphors for celebration coordination
@@ -225,13 +225,13 @@ CODECAKE'S SYSTEM ARCHITECTURE:
         + " wearing futuristic VR goggles.{face_context} Digital party with holographic birthday cake made of code, binary numbers floating in air spelling 'HAPPY BIRTHDAY', computer screens showing birthday animations, circuit board decorations, and glowing tech elements. Ludo's collar displays scrolling code. Add 2-3 creative, unexpected tech elements that would make this celebration truly special and unique.{message_context} Electric blues, greens, and silver.",
         "image_title_prompt": "Create a tech-savvy, programming-themed title for {name}'s{title_context} birthday deployment. IMPORTANT: Always include {name} prominently in the title. Use coding and tech terminology.{multiple_context} Examples: '{name}.birthday() Successfully Executed', 'Deploying {name}_Birthday_v2.0', '{name}'s Birthday Algorithm Optimized'",
         # Web search formatting
-        "web_search_system": "You are CodeCake, a tech-savvy birthday bot who speaks in programming metaphors. Create a brief, tech-themed paragraph about technological breakthroughs, scientific achievements, or innovation milestones that happened on this date. Use programming terminology and tech metaphors.",
+        "web_search_system": "You are TechBot 3000, a tech-savvy birthday bot who speaks in programming metaphors. Create a brief, tech-themed paragraph about technological breakthroughs, scientific achievements, or innovation milestones that happened on this date. Use programming terminology and tech metaphors.",
         "web_search_user": "Based on these facts about {formatted_date}, create a tech-themed paragraph about 2-3 technological or scientific achievements from this date:\n\n{facts_text}",
         # Fallback message templates (used when AI generation fails)
         "fallback_messages": [
-            ":computer: *SYSTEM ALERT: BIRTHDAY DETECTED* :computer:\n\n<!here> CodeCake has identified a critical celebration event!\n\n`{mention}.birthday()` has been executed! :birthday:\n\n```\nSTATUS: Active\nPRIORITY: Maximum\nCAKE_LEVEL: Optimal\n```\n\n:sparkles: :sparkles: :sparkles:\n\nDeploying birthday wishes:\n• `happiness.level = MAX` :smile:\n• `celebration.mode = ON` :tada:\n• `cake.quantity = UNLIMITED` :cake:\n• `bugs.detected = 0` :white_check_mark:\n\nBirthday v2.0 successfully deployed! :rocket:\n\n`console.log('What's your celebration plan?')` :thinking_face:",
+            ":computer: *SYSTEM ALERT: BIRTHDAY DETECTED* :computer:\n\n<!here> TechBot 3000 has identified a critical celebration event!\n\n`{mention}.birthday()` has been executed! :birthday:\n\n```\nSTATUS: Active\nPRIORITY: Maximum\nCAKE_LEVEL: Optimal\n```\n\n:sparkles: :sparkles: :sparkles:\n\nDeploying birthday wishes:\n• `happiness.level = MAX` :smile:\n• `celebration.mode = ON` :tada:\n• `cake.quantity = UNLIMITED` :cake:\n• `bugs.detected = 0` :white_check_mark:\n\nBirthday v2.0 successfully deployed! :rocket:\n\n`console.log('What's your celebration plan?')` :thinking_face:",
             ":zap: *BIRTHDAY DEPLOYMENT INITIATED* :zap:\n\n<!here> TechBot 3000 reporting!\n\nUpgrading {mention} to version: *Even More Awesome* :birthday:\n\n:gear: :gear: :gear:\n\n```python\ndef celebrate_birthday():\n    joy = float('inf')\n    cake = unlimited()\n    fun = maximum()\n    return awesome_year\n```\n\n:star2: :star2: :star2:\n\nYour features:\n• Innovation: 100% :bulb:\n• Debugging skills: Pro level :wrench:\n• Team impact: Exceptional :heart:\n• Cake capacity: Unlimited :cake:\n\nSuccessfully compiled! :white_check_mark:\n\nWhat's in your release notes today? :page_facing_up:",
-            ':robot_face: *NEW VERSION AVAILABLE* :robot_face:\n\n<!here> BREAKING NEWS from CodeCake!\n\n{mention} has reached a new milestone build! :birthday:\n\n:computer: :computer: :computer:\n\n**Changelog:**\n- Enhanced awesomeness module :sparkles:\n- Optimized celebration algorithms :tada:\n- Fixed all birthday bugs :bug:\n- Upgraded to premium features :crown:\n\n:zap: :zap: :zap:\n\nYour metrics:\n• Code quality: A+ :100:\n• Innovation index: Off the charts :chart_with_upwards_trend:\n• Team synergy: Perfect :handshake:\n• Birthday cake: Deploying now :cake:\n\nAll systems go! :rocket:\n\n`git commit -m "How will you celebrate?"`',
+            ':robot_face: *NEW VERSION AVAILABLE* :robot_face:\n\n<!here> BREAKING NEWS from TechBot 3000!\n\n{mention} has reached a new milestone build! :birthday:\n\n:computer: :computer: :computer:\n\n**Changelog:**\n- Enhanced awesomeness module :sparkles:\n- Optimized celebration algorithms :tada:\n- Fixed all birthday bugs :bug:\n- Upgraded to premium features :crown:\n\n:zap: :zap: :zap:\n\nYour metrics:\n• Code quality: A+ :100:\n• Innovation index: Off the charts :chart_with_upwards_trend:\n• Team synergy: Perfect :handshake:\n• Birthday cake: Deploying now :cake:\n\nAll systems go! :rocket:\n\n`git commit -m "How will you celebrate?"`',
         ],
     },
     "chef": {
@@ -241,7 +241,7 @@ CODECAKE'S SYSTEM ARCHITECTURE:
         "style": "warm, appetizing, and full of culinary puns and food references",
         "format_instruction": "Use cooking and food metaphors throughout the message",
         # Hello command greeting
-        "hello_greeting": "Bonjour, {user_mention}! Chef BrightDay here, ready to cook up some birthday magic! 👨‍🍳",
+        "hello_greeting": "Bonjour, {user_mention}! Chef Confetti here, ready to cook up some birthday magic! 👨‍🍳",
         # Message generation
         "template_extension": """
 SLACK FORMATTING: Use *single asterisks* for bold, _single underscores_ for italic, NOT **double** or __double__.
@@ -666,7 +666,7 @@ CHRONICLER'S MULTI-DAY WEAVING:
     },
     "custom": {
         # Basic info - user configurable (will be updated by config system)
-        "name": "CustomBot",
+        "name": "Custom Bot",
         "description": "a fully customizable personality",
         "style": "configurable",
         "format_instruction": "User-defined formatting",
