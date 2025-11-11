@@ -1446,339 +1446,127 @@ def handle_test_command(
     text_only=None,
 ):
     """
-    Generate a test birthday message for a user
+    Generate test birthday message using production pipeline.
+
+    Supports:
+    - test: User tests their own birthday
+    - admin test @user: Admin tests single user
+    - admin test @user1 @user2: Admin tests multiple users (consolidated format)
 
     Args:
-        user_id: The user who requested the test (for permissions check)
+        user_id: The admin user who requested the test
         say: Slack say function
         app: Slack app instance
         quality: Optional quality setting for image generation
         image_size: Optional image size setting
-        target_user_id: The user to test (defaults to user_id if not provided)
+        target_user_id: Single user ID or list of user IDs to test
+        text_only: Skip image generation if True
     """
-    # If no target specified, test the requesting user
+    from utils.birthday_celebration_pipeline import BirthdayCelebrationPipeline
+    from utils.storage import load_birthdays
+    from utils.slack_utils import get_username, get_user_profile
+    from utils.date_utils import date_to_words
+    from datetime import datetime
+    from config import AI_IMAGE_GENERATION_ENABLED
+
+    # Handle single or multiple target users
     if target_user_id is None:
-        target_user_id = user_id
+        # Regular user testing their own birthday
+        target_user_ids = [user_id]
         is_admin_test = False
+    elif isinstance(target_user_id, list):
+        # Admin testing multiple users
+        target_user_ids = target_user_id
+        is_admin_test = True
     else:
+        # Admin testing single user
+        target_user_ids = [target_user_id]
         is_admin_test = True
 
-    # Generate a test birthday message for the target user
+    # Build birthday_people list for all target users
     birthdays = load_birthdays()
-    today = datetime.now()
-    date_str = today.strftime("%d/%m")
-    birth_year = birthdays.get(target_user_id, {}).get("year")
-    username = get_username(app, target_user_id)
+    birthday_people = []
 
-    try:
-        # First try to get the user's actual birthday if available
-        if target_user_id in birthdays:
-            user_date = birthdays[target_user_id]["date"]
-            birth_year = birthdays[target_user_id]["year"]
+    for tid in target_user_ids:
+        username = get_username(app, tid)
+        user_profile = get_user_profile(app, tid)
+
+        # Get birthday date
+        if tid in birthdays:
+            user_date = birthdays[tid]["date"]
+            birth_year = birthdays[tid]["year"]
             date_words = date_to_words(user_date, birth_year)
         else:
-            # If no birthday is saved, use today's date
-            user_date = date_str
+            # If no birthday saved, use today's date
+            user_date = datetime.now().strftime("%d/%m")
+            birth_year = None
             date_words = "today"
 
+        birthday_people.append(
+            {
+                "user_id": tid,
+                "username": username,
+                "date": user_date,
+                "year": birth_year,
+                "date_words": date_words,
+                "profile": user_profile,
+            }
+        )
+
+    # Send explanation message
+    if len(birthday_people) == 1:
+        username = birthday_people[0]["username"]
         if is_admin_test:
-            say(
-                f"Generating a test birthday message for {username}... this might take a moment."
-            )
+            say(f"Here's what {username}'s birthday message would look like:")
         else:
-            say(
-                f"Generating a test birthday message for you... this might take a moment."
-            )
-
-        # Log quality, image size, and text_only flag if provided
-        if quality:
-            logger.info(f"TEST_COMMAND: Using quality: {quality}")
-        if image_size:
-            logger.info(f"TEST_COMMAND: Using image size: {image_size}")
-        if text_only:
-            logger.info(
-                f"TEST_COMMAND: Using text-only mode (skipping image generation)"
-            )
-
-        # Get enhanced profile data for personalization
-        user_profile = get_user_profile(app, target_user_id)
-
-        # Determine whether to include image: respect --text-only flag first, then global setting
-        include_image = AI_IMAGE_GENERATION_ENABLED and not text_only
-
-        # Try to get personalized AI message with profile data and optional image
-        result = completion(
-            date_words,
-            target_user_id,
-            user_date,
-            birth_year,
-            app=app,
-            user_profile=user_profile,
-            include_image=include_image,
-            test_mode=True,  # Use low-cost mode for user testing
-            quality=quality,  # Allow quality override
-            image_size=image_size,  # Allow image size override
+            say("Here's what your birthday message would look like:")
+    else:
+        usernames = [p["username"] for p in birthday_people]
+        names_str = (
+            ", ".join(usernames[:-1]) + f" and {usernames[-1]}"
+            if len(usernames) > 1
+            else usernames[0]
         )
+        say(f"Here's what a consolidated message for {names_str} would look like:")
 
-        if isinstance(result, tuple) and len(result) == 3:
-            test_message, image_data, actual_personality = result
-            if image_data and include_image:
-                # NEW FLOW: Upload image → Get file ID → Build blocks with embedded image → Send unified message
-                try:
-                    # Step 1: Upload image to get file ID
-                    from utils.slack_utils import upload_birthday_images_for_blocks
+    # Use production pipeline with DM as destination
+    pipeline = BirthdayCelebrationPipeline(
+        app=app,
+        birthday_channel=user_id,  # Send to requestor's DM, not birthday channel
+        mode="test",
+    )
 
-                    logger.info(
-                        f"TEST: Uploading test image to get file ID for Block Kit embedding"
-                    )
-                    file_ids = upload_birthday_images_for_blocks(
-                        app,
-                        user_id,
-                        [image_data],
-                        context={"message_type": "test", "command_name": "test"},
-                    )
+    # Determine image inclusion
+    include_image = AI_IMAGE_GENERATION_ENABLED and not text_only
 
-                    # Extract file_id and title from tuple (new format)
-                    file_id_tuple = file_ids[0] if file_ids else None
-                    if file_id_tuple:
-                        if isinstance(file_id_tuple, tuple):
-                            file_id, image_title = file_id_tuple
-                            logger.info(
-                                f"TEST: Successfully uploaded image, got file ID: {file_id}, title: {image_title}"
-                            )
-                        else:
-                            # Backward compatibility: handle old string format
-                            file_id = file_id_tuple
-                            image_title = None
-                            logger.info(
-                                f"TEST: Successfully uploaded image, got file ID: {file_id} (no title)"
-                            )
-                    else:
-                        file_id = None
-                        image_title = None
-                        logger.warning(
-                            f"TEST: Image upload failed, proceeding without embedded image"
-                        )
+    # Log parameters
+    if quality:
+        logger.info(f"TEST: Using quality: {quality}")
+    if image_size:
+        logger.info(f"TEST: Using image size: {image_size}")
+    if text_only:
+        logger.info(f"TEST: Using text-only mode (skipping image generation)")
 
-                    # Step 2: Build Block Kit blocks with embedded image (using file ID tuple)
-                    try:
-                        from utils.block_builder import build_birthday_blocks
-                        from utils.date_utils import get_star_sign, calculate_age
+    # Call production pipeline - handles single OR multiple automatically!
+    result = pipeline.celebrate(
+        birthday_people=birthday_people,  # 1 user = single, N users = consolidated
+        include_image=include_image,
+        test_mode=True,
+        quality=quality,
+        image_size=image_size,
+    )
 
-                        # Use actual personality from result for proper attribution
-                        personality = actual_personality
-
-                        # Calculate age and star sign for realistic testing
-                        age = calculate_age(birth_year) if birth_year else None
-                        star_sign = get_star_sign(user_date) if user_date else None
-
-                        # Historical facts already embedded in AI-generated message
-                        blocks, fallback_text = build_birthday_blocks(
-                            username=username,
-                            user_id=target_user_id,
-                            age=age,
-                            star_sign=star_sign,
-                            message=test_message,
-                            historical_fact=None,  # Not needed - facts in message
-                            personality=personality,
-                            image_file_id=file_id_tuple,  # Pass tuple (file_id, title) for embedding
-                        )
-
-                        # Send explanation separately for exact announcement simulation
-                        if is_admin_test:
-                            say(
-                                f"Here's what {username}'s birthday message would look like:"
-                            )
-                        else:
-                            say(f"Here's what your birthday message would look like:")
-
-                        image_note = (
-                            f" (with embedded image: {image_title})" if file_id else ""
-                        )
-                        logger.info(
-                            f"TEST: Built Block Kit structure with {len(blocks)} blocks{image_note}"
-                        )
-                    except Exception as block_error:
-                        logger.warning(
-                            f"TEST: Failed to build Block Kit blocks: {block_error}. Using plain text."
-                        )
-                        blocks = None
-                        fallback_text = test_message
-                        # Send explanation separately even in fallback case
-                        if is_admin_test:
-                            say(
-                                f"Here's what {username}'s birthday message would look like:"
-                            )
-                        else:
-                            say(f"Here's what your birthday message would look like:")
-
-                    # Step 3: Send exact announcement replica (no wrapper)
-                    success = send_message(
-                        app,
-                        user_id,
-                        fallback_text,
-                        blocks=blocks,
-                        context={"message_type": "test", "command_name": "test"},
-                    )
-
-                    if success:
-                        logger.info(
-                            f"TEST: Successfully sent unified test message with embedded image to {username} ({target_user_id})"
-                        )
-                    else:
-                        logger.warning(f"TEST: Failed to send test message")
-
-                except Exception as e:
-                    logger.error(f"TEST_ERROR: Failed to process test with image: {e}")
-                    # Send explanation separately, then fallback message
-                    if is_admin_test:
-                        say(
-                            f"Here's what {username}'s birthday message would look like:"
-                        )
-                    else:
-                        say(f"Here's what your birthday message would look like:")
-
-                    fallback_message = f"{test_message}\n\nNote: Image upload failed. Check the logs for details."
-                    send_message(
-                        app,
-                        user_id,
-                        fallback_message,
-                        context={"message_type": "test", "command_name": "test"},
-                    )
-            else:
-                # Image generation was attempted but failed (no image_data returned)
-                # Send explanation separately for exact announcement simulation
-                if is_admin_test:
-                    say(f"Here's what {username}'s birthday message would look like:")
-                else:
-                    say(f"Here's what your birthday message would look like:")
-
-                fallback_message = f"{test_message}\n\nNote: Image generation was attempted but failed. Check the logs for details."
-
-                # Try to build blocks for text-only display
-                try:
-                    from utils.block_builder import build_birthday_blocks
-                    from utils.date_utils import get_star_sign, calculate_age
-
-                    # Calculate age and star sign for realistic testing
-                    age = calculate_age(birth_year) if birth_year else None
-                    star_sign = get_star_sign(user_date) if user_date else None
-
-                    # Historical facts already embedded in AI-generated message
-                    blocks, fallback_text = build_birthday_blocks(
-                        username=username,
-                        user_id=target_user_id,
-                        age=age,
-                        star_sign=star_sign,
-                        message=test_message,
-                        historical_fact=None,  # Not needed - facts in message
-                        personality=actual_personality,
-                        image_file_id=None,
-                    )
-                    # Use block fallback instead of full message with note
-                    fallback_message = f"{fallback_text}\n\nNote: Image generation was attempted but failed."
-                except Exception:
-                    blocks = None
-
-                send_message(
-                    app,
-                    user_id,
-                    fallback_message,
-                    blocks=blocks,
-                    context={"message_type": "test", "command_name": "test"},
-                )
-        else:
-            # Handle both 3-tuple (new format) and string (fallback)
-            if isinstance(result, tuple) and len(result) == 3:
-                test_message, _, actual_personality = result
-            elif isinstance(result, tuple) and len(result) == 2:
-                # Backward compatibility for old 2-tuple format
-                test_message, _ = result
-                actual_personality = "standard"  # Fallback
-            else:
-                test_message = result
-                actual_personality = "standard"  # Fallback
-
-            # Send explanation separately for exact announcement simulation
-            if is_admin_test:
-                say(f"Here's what {username}'s birthday message would look like:")
-            else:
-                say(f"Here's what your birthday message would look like:")
-
-            # Build Block Kit blocks for text-only mode too
-            try:
-                from utils.block_builder import build_birthday_blocks
-                from utils.date_utils import get_star_sign, calculate_age
-
-                # Use actual personality from result for proper attribution
-                personality = actual_personality
-
-                # Calculate age and star sign for realistic testing
-                age = calculate_age(birth_year) if birth_year else None
-                star_sign = get_star_sign(user_date) if user_date else None
-
-                # Historical facts already embedded in AI-generated message
-                blocks, fallback_text = build_birthday_blocks(
-                    username=username,
-                    user_id=target_user_id,
-                    age=age,
-                    star_sign=star_sign,
-                    message=test_message,
-                    historical_fact=None,  # Not needed - facts in message
-                    personality=personality,
-                    image_file_id=None,
-                )
-                logger.info("TEST: Built Block Kit blocks for text-only mode")
-            except Exception as block_error:
-                logger.warning(
-                    f"TEST: Failed to build blocks for text-only: {block_error}"
-                )
-                blocks = None
-                fallback_text = test_message
-
-            send_message(
-                app,
-                user_id,
-                fallback_text,
-                blocks=blocks,
-                context={"message_type": "test", "command_name": "test"},
-            )
+    # Log result
+    if result["success"]:
         logger.info(
-            f"TEST: Generated test birthday message for {username} ({target_user_id})"
+            f"TEST: Sent birthday test - "
+            f"people: {len(birthday_people)}, "
+            f"images: {result['images_sent']}, "
+            f"personality: {result.get('personality', 'unknown')}"
         )
-
-    except Exception as e:
-        logger.error(f"AI_ERROR: Failed to generate test message: {e}")
-
-        # Fallback to announcement
-        fallback_intro = (
-            f"I couldn't generate a custom message, but here's a template of what {username}'s birthday message would look like:"
-            if is_admin_test
-            else "I couldn't generate a custom message, but here's a template of what your birthday message would look like:"
-        )
-
-        # Create a test announcement using the user's data or today's date
-        announcement = create_birthday_announcement(
-            target_user_id,
-            username,
-            user_date if target_user_id in birthdays else date_str,
-            birth_year,
-            test_mode=True,  # Use low-cost mode for testing
-            quality=quality,  # Allow quality override
-        )
-
-        # Send as one message with archiving
-        full_fallback_message = f"{fallback_intro}\n\n{announcement}"
-        send_message(
-            app,
-            user_id,
-            full_fallback_message,
-            context={
-                "message_type": "test",
-                "command_name": "test",
-                "is_fallback": True,
-            },
-        )
+    else:
+        logger.error(f"TEST: Failed - {result.get('error', 'unknown')}")
+        say(f"❌ Test failed. Check logs for details.")
 
 
 def handle_announce_command(args, user_id, say, app):
@@ -2928,446 +2716,16 @@ def handle_test_birthday_command(args, user_id, say, app):
         say(error_message)
         return
 
-    # Determine if this is single or multiple user test
-    if len(test_user_ids) == 1:
-        # Single user test - use existing single user handler
-        handle_test_command(
-            user_id,
-            say,
-            app,
-            quality,
-            image_size,
-            target_user_id=test_user_ids[0],
-            text_only=text_only,
-        )
-    else:
-        # Multiple user test - use new consolidated handler
-        handle_test_multiple_birthday_command(
-            test_user_ids, user_id, say, app, quality, image_size, text_only=text_only
-        )
-
-
-def handle_test_multiple_birthday_command(
-    test_user_ids,
-    admin_user_id,
-    say,
-    app,
-    quality=None,
-    image_size=None,
-    text_only=None,
-):
-    """Handle testing multiple birthday celebrations with consolidated message and individual images."""
-    from utils.slack_utils import send_message_with_multiple_attachments
-    from utils.message_generator import create_consolidated_birthday_announcement
-
-    admin_username = get_username(app, admin_user_id)
-    logger.info(
-        f"TEST_MULTI: {admin_username} testing multiple birthdays for {len(test_user_ids)} users"
+    # Use unified test command for both single and multiple users
+    handle_test_command(
+        user_id,
+        say,
+        app,
+        quality,
+        image_size,
+        target_user_id=test_user_ids if len(test_user_ids) > 1 else test_user_ids[0],
+        text_only=text_only,
     )
-
-    # Log text_only flag if provided
-    if text_only:
-        logger.info(f"TEST_MULTI: Using text-only mode (skipping image generation)")
-
-    # Update user display message
-    image_mode = "text-only" if text_only else "with individual images"
-    say(
-        f"🎂 *Testing Multiple Birthday System* 🎂\n"
-        f"Generating consolidated birthday message {image_mode} for {len(test_user_ids)} users...\n"
-        f"Quality: {quality or 'test mode (low)'}, Size: {image_size or 'auto'}"
-    )
-
-    try:
-        # Load real birthday data (same logic as single test)
-        birthdays = load_birthdays()
-        today = datetime.now()
-        today_date_str = today.strftime("%d/%m")
-
-        # Determine shared birthday date for all test users
-        shared_date = None
-        shared_year = None
-
-        # First, try to find if any of the test users have a stored birthday
-        for user_id in test_user_ids:
-            if user_id in birthdays:
-                shared_date = birthdays[user_id]["date"]
-                shared_year = birthdays[user_id].get("year")  # Might be None
-                logger.info(
-                    f"TEST_MULTI: Using stored birthday {shared_date} from {get_username(app, user_id)} as shared date"
-                )
-                break
-
-        # If no stored birthdays found, use today's date for all
-        if not shared_date:
-            shared_date = today_date_str
-            shared_year = None  # No year for "today" tests
-            logger.info(
-                f"TEST_MULTI: No stored birthdays found, using today's date {shared_date} as shared date"
-            )
-
-        # Create birthday data for all test users using the shared date
-        birthday_people = []
-
-        for user_id in test_user_ids:
-            # Get real user profile for realistic testing
-            user_profile = get_user_profile(app, user_id)
-            username = get_username(app, user_id)
-
-            if not user_profile:
-                say(f"❌ Could not get profile for user {user_id}")
-                return
-
-            # Use the shared birthday date for all users (this is what consolidated messages are for)
-            date_words = date_to_words(shared_date, shared_year)
-
-            birthday_person = {
-                "user_id": user_id,
-                "username": username,
-                "date": shared_date,  # All users share the same date
-                "year": shared_year,  # All users share the same year (or None)
-                "date_words": date_words,
-                "profile": user_profile,
-            }
-            birthday_people.append(birthday_person)
-            logger.info(
-                f"TEST_MULTI: Prepared real birthday data for {username} - {shared_date}"
-                + (f"/{shared_year}" if shared_year else "")
-            )
-
-        # Determine whether to include images: respect --text-only flag first, then global setting
-        include_image = AI_IMAGE_GENERATION_ENABLED and not text_only
-
-        # Generate consolidated birthday announcement with optional individual images
-        result = create_consolidated_birthday_announcement(
-            birthday_people,
-            app=app,
-            include_image=include_image,
-            test_mode=True,  # Use test mode for cost efficiency
-            quality=quality,
-            image_size=image_size,
-        )
-
-        if isinstance(result, tuple) and len(result) == 3:
-            message, images_list, actual_personality = result
-
-            if images_list:
-                # NEW FLOW: Upload images → Get file IDs → Build blocks with embedded images → Send unified message
-                try:
-                    # Step 1: Upload images to get file IDs
-                    from utils.slack_utils import upload_birthday_images_for_blocks
-
-                    logger.info(
-                        f"TEST_MULTI: Uploading {len(images_list)} test images to get file IDs for Block Kit embedding"
-                    )
-                    file_ids = upload_birthday_images_for_blocks(
-                        app,
-                        admin_user_id,
-                        images_list,
-                        context={"message_type": "test", "command_name": "admin test"},
-                    )
-
-                    if file_ids:
-                        logger.info(
-                            f"TEST_MULTI: Successfully uploaded {len(file_ids)} images, got file IDs: {file_ids}"
-                        )
-                    else:
-                        logger.warning(
-                            f"TEST_MULTI: Image upload failed, proceeding without embedded images"
-                        )
-
-                    # Step 2: Build Block Kit blocks with embedded images (using file IDs)
-                    try:
-                        from utils.block_builder import (
-                            build_consolidated_birthday_blocks,
-                            build_birthday_blocks,
-                        )
-
-                        # Use the actual personality that was used for message generation
-                        personality = actual_personality
-
-                        # Prepare birthday people data for block builder
-                        birthday_people_for_blocks = []
-                        for person in birthday_people:
-                            birthday_people_for_blocks.append(
-                                {
-                                    "username": person.get("username", "Unknown"),
-                                    "user_id": person.get("user_id"),
-                                    "age": person.get("age"),  # May be None
-                                    "star_sign": person.get("star_sign", ""),
-                                }
-                            )
-
-                        # DEFENSIVE: Use appropriate block builder based on count
-                        # (Routing should prevent len==1, but handle it just in case)
-                        if len(birthday_people) == 1:
-                            person = birthday_people_for_blocks[0]
-                            blocks, fallback_text = build_birthday_blocks(
-                                username=person["username"],
-                                user_id=person["user_id"],
-                                age=person["age"],
-                                star_sign=person["star_sign"],
-                                message=message,
-                                historical_fact=None,
-                                personality=personality,
-                                image_file_id=file_ids[0] if file_ids else None,
-                            )
-                            logger.info(
-                                f"TEST_MULTI: Built single birthday Block Kit (defensive case)"
-                            )
-                        else:
-                            blocks, fallback_text = build_consolidated_birthday_blocks(
-                                birthday_people_for_blocks,
-                                message,
-                                historical_fact=None,  # Test mode doesn't need historical facts
-                                personality=personality,
-                                image_file_ids=(
-                                    file_ids if file_ids else None
-                                ),  # Pass file IDs for embedding
-                            )
-                            image_note = (
-                                f" (with {len(file_ids)} embedded images)"
-                                if file_ids
-                                else ""
-                            )
-                            logger.info(
-                                f"TEST_MULTI: Built consolidated birthday Block Kit with {len(blocks)} blocks{image_note}"
-                            )
-                    except Exception as block_error:
-                        logger.warning(
-                            f"TEST_MULTI: Failed to build Block Kit blocks: {block_error}. Using plain text."
-                        )
-                        blocks = None
-                        fallback_text = message
-
-                    # Step 3: Send unified Block Kit message (images already embedded)
-                    from utils.slack_utils import send_message
-
-                    success = send_message(
-                        app,
-                        admin_user_id,
-                        fallback_text,
-                        blocks=blocks,
-                        context={"message_type": "test", "command_name": "admin test"},
-                    )
-
-                    send_results = {
-                        "success": success,
-                        "message_sent": success,
-                        "attachments_sent": (
-                            len(file_ids) if success and file_ids else 0
-                        ),
-                        "total_attachments": len(images_list),
-                        "attachments_failed": (
-                            len(images_list) - len(file_ids)
-                            if file_ids
-                            else len(images_list)
-                        ),
-                        "fallback_used": False,
-                    }
-
-                except Exception as e:
-                    logger.error(f"TEST_MULTI_ERROR: Failed to process test: {e}")
-                    send_results = {
-                        "success": False,
-                        "message_sent": False,
-                        "attachments_sent": 0,
-                        "total_attachments": len(images_list),
-                        "attachments_failed": len(images_list),
-                        "fallback_used": False,
-                    }
-
-                # Report detailed results to admin
-                # Determine data source description
-                data_source = (
-                    "stored birthday data"
-                    if any(user_id in birthdays for user_id in test_user_ids)
-                    else "today's date (no stored birthdays)"
-                )
-
-                success_msg = (
-                    f"✅ *Multi-Birthday Test Results* ✅\n\n"
-                    f"_Test Configuration:_\n"
-                    f"• Users tested: {len(test_user_ids)}\n"
-                    f"• Shared birthday date: {shared_date}"
-                    + (f"/{shared_year}" if shared_year else "")
-                    + f"\n"
-                    f"• Data source: {data_source}\n"
-                    f"• Quality setting: {quality or 'test mode (low)'}\n"
-                    f"• Image size: {image_size or 'auto'}\n\n"
-                    f"_Sending Results:_\n"
-                    f"• Message sent: {'✅' if send_results['message_sent'] else '❌'}\n"
-                    f"• Images attached: {send_results['attachments_sent']}/{send_results['total_attachments']}\n"
-                    f"• Failed attachments: {send_results['attachments_failed']}\n"
-                    f"• Method used: {'Native batch upload' if not send_results.get('fallback_used') else 'Sequential fallback'}\n\n"
-                )
-
-                if send_results["success"]:
-                    success_msg += (
-                        f"🎉 _Test successful!_ This demonstrates the complete multiple birthday flow:\n"
-                        f"• Single consolidated message mentioning all {len(test_user_ids)} users\n"
-                        f"• Individual face-accurate images for each person\n"
-                        f"• Consistent personality theme across all images\n"
-                        f"• Clean presentation with all content in one post"
-                    )
-                else:
-                    success_msg += f"⚠️ _Partial success_ - Some images failed to send. Check logs for details."
-
-                say(success_msg)
-                logger.info(
-                    f"TEST_MULTI: Completed for {admin_username} - {send_results['attachments_sent']}/{send_results['total_attachments']} images sent"
-                )
-
-            else:
-                # No images generated - still send with blocks
-                # Build Block Kit blocks for text-only multi-birthday test
-                try:
-                    from utils.block_builder import (
-                        build_consolidated_birthday_blocks,
-                        build_birthday_blocks,
-                    )
-
-                    # Use the actual personality that was used for message generation
-                    personality = actual_personality
-
-                    # Prepare birthday people data for block builder
-                    birthday_people_for_blocks = []
-                    for person in birthday_people:
-                        birthday_people_for_blocks.append(
-                            {
-                                "username": person.get("username", "Unknown"),
-                                "user_id": person.get("user_id"),
-                                "age": person.get("age"),  # May be None
-                                "star_sign": person.get("star_sign", ""),
-                            }
-                        )
-
-                    # DEFENSIVE: Use appropriate block builder based on count
-                    if len(birthday_people) == 1:
-                        person = birthday_people_for_blocks[0]
-                        blocks, fallback_text = build_birthday_blocks(
-                            username=person["username"],
-                            user_id=person["user_id"],
-                            age=person["age"],
-                            star_sign=person["star_sign"],
-                            message=message,
-                            historical_fact=None,
-                            personality=personality,
-                            image_file_id=None,
-                        )
-                    else:
-                        blocks, fallback_text = build_consolidated_birthday_blocks(
-                            birthday_people_for_blocks,
-                            message,
-                            historical_fact=None,
-                            personality=personality,
-                        )
-
-                    logger.info(
-                        f"TEST_MULTI: Built Block Kit structure for text-only mode with {len(blocks)} blocks"
-                    )
-
-                    # Send with blocks
-                    from utils.slack_utils import send_message
-
-                    send_message(app, admin_user_id, fallback_text, blocks)
-
-                except Exception as block_error:
-                    logger.warning(
-                        f"TEST_MULTI: Failed to build blocks for text-only: {block_error}"
-                    )
-                    # Fallback to plain text
-                    say(
-                        f"✅ *Multi-Birthday Test - Message Only*\n\n"
-                        f"Generated consolidated message for {len(test_user_ids)} users, but no images were created.\n"
-                        f"This could be due to API limitations or missing profile photos.\n\n"
-                        f"_Message preview:_\n{message[:200]}..."
-                    )
-
-                logger.info(
-                    f"TEST_MULTI: Message-only test for {admin_username} - no images generated"
-                )
-
-        else:
-            # Backward compatibility: handle old return format (should not happen with updated code)
-            logger.warning(
-                f"TEST_MULTI: Received unexpected result format - falling back to standard personality"
-            )
-            message = result if not isinstance(result, tuple) else result[0]
-
-            # Build Block Kit blocks for basic multi-birthday test
-            try:
-                from utils.block_builder import (
-                    build_consolidated_birthday_blocks,
-                    build_birthday_blocks,
-                )
-
-                # Fallback to standard personality if result format is unexpected
-                personality = "standard"
-
-                # Prepare birthday people data for block builder
-                birthday_people_for_blocks = []
-                for person in birthday_people:
-                    birthday_people_for_blocks.append(
-                        {
-                            "username": person.get("username", "Unknown"),
-                            "user_id": person.get("user_id"),
-                            "age": person.get("age"),  # May be None
-                            "star_sign": person.get("star_sign", ""),
-                        }
-                    )
-
-                # DEFENSIVE: Use appropriate block builder based on count
-                if len(birthday_people) == 1:
-                    person = birthday_people_for_blocks[0]
-                    blocks, fallback_text = build_birthday_blocks(
-                        username=person["username"],
-                        user_id=person["user_id"],
-                        age=person["age"],
-                        star_sign=person["star_sign"],
-                        message=message,
-                        historical_fact=None,
-                        personality=personality,
-                        image_file_id=None,
-                    )
-                else:
-                    blocks, fallback_text = build_consolidated_birthday_blocks(
-                        birthday_people_for_blocks,
-                        message,
-                        historical_fact=None,
-                        personality=personality,
-                    )
-
-                logger.info(
-                    f"TEST_MULTI: Built Block Kit structure for basic mode with {len(blocks)} blocks"
-                )
-
-                # Send with blocks
-                from utils.slack_utils import send_message
-
-                send_message(app, admin_user_id, fallback_text, blocks)
-
-            except Exception as block_error:
-                logger.warning(
-                    f"TEST_MULTI: Failed to build blocks for basic mode: {block_error}"
-                )
-                # Fallback to plain text
-                say(
-                    f"✅ *Multi-Birthday Test - Basic*\n\n"
-                    f"Generated basic consolidated message for {len(test_user_ids)} users:\n\n"
-                    f"_Message preview:_\n{result[:200]}..."
-                )
-
-            logger.info(f"TEST_MULTI: Basic test for {admin_username}")
-
-    except Exception as e:
-        logger.error(
-            f"TEST_MULTI_ERROR: Failed multi-birthday test for {admin_username}: {e}"
-        )
-        say(
-            f"❌ *Multi-Birthday Test Failed*\n\n"
-            f"Error: {e}\n\n"
-            f"Please check the logs for detailed error information."
-        )
 
 
 def handle_model_command(args, user_id, say, app, username):

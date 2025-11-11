@@ -132,7 +132,7 @@ class BirthdayCelebrationPipeline:
 
             # Step 2: Validate all people before posting (race condition prevention)
             validation_result = validate_birthday_people_for_posting(
-                self.app, birthday_people, self.birthday_channel
+                self.app, birthday_people, self.birthday_channel, mode=self.mode
             )
 
             valid_people = validation_result["valid_people"]
@@ -444,8 +444,6 @@ class BirthdayCelebrationPipeline:
         # Step 3: Send unified Block Kit message (images already embedded in blocks)
         if images and include_images:
             # Images are now embedded in blocks - just send the Block Kit message
-            from utils.slack_utils import send_message
-
             success = send_message(
                 self.app,
                 self.birthday_channel,
@@ -492,6 +490,11 @@ class BirthdayCelebrationPipeline:
 
         Uses appropriate tracking method based on celebration mode.
         """
+        # Skip tracking for test mode to avoid pollution
+        if self.mode == "TEST":
+            logger.debug("TEST: Skipping celebration tracking (test mode)")
+            return
+
         for person in people:
             if self.mode == "TIMEZONE":
                 # Timezone mode uses timezone-specific tracking

@@ -16,7 +16,9 @@ from utils.logging_config import get_logger
 logger = get_logger("birthday")
 
 
-def validate_birthday_people_for_posting(app, birthday_people, birthday_channel_id):
+def validate_birthday_people_for_posting(
+    app, birthday_people, birthday_channel_id, mode=None
+):
     """
     Validate that birthday people are still valid for celebration before posting.
 
@@ -30,6 +32,7 @@ def validate_birthday_people_for_posting(app, birthday_people, birthday_channel_
         app: Slack app instance
         birthday_people: List of birthday person dicts with user_id, username, etc.
         birthday_channel_id: Channel ID for birthday celebrations
+        mode: Celebration mode ("test", "timezone", "simple", etc.) - skips birthday-today check in test mode
 
     Returns:
         dict: {
@@ -84,26 +87,43 @@ def validate_birthday_people_for_posting(app, birthday_people, birthday_channel_
         is_valid = True
         invalid_reason = None
 
-        # Check 1: Still has birthday today?
-        if user_id in current_birthdays:
-            current_date = current_birthdays[user_id]["date"]
-            if not check_if_birthday_today(current_date, current_moment):
-                is_valid = False
-                invalid_reason = "birthday_changed_away"
+        # Check 1: Still has birthday today? (Skip in test mode - allow testing any time)
+        if mode and mode.upper() == "TEST":
+            # Test mode: Skip birthday-today validation to allow testing at any time
+            logger.debug(
+                f"VALIDATION: Skipping birthday-today check for {username} (test mode)"
+            )
         else:
-            # User completely removed their birthday
-            is_valid = False
-            invalid_reason = "birthday_removed"
+            # Production modes: Validate birthday is still today
+            if user_id in current_birthdays:
+                current_date = current_birthdays[user_id]["date"]
+                if not check_if_birthday_today(current_date, current_moment):
+                    is_valid = False
+                    invalid_reason = "birthday_changed_away"
+            else:
+                # User completely removed their birthday
+                is_valid = False
+                invalid_reason = "birthday_removed"
 
-        # Check 2: Already celebrated? (another process might have celebrated them)
-        if is_valid and is_user_celebrated_today(user_id):
-            is_valid = False
-            invalid_reason = "already_celebrated"
+        # Check 2: Already celebrated? (Skip in test mode - test doesn't mark as celebrated)
+        if mode and mode.upper() == "TEST":
+            logger.debug(
+                f"VALIDATION: Skipping already-celebrated check for {username} (test mode)"
+            )
+        else:
+            if is_valid and is_user_celebrated_today(user_id):
+                is_valid = False
+                invalid_reason = "already_celebrated"
 
-        # Check 3: Still in birthday channel? (not opted out)
-        if is_valid and user_id not in channel_member_set:
-            is_valid = False
-            invalid_reason = "left_channel"
+        # Check 3: Still in birthday channel? (Skip in test mode - test sends to DM not channel)
+        if mode and mode.upper() == "TEST":
+            logger.debug(
+                f"VALIDATION: Skipping channel membership check for {username} (test mode)"
+            )
+        else:
+            if is_valid and user_id not in channel_member_set:
+                is_valid = False
+                invalid_reason = "left_channel"
 
         # Check 4: Still active user?
         if is_valid:
