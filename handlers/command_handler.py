@@ -1564,6 +1564,7 @@ def handle_test_command(
                     try:
                         from utils.block_builder import build_birthday_blocks
                         from utils.date_utils import get_star_sign, calculate_age
+                        from utils.web_search import get_historical_date_fact
 
                         # Use actual personality from result for proper attribution
                         personality = actual_personality
@@ -1572,22 +1573,29 @@ def handle_test_command(
                         age = calculate_age(birth_year) if birth_year else None
                         star_sign = get_star_sign(user_date) if user_date else None
 
+                        # Get historical fact for complete realism
+                        historical_fact = (
+                            get_historical_date_fact(user_date) if user_date else None
+                        )
+
                         blocks, fallback_text = build_birthday_blocks(
                             username=username,
                             user_id=target_user_id,
                             age=age,
                             star_sign=star_sign,
                             message=test_message,
-                            historical_fact=None,  # Could add this for even more realism
+                            historical_fact=historical_fact,
                             personality=personality,
                             image_file_id=file_id_tuple,  # Pass tuple (file_id, title) for embedding
                         )
 
-                        # Wrap with explanation
+                        # Send explanation separately for exact announcement simulation
                         if is_admin_test:
-                            wrapped_text = f"Here's what {username}'s birthday message would look like:\n\n{fallback_text}"
+                            say(
+                                f"Here's what {username}'s birthday message would look like:"
+                            )
                         else:
-                            wrapped_text = f"Here's what your birthday message would look like:\n\n{fallback_text}"
+                            say(f"Here's what your birthday message would look like:")
 
                         image_note = (
                             f" (with embedded image: {image_title})" if file_id else ""
@@ -1600,17 +1608,20 @@ def handle_test_command(
                             f"TEST: Failed to build Block Kit blocks: {block_error}. Using plain text."
                         )
                         blocks = None
-                        wrapped_text = (
-                            f"Here's what {username}'s birthday message would look like:\n\n{test_message}"
-                            if is_admin_test
-                            else f"Here's what your birthday message would look like:\n\n{test_message}"
-                        )
+                        fallback_text = test_message
+                        # Send explanation separately even in fallback case
+                        if is_admin_test:
+                            say(
+                                f"Here's what {username}'s birthday message would look like:"
+                            )
+                        else:
+                            say(f"Here's what your birthday message would look like:")
 
-                    # Step 3: Send unified Block Kit message (image already embedded)
+                    # Step 3: Send exact announcement replica (no wrapper)
                     success = send_message(
                         app,
                         user_id,
-                        wrapped_text,
+                        fallback_text,
                         blocks=blocks,
                         context={"message_type": "test", "command_name": "test"},
                     )
@@ -1624,56 +1635,65 @@ def handle_test_command(
 
                 except Exception as e:
                     logger.error(f"TEST_ERROR: Failed to process test with image: {e}")
-                    # Fallback to text-only message
-                    full_message = (
-                        f"Here's what {username}'s birthday message would look like:\n\n{test_message}"
-                        if is_admin_test
-                        else f"Here's what your birthday message would look like:\n\n{test_message}"
-                    )
-                    full_message += (
-                        "\n\nNote: Image upload failed. Check the logs for details."
-                    )
+                    # Send explanation separately, then fallback message
+                    if is_admin_test:
+                        say(
+                            f"Here's what {username}'s birthday message would look like:"
+                        )
+                    else:
+                        say(f"Here's what your birthday message would look like:")
+
+                    fallback_message = f"{test_message}\n\nNote: Image upload failed. Check the logs for details."
                     send_message(
                         app,
                         user_id,
-                        full_message,
+                        fallback_message,
                         context={"message_type": "test", "command_name": "test"},
                     )
             else:
                 # Image generation was attempted but failed (no image_data returned)
-                full_message = (
-                    f"Here's what {username}'s birthday message would look like:\n\n{test_message}"
-                    if is_admin_test
-                    else f"Here's what your birthday message would look like:\n\n{test_message}"
-                )
-                full_message += "\n\nNote: Image generation was attempted but failed. Check the logs for details."
+                # Send explanation separately for exact announcement simulation
+                if is_admin_test:
+                    say(f"Here's what {username}'s birthday message would look like:")
+                else:
+                    say(f"Here's what your birthday message would look like:")
+
+                fallback_message = f"{test_message}\n\nNote: Image generation was attempted but failed. Check the logs for details."
 
                 # Try to build blocks for text-only display
                 try:
                     from utils.block_builder import build_birthday_blocks
                     from utils.date_utils import get_star_sign, calculate_age
+                    from utils.web_search import get_historical_date_fact
 
                     # Calculate age and star sign for realistic testing
                     age = calculate_age(birth_year) if birth_year else None
                     star_sign = get_star_sign(user_date) if user_date else None
 
-                    blocks, _ = build_birthday_blocks(
+                    # Get historical fact for complete realism
+                    historical_fact = (
+                        get_historical_date_fact(user_date) if user_date else None
+                    )
+
+                    blocks, fallback_text = build_birthday_blocks(
                         username=username,
                         user_id=target_user_id,
                         age=age,
                         star_sign=star_sign,
                         message=test_message,
-                        historical_fact=None,
+                        historical_fact=historical_fact,
                         personality=actual_personality,
                         image_file_id=None,
                     )
+                    # Use block fallback instead of full message with note
+                    fallback_message = f"{fallback_text}\n\nNote: Image generation was attempted but failed."
                 except Exception:
                     blocks = None
 
                 send_message(
                     app,
                     user_id,
-                    full_message,
+                    fallback_message,
                     blocks=blocks,
                     context={"message_type": "test", "command_name": "test"},
                 )
@@ -1689,16 +1709,17 @@ def handle_test_command(
                 test_message = result
                 actual_personality = "standard"  # Fallback
 
-            full_message = (
-                f"Here's what {username}'s birthday message would look like:\n\n{test_message}"
-                if is_admin_test
-                else f"Here's what your birthday message would look like:\n\n{test_message}"
-            )
+            # Send explanation separately for exact announcement simulation
+            if is_admin_test:
+                say(f"Here's what {username}'s birthday message would look like:")
+            else:
+                say(f"Here's what your birthday message would look like:")
 
             # Build Block Kit blocks for text-only mode too
             try:
                 from utils.block_builder import build_birthday_blocks
                 from utils.date_utils import get_star_sign, calculate_age
+                from utils.web_search import get_historical_date_fact
 
                 # Use actual personality from result for proper attribution
                 personality = actual_personality
@@ -1707,13 +1728,18 @@ def handle_test_command(
                 age = calculate_age(birth_year) if birth_year else None
                 star_sign = get_star_sign(user_date) if user_date else None
 
+                # Get historical fact for complete realism
+                historical_fact = (
+                    get_historical_date_fact(user_date) if user_date else None
+                )
+
                 blocks, fallback_text = build_birthday_blocks(
                     username=username,
                     user_id=target_user_id,
                     age=age,
                     star_sign=star_sign,
                     message=test_message,
-                    historical_fact=None,
+                    historical_fact=historical_fact,
                     personality=personality,
                     image_file_id=None,
                 )
@@ -1723,11 +1749,12 @@ def handle_test_command(
                     f"TEST: Failed to build blocks for text-only: {block_error}"
                 )
                 blocks = None
+                fallback_text = test_message
 
             send_message(
                 app,
                 user_id,
-                full_message,
+                fallback_text,
                 blocks=blocks,
                 context={"message_type": "test", "command_name": "test"},
             )

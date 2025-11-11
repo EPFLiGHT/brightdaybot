@@ -742,8 +742,16 @@ def send_message_with_multiple_images(
                     continue
 
                 # Generate title for this individual image
-                person_info = image_data.get("birthday_person", {})
-                person_name = person_info.get("username", f"Person {i+1}")
+                # Extract name from where it was stored during image generation
+                image_user_profile = image_data.get("user_profile")
+                person_name = (
+                    image_user_profile.get(
+                        "preferred_name",
+                        image_data.get("generated_for", f"Person {i+1}"),
+                    )
+                    if image_user_profile
+                    else image_data.get("generated_for", f"Person {i+1}")
+                )
 
                 # Use AI to generate personalized title
                 try:
@@ -752,7 +760,7 @@ def send_message_with_multiple_images(
                     ai_title = generate_birthday_image_title(
                         person_name,
                         image_data.get("personality", "standard"),
-                        image_data.get("user_profile"),
+                        image_user_profile,
                         None,  # birthday_message - not needed for individual titles
                         False,  # is_multiple_people - each image is individual
                     )
@@ -857,8 +865,16 @@ def upload_birthday_images_for_blocks(
                     continue
 
                 # Generate personalized filename for each image
-                person_info = image_data.get("birthday_person", {})
-                person_name = person_info.get("username", f"Person {i+1}")
+                # Extract name from where it was stored during image generation
+                image_user_profile = image_data.get("user_profile")
+                person_name = (
+                    image_user_profile.get(
+                        "preferred_name",
+                        image_data.get("generated_for", f"Person {i+1}"),
+                    )
+                    if image_user_profile
+                    else image_data.get("generated_for", f"Person {i+1}")
+                )
 
                 # Create safe filename
                 safe_name = (
@@ -878,7 +894,7 @@ def upload_birthday_images_for_blocks(
                     ai_title = generate_birthday_image_title(
                         person_name,
                         image_data.get("personality", "standard"),
-                        image_data.get("user_profile"),
+                        image_user_profile,
                         None,  # birthday_message - not needed for individual titles
                         False,  # is_multiple_people - each image is individual
                     )
@@ -1083,8 +1099,16 @@ def send_message_with_multiple_attachments(
                     continue
 
                 # Generate personalized filename and title for each image
-                person_info = image_data.get("birthday_person", {})
-                person_name = person_info.get("username", f"Person {i+1}")
+                # Extract name from where it was stored during image generation
+                image_user_profile = image_data.get("user_profile")
+                person_name = (
+                    image_user_profile.get(
+                        "preferred_name",
+                        image_data.get("generated_for", f"Person {i+1}"),
+                    )
+                    if image_user_profile
+                    else image_data.get("generated_for", f"Person {i+1}")
+                )
 
                 # Create safe filename
                 safe_name = (
@@ -1104,7 +1128,7 @@ def send_message_with_multiple_attachments(
                     ai_title = generate_birthday_image_title(
                         person_name,
                         image_data.get("personality", "standard"),
-                        image_data.get("user_profile"),
+                        image_user_profile,
                         None,  # birthday_message - not needed for individual titles
                         False,  # is_multiple_people - each image is individual
                     )
