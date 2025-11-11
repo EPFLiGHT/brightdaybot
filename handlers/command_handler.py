@@ -1564,7 +1564,6 @@ def handle_test_command(
                     try:
                         from utils.block_builder import build_birthday_blocks
                         from utils.date_utils import get_star_sign, calculate_age
-                        from utils.web_search import get_historical_date_fact
 
                         # Use actual personality from result for proper attribution
                         personality = actual_personality
@@ -1573,18 +1572,14 @@ def handle_test_command(
                         age = calculate_age(birth_year) if birth_year else None
                         star_sign = get_star_sign(user_date) if user_date else None
 
-                        # Get historical fact for complete realism
-                        historical_fact = (
-                            get_historical_date_fact(user_date) if user_date else None
-                        )
-
+                        # Historical facts already embedded in AI-generated message
                         blocks, fallback_text = build_birthday_blocks(
                             username=username,
                             user_id=target_user_id,
                             age=age,
                             star_sign=star_sign,
                             message=test_message,
-                            historical_fact=historical_fact,
+                            historical_fact=None,  # Not needed - facts in message
                             personality=personality,
                             image_file_id=file_id_tuple,  # Pass tuple (file_id, title) for embedding
                         )
@@ -1664,24 +1659,19 @@ def handle_test_command(
                 try:
                     from utils.block_builder import build_birthday_blocks
                     from utils.date_utils import get_star_sign, calculate_age
-                    from utils.web_search import get_historical_date_fact
 
                     # Calculate age and star sign for realistic testing
                     age = calculate_age(birth_year) if birth_year else None
                     star_sign = get_star_sign(user_date) if user_date else None
 
-                    # Get historical fact for complete realism
-                    historical_fact = (
-                        get_historical_date_fact(user_date) if user_date else None
-                    )
-
+                    # Historical facts already embedded in AI-generated message
                     blocks, fallback_text = build_birthday_blocks(
                         username=username,
                         user_id=target_user_id,
                         age=age,
                         star_sign=star_sign,
                         message=test_message,
-                        historical_fact=historical_fact,
+                        historical_fact=None,  # Not needed - facts in message
                         personality=actual_personality,
                         image_file_id=None,
                     )
@@ -1719,7 +1709,6 @@ def handle_test_command(
             try:
                 from utils.block_builder import build_birthday_blocks
                 from utils.date_utils import get_star_sign, calculate_age
-                from utils.web_search import get_historical_date_fact
 
                 # Use actual personality from result for proper attribution
                 personality = actual_personality
@@ -1728,18 +1717,14 @@ def handle_test_command(
                 age = calculate_age(birth_year) if birth_year else None
                 star_sign = get_star_sign(user_date) if user_date else None
 
-                # Get historical fact for complete realism
-                historical_fact = (
-                    get_historical_date_fact(user_date) if user_date else None
-                )
-
+                # Historical facts already embedded in AI-generated message
                 blocks, fallback_text = build_birthday_blocks(
                     username=username,
                     user_id=target_user_id,
                     age=age,
                     star_sign=star_sign,
                     message=test_message,
-                    historical_fact=historical_fact,
+                    historical_fact=None,  # Not needed - facts in message
                     personality=personality,
                     image_file_id=None,
                 )
