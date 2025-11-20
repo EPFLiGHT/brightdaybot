@@ -330,6 +330,112 @@ def build_special_day_blocks(
     return blocks, fallback_text
 
 
+def build_consolidated_special_days_blocks(
+    special_days: List[Any],
+    message: str,
+    personality: str = "chronicler",
+) -> tuple[List[Dict[str, Any]], str]:
+    """
+    Build Block Kit structure for multiple special day announcements
+
+    Args:
+        special_days: List of SpecialDay objects with attributes: name, date, category, source, url
+        message: AI-generated consolidated special days message
+        personality: Bot personality name
+
+    Returns:
+        Tuple of (blocks list, fallback_text string)
+    """
+    count = len(special_days)
+
+    # Determine header title
+    if count == 2:
+        title_suffix = "2 Special Days Today"
+    elif count == 3:
+        title_suffix = "3 Special Observances Today"
+    else:
+        title_suffix = f"{count} Special Observances Today"
+
+    blocks = [
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": f"🌍 {title_suffix}"},
+        },
+        {"type": "section", "text": {"type": "mrkdwn", "text": message}},
+    ]
+
+    # Add individual observance information in two-column layout
+    fields = []
+    for special_day in special_days:
+        # Build observance field with emoji, name, and category
+        emoji = (
+            special_day.emoji
+            if hasattr(special_day, "emoji") and special_day.emoji
+            else "🌍"
+        )
+        category_text = f" • {special_day.category}" if special_day.category else ""
+
+        fields.append(
+            {
+                "type": "mrkdwn",
+                "text": f"{emoji} *{special_day.name}*{category_text}",
+            }
+        )
+
+    blocks.append({"type": "section", "fields": fields})
+
+    # Add context block for metadata (date and sources)
+    context_elements = []
+
+    # Get date from first special day (all have same date since filtered by same day)
+    if special_days and special_days[0].date:
+        from datetime import datetime
+        from utils.date_utils import format_date_european_short
+
+        date_str = special_days[0].date
+        try:
+            date_obj = datetime.strptime(date_str, "%d/%m")
+            formatted_date = format_date_european_short(date_obj)
+        except ValueError:
+            formatted_date = date_str
+
+        context_elements.append(
+            {"type": "mrkdwn", "text": f"📅 *Date:* {formatted_date}"}
+        )
+
+    # Collect sources from all special days
+    sources = [day.source for day in special_days if day.source]
+
+    # Add source information
+    if sources:
+        unique_sources = list(set(sources))
+        if len(unique_sources) == 1:
+            source_display = unique_sources[0]
+        elif len(unique_sources) <= 3:
+            source_display = ", ".join(unique_sources)
+        else:
+            source_display = f"{len(unique_sources)} sources"
+
+        context_elements.append(
+            {"type": "mrkdwn", "text": f"📋 *Sources:* {source_display}"}
+        )
+
+    # Add personality attribution
+    personality_name = get_personality_display_name(personality)
+    context_elements.append(
+        {"type": "mrkdwn", "text": f"✨ _Brought to you by {personality_name}_"}
+    )
+
+    if context_elements:
+        blocks.append({"type": "context", "elements": context_elements})
+
+    # Fallback text
+    names = ", ".join([day.name for day in special_days])
+    fallback_text = f"🌍 {count} Special Observances Today: {names}"
+
+    return blocks, fallback_text
+
+
 def build_announce_result_blocks(success: bool) -> tuple[List[Dict[str, Any]], str]:
     """
     Build Block Kit structure for announcement confirmation results

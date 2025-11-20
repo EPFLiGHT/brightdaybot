@@ -472,7 +472,10 @@ def check_and_announce_special_days(app, moment):
 
             # Build Block Kit blocks for special day announcement
             try:
-                from utils.block_builder import build_special_day_blocks
+                from utils.block_builder import (
+                    build_special_day_blocks,
+                    build_consolidated_special_days_blocks,
+                )
                 from config import SPECIAL_DAYS_PERSONALITY
 
                 # Handle single or multiple special days
@@ -489,18 +492,12 @@ def check_and_announce_special_days(app, moment):
                         url=special_day.url,
                     )
                 else:
-                    # For multiple special days, use the first one's info for the header
-                    # The message already contains all the special days
-                    primary_day = special_days[0]
-                    blocks, fallback_text = build_special_day_blocks(
-                        observance_name=f"{len(special_days)} Special Observances Today",
+                    # For multiple special days, use consolidated block structure
+                    # Shows all observances with their categories in structured fields
+                    blocks, fallback_text = build_consolidated_special_days_blocks(
+                        special_days=special_days,
                         message=message,
-                        observance_date=primary_day.date,
-                        source="Multiple Sources",
                         personality=SPECIAL_DAYS_PERSONALITY,
-                        detailed_content=detailed_content,  # NEW: Use detailed content for multiple days too
-                        category=None,  # Multiple categories
-                        url=None,  # No single URL for multiple days
                     )
 
                 logger.info(
