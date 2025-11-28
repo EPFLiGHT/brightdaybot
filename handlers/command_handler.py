@@ -4278,7 +4278,10 @@ def handle_admin_special_command(args, user_id, say, app):
                 if message:
                     # Build Block Kit blocks exactly like formal announcements
                     try:
-                        from utils.block_builder import build_special_day_blocks
+                        from utils.block_builder import (
+                            build_special_day_blocks,
+                            build_consolidated_special_days_blocks,
+                        )
                         from config import SPECIAL_DAYS_PERSONALITY
 
                         # Handle single or multiple special days (same logic as formal code)
@@ -4295,17 +4298,14 @@ def handle_admin_special_command(args, user_id, say, app):
                                 url=special_day.url,
                             )
                         else:
-                            # For multiple special days
-                            primary_day = special_days[0]
-                            blocks, fallback_text = build_special_day_blocks(
-                                observance_name=f"{len(special_days)} Special Observances Today",
-                                message=message,
-                                observance_date=primary_day.date,
-                                source="Multiple Sources",
-                                personality=SPECIAL_DAYS_PERSONALITY,
-                                detailed_content=detailed_content,  # NEW: Use detailed content for multiple days too
-                                category=None,
-                                url=None,
+                            # For multiple special days, use consolidated block structure
+                            blocks, fallback_text = (
+                                build_consolidated_special_days_blocks(
+                                    special_days=special_days,
+                                    message=message,
+                                    personality=SPECIAL_DAYS_PERSONALITY,
+                                    detailed_content=detailed_content,
+                                )
                             )
 
                         logger.info(

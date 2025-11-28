@@ -46,6 +46,7 @@ from config import (
     BOT_BIRTHDAY,
     IMAGE_GENERATION_PARAMS,
     TIMEZONE_CELEBRATION_TIME,
+    DAILY_CHECK_TIME,
 )
 from utils.bot_celebration import (
     generate_bot_celebration_message,
@@ -498,6 +499,7 @@ def check_and_announce_special_days(app, moment):
                         special_days=special_days,
                         message=message,
                         personality=SPECIAL_DAYS_PERSONALITY,
+                        detailed_content=detailed_content,
                     )
 
                 logger.info(
@@ -965,6 +967,16 @@ def simple_daily_check(app, moment):
         app: Slack app instance
         moment: Current datetime with timezone info
     """
+    # Check if it's time to announce (must be at or after daily check time)
+    # This prevents premature celebrations on bot restart before scheduled time
+    local_time = datetime.now()
+    if local_time.hour < DAILY_CHECK_TIME.hour:
+        logger.debug(
+            f"SIMPLE_DAILY: Too early for birthday announcement "
+            f"(current: {local_time.hour:02d}:00, required: {DAILY_CHECK_TIME.hour:02d}:00)"
+        )
+        return
+
     # Profile cache for this check to reduce API calls
     profile_cache = {}
     # Ensure moment has timezone info

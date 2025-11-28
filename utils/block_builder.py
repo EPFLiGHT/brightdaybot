@@ -212,6 +212,74 @@ def build_consolidated_birthday_blocks(
     return blocks, fallback_text
 
 
+# =============================================================================
+# COMMENTED OUT: Annie's 40th Birthday Block Builder (November 2025)
+# Preserved for future custom celebrations. Uncomment and modify as needed.
+# =============================================================================
+# def build_annie_tannie_40th_blocks(
+#     message: str,
+#     person: Dict[str, Any],
+#     image_file_id: Optional[str] = None,
+# ) -> tuple[List[Dict[str, Any]], str]:
+#     """
+#     Build custom Block Kit structure for Annie's 40th birthday Tannie celebration
+#
+#     Args:
+#         message: Custom Tannie-themed birthday message
+#         person: Birthday person dict with user_id, username, age, star_sign
+#         image_file_id: Optional Slack file ID for embedded birthday image (can be tuple of (file_id, title))
+#
+#     Returns:
+#         Tuple of (blocks list, fallback_text string)
+#     """
+#     blocks = [
+#         {
+#             "type": "header",
+#             "text": {"type": "plain_text", "text": "🎂✨ Tannie Annie Turns 40! ✨🎂"},
+#         },
+#         {"type": "section", "text": {"type": "mrkdwn", "text": message}},
+#     ]
+#
+#     # Add embedded birthday image if file ID provided (after message, before event details)
+#     if image_file_id:
+#         # Handle tuple format (file_id, title) or backward compat string
+#         if isinstance(image_file_id, tuple):
+#             file_id, ai_title = image_file_id
+#         else:
+#             file_id = image_file_id
+#             ai_title = "🎂 Tannie Annie's Big 4-0!"
+#
+#         # Use AI-generated title if available, otherwise use custom Tannie title
+#         display_title = ai_title if ai_title else "🎂 Tannie Annie's Big 4-0!"
+#
+#         blocks.append(
+#             {
+#                 "type": "image",
+#                 "slack_file": {"id": file_id},
+#                 "alt_text": "Annie's 40th Birthday Tannie Celebration",
+#                 "title": {"type": "plain_text", "text": display_title},
+#             }
+#         )
+#
+#     # Add context with South African flair
+#     blocks.append(
+#         {
+#             "type": "context",
+#             "elements": [
+#                 {
+#                     "type": "mrkdwn",
+#                     "text": "🇿🇦 _Special Tannie celebration with South African flair_ 🇿🇦",
+#                 }
+#             ],
+#         }
+#     )
+#
+#     # Fallback text
+#     fallback_text = f"🎂✨ Happy 40th Birthday {person.get('username', 'Annie')}! Tannie Annie Turns 40! ✨🎂"
+#
+#     return blocks, fallback_text
+
+
 def build_special_day_blocks(
     observance_name: str,
     message: str,
@@ -334,6 +402,7 @@ def build_consolidated_special_days_blocks(
     special_days: List[Any],
     message: str,
     personality: str = "chronicler",
+    detailed_content: Optional[str] = None,
 ) -> tuple[List[Dict[str, Any]], str]:
     """
     Build Block Kit structure for multiple special day announcements
@@ -342,6 +411,7 @@ def build_consolidated_special_days_blocks(
         special_days: List of SpecialDay objects with attributes: name, date, category, source, url
         message: AI-generated consolidated special days message
         personality: Bot personality name
+        detailed_content: Optional AI-generated detailed content for "View Details" button
 
     Returns:
         Tuple of (blocks list, fallback_text string)
@@ -383,6 +453,42 @@ def build_consolidated_special_days_blocks(
         )
 
     blocks.append({"type": "section", "fields": fields})
+
+    # Add interactive buttons if detailed content or URLs available
+    if detailed_content or any(hasattr(sd, "url") and sd.url for sd in special_days):
+        actions = []
+
+        # 1. "View Details" button for combined detailed content
+        if detailed_content:
+            actions.append(
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "📖 View Details"},
+                    "style": "primary",
+                    "action_id": f"special_day_details_{special_days[0].date.replace('/', '_')}",
+                    "value": detailed_content[:3000],  # Slack action value limit
+                }
+            )
+
+        # 2. Individual "Official Source" buttons for each observance with URL
+        for special_day in special_days:
+            if hasattr(special_day, "url") and special_day.url:
+                # Truncate name if too long for button display
+                button_name = (
+                    special_day.name[:30] + "..."
+                    if len(special_day.name) > 30
+                    else special_day.name
+                )
+                actions.append(
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": f"🔗 {button_name}"},
+                        "url": special_day.url,
+                    }
+                )
+
+        if actions:
+            blocks.append({"type": "actions", "elements": actions})
 
     # Add context block for metadata (date and sources)
     context_elements = []

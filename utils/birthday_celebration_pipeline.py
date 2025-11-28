@@ -403,8 +403,29 @@ class BirthdayCelebrationPipeline:
             # Build blocks WITH embedded images using file IDs
             # Use different block builders based on number of people
             if len(valid_people) == 1:
-                # Single birthday - use individual layout
+                # =============================================================================
+                # COMMENTED OUT: Annie's 40th Birthday Custom Blocks (November 2025)
+                # Preserved for future custom celebrations. Uncomment and modify as needed.
+                # =============================================================================
+                # # Check if this is Annie's 40th birthday for custom blocks
+                # from utils.message_generator import is_annie_40th_birthday
+                #
+                # if is_annie_40th_birthday(valid_people[0]):
+                #     # Use custom Tannie-themed blocks for Annie's 40th
+                #     from utils.block_builder import build_annie_tannie_40th_blocks
+                #
+                #     logger.info(
+                #         f"{self.mode}: Using custom Tannie blocks for Annie's 40th birthday"
+                #     )
+                #     blocks, fallback_text = build_annie_tannie_40th_blocks(
+                #         message=message,
+                #         person=valid_people[0],
+                #         image_file_id=file_ids[0] if file_ids else None,
+                #     )
+                # else:
+
                 person = birthday_people_for_blocks[0]
+                # Single birthday - use individual layout
                 blocks, fallback_text = build_birthday_blocks(
                     username=person["username"],
                     user_id=person["user_id"],

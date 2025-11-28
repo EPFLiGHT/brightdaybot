@@ -373,30 +373,131 @@ def generate_special_day_details(
                 prompt += f"\n\nADDITIONAL CONTEXT: Historical events on this date that may provide relevant context:\n{facts_text}\n\nYou may reference these if they connect meaningfully to the observance, but they are not required."
 
         else:
-            # Multiple special days - provide condensed details for each
-            message = "📖 *Today's Special Observances - Details*\n\n"
+            # Multiple special days - generate AI-powered combined detailed content
+            # Build comprehensive context for all observances
+            observances_context = []
             for i, day in enumerate(special_days, 1):
-                emoji = f"{day.emoji} " if day.emoji else ""
-                message += f"{emoji}*{i}. {day.name}*\n"
-                message += f"_{day.category}_\n\n"
-                message += f"{day.description}\n\n"
+                source_info = ""
                 if hasattr(day, "source") and day.source:
                     if hasattr(day, "url") and day.url:
-                        message += f"Source: <{day.url}|{day.source}>\n\n"
+                        source_info = f" (Source: <{day.url}|{day.source}>)"
                     else:
-                        message += f"Source: {day.source}\n\n"
-                message += "---\n\n"
+                        source_info = f" (Source: {day.source})"
 
-            logger.info(
-                f"Generated static details for {len(special_days)} special days"
-            )
-            return message.strip()
+                observances_context.append(
+                    f"{i}. {day.emoji} *{day.name}* ({day.category}): {day.description}{source_info}"
+                )
+
+            observances_text = "\n\n".join(observances_context)
+
+            # Get historical facts for additional context
+            facts_text = ""
+            try:
+                logger.info(
+                    f"Fetching web search facts for {len(special_days)} observances to enrich details"
+                )
+                facts_result = get_birthday_facts(today.strftime("%d/%m"), personality)
+                if facts_result and facts_result.get("facts"):
+                    facts_text = facts_result["facts"]
+                    logger.info(f"Successfully retrieved historical facts for context")
+            except Exception as e:
+                logger.warning(
+                    f"Could not fetch web facts for details: {e}. Continuing without them."
+                )
+
+            # Create prompt for multiple observances
+            # Calculate proportional length based on number of observances
+            if len(special_days) == 2:
+                length_guidance = "12-16 lines"
+            elif len(special_days) >= 3:
+                length_guidance = "14-18 lines"
+            else:
+                length_guidance = "10-14 lines"
+
+            prompt = f"""Generate comprehensive, detailed content for {len(special_days)} special day observances happening today.
+
+CRITICAL SLACK FORMATTING RULES:
+- Use *single asterisks* for bold text, NOT **double asterisks**
+- Use _single underscores_ for italic text, NOT __double underscores__
+- Combine for bold+italic: *_text_* (asterisks outside, underscores inside)
+- For links: use <URL|text> format of Slack, e.g., <https://example.com|Example Organization>
+- NEVER use markdown links like [text](url)
+- NEVER use HTML tags
+
+VISUAL FORMATTING REQUIREMENTS:
+- Observance names: Use *bold* (e.g., *Africa Industrialization Day*)
+- Section titles: Use *_bold and italic_* (e.g., *_Historical Context:_*, *_Global Impact & Challenge:_*, *_Strategic Actions:_*)
+- Subsection labels: Use *bold* only (e.g., *Individual:*, *Team:*, *Organization:*)
+
+EMOJI USAGE:
+- Include 6-8 relevant emojis throughout for visual appeal
+- Place emojis at the START of bullet points, not at the end of sentences
+- Use emojis sparingly in paragraph text
+- Available emojis: {emoji_examples}
+
+OBSERVANCES TODAY:
+{observances_text}
+
+STRUCTURE (Concise - {length_guidance} total to fit 1850 character Slack button limit):
+
+*_Brief Connection:_*
+[1 sentence connecting all {len(special_days)} observances thematically. NO emojis in paragraph.]
+
+For EACH observance below, provide:
+
+*[Observance Name]* - *_Historical Context:_*
+[When/why established, 1-2 concise sentences. NO emojis in paragraphs.]
+
+*_Global Impact & Challenge:_*
+🌍 [Scope and significance - 1 sentence using qualifiers like "typically," "often"]
+✨ [Central issue this addresses - 1 sentence, no fabricated statistics]
+
+*_Strategic Actions - How to Engage:_*
+👤 *Individual:* [1-2 specific, tactical actions for all observances]
+👥 *Team:* [1 team-based initiative aligned with these observances]
+🏢 *Organization:* [1 company-wide opportunity for policy/culture alignment]
+
+CRITICAL LENGTH REQUIREMENT:
+- MAXIMUM {length_guidance} total (approximately 1850 characters)
+- Be CONCISE and TACTICAL - every line must add value
+- Prioritize actionable insights over background details
+
+HONESTY REQUIREMENTS:
+- Use ONLY facts from the provided descriptions and sources
+- Qualify general knowledge with "typically," "often," "generally," "can involve"
+- DO NOT fabricate numbers, percentages, years, or statistics
+- Be transparent about uncertainty
+
+STRICT PROHIBITIONS:
+- DO NOT add "Learn More", "Official Source", or "Description" sections (handled separately)
+- DO NOT include actual URLs (source links added automatically)
+- DO NOT use **double asterisks** or __double underscores__
+- DO NOT add title/header (added automatically by Block Kit)
+- DO NOT add emojis at end of sentences in paragraphs
+- DO NOT exceed {length_guidance} total
+
+TONE & STYLE:
+- Chronicler personality: Keeper of human history, dignified yet accessible
+- Focus on historical significance and current relevance
+- Be CONCISE and TACTICAL - every line must add value
+- Connect observances to broader human progress where applicable"""
+
+            if facts_text:
+                prompt += f"\n\nADDITIONAL CONTEXT: Historical events on this date that may provide relevant context:\n{facts_text}\n\nYou may reference these if they connect meaningfully to the observances, but they are not required."
 
         # Generate the detailed message
         model = get_configured_openai_model()
-        max_tokens = TOKEN_LIMITS.get(
-            "special_day_details", 1000
-        )  # Comprehensive details
+
+        # Use appropriate token limit based on number of observances
+        if len(special_days) == 1:
+            max_tokens = TOKEN_LIMITS.get(
+                "special_day_details", 600
+            )  # Single observance (10-14 lines)
+        else:
+            max_tokens = TOKEN_LIMITS.get(
+                "special_day_details_consolidated", 1000
+            )  # Multiple observances (12-18 lines)
+
         temperature = TEMPERATURE_SETTINGS.get("default", 0.7)
 
         logger.info(f"Generating special day details with {personality} personality")
