@@ -63,13 +63,19 @@ date,name,category,description,emoji,enabled,source,url
 23/06,International Women in Engineering Day,Tech,Promoting gender equality in STEM fields worldwide,👷‍♀️,true,UNESCO,https://www.unesco.org/en/days/women-in-engineering-day
 06/07,World Zoonoses Day,Global Health,Raising awareness of diseases transmitted between animals and humans,🦠,true,One Health,https://www.onehealthcommission.org/
 11/07,World Population Day,Culture,Focusing on urgency and importance of population issues,👥,true,UN,https://www.un.org/en/observances/world-population-day
+15/07,World Youth Skills Day,Tech,Equipping young people with AI and digital skills for employment and sustainable development,🎓,true,UN/UNESCO,https://www.un.org/en/observances/world-youth-skills-day
 18/07,Nelson Mandela International Day,Culture,Celebrating Nelson Mandela's legacy and promoting community service,✊,true,UN,https://www.un.org/en/events/mandeladay/
+20/07,International Moon Day,Tech,Celebrating achievements in lunar exploration and promoting space science for peaceful purposes,🌙,true,UN,https://www.un.org/en/observances/moon-day
 25/07,World Drowning Prevention Day,Global Health,Highlighting the impact of drowning and promoting life-saving prevention solutions,🏊,true,UN/WHO,https://www.un.org/en/observances/drowning-prevention-day
 28/07,World Hepatitis Day,Global Health,Raising awareness about viral hepatitis and its prevention,🔬,true,WHO,https://www.who.int/campaigns/world-hepatitis-day
 30/07,International Day of Friendship,Culture,Promoting friendship between peoples and cultures,🤗,true,UN,https://www.un.org/en/observances/friendship-day
+30/07,World Day against Trafficking in Persons,Global Health,Raising awareness of human trafficking affecting millions and protecting victims worldwide,💙,true,UN,https://www.un.org/en/observances/end-human-trafficking-day
 09/08,International Day of the World's Indigenous Peoples,Culture,Honoring indigenous peoples and their cultures worldwide,🪶,true,UN,https://www.un.org/en/observances/indigenous-day
 12/08,International Youth Day,Culture,Celebrating young people and their contributions to society,🌟,true,UN,https://www.un.org/en/observances/youth-day
 19/08,World Humanitarian Day,Global Health,Honoring humanitarian workers and those who lost their lives helping others,❤️,true,UN,https://www.un.org/en/observances/humanitarian-day
+23/08,International Day for the Remembrance of the Slave Trade and its Abolition,Culture,Commemorating the transatlantic slave trade tragedy and honoring those who fought for freedom,⛓️,true,UNESCO,https://www.unesco.org/en/days/slave-trade-remembrance
+29/08,International Day against Nuclear Tests,Culture,Promoting global efforts to ban nuclear testing and achieve a nuclear-weapon-free world,☢️,true,UN,https://www.un.org/en/observances/end-nuclear-tests-day
+30/08,International Day of the Victims of Enforced Disappearances,Culture,Honoring victims of enforced disappearances and demanding truth and justice,🕯️,true,UN,https://www.un.org/en/observances/victims-enforced-disappearance
 31/08,International Overdose Awareness Day,Global Health,Remembering those lost to overdose and ending stigma,💜,true,Penington Institute,https://www.overdoseday.com/
 05/09,International Day of Charity,Culture,Commemorating Mother Teresa and promoting philanthropy worldwide,💝,true,UN,https://www.un.org/en/observances/charity-day
 07/09,International Day of Clean Air for Blue Skies,Global Health,Raising awareness of air pollution's impact on health causing 8 million premature deaths annually,🌬️,true,UN/UNEP,https://www.un.org/en/observances/clean-air-day
@@ -115,7 +121,12 @@ date,name,category,description,emoji,enabled,source,url
 25/11,International Day for Elimination of Violence Against Women,Culture,Ending violence against women and girls worldwide,🧡,true,UN,https://www.un.org/en/observances/ending-violence-against-women-day
 30/11,Computer Security Day,Tech,Promoting computer and data security awareness,🔐,true,,
 01/12,World AIDS Day,Global Health,Raising awareness and supporting those affected by HIV/AIDS,🎗️,true,WHO/UN,https://www.who.int/campaigns/world-aids-day
+02/12,International Day for the Abolition of Slavery,Culture,Eradicating contemporary forms of slavery including human trafficking and forced labor,⛓️,true,UN,https://www.un.org/en/observances/slavery-abolition-day
 03/12,International Day of Persons with Disabilities,Global Health,Promoting rights and well-being of persons with disabilities,♿,true,UN,https://www.un.org/en/observances/day-of-persons-with-disabilities
+05/12,International Volunteer Day,Culture,Recognizing the one billion volunteers worldwide contributing to peace and sustainable development,🤝,true,UN,https://www.un.org/en/observances/volunteer-day
+09/12,International Anti-Corruption Day,Culture,Raising awareness about corruption and promoting transparency and accountability,⚖️,true,UN,https://www.un.org/en/observances/anti-corruption-day
 10/12,Human Rights Day,Culture,Commemorating adoption of Universal Declaration of Human Rights,✋,true,UN,https://www.un.org/en/observances/human-rights-day
+11/12,International Mountain Day,Global Health,Highlighting the importance of mountains for water food and climate affecting billions worldwide,🏔️,true,UN/FAO,https://www.un.org/en/observances/mountain-day
 12/12,Universal Health Coverage Day,Global Health,Promoting health for all and strong resilient health systems,🌍,true,UN,https://www.un.org/en/observances/universal-health-coverage-day
+18/12,International Migrants Day,Global Health,Recognizing contributions of 272 million migrants and protecting their human rights,🌍,true,UN/IOM,https://www.un.org/en/observances/migrants-day
 27/12,International Day of Epidemic Preparedness,Global Health,Promoting epidemic prevention preparedness and partnership,🦠,true,UN,https://www.un.org/en/observances/epidemic-preparedness-day
