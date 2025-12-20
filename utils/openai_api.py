@@ -1,17 +1,62 @@
 """
 Unified OpenAI API interface.
 
-Provides a single entry point for OpenAI completions using the Responses API.
+Provides centralized client management, Responses API wrapper, and usage logging.
 Benefits: 40-80% better cache utilization, lower latency, simpler interface.
 
-Key function: complete()
+Key functions:
+- get_openai_client(): Get configured OpenAI client singleton
+- complete(): Generate completion using Responses API
+- complete_with_usage(): Generate completion with usage stats
+- log_*_usage(): Usage logging for different API operations
 """
 
+import os
+from datetime import datetime
+from openai import OpenAI
 from config import get_logger
-from utils.openai_client import get_openai_client
 from utils.app_config import get_configured_openai_model
 
 logger = get_logger("ai")
+
+# =============================================================================
+# Client Management
+# =============================================================================
+
+# Singleton client instance
+_client = None
+
+
+def get_openai_client():
+    """
+    Get configured OpenAI client singleton.
+
+    Uses OPENAI_API_KEY from environment and supports dynamic model
+    configuration via config.py.
+
+    Returns:
+        OpenAI: Configured client instance
+
+    Raises:
+        ValueError: If OPENAI_API_KEY environment variable is not set
+    """
+    global _client
+
+    if _client is None:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            logger.error("OPENAI_ERROR: OPENAI_API_KEY not found in environment")
+            raise ValueError("OPENAI_API_KEY environment variable not set")
+
+        _client = OpenAI(api_key=api_key)
+        logger.info("OPENAI: Client initialized successfully")
+
+    return _client
+
+
+# =============================================================================
+# Responses API Wrapper
+# =============================================================================
 
 
 def complete(
@@ -191,3 +236,193 @@ def complete_with_usage(
         )
 
     return response.output_text, usage_dict
+
+
+# =============================================================================
+# Usage Logging Functions
+# =============================================================================
+
+
+def log_chat_completion_usage(response, operation_name, logger):
+    """
+    Log token usage for chat completion API calls.
+
+    Args:
+        response: OpenAI chat completion response object
+        operation_name: String describing the operation (e.g., "SINGLE_BIRTHDAY")
+        logger: Logger instance to use for logging
+    """
+    try:
+        usage = response.usage
+        if usage:
+            logger.info(
+                f"{operation_name}_USAGE: Token usage - "
+                f"prompt: {usage.prompt_tokens}, "
+                f"completion: {usage.completion_tokens}, "
+                f"total: {usage.total_tokens}"
+            )
+        else:
+            logger.warning(
+                f"{operation_name}_USAGE: No usage data available in response"
+            )
+    except Exception as e:
+        logger.error(f"{operation_name}_USAGE: Failed to log token usage: {e}")
+
+
+def log_image_generation_usage(
+    response,
+    operation_name,
+    logger,
+    image_count=1,
+    quality=None,
+    image_size=None,
+    model=None,
+):
+    """
+    Log usage for image generation API calls with enhanced parameter tracking.
+
+    Args:
+        response: OpenAI image generation response object
+        operation_name: String describing the operation (e.g., "IMAGE_GENERATION")
+        logger: Logger instance to use for logging
+        image_count: Number of images generated (default: 1)
+        quality: Quality setting used ("low", "medium", "high", "auto")
+        image_size: Size setting used (e.g., "1024x1024", "auto")
+        model: Model used (e.g., "gpt-image-1.5")
+    """
+    try:
+        if hasattr(response, "data") and response.data:
+            images_generated = len(response.data)
+
+            logger.info(
+                f"{operation_name}_USAGE: Image generation completed - "
+                f"images requested: {image_count}, "
+                f"images generated: {images_generated}"
+            )
+
+            if hasattr(response, "created") and response.created:
+                timestamp = datetime.fromtimestamp(response.created).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
+                logger.info(f"{operation_name}_USAGE: Generated at: {timestamp}")
+
+            cost_params = []
+            if quality:
+                cost_params.append(f"quality: {quality}")
+            if image_size:
+                cost_params.append(f"size: {image_size}")
+            if model:
+                cost_params.append(f"model: {model}")
+
+            if cost_params:
+                logger.info(
+                    f"{operation_name}_USAGE: Parameters - {', '.join(cost_params)}"
+                )
+
+            if hasattr(response.data[0], "model"):
+                actual_model = response.data[0].model
+                logger.info(f"{operation_name}_USAGE: Response model: {actual_model}")
+        else:
+            logger.warning(
+                f"{operation_name}_USAGE: No image data available in response"
+            )
+    except Exception as e:
+        logger.error(
+            f"{operation_name}_USAGE: Failed to log image generation usage: {e}"
+        )
+
+
+def log_web_search_usage(response, operation_name, logger):
+    """
+    Log usage for web search API calls (responses.create).
+
+    Args:
+        response: OpenAI responses.create response object
+        operation_name: String describing the operation (e.g., "WEB_SEARCH")
+        logger: Logger instance to use for logging
+    """
+    try:
+        if hasattr(response, "usage") and response.usage:
+            usage = response.usage
+            if hasattr(usage, "input_tokens") and hasattr(usage, "output_tokens"):
+                total_tokens = (usage.input_tokens or 0) + (usage.output_tokens or 0)
+                logger.info(
+                    f"{operation_name}_USAGE: Token usage - "
+                    f"input: {usage.input_tokens}, "
+                    f"output: {usage.output_tokens}, "
+                    f"total: {total_tokens}"
+                )
+            elif hasattr(usage, "prompt_tokens") and hasattr(
+                usage, "completion_tokens"
+            ):
+                logger.info(
+                    f"{operation_name}_USAGE: Token usage - "
+                    f"prompt: {usage.prompt_tokens}, "
+                    f"completion: {usage.completion_tokens}, "
+                    f"total: {usage.total_tokens}"
+                )
+            else:
+                logger.info(
+                    f"{operation_name}_USAGE: Usage object available but format unknown: {usage}"
+                )
+
+        if hasattr(response, "output_text"):
+            output_length = len(response.output_text) if response.output_text else 0
+            logger.info(
+                f"{operation_name}_USAGE: Web search completed - "
+                f"output length: {output_length} characters"
+            )
+        else:
+            logger.warning(
+                f"{operation_name}_USAGE: No output_text in web search response"
+            )
+    except Exception as e:
+        logger.error(f"{operation_name}_USAGE: Failed to log web search usage: {e}")
+
+
+def log_generic_api_usage(response, operation_name, logger, additional_info=None):
+    """
+    Generic usage logging function that handles different response types.
+
+    Args:
+        response: Any OpenAI API response object
+        operation_name: String describing the operation
+        logger: Logger instance to use for logging
+        additional_info: Optional dictionary with extra info to log
+    """
+    try:
+        logged_something = False
+
+        if hasattr(response, "usage") and response.usage:
+            usage = response.usage
+            logger.info(
+                f"{operation_name}_USAGE: Token usage - "
+                f"prompt: {usage.prompt_tokens}, "
+                f"completion: {usage.completion_tokens}, "
+                f"total: {usage.total_tokens}"
+            )
+            logged_something = True
+
+        elif hasattr(response, "data") and response.data:
+            images_count = len(response.data)
+            logger.info(f"{operation_name}_USAGE: Generated {images_count} image(s)")
+            logged_something = True
+
+        elif hasattr(response, "output_text"):
+            output_length = len(response.output_text) if response.output_text else 0
+            logger.info(
+                f"{operation_name}_USAGE: Output length: {output_length} characters"
+            )
+            logged_something = True
+
+        if additional_info:
+            for key, value in additional_info.items():
+                logger.info(f"{operation_name}_USAGE: {key}: {value}")
+                logged_something = True
+
+        if not logged_something:
+            logger.warning(
+                f"{operation_name}_USAGE: No recognizable usage data in response"
+            )
+    except Exception as e:
+        logger.error(f"{operation_name}_USAGE: Failed to log API usage: {e}")

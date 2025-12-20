@@ -20,9 +20,7 @@ from config import (
 )
 import argparse
 import sys
-from utils.openai_api import complete
-from utils.openai_client import get_openai_client
-from utils.usage_logging import log_web_search_usage
+from utils.openai_api import complete, get_openai_client, log_web_search_usage
 
 logger = get_logger("web_search")
 

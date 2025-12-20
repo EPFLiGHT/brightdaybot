@@ -14,11 +14,10 @@ import glob
 import random
 from datetime import datetime, timedelta
 from config import get_logger, CACHE_DIR, IMAGE_GENERATION_PARAMS
-from utils.usage_logging import log_image_generation_usage
+from utils.openai_api import log_image_generation_usage, get_openai_client
 import base64
 from PIL import Image
 import io
-from utils.openai_client import get_openai_client
 
 logger = get_logger("image_generator")
 
