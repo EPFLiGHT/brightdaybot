@@ -24,6 +24,7 @@ from config import (
     SPECIAL_DAYS_CHANNEL,
     BACKUP_DIR,
     MAX_BACKUPS,
+    DEFAULT_ANNOUNCEMENT_TIME,
 )
 from utils.logging_config import get_logger
 
@@ -362,7 +363,7 @@ def load_special_days_config() -> dict:
         "enabled": SPECIAL_DAYS_ENABLED,
         "personality": SPECIAL_DAYS_PERSONALITY,
         "categories_enabled": {cat: True for cat in SPECIAL_DAYS_CATEGORIES},
-        "announcement_time": "09:00",
+        "announcement_time": DEFAULT_ANNOUNCEMENT_TIME,
         "channel_override": None,
         "image_generation": False,
         "test_mode": False,

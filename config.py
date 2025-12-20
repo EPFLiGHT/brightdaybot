@@ -291,6 +291,17 @@ SPECIAL_DAYS_IMAGE_ENABLED = (
     os.getenv("SPECIAL_DAYS_IMAGE_ENABLED", "false").lower() == "true"
 )
 
+# ----- DEFAULT VALUES -----
+
+# Default personality for birthday messages (used as fallback throughout the codebase)
+DEFAULT_PERSONALITY = "standard"
+
+# Default timezone for users without timezone set
+DEFAULT_TIMEZONE = "UTC"
+
+# Default announcement time format (string version for display/config)
+DEFAULT_ANNOUNCEMENT_TIME = "09:00"
+
 # ----- PERSONALITY CONFIGURATION -----
 
 # Import centralized personality configurations

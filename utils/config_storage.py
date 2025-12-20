@@ -16,6 +16,7 @@ from config import (
     PERSONALITY_FILE,
     PERMISSIONS_FILE,
     DEFAULT_ADMIN_USERS,
+    DEFAULT_PERSONALITY,
     COMMAND_PERMISSIONS as DEFAULT_COMMAND_PERMISSIONS,
     get_logger,
 )
@@ -134,11 +135,11 @@ def load_personality_setting():
             logger.info(
                 f"CONFIG: Personality file {PERSONALITY_FILE} not found, using defaults"
             )
-            return "standard", None
+            return DEFAULT_PERSONALITY, None
 
         with open(PERSONALITY_FILE, "r") as f:
             data = json.load(f)
-            personality = data.get("current_personality", "standard")
+            personality = data.get("current_personality", DEFAULT_PERSONALITY)
             custom_settings = data.get("custom_settings", None)
 
             logger.info(
@@ -147,7 +148,7 @@ def load_personality_setting():
             return personality, custom_settings
     except Exception as e:
         logger.error(f"CONFIG_ERROR: Failed to load personality setting: {e}")
-        return "standard", None
+        return DEFAULT_PERSONALITY, None
 
 
 def get_current_admins():

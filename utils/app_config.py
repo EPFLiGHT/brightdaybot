@@ -8,6 +8,7 @@ at runtime, such as bot personalities and OpenAI model settings.
 from config import (
     SUPPORTED_OPENAI_MODELS,
     DEFAULT_OPENAI_MODEL,
+    DEFAULT_PERSONALITY,
     BOT_PERSONALITIES,
     ADMIN_USERS,
     DEFAULT_ADMIN_USERS,
@@ -18,7 +19,7 @@ from utils.logging_config import get_logger
 logger = get_logger("config")
 
 # Global state variables
-_current_personality = "standard"  # Default
+_current_personality = DEFAULT_PERSONALITY
 _current_openai_model = None  # Will be set during initialization
 
 

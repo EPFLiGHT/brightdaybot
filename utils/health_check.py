@@ -16,6 +16,7 @@ from config import (
     TRACKING_DIR,
     CACHE_DIR,
     BIRTHDAY_CHANNEL,
+    DEFAULT_PERSONALITY,
     get_logger,
     LOGS_DIR,
     SPECIAL_DAYS_FILE,
@@ -182,7 +183,9 @@ def check_personality_config():
     try:
         with open(PERSONALITY_FILE, "r") as f:
             data = json.load(f)
-        file_status["current_personality"] = data.get("current_personality", "standard")
+        file_status["current_personality"] = data.get(
+            "current_personality", DEFAULT_PERSONALITY
+        )
         file_status["has_custom_settings"] = "custom_settings" in data
         return file_status
     except Exception as e:
@@ -412,7 +415,7 @@ def get_status_summary(app=None, include_live_checks=True):
     # Personality
     personality = status["components"].get("personality", {})
     if personality.get("status") == STATUS_OK:
-        current = personality.get("current_personality", "standard")
+        current = personality.get("current_personality", DEFAULT_PERSONALITY)
         lines.append(f"✅ *Personality*: {current}")
     else:
         lines.append("ℹ️ *Personality*: Using default (standard)")

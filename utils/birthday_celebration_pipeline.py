@@ -16,7 +16,13 @@ Key functions: BirthdayCelebrationPipeline.celebrate()
 """
 
 from datetime import datetime, timezone as tz
-from config import get_logger, AI_IMAGE_GENERATION_ENABLED, BIRTHDAY_CHANNEL
+from config import (
+    get_logger,
+    AI_IMAGE_GENERATION_ENABLED,
+    BIRTHDAY_CHANNEL,
+    DEFAULT_PERSONALITY,
+    DEFAULT_TIMEZONE,
+)
 from utils.message_generator import create_consolidated_birthday_announcement
 from utils.birthday_validation import (
     validate_birthday_people_for_posting,
@@ -245,11 +251,11 @@ class BirthdayCelebrationPipeline:
                 # Backward compatibility for old 2-tuple format (should not happen)
                 final_message, final_images = result
                 final_images = final_images or []
-                actual_personality = "standard"  # Fallback
+                actual_personality = DEFAULT_PERSONALITY  # Fallback
             else:
                 final_message = result
                 final_images = []
-                actual_personality = "standard"  # Fallback
+                actual_personality = DEFAULT_PERSONALITY  # Fallback
 
             return final_message, final_images, actual_personality
 
@@ -277,11 +283,11 @@ class BirthdayCelebrationPipeline:
                 # Backward compatibility for old 2-tuple format
                 final_message, final_images = regenerated_result
                 final_images = final_images or []
-                actual_personality = "standard"  # Fallback
+                actual_personality = DEFAULT_PERSONALITY  # Fallback
             else:
                 final_message = regenerated_result
                 final_images = []
-                actual_personality = "standard"  # Fallback
+                actual_personality = DEFAULT_PERSONALITY  # Fallback
         else:
             # Minor changes (<30% invalid) - use original message but filter images
             logger.info(
@@ -299,11 +305,11 @@ class BirthdayCelebrationPipeline:
                 final_images = filter_images_for_valid_people(
                     original_images, valid_people
                 )
-                actual_personality = "standard"  # Fallback
+                actual_personality = DEFAULT_PERSONALITY  # Fallback
             else:
                 final_message = result
                 final_images = []
-                actual_personality = "standard"  # Fallback
+                actual_personality = DEFAULT_PERSONALITY  # Fallback
 
         return final_message, final_images, actual_personality
 
@@ -478,7 +484,7 @@ class BirthdayCelebrationPipeline:
         for person in people:
             if self.mode == "TIMEZONE":
                 # Timezone mode uses timezone-specific tracking
-                timezone_str = person.get("timezone", "UTC")
+                timezone_str = person.get("timezone", DEFAULT_TIMEZONE)
                 mark_timezone_birthday_announced(person["user_id"], timezone_str)
             else:
                 # Simple and missed modes use simple tracking

@@ -5,7 +5,7 @@ This module contains functions for building message templates based on
 bot personalities and emoji settings.
 """
 
-from config import USE_CUSTOM_EMOJIS, BOT_PERSONALITIES
+from config import USE_CUSTOM_EMOJIS, BOT_PERSONALITIES, DEFAULT_PERSONALITY
 
 
 def get_emoji_instructions():
@@ -64,7 +64,7 @@ Create a message that is brief but impactful!
 def get_full_template_for_personality(personality_name):
     """Build the full template for a given personality by combining base and extensions"""
     if personality_name not in BOT_PERSONALITIES:
-        personality_name = "standard"
+        personality_name = DEFAULT_PERSONALITY
 
     personality = BOT_PERSONALITIES[personality_name]
     full_template = get_base_template()

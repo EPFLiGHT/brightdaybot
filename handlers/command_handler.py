@@ -73,6 +73,7 @@ from config import (
     DAILY_CHECK_TIME,
     TIMEZONE_CELEBRATION_TIME,
     EXTERNAL_BACKUP_ENABLED,
+    DEFAULT_ANNOUNCEMENT_TIME,
 )
 from utils.config_storage import save_admins_to_file
 from utils.web_search import clear_cache
@@ -3797,9 +3798,7 @@ def handle_admin_special_command(args, user_id, say, app):
             message = "⚙️ *Special Days Configuration:*\n\n"
             message += f"• Feature: {'✅ Enabled' if config.get('enabled', False) else '❌ Disabled'}\n"
             message += f"• Personality: {config.get('personality', 'chronicler')}\n"
-            message += (
-                f"• Announcement time: {config.get('announcement_time', '09:00')}\n"
-            )
+            message += f"• Announcement time: {config.get('announcement_time', DEFAULT_ANNOUNCEMENT_TIME)}\n"
             message += f"• Channel: {config.get('channel_override') or 'Using birthday channel'}\n"
             message += f"• Image generation: {'✅' if config.get('image_generation', False) else '❌'}\n"
             say(message)
