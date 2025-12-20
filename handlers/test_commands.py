@@ -127,7 +127,7 @@ def handle_test_command(
         target_user_id: Single user ID or list of user IDs to test
         text_only: Skip image generation if True
     """
-    from utils.birthday_celebration_pipeline import BirthdayCelebrationPipeline
+    from utils.celebration import BirthdayCelebrationPipeline
     from utils.storage import load_birthdays
     from utils.slack_utils import get_username, get_user_profile
     from utils.date_utils import date_to_words
@@ -1331,7 +1331,7 @@ def handle_test_bot_celebration_command(
         get_channel_members,
         send_message_with_image,
     )
-    from utils.bot_celebration import (
+    from utils.celebration import (
         generate_bot_celebration_message,
         get_bot_celebration_image_title,
     )

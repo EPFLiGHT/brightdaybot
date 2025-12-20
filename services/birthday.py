@@ -37,7 +37,7 @@ from utils.message_generator import (
     create_consolidated_birthday_announcement,
 )
 from utils.date_utils import is_celebration_time_for_user
-from utils.birthday_celebration_pipeline import BirthdayCelebrationPipeline
+from utils.celebration import BirthdayCelebrationPipeline
 from config import (
     BIRTHDAY_CHANNEL,
     AI_IMAGE_GENERATION_ENABLED,
@@ -48,7 +48,7 @@ from config import (
     TIMEZONE_CELEBRATION_TIME,
     DAILY_CHECK_TIME,
 )
-from utils.bot_celebration import (
+from utils.celebration import (
     generate_bot_celebration_message,
     get_bot_celebration_image_title,
 )

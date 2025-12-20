@@ -26,7 +26,6 @@ from config import (
     get_logger,
 )
 from utils.app_config import get_current_admins
-from utils.message_generator import generate_birthday_image_title
 
 logger = get_logger("slack")
 
@@ -457,6 +456,10 @@ def send_message_with_image(
                 else:
                     # Generate AI-powered title for the image
                     try:
+                        from utils.message_generator import (
+                            generate_birthday_image_title,
+                        )
+
                         # Extract name and context from image_data
                         name = image_data.get("generated_for", "Birthday Person")
                         personality = image_data.get("personality", "standard")
