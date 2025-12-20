@@ -23,11 +23,6 @@ from utils.birthday_validation import (
     should_regenerate_message,
     filter_images_for_valid_people,
 )
-from utils.race_condition_logger import (
-    log_race_condition_detection,
-    log_validation_action_taken,
-    should_alert_on_race_conditions,
-)
 from utils.slack_utils import (
     send_message,
     send_message_with_multiple_attachments,
@@ -139,25 +134,20 @@ class BirthdayCelebrationPipeline:
             invalid_people = validation_result["invalid_people"]
             validation_summary = validation_result["validation_summary"]
 
-            # Step 3: Log race condition detection
-            log_race_condition_detection(
-                validation_result,
-                len(birthday_people),
-                processing_duration,
-                self.mode,
-            )
+            # Log validation results
+            if invalid_people:
+                invalid_names = [
+                    p.get("username", p["user_id"]) for p in invalid_people
+                ]
+                logger.info(
+                    f"{self.mode}: Filtered out {len(invalid_people)} invalid people: {', '.join(invalid_names)}"
+                )
 
-            # Check if alerts should be triggered
-            should_alert_on_race_conditions(validation_result)
-
-            # Step 4: Handle validation results
+            # Handle validation results
             if not valid_people:
                 # All people became invalid - skip celebration
                 logger.warning(
-                    f"{self.mode}: All {validation_summary['total']} birthday people became invalid during processing. Skipping celebration."
-                )
-                log_validation_action_taken(
-                    "skipped", 0, validation_summary["total"], self.mode
+                    f"{self.mode}: All {validation_summary['total']} birthday people became invalid. Skipping celebration."
                 )
                 return {
                     "success": False,
@@ -245,13 +235,9 @@ class BirthdayCelebrationPipeline:
         """
         valid_people = validation_result["valid_people"]
         invalid_people = validation_result["invalid_people"]
-        validation_summary = validation_result["validation_summary"]
 
         if not invalid_people:
             # All people still valid - use original result
-            log_validation_action_taken(
-                "proceeded", len(valid_people), validation_summary["total"], self.mode
-            )
             if isinstance(result, tuple) and len(result) == 3:
                 final_message, final_images, actual_personality = result
                 final_images = final_images or []
@@ -272,10 +258,7 @@ class BirthdayCelebrationPipeline:
             # Significant changes (>30% invalid) - regenerate message
             logger.info(
                 f"{self.mode}: Regenerating message for {len(valid_people)} valid people "
-                f"(filtered out {len(invalid_people)}) due to significant changes"
-            )
-            log_validation_action_taken(
-                "regenerated", len(valid_people), validation_summary["total"], self.mode
+                f"(filtered out {len(invalid_people)})"
             )
 
             regenerated_result = create_consolidated_birthday_announcement(
@@ -302,10 +285,7 @@ class BirthdayCelebrationPipeline:
         else:
             # Minor changes (<30% invalid) - use original message but filter images
             logger.info(
-                f"{self.mode}: Using original message but filtering {len(invalid_people)} invalid people from images"
-            )
-            log_validation_action_taken(
-                "filtered", len(valid_people), validation_summary["total"], self.mode
+                f"{self.mode}: Filtering {len(invalid_people)} invalid people from images"
             )
 
             if isinstance(result, tuple) and len(result) == 3:
