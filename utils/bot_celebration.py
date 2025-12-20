@@ -15,7 +15,7 @@ from config import (
     TEMPERATURE_SETTINGS,
 )
 from personality_config import PERSONALITIES
-from utils.slack_formatting import fix_slack_formatting
+from utils.slack_utils import fix_slack_formatting
 from utils.date_utils import date_to_words
 from utils.openai_api import complete
 

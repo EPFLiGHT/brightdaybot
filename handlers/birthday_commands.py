@@ -21,7 +21,7 @@ from utils.slack_utils import (
     get_channel_members,
     send_message,
 )
-from utils.slack_formatting import get_user_mention
+from utils.slack_utils import get_user_mention
 from utils.message_generator import create_birthday_announcement
 from utils.immediate_celebration_utils import (
     should_celebrate_immediately,

@@ -9,19 +9,23 @@ Key functions: get_user_profile(), send_message_with_image(), is_admin().
 
 from slack_sdk.errors import SlackApiError
 from datetime import datetime
+from typing import Dict, Optional
 import requests
 import random
 import os
+import re
 
 from config import (
     username_cache,
     USERNAME_CACHE_MAX_SIZE,
     COMMAND_PERMISSIONS,
+    SAFE_SLACK_EMOJIS,
+    CUSTOM_SLACK_EMOJIS,
+    USE_CUSTOM_EMOJIS,
+    EMOJI_GENERATION_PARAMS,
     get_logger,
 )
 from utils.config_storage import get_current_admins
-from config import SAFE_SLACK_EMOJIS, CUSTOM_SLACK_EMOJIS
-from utils.slack_formatting import get_user_mention
 from utils.message_generator import generate_birthday_image_title
 
 logger = get_logger("slack")
@@ -1382,3 +1386,182 @@ def get_random_emojis(app, count=5, include_custom=True):
     all_emojis = get_all_emojis(app, include_custom)
     # Return at most 'count' random emojis, or all if count > available emojis
     return random.sample(all_emojis, min(count, len(all_emojis)))
+
+
+# =============================================================================
+# Slack Formatting Utilities
+# =============================================================================
+
+
+def get_user_mention(user_id):
+    """
+    Get a formatted mention for a user
+
+    Args:
+        user_id: User ID to format
+
+    Returns:
+        Formatted mention string
+    """
+    return f"<@{user_id}>" if user_id else "Unknown User"
+
+
+def get_channel_mention(channel_id):
+    """
+    Get a formatted mention for a channel
+
+    Args:
+        channel_id: Channel ID to format
+
+    Returns:
+        Formatted channel mention string
+    """
+    return f"<#{channel_id}>" if channel_id else "Unknown Channel"
+
+
+def fix_slack_formatting(text):
+    """
+    Fix common formatting issues in Slack messages:
+    - Replace **bold** with *bold* for Slack-compatible bold text
+    - Replace __italic__ with _italic_ for Slack-compatible italic text
+    - Fix markdown-style links to Slack-compatible format
+    - Ensure proper emoji format with colons
+    - Fix other formatting issues
+
+    Args:
+        text: The text to fix formatting in
+
+    Returns:
+        Fixed text with Slack-compatible formatting
+    """
+    # Fix bold formatting: Replace **bold** with *bold*
+    text = re.sub(r"\*\*(.*?)\*\*", r"*\1*", text)
+
+    # Fix italic formatting: Replace __italic__ with _italic_
+    # and also _italic_ if it's not already correct
+    text = re.sub(r"__(.*?)__", r"_\1_", text)
+
+    # Fix markdown links: Replace [text](url) with <url|text>
+    text = re.sub(r"\[(.*?)\]\((.*?)\)", r"<\2|\1>", text)
+
+    # Fix emoji format: Ensure emoji codes have colons on both sides
+    text = re.sub(
+        r"(?<!\:)([a-z0-9_+-]+)(?!\:)",
+        lambda m: (
+            m.group(1)
+            if m.group(1)
+            in [
+                "and",
+                "the",
+                "to",
+                "for",
+                "with",
+                "in",
+                "of",
+                "on",
+                "at",
+                "by",
+                "from",
+                "as",
+            ]
+            else m.group(1)
+        ),
+        text,
+    )
+
+    # Fix markdown headers with # to just bold text
+    text = re.sub(r"^(#{1,6})\s+(.*?)$", r"*\2*", text, flags=re.MULTILINE)
+
+    # Remove HTML tags that might slip in
+    text = re.sub(r"<(?![@!#])(.*?)>", r"\1", text)
+
+    # Check for and fix incorrect code blocks
+    text = re.sub(r"```(.*?)```", r"`\1`", text, flags=re.DOTALL)
+
+    # Fix blockquotes: replace markdown > with Slack's blockquote
+    text = re.sub(r"^>\s+(.*?)$", r">>>\1", text, flags=re.MULTILINE)
+
+    logger.debug(f"AI_FORMAT: Fixed Slack formatting issues in message")
+    return text
+
+
+# =============================================================================
+# Emoji Context for AI
+# =============================================================================
+
+
+def get_emoji_context_for_ai(app=None, sample_size=None) -> Dict[str, str]:
+    """
+    Get emoji information for AI message generation.
+
+    Retrieves emojis (standard + custom workspace emojis if available),
+    generates sample list, and creates instruction/warning text.
+
+    Args:
+        app: Optional Slack app instance for fetching custom emojis
+        sample_size: Number of random emojis to include in examples.
+                     If None, uses EMOJI_GENERATION_PARAMS["sample_size"] from config
+
+    Returns:
+        Dictionary with:
+        - emoji_list: Full list of available emojis
+        - emoji_examples: Comma-separated sample of emojis for prompt
+        - emoji_instruction: Instruction text for AI
+        - emoji_warning: Warning/guidance text for AI
+        - custom_count: Number of custom emojis available
+
+    Example:
+        >>> emoji_ctx = get_emoji_context_for_ai(app)  # Uses config default
+        >>> prompt += f"Available emojis: {emoji_ctx['emoji_examples']}"
+    """
+    # Use configured sample size if not specified
+    if sample_size is None:
+        sample_size = EMOJI_GENERATION_PARAMS.get("sample_size", 50)
+
+    emoji_list = list(SAFE_SLACK_EMOJIS)
+    emoji_instruction = "ONLY USE STANDARD SLACK EMOJIS"
+    emoji_warning = "DO NOT use custom emojis like :birthday_party_parrot: or :rave: as they may not exist in all workspaces"
+    custom_count = 0
+
+    # Try to get custom emojis if enabled and app provided
+    if USE_CUSTOM_EMOJIS and app:
+        try:
+            all_emojis = get_all_emojis(app, include_custom=True)
+            if len(all_emojis) > len(SAFE_SLACK_EMOJIS):
+                emoji_list = all_emojis
+                custom_count = len(all_emojis) - len(SAFE_SLACK_EMOJIS)
+                emoji_instruction = "USE STANDARD OR CUSTOM SLACK EMOJIS"
+                emoji_warning = (
+                    f"The workspace has {custom_count} custom emoji(s) that you can use"
+                )
+                logger.info(
+                    f"EMOJI: Including {custom_count} custom emojis for AI generation"
+                )
+        except Exception as e:
+            logger.warning(
+                f"EMOJI: Failed to get custom emojis, using standard only: {e}"
+            )
+
+    # Generate random sample for AI prompt
+    actual_sample_size = min(sample_size, len(emoji_list))
+
+    try:
+        emoji_examples = ", ".join(random.sample(emoji_list, actual_sample_size))
+    except Exception as e:
+        # Fallback to configured fallback emojis if sampling fails
+        logger.error(f"EMOJI: Failed to generate emoji sample: {e}")
+        emoji_examples = EMOJI_GENERATION_PARAMS.get(
+            "fallback_emojis", ":tada: :sparkles: :star:"
+        )
+
+    logger.debug(
+        f"EMOJI: Prepared {actual_sample_size} emoji examples ({len(emoji_list)} total available)"
+    )
+
+    return {
+        "emoji_list": emoji_list,
+        "emoji_examples": emoji_examples,
+        "emoji_instruction": emoji_instruction,
+        "emoji_warning": emoji_warning,
+        "custom_count": custom_count,
+    }

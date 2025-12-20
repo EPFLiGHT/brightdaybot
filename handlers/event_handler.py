@@ -13,7 +13,7 @@ from slack_sdk.errors import SlackApiError
 
 from utils.date_utils import extract_date
 from utils.slack_utils import get_username, send_message
-from utils.slack_formatting import get_user_mention, get_channel_mention
+from utils.slack_utils import get_user_mention, get_channel_mention
 from handlers.command_handler import handle_command, handle_dm_date
 from config import BIRTHDAY_CHANNEL, get_logger
 

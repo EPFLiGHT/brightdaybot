@@ -32,7 +32,7 @@ from utils.slack_utils import (
     get_user_status_and_info,
     get_channel_members,
 )
-from utils.slack_formatting import get_user_mention, get_channel_mention
+from utils.slack_utils import get_user_mention, get_channel_mention
 from utils.message_generator import (
     create_consolidated_birthday_announcement,
 )

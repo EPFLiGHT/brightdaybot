@@ -70,7 +70,7 @@ def generate_special_day_message(
         personality_config = get_personality_config(personality)
 
     # Get emoji context for AI message generation (uses config default: 50)
-    from utils.emoji_utils import get_emoji_context_for_ai
+    from utils.slack_utils import get_emoji_context_for_ai
 
     emoji_ctx = get_emoji_context_for_ai(app)
     emoji_examples = emoji_ctx["emoji_examples"]
@@ -303,7 +303,7 @@ def generate_special_day_details(
         personality_config = get_personality_config(personality)
 
     # Get emoji context for AI message generation
-    from utils.emoji_utils import get_emoji_context_for_ai
+    from utils.slack_utils import get_emoji_context_for_ai
 
     emoji_ctx = get_emoji_context_for_ai(app)
     emoji_examples = emoji_ctx["emoji_examples"]

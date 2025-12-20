@@ -29,7 +29,7 @@ from utils.slack_utils import (
     get_username,
     is_admin,
 )
-from utils.slack_formatting import get_user_mention
+from utils.slack_utils import get_user_mention
 from utils.message_generator import (
     get_current_personality,
     get_random_personality_name,

@@ -27,7 +27,7 @@ from config import (
 
 from utils.date_utils import get_star_sign
 from config import SAFE_SLACK_EMOJIS
-from utils.slack_formatting import get_user_mention, fix_slack_formatting
+from utils.slack_utils import get_user_mention, fix_slack_formatting
 from utils.web_search import get_birthday_facts
 from utils.openai_api import complete
 
@@ -429,7 +429,7 @@ def completion(
         age_text = f" They're turning {age} today!"
 
     # Get emoji context for AI message generation (uses config default: 50)
-    from utils.emoji_utils import get_emoji_context_for_ai
+    from utils.slack_utils import get_emoji_context_for_ai
 
     emoji_ctx = get_emoji_context_for_ai(app)
     safe_emoji_examples = emoji_ctx["emoji_examples"]
@@ -1139,7 +1139,7 @@ def _generate_ai_consolidated_message(
             # Continue without facts if there's an error
 
     # Get emoji context for AI message generation (uses config default: 50)
-    from utils.emoji_utils import get_emoji_context_for_ai
+    from utils.slack_utils import get_emoji_context_for_ai
 
     emoji_ctx = get_emoji_context_for_ai(app)
     emoji_list = emoji_ctx["emoji_list"]  # Keep for backward compatibility if needed

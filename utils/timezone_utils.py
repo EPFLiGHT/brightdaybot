@@ -123,8 +123,7 @@ def format_timezone_schedule(app=None):
     # Get birthdays data to find users in each timezone
     try:
         from utils.storage import load_birthdays
-        from utils.slack_utils import get_user_profile
-        from utils.slack_formatting import get_user_mention
+        from utils.slack_utils import get_user_profile, get_user_mention
 
         birthdays = load_birthdays()
         timezone_users = {}
