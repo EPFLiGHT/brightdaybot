@@ -110,7 +110,7 @@ def setup_scheduler(app, timezone_aware_check, simple_daily_check):
     _app_instance = app
 
     # Load timezone settings
-    from utils.config_storage import load_timezone_settings
+    from utils.app_config import load_timezone_settings
 
     _timezone_enabled, _check_interval = load_timezone_settings()
 

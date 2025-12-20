@@ -25,7 +25,7 @@ from config import (
     EMOJI_GENERATION_PARAMS,
     get_logger,
 )
-from utils.config_storage import get_current_admins
+from utils.app_config import get_current_admins
 from utils.message_generator import generate_birthday_image_title
 
 logger = get_logger("slack")

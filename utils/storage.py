@@ -23,7 +23,7 @@ from config import (
 )
 
 # Import all potentially circular dependencies at the top
-from utils.config_storage import get_current_admins
+from utils.app_config import get_current_admins
 from utils.slack_utils import send_message_with_file
 
 logger = get_logger("storage")

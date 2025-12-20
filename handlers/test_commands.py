@@ -719,7 +719,7 @@ def handle_test_external_backup_command(user_id, say, app):
     logger.info(f"TEST_EXTERNAL_BACKUP: Configuration check by {username} ({user_id})")
 
     # Check admin configuration
-    from utils.config_storage import get_current_admins
+    from utils.app_config import get_current_admins
 
     current_admins = get_current_admins()
 

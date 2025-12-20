@@ -35,7 +35,7 @@ from config import (
     get_current_openai_model,
     set_current_openai_model,
 )
-from utils.config_storage import save_admins_to_file
+from utils.app_config import save_admins_to_file
 from utils.web_search import clear_cache
 
 logger = get_logger("commands")
@@ -166,7 +166,7 @@ def handle_config_command(parts, user_id, say, app):
     new_setting = setting_str == "true"
 
     # Import the set_command_permission function
-    from utils.config_storage import set_command_permission
+    from utils.app_config import set_command_permission
 
     # Update and save the setting
     if set_command_permission(cmd, new_setting):
@@ -258,7 +258,7 @@ def handle_announce_command(
 
 def handle_model_command(args, user_id, say, _app, username):
     """Handle OpenAI model management commands"""
-    from utils.config_storage import get_openai_model_info
+    from utils.app_config import get_openai_model_info
 
     if not args:
         # Show current model information
@@ -462,7 +462,7 @@ def handle_status_command(parts, user_id, say, app):
 
 def handle_timezone_command(args, user_id, say, app, username):
     """Handle timezone-aware announcement settings"""
-    from utils.config_storage import save_timezone_settings, load_timezone_settings
+    from utils.app_config import save_timezone_settings, load_timezone_settings
     from utils.date_utils import format_timezone_schedule
 
     # Get current settings
@@ -605,7 +605,7 @@ def handle_personality_command(args, user_id, say, _app, username):
 
 def handle_admin_list_command(_args, _user_id, say, app, _username):
     """List all configured admin users"""
-    from utils.config_storage import get_current_admins
+    from utils.app_config import get_current_admins
 
     current_admins = get_current_admins()
     logger.info(
@@ -649,7 +649,7 @@ def handle_admin_add_command(args, user_id, say, app, username):
         return
 
     # Get the current list from the file
-    from utils.config_storage import load_admins_from_file
+    from utils.app_config import load_admins_from_file
 
     # Get the updated list from file to ensure we have the latest
     current_admins = load_admins_from_file()
@@ -688,7 +688,7 @@ def handle_admin_remove_command(args, user_id, say, app, username):
     admin_to_remove = args[0].strip("<@>").upper()
 
     # Get the current list from the file
-    from utils.config_storage import load_admins_from_file
+    from utils.app_config import load_admins_from_file
 
     current_admins = load_admins_from_file()
 

@@ -354,7 +354,7 @@ from utils.app_config import (
     initialize_config,
 )
 
-from utils.template_utils import (
+from utils.app_config import (
     get_emoji_instructions,
     get_base_template,
     get_full_template_for_personality,
