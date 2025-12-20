@@ -29,13 +29,9 @@ from utils.date_utils import get_star_sign
 from config import SAFE_SLACK_EMOJIS
 from utils.slack_formatting import get_user_mention, fix_slack_formatting
 from utils.web_search import get_birthday_facts
-from utils.usage_logging import log_chat_completion_usage
-from utils.openai_client import get_openai_client
+from utils.openai_api import complete
 
 logger = get_logger("llm")
-
-# Initialize OpenAI client
-client = get_openai_client()
 
 
 # Import centralized model configuration function
@@ -546,17 +542,12 @@ def completion(
                 + (f" (retry {retry_count})" if retry_count > 0 else "")
             )
 
-            response = client.chat.completions.create(
-                model=get_configured_model(),
+            reply = complete(
                 messages=template,
-                max_completion_tokens=TOKEN_LIMITS["single_birthday"],
+                max_tokens=TOKEN_LIMITS["single_birthday"],
                 temperature=TEMPERATURE_SETTINGS["creative"],
+                context="SINGLE_BIRTHDAY",
             )
-
-            # Log token usage for monitoring
-            log_chat_completion_usage(response, "SINGLE_BIRTHDAY", logger)
-
-            reply = response.choices[0].message.content
 
             # Fix common Slack formatting issues
             reply = fix_slack_formatting(reply)
@@ -1196,20 +1187,16 @@ Happy Birthday {mention_text}! [Continue with creative content...]"{birthday_fac
 
     # Make the API call
     try:
-        response = client.chat.completions.create(
-            model=get_configured_model(),
+        message = complete(
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            max_completion_tokens=TOKEN_LIMITS["consolidated_birthday"],
+            max_tokens=TOKEN_LIMITS["consolidated_birthday"],
             temperature=TEMPERATURE_SETTINGS["creative"],
+            context="CONSOLIDATED_AI",
         )
-
-        message = response.choices[0].message.content.strip()
-
-        # Log token usage for monitoring
-        log_chat_completion_usage(response, "CONSOLIDATED_AI", logger)
+        message = message.strip()
 
         # Fix any formatting issues
         message = fix_slack_formatting(message)
@@ -1590,8 +1577,7 @@ def generate_birthday_image_title(
         max_retries = 2
         for attempt in range(max_retries + 1):
             try:
-                response = client.chat.completions.create(
-                    model=get_configured_model(),
+                ai_title = complete(
                     messages=[
                         {
                             "role": "system",
@@ -1599,14 +1585,11 @@ def generate_birthday_image_title(
                         },
                         {"role": "user", "content": formatted_prompt},
                     ],
-                    max_completion_tokens=TOKEN_LIMITS["image_title_generation"],
+                    max_tokens=TOKEN_LIMITS["image_title_generation"],
                     temperature=TEMPERATURE_SETTINGS["creative"],
+                    context="IMAGE_TITLE_GEN",
                 )
-
-                # Log token usage for monitoring
-                log_chat_completion_usage(response, "IMAGE_TITLE_GEN", logger)
-
-                ai_title = response.choices[0].message.content.strip()
+                ai_title = ai_title.strip()
 
                 # Fix Slack formatting issues
                 ai_title = fix_slack_formatting(ai_title)

@@ -20,16 +20,14 @@ from config import (
 )
 import argparse
 import sys
+from utils.openai_api import complete
 from utils.openai_client import get_openai_client
+from utils.usage_logging import log_web_search_usage
 
 logger = get_logger("web_search")
 
-# Initialize OpenAI client
+# Initialize OpenAI client for web search (uses special tools)
 client = get_openai_client()
-
-# Import centralized model configuration function
-from utils.app_config import get_configured_openai_model
-from utils.usage_logging import log_chat_completion_usage, log_web_search_usage
 
 
 def process_facts_for_personality(facts_text, formatted_date, personality):
@@ -74,21 +72,17 @@ def process_facts_for_personality(facts_text, formatted_date, personality):
                 # Ultimate fallback
                 return f"On this day, {formatted_date}, several notable events occurred in history and remarkable individuals were born."
 
-        # Use OpenAI to reformat the facts in the appropriate personality style
-        response = client.chat.completions.create(
-            model=get_configured_openai_model(),
+        # Use Responses API to reformat the facts in the appropriate personality style
+        processed_facts = complete(
             messages=[
                 {"role": "system", "content": system_content},
                 {"role": "user", "content": user_content},
             ],
-            max_completion_tokens=TOKEN_LIMITS["web_search_facts"],
+            max_tokens=TOKEN_LIMITS["web_search_facts"],
             temperature=TEMPERATURE_SETTINGS["default"],
+            context="WEB_SEARCH_FACTS",
         )
-
-        # Log token usage for monitoring
-        log_chat_completion_usage(response, "WEB_SEARCH_FACTS", logger)
-
-        processed_facts = response.choices[0].message.content.strip()
+        processed_facts = processed_facts.strip()
         logger.info(
             f"WEB_SEARCH: Successfully processed facts for {formatted_date} using {personality} personality"
         )

@@ -15,16 +15,11 @@ from config import (
     TEMPERATURE_SETTINGS,
 )
 from personality_config import PERSONALITIES
-from utils.app_config import get_configured_openai_model
-from utils.usage_logging import log_chat_completion_usage
 from utils.slack_formatting import fix_slack_formatting
 from utils.date_utils import date_to_words
-from utils.openai_client import get_openai_client
+from utils.openai_api import complete
 
 logger = get_logger("birthday")
-
-# Initialize OpenAI client
-client = get_openai_client()
 
 
 def generate_bot_celebration_message(
@@ -78,24 +73,15 @@ def generate_bot_celebration_message(
     )
 
     try:
-        # Generate AI response using the current model
-        model = get_configured_openai_model()
-
-        response = client.chat.completions.create(
-            model=model,
-            messages=[{"role": "system", "content": formatted_prompt}],
-            max_tokens=TOKEN_LIMITS[
-                "consolidated_birthday"
-            ],  # Use consolidated birthday token limit
-            temperature=TEMPERATURE_SETTINGS[
-                "creative"
-            ],  # Use creative temperature for special celebration
+        # Generate AI response using Responses API
+        generated_message = complete(
+            instructions=formatted_prompt,
+            input_text="Generate the celebration message.",
+            max_tokens=TOKEN_LIMITS["consolidated_birthday"],
+            temperature=TEMPERATURE_SETTINGS["creative"],
+            context="BOT_SELF_CELEBRATION",
         )
-
-        # Log the usage
-        log_chat_completion_usage(response, "BOT_SELF_CELEBRATION", logger)
-
-        generated_message = response.choices[0].message.content.strip()
+        generated_message = generated_message.strip()
 
         if generated_message:
             # Fix Slack formatting issues
@@ -156,22 +142,15 @@ def get_bot_celebration_image_title():
             )
             return "🌟 Ludo | LiGHT BrightDay Coordinator's Cosmic Birthday Celebration! 🎂✨"
 
-        # Generate title using OpenAI
-        model = get_configured_openai_model()
-
-        response = client.chat.completions.create(
-            model=model,
-            messages=[{"role": "system", "content": title_prompt}],
-            max_tokens=TOKEN_LIMITS[
-                "image_title_generation"
-            ],  # Use title generation token limit
-            temperature=TEMPERATURE_SETTINGS["creative"],  # Use creative temperature
+        # Generate title using Responses API
+        generated_title = complete(
+            instructions=title_prompt,
+            input_text="Generate the image title.",
+            max_tokens=TOKEN_LIMITS["image_title_generation"],
+            temperature=TEMPERATURE_SETTINGS["creative"],
+            context="BOT_CELEBRATION_TITLE",
         )
-
-        # Log the usage
-        log_chat_completion_usage(response, "BOT_CELEBRATION_TITLE", logger)
-
-        generated_title = response.choices[0].message.content.strip()
+        generated_title = generated_title.strip()
 
         if generated_title:
             # Fix Slack formatting issues
