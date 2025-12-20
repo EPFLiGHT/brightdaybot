@@ -371,7 +371,7 @@ def check_and_announce_special_days(app, moment):
             return False
 
         # NEW: Check if observances should be split into separate announcements
-        from utils.observance_utils import should_split_observances
+        from services.special_days import should_split_observances
 
         should_split = should_split_observances(special_days)
 

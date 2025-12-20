@@ -3645,7 +3645,7 @@ def handle_admin_special_command(args, user_id, say, app):
             say(f"🧪 Testing special day announcement for {test_date_str}...")
 
             # NEW: Check if observances should be split
-            from utils.observance_utils import should_split_observances
+            from services.special_days import should_split_observances
 
             should_split = should_split_observances(special_days)
 

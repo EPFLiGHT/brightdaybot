@@ -9,8 +9,12 @@ Key functions: get_emoji_context_for_ai()
 
 import random
 from typing import Dict, Optional
-from utils.constants import SAFE_SLACK_EMOJIS
-from config import USE_CUSTOM_EMOJIS, EMOJI_GENERATION_PARAMS, get_logger
+from config import (
+    SAFE_SLACK_EMOJIS,
+    USE_CUSTOM_EMOJIS,
+    EMOJI_GENERATION_PARAMS,
+    get_logger,
+)
 
 logger = get_logger("emoji")
 

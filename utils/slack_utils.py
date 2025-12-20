@@ -20,7 +20,7 @@ from config import (
     get_logger,
 )
 from utils.config_storage import get_current_admins
-from utils.constants import SAFE_SLACK_EMOJIS, CUSTOM_SLACK_EMOJIS
+from config import SAFE_SLACK_EMOJIS, CUSTOM_SLACK_EMOJIS
 from utils.slack_formatting import get_user_mention
 from utils.message_generator import generate_birthday_image_title
 
