@@ -36,7 +36,7 @@ from utils.slack_utils import get_user_mention, get_channel_mention
 from utils.message_generator import (
     create_consolidated_birthday_announcement,
 )
-from utils.timezone_utils import is_celebration_time_for_user
+from utils.date_utils import is_celebration_time_for_user
 from utils.birthday_celebration_pipeline import BirthdayCelebrationPipeline
 from config import (
     BIRTHDAY_CHANNEL,
@@ -909,7 +909,7 @@ def timezone_aware_check(app, moment):
             ):
                 trigger_people.append(birthday_person)
                 # Get actual current time in user's timezone for accurate logging
-                from utils.timezone_utils import get_user_current_time
+                from utils.date_utils import get_user_current_time
 
                 user_current_time = get_user_current_time(user_timezone)
                 logger.info(

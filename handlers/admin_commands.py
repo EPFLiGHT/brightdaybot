@@ -463,7 +463,7 @@ def handle_status_command(parts, user_id, say, app):
 def handle_timezone_command(args, user_id, say, app, username):
     """Handle timezone-aware announcement settings"""
     from utils.config_storage import save_timezone_settings, load_timezone_settings
-    from utils.timezone_utils import format_timezone_schedule
+    from utils.date_utils import format_timezone_schedule
 
     # Get current settings
     current_enabled, current_interval = load_timezone_settings()
