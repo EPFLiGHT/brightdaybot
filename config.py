@@ -51,31 +51,6 @@ BACKUP_CHANNEL_ID = os.getenv("BACKUP_CHANNEL_ID")
 # Send backup on every change vs. batched/daily digest
 BACKUP_ON_EVERY_CHANGE = os.getenv("BACKUP_ON_EVERY_CHANGE", "true").lower() == "true"
 
-# ----- MESSAGE ARCHIVING CONFIGURATION -----
-
-# Enable or disable comprehensive message archiving
-MESSAGE_ARCHIVING_ENABLED = (
-    os.getenv("MESSAGE_ARCHIVING_ENABLED", "true").lower() == "true"
-)
-# Number of days to retain archived messages (default: 90 days)
-ARCHIVE_RETENTION_DAYS = int(os.getenv("ARCHIVE_RETENTION_DAYS", "90"))
-# Compress archives older than this many days (default: 7 days)
-ARCHIVE_COMPRESSION_DAYS = int(os.getenv("ARCHIVE_COMPRESSION_DAYS", "7"))
-# Maximum messages per daily archive file before rotation
-DAILY_MESSAGE_LIMIT = int(os.getenv("DAILY_MESSAGE_LIMIT", "10000"))
-
-# Privacy and filtering settings
-ARCHIVE_DM_MESSAGES = os.getenv("ARCHIVE_DM_MESSAGES", "true").lower() == "true"
-ARCHIVE_FAILED_MESSAGES = os.getenv("ARCHIVE_FAILED_MESSAGES", "true").lower() == "true"
-ARCHIVE_SYSTEM_MESSAGES = os.getenv("ARCHIVE_SYSTEM_MESSAGES", "true").lower() == "true"
-ARCHIVE_TEST_MESSAGES = os.getenv("ARCHIVE_TEST_MESSAGES", "true").lower() == "true"
-
-# Automatic cleanup settings
-AUTO_CLEANUP_ENABLED = os.getenv("ARCHIVE_AUTO_CLEANUP", "true").lower() == "true"
-CLEANUP_SCHEDULE_HOURS = int(
-    os.getenv("ARCHIVE_CLEANUP_HOURS", "24")
-)  # Run cleanup every 24 hours
-
 # ----- FILE PATHS -----
 
 # Core data files
