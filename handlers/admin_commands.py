@@ -16,6 +16,7 @@ from utils.slack_utils import (
 )
 from utils.slack_utils import get_user_mention, get_channel_mention
 from utils.message_generator import get_current_personality
+from personality_config import get_personality_descriptions
 from config import (
     BIRTHDAY_CHANNEL,
     ADMIN_USERS,
@@ -407,6 +408,7 @@ def handle_status_command(parts, user_id, say, app):
     """Handler for the status command"""
     from utils.health_check import get_system_status
     from utils.block_builder import build_health_status_blocks
+    from services.scheduler import get_scheduler_summary
 
     username = get_username(app, user_id)
 
@@ -445,6 +447,10 @@ def handle_status_command(parts, user_id, say, app):
                     f"• Newest Cache: {status['components'].get('cache', {}).get('newest_cache', {}).get('file', 'N/A')} ({status['components'].get('cache', {}).get('newest_cache', {}).get('date', 'N/A')})",
                 ]
             )
+
+        # Add scheduler health summary
+        scheduler_summary = get_scheduler_summary()
+        detailed_info.extend(["\n*Scheduler:*", f"• {scheduler_summary}"])
 
         # For detailed mode, append additional text info after Block Kit
         detailed_text = "\n" + "\n".join(detailed_info)
@@ -574,11 +580,14 @@ def handle_restore_command(args, _user_id, say, _app, _username):
 def handle_personality_command(args, user_id, say, _app, username):
     """Handle personality management commands"""
     if not args:
-        # Display current personality
+        # Display current personality with descriptions
         current = get_current_personality_name()
-        personalities = ", ".join([f"`{p}`" for p in BOT_PERSONALITIES.keys()])
+        descriptions = get_personality_descriptions()
+        personality_list = "\n".join(
+            [f"• `{name}` - {desc}" for name, desc in descriptions.items()]
+        )
         say(
-            f"Current bot personality: `{current}`\nAvailable personalities: {personalities}\n\nUse `admin personality [name]` to change."
+            f"*Current personality:* `{current}`\n\n*Available personalities:*\n{personality_list}\n\nUse `admin personality [name]` to change."
         )
     else:
         # Set new personality

@@ -1822,57 +1822,6 @@ def build_special_day_stats_blocks(
     return blocks, fallback_text
 
 
-def build_birthday_update_blocks(
-    success: bool,
-    action: str,
-    date_words: str = None,
-    age_text: str = None,
-    user_id: str = None,
-) -> tuple[List[Dict[str, Any]], str]:
-    """
-    Build Block Kit structure for birthday update confirmation
-
-    Args:
-        success: Whether the operation succeeded
-        action: Type of action - "saved", "updated", "removed"
-        date_words: Formatted date string (e.g., "25 December")
-        age_text: Age text (e.g., " - 30 years old")
-        user_id: Optional Slack user ID
-
-    Returns:
-        Tuple of (blocks list, fallback_text string)
-    """
-    if success:
-        if action == "removed":
-            emoji = "✅"
-            title = "Birthday Removed"
-            message = "Your birthday has been removed from our records."
-            fallback = "✅ Your birthday has been removed from our records"
-        else:
-            emoji = "✅"
-            verb = "Updated" if action == "updated" else "Saved"
-            title = f"Birthday {verb}!"
-            message = f"Your birthday has been {action} to **{date_words}**{age_text}"
-            fallback = f"✅ Your birthday has been {action} to {date_words}{age_text}"
-    else:
-        emoji = "❌"
-        title = "Birthday Update Failed"
-        message = (
-            "Failed to update your birthday. Please try again or contact an admin."
-        )
-        fallback = "❌ Failed to update birthday"
-
-    blocks = [
-        {
-            "type": "header",
-            "text": {"type": "plain_text", "text": f"{emoji} {title}"},
-        },
-        {"type": "section", "text": {"type": "mrkdwn", "text": message}},
-    ]
-
-    return blocks, fallback
-
-
 def build_birthday_error_blocks(
     error_type: str, format_hint: str = None
 ) -> tuple[List[Dict[str, Any]], str]:
@@ -2060,66 +2009,6 @@ def build_birthday_not_found_blocks(
     ]
 
     fallback_text = f"🔍 {possessive} have a birthday saved"
-
-    return blocks, fallback_text
-
-
-def build_confirmation_result_blocks(
-    action_type: str, success: bool, stats: Optional[Dict[str, Any]] = None
-) -> tuple[List[Dict[str, Any]], str]:
-    """
-    Build Block Kit structure for confirmation action results
-
-    Args:
-        action_type: Type of action - "announce", "remind_new", "remind_update"
-        success: Whether the action succeeded
-        stats: Optional statistics dictionary with counts
-
-    Returns:
-        Tuple of (blocks list, fallback_text string)
-    """
-    if success:
-        emoji = "✅"
-        if action_type == "announce":
-            title = "Announcement Sent"
-            message = (
-                "Your announcement has been sent successfully to the birthday channel!"
-            )
-        elif action_type in ["remind_new", "remind_update"]:
-            title = "Reminders Sent"
-            if stats:
-                sent = stats.get("sent", 0)
-                failed = stats.get("failed", 0)
-                skipped = stats.get("skipped", 0)
-
-                message = f"**Reminder campaign completed:**\n\n"
-                message += f"• ✅ Sent: {sent}\n"
-                if failed > 0:
-                    message += f"• ❌ Failed: {failed}\n"
-                if skipped > 0:
-                    message += f"• ⏭️ Skipped: {skipped}\n"
-            else:
-                message = "Reminders have been sent successfully!"
-        else:
-            title = "Action Completed"
-            message = "The action has been completed successfully."
-    else:
-        emoji = "❌"
-        title = "Action Failed"
-        if action_type == "announce":
-            message = "Failed to send announcement. Check the logs for details."
-        else:
-            message = "The action failed to complete. Check the logs for details."
-
-    blocks = [
-        {
-            "type": "header",
-            "text": {"type": "plain_text", "text": f"{emoji} {title}"},
-        },
-        {"type": "section", "text": {"type": "mrkdwn", "text": message}},
-    ]
-
-    fallback_text = f"{emoji} {title}"
 
     return blocks, fallback_text
 

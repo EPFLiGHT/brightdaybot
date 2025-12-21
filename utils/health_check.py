@@ -467,8 +467,3 @@ def get_status_summary(app=None, include_live_checks=True):
             lines.append(f"❌ *OpenAI*: {openai.get('error', 'Error')}")
 
     return "\n".join(lines)
-
-
-def get_detailed_status(app=None):
-    """Get detailed status (alias for get_system_status with live checks)."""
-    return get_system_status(app=app, include_live_checks=True)

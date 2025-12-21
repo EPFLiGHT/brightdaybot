@@ -262,37 +262,6 @@ def get_user_status_and_info(app, user_id):
         return False, False, False, f"<@{user_id}>"
 
 
-def check_profile_completeness(user_profile):
-    """
-    Check if a user profile is complete for optimal birthday celebrations
-
-    Args:
-        user_profile: User profile dictionary from get_user_profile()
-
-    Returns:
-        tuple: (is_complete, missing_items) where missing_items is a list of what's missing
-    """
-    missing_items = []
-
-    if not user_profile:
-        return False, ["profile data"]
-
-    # Check for profile photo
-    if not user_profile.get("photo_512") and not user_profile.get("photo_original"):
-        missing_items.append("profile photo")
-
-    # Check for job title
-    if not user_profile.get("title"):
-        missing_items.append("job title")
-
-    # Check for timezone
-    if not user_profile.get("timezone"):
-        missing_items.append("timezone")
-
-    is_complete = len(missing_items) == 0
-    return is_complete, missing_items
-
-
 def is_admin(app, user_id):
     """
     Check if user is an admin (workspace admin or in ADMIN_USERS list)

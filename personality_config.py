@@ -712,11 +712,6 @@ def get_personality_config(personality_name):
     return PERSONALITIES.get(personality_name, PERSONALITIES["standard"])
 
 
-def get_all_personality_names():
-    """Get list of all available personality names."""
-    return list(PERSONALITIES.keys())
-
-
 def get_personality_descriptions():
     """Get dict of personality names to descriptions."""
     return {name: config["description"] for name, config in PERSONALITIES.items()}
