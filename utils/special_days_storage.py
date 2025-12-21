@@ -25,6 +25,7 @@ from config import (
     BACKUP_DIR,
     MAX_BACKUPS,
     DEFAULT_ANNOUNCEMENT_TIME,
+    DATE_FORMAT,
 )
 from utils.logging_config import get_logger
 
@@ -143,10 +144,15 @@ def save_special_day(special_day: SpecialDay, app=None, username=None) -> bool:
         if not updated:
             existing_days.append(special_day)
 
-        # Sort by date (DD/MM format)
-        existing_days.sort(
-            key=lambda d: (int(d.date.split("/")[1]), int(d.date.split("/")[0]))
-        )
+        # Sort by date using datetime parsing
+        def get_date_sort_key(d):
+            try:
+                date_obj = datetime.strptime(d.date, DATE_FORMAT)
+                return (date_obj.month, date_obj.day)
+            except ValueError:
+                return (0, 0)  # Put invalid dates first
+
+        existing_days.sort(key=get_date_sort_key)
 
         # Write back to file
         lock_file = f"{SPECIAL_DAYS_FILE}.lock"
@@ -603,12 +609,10 @@ def verify_special_days() -> Dict[str, List[str]]:
         else:
             date_counts[day.date] = day.name
 
-        # Validate date format (DD/MM)
+        # Validate date format (DD/MM) using datetime
         try:
-            day_num, month = map(int, day.date.split("/"))
-            if not (1 <= day_num <= 31 and 1 <= month <= 12):
-                raise ValueError()
-        except (ValueError, IndexError, AttributeError):
+            datetime.strptime(day.date, DATE_FORMAT)
+        except (ValueError, TypeError, AttributeError):
             results["invalid_dates"].append(f"{day.date}: {day.name}")
 
         # Count by category

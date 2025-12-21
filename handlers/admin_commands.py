@@ -92,13 +92,20 @@ def handle_stats_command(user_id, say, app):
     for i, count in enumerate(months):
         month_stats.append(f"{month_names[i]}: {count}")
 
+    # Calculate year percentage safely
+    year_pct = (
+        f"{birthdays_with_years/total_birthdays*100:.1f}% of recorded"
+        if total_birthdays > 0
+        else "N/A"
+    )
+
     # Format response
     response = f"""📊 *Birthday Statistics*
 
 • Total birthdays recorded: {total_birthdays}
 • Channel members: {total_members}
 • Coverage: {coverage_percentage:.1f}%
-• Birthdays with year: {birthdays_with_years} ({birthdays_with_years/total_birthdays*100:.1f}% if recorded)
+• Birthdays with year: {birthdays_with_years} ({year_pct})
 
 *Distribution by Month:*
 {', '.join(month_stats)}

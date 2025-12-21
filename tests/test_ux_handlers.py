@@ -224,45 +224,23 @@ class TestModalDateConversion:
         assert date_ddmm == "25/12"
 
     def test_invalid_date_feb_30(self):
-        """February 30 is invalid"""
-        month_int = 2
-        day_int = 30
-        days_in_month = {
-            1: 31,
-            2: 29,
-            3: 31,
-            4: 30,
-            5: 31,
-            6: 30,
-            7: 31,
-            8: 31,
-            9: 30,
-            10: 31,
-            11: 30,
-            12: 31,
-        }
-        is_valid = day_int <= days_in_month[month_int]
+        """February 30 is invalid - datetime.strptime raises ValueError"""
+        date_str = "30/02/2000"  # Use leap year to test, Feb 30 still invalid
+        is_valid = True
+        try:
+            datetime.strptime(date_str, "%d/%m/%Y")
+        except ValueError:
+            is_valid = False
         assert not is_valid
 
     def test_valid_date_feb_29(self):
         """February 29 is valid (leap year birthdays)"""
-        month_int = 2
-        day_int = 29
-        days_in_month = {
-            1: 31,
-            2: 29,
-            3: 31,
-            4: 30,
-            5: 31,
-            6: 30,
-            7: 31,
-            8: 31,
-            9: 30,
-            10: 31,
-            11: 30,
-            12: 31,
-        }
-        is_valid = day_int <= days_in_month[month_int]
+        date_str = "29/02/2000"  # Use leap year to validate Feb 29
+        is_valid = True
+        try:
+            datetime.strptime(date_str, "%d/%m/%Y")
+        except ValueError:
+            is_valid = False
         assert is_valid
 
     def test_year_validation_too_old(self):
@@ -372,7 +350,7 @@ class TestUpcomingBirthdaysFiltering:
         with patch("handlers.app_home.get_username", return_value="User"):
             with patch(
                 "handlers.app_home.calculate_days_until_birthday",
-                side_effect=lambda d, r: int(d.split("/")[0]),
+                side_effect=lambda d, r: datetime.strptime(d, "%d/%m").day,
             ):
                 result = _get_upcoming_birthdays(birthdays, mock_app, limit=5)
 

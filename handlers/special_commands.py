@@ -22,6 +22,7 @@ from config import (
     SPECIAL_DAYS_CATEGORIES,
     SPECIAL_DAYS_PERSONALITY,
     DEFAULT_ANNOUNCEMENT_TIME,
+    DATE_FORMAT,
 )
 from utils.slack_utils import get_username, send_message
 
@@ -242,10 +243,9 @@ def handle_admin_special_command_with_quotes(command_text, user_id, say, app):
             source = args[6] if len(args) > 6 else "Custom"
             url = args[7] if len(args) > 7 else ""
 
-            # Validate date format (DD/MM)
-            day, month = map(int, date_str.split("/"))
-            if not (1 <= day <= 31 and 1 <= month <= 12):
-                raise ValueError("Invalid date")
+            # Validate date format (DD/MM) using datetime
+            date_obj = datetime.strptime(date_str, DATE_FORMAT)
+            day, month = date_obj.day, date_obj.month
 
             # Basic URL validation if provided
             if url and not (url.startswith("http://") or url.startswith("https://")):
@@ -348,25 +348,28 @@ def handle_admin_special_command(args, user_id, say, app):
         if all_days:
             message = f"📅 *All Special Days{f' ({category_filter})' if category_filter else ''}:*\n\n"
 
-            # Group by month
-            from collections import defaultdict
-
+            # Group by month using datetime parsing
             by_month = defaultdict(list)
             for day in all_days:
-                month = int(
-                    day.date.split("/")[1]
-                )  # DD/MM format - month is second part
-                by_month[month].append(day)
+                try:
+                    date_obj = datetime.strptime(day.date, DATE_FORMAT)
+                    by_month[date_obj.month].append(day)
+                except ValueError:
+                    logger.warning(f"Skipping invalid date format: {day.date}")
+                    continue
+
+            def get_day_number(d):
+                """Safely extract day number for sorting using datetime."""
+                try:
+                    return datetime.strptime(d.date, DATE_FORMAT).day
+                except ValueError:
+                    return 0
 
             for month in sorted(by_month.keys()):
-                from calendar import month_name
-
                 message += f"*{month_name[month]}:*\n"
                 for day in sorted(
                     by_month[month],
-                    key=lambda d: int(
-                        d.date.split("/")[0]
-                    ),  # DD/MM format - sort by day within month
+                    key=get_day_number,
                 ):
                     emoji = f"{day.emoji} " if day.emoji else ""
                     status = "✅" if day.enabled else "❌"
@@ -413,10 +416,12 @@ def handle_admin_special_command(args, user_id, say, app):
             test_date = datetime.now()
         else:
             try:
-                # Parse date (DD/MM)
+                # Parse date (DD/MM) using datetime
                 date_str = args[1]
-                day, month = map(int, date_str.split("/"))
-                test_date = datetime.now().replace(day=day, month=month)
+                date_obj = datetime.strptime(date_str, DATE_FORMAT)
+                test_date = datetime.now().replace(
+                    day=date_obj.day, month=date_obj.month
+                )
             except (ValueError, IndexError):
                 say("Invalid date format. Use DD/MM")
                 return

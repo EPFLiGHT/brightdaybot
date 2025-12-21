@@ -1688,46 +1688,23 @@ def build_special_days_list_blocks(
     elif view_mode == "list":
         # Group by month for better organization
         from datetime import datetime
+        from calendar import month_name as cal_month_name
+        from config import DATE_FORMAT
 
         months_dict = {}
         for day in special_days:
-            month_num = int(day.date.split("/")[1])
-            month_name = [
-                "",
-                "January",
-                "February",
-                "March",
-                "April",
-                "May",
-                "June",
-                "July",
-                "August",
-                "September",
-                "October",
-                "November",
-                "December",
-            ][month_num]
-            if month_name not in months_dict:
-                months_dict[month_name] = []
-            months_dict[month_name].append(day)
+            try:
+                date_obj = datetime.strptime(day.date, DATE_FORMAT)
+                month_num = date_obj.month
+            except ValueError:
+                continue  # Skip invalid dates
+            m_name = cal_month_name[month_num]
+            if m_name not in months_dict:
+                months_dict[m_name] = []
+            months_dict[m_name].append(day)
 
-        # Sort months chronologically
-        month_order = [
-            "January",
-            "February",
-            "March",
-            "April",
-            "May",
-            "June",
-            "July",
-            "August",
-            "September",
-            "October",
-            "November",
-            "December",
-        ]
-
-        for month in month_order:
+        # Sort months chronologically (month_name[1] to month_name[12])
+        for month in list(cal_month_name)[1:]:  # Skip empty first element
             if month in months_dict:
                 # Month header
                 blocks.append(
@@ -1737,8 +1714,14 @@ def build_special_days_list_blocks(
                     }
                 )
 
-                # Sort days within month by date
-                months_dict[month].sort(key=lambda d: int(d.date.split("/")[0]))
+                # Sort days within month by date using datetime
+                def get_day_sort_key(d):
+                    try:
+                        return datetime.strptime(d.date, DATE_FORMAT).day
+                    except ValueError:
+                        return 0
+
+                months_dict[month].sort(key=get_day_sort_key)
 
                 # Build month entries
                 month_text = ""
@@ -2112,24 +2095,12 @@ def build_birthday_modal(user_id: str) -> Dict[str, Any]:
     Returns:
         Modal view definition
     """
-    # Month options
-    months = [
-        ("01", "January"),
-        ("02", "February"),
-        ("03", "March"),
-        ("04", "April"),
-        ("05", "May"),
-        ("06", "June"),
-        ("07", "July"),
-        ("08", "August"),
-        ("09", "September"),
-        ("10", "October"),
-        ("11", "November"),
-        ("12", "December"),
-    ]
+    # Month options using calendar module
+    from calendar import month_name
+
     month_options = [
-        {"text": {"type": "plain_text", "text": name}, "value": num}
-        for num, name in months
+        {"text": {"type": "plain_text", "text": month_name[i]}, "value": f"{i:02d}"}
+        for i in range(1, 13)
     ]
 
     # Day options (1-31)

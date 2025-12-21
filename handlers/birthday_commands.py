@@ -189,7 +189,7 @@ def handle_list_command(parts, user_id, say, app):
 
     for uid, data in birthdays.items():
         bdate = data["date"]
-        birth_year = data["year"]
+        birth_year = data.get("year")
 
         # Parse the date components using datetime for validation
         try:
@@ -408,7 +408,7 @@ def handle_check_command(parts, user_id, say, app):
     if target_user in birthdays:
         data = birthdays[target_user]
         date = data["date"]
-        year = data["year"]
+        year = data.get("year")
 
         if year:
             date_words = date_to_words(date, year)

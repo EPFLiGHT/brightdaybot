@@ -6,8 +6,9 @@ and validation.
 """
 
 from datetime import datetime
+from calendar import month_name
 
-from config import get_logger
+from config import get_logger, DATE_FORMAT
 from utils.storage import save_birthday
 from utils.date_utils import check_if_birthday_today
 from utils.slack_utils import get_username
@@ -52,51 +53,21 @@ def register_modal_handlers(app):
         )
 
         try:
-            # Validate date (check for invalid combinations like Feb 30)
-            month_int = int(month_value)
-            day_int = int(day_value)
-
-            # Days in each month (non-leap year for validation)
-            days_in_month = {
-                1: 31,
-                2: 29,
-                3: 31,
-                4: 30,
-                5: 31,
-                6: 30,
-                7: 31,
-                8: 31,
-                9: 30,
-                10: 31,
-                11: 30,
-                12: 31,
-            }
-
-            if day_int > days_in_month[month_int]:
-                month_names = [
-                    "",
-                    "January",
-                    "February",
-                    "March",
-                    "April",
-                    "May",
-                    "June",
-                    "July",
-                    "August",
-                    "September",
-                    "October",
-                    "November",
-                    "December",
-                ]
+            # Construct DD/MM format and validate using datetime
+            # Use leap year 2000 to allow Feb 29 for leap year birthdays
+            date_ddmm = f"{day_value}/{month_value}"
+            try:
+                datetime.strptime(f"{date_ddmm}/2000", "%d/%m/%Y")
+            except ValueError:
+                # Get month name for error message using calendar module
+                month_int = int(month_value)
+                day_int = int(day_value)
                 _send_modal_error(
                     client,
                     user_id,
-                    f"Invalid date: {month_names[month_int]} doesn't have {day_int} days.",
+                    f"Invalid date: {month_name[month_int]} doesn't have {day_int} days.",
                 )
                 return
-
-            # Construct DD/MM format
-            date_ddmm = f"{day_value}/{month_value}"
 
             # Validate and parse year if provided
             birth_year = None
