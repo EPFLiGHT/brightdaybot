@@ -465,19 +465,15 @@ def handle_admin_special_command(args, user_id, say, app):
                         )
 
                         if message:
-                            # Build blocks for individual observance
+                            # Build blocks for individual observance (unified function with list)
                             from utils.block_builder import build_special_day_blocks
                             from config import SPECIAL_DAYS_PERSONALITY
 
                             blocks, fallback_text = build_special_day_blocks(
-                                observance_name=special_day.name,
-                                message=message,
-                                observance_date=special_day.date,
-                                source=special_day.source,
+                                [special_day],
+                                message,
                                 personality=SPECIAL_DAYS_PERSONALITY,
                                 detailed_content=detailed_content,
-                                category=special_day.category,
-                                url=special_day.url,
                             )
 
                             # Send individual announcement to admin DM
@@ -520,39 +516,20 @@ def handle_admin_special_command(args, user_id, say, app):
 
                 if message:
                     # Build Block Kit blocks exactly like formal announcements
+                    # Unified function handles both single and multiple special days
                     try:
-                        from utils.block_builder import (
-                            build_special_day_blocks,
-                            build_consolidated_special_days_blocks,
-                        )
+                        from utils.block_builder import build_special_day_blocks
                         from config import SPECIAL_DAYS_PERSONALITY
 
-                        # Handle single or multiple special days (same logic as formal code)
-                        if len(special_days) == 1:
-                            special_day = special_days[0]
-                            blocks, fallback_text = build_special_day_blocks(
-                                observance_name=special_day.name,
-                                message=message,
-                                observance_date=special_day.date,
-                                source=special_day.source,
-                                personality=SPECIAL_DAYS_PERSONALITY,
-                                detailed_content=detailed_content,  # NEW: Use detailed content instead of description
-                                category=special_day.category,
-                                url=special_day.url,
-                            )
-                        else:
-                            # For multiple special days, use consolidated block structure
-                            blocks, fallback_text = (
-                                build_consolidated_special_days_blocks(
-                                    special_days=special_days,
-                                    message=message,
-                                    personality=SPECIAL_DAYS_PERSONALITY,
-                                    detailed_content=detailed_content,
-                                )
-                            )
+                        blocks, fallback_text = build_special_day_blocks(
+                            special_days,
+                            message,
+                            personality=SPECIAL_DAYS_PERSONALITY,
+                            detailed_content=detailed_content,
+                        )
 
                         logger.info(
-                            f"ADMIN_SPECIAL_TEST: Built Block Kit structure with {len(blocks)} blocks"
+                            f"ADMIN_SPECIAL_TEST: Built Block Kit structure for {len(special_days)} observance(s) with {len(blocks)} blocks"
                         )
 
                         # Send with Block Kit blocks to admin DM

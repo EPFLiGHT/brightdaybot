@@ -246,7 +246,6 @@ def handle_test_block_command(user_id, args, say, app):
     """
     from utils.block_builder import (
         build_birthday_blocks,
-        build_consolidated_birthday_blocks,
         build_special_day_blocks,
         build_bot_celebration_blocks,
     )
@@ -285,15 +284,19 @@ def handle_test_block_command(user_id, args, say, app):
             target_username = get_username(app, target_user_id)
             user_profile = get_user_profile(app, target_user_id)
 
-            # Build test birthday block
+            # Build test birthday block (unified function with list format)
             test_message = f"🎉 Happy birthday {target_username}! This is a test Block Kit message to demonstrate the visual layout without AI generation. The actual message would be personalized and creative!"
 
             blocks, fallback_text = build_birthday_blocks(
-                username=target_username,
-                user_id=target_user_id,
-                age=28,  # Dummy age
-                star_sign="♒ Aquarius",
-                message=test_message,
+                [
+                    {
+                        "username": target_username,
+                        "user_id": target_user_id,
+                        "age": 28,  # Dummy age
+                        "star_sign": "♒ Aquarius",
+                    }
+                ],
+                test_message,
                 historical_fact="On this day in 1955, Steve Jobs was born, co-founder of Apple Inc.",
                 personality=personality,
             )
@@ -334,13 +337,13 @@ def handle_test_block_command(user_id, args, say, app):
                     }
                 )
 
-            # Build test consolidated block
+            # Build test consolidated block (unified function handles multiple)
             mentions = ", ".join([f"<@{p['user_id']}>" for p in birthday_people])
             test_message = f"🎉 Let's celebrate {mentions}! This is a test Block Kit message showing how multiple birthdays appear with proper structure and dividers."
 
-            blocks, fallback_text = build_consolidated_birthday_blocks(
-                birthday_people=birthday_people,
-                message=test_message,
+            blocks, fallback_text = build_birthday_blocks(
+                birthday_people,
+                test_message,
                 historical_fact="On this day in history, multiple amazing people were born, proving that great minds think alike!",
                 personality=personality,
             )
@@ -358,18 +361,23 @@ def handle_test_block_command(user_id, args, say, app):
             )
 
         elif block_type == "special":
-            # Test special day block with interactive buttons
+            # Test special day block with interactive buttons (unified function with list format)
             test_message = "🌍 Today we celebrate World Block Kit Day! This special observance demonstrates the power of structured, interactive messaging in modern workplace communication."
 
             blocks, fallback_text = build_special_day_blocks(
-                observance_name="World Block Kit Day",
-                message=test_message,
-                observance_date="21/01",
-                source="Slack Technologies",
+                [
+                    {
+                        "name": "World Block Kit Day",
+                        "date": "21/01",
+                        "source": "Slack Technologies",
+                        "category": "Technology",
+                        "url": "https://api.slack.com/block-kit",
+                        "emoji": "🌍",
+                    }
+                ],
+                test_message,
                 personality="chronicler",
-                description="World Block Kit Day celebrates the revolutionary UI framework that enables developers to create rich, interactive messages in Slack. Introduced in 2019, Block Kit transformed how apps communicate, making messages more visual, structured, and engaging. This test demonstrates interactive buttons, structured layouts, and proper information hierarchy.",
-                category="Technology",
-                url="https://api.slack.com/block-kit",
+                detailed_content="World Block Kit Day celebrates the revolutionary UI framework that enables developers to create rich, interactive messages in Slack. Introduced in 2019, Block Kit transformed how apps communicate, making messages more visual, structured, and engaging. This test demonstrates interactive buttons, structured layouts, and proper information hierarchy.",
             )
 
             send_message(app, user_id, fallback_text, blocks=blocks)

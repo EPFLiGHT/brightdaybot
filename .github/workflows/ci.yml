@@ -44,6 +44,8 @@ jobs:
           python -c "import handlers.event_handler"
           python -c "import handlers.admin_commands"
           python -c "import handlers.birthday_commands"
+          python -c "import handlers.test_commands"
+          python -c "import handlers.special_commands"
           echo "Testing services..."
           python -c "import services.birthday"
           python -c "import services.scheduler"
@@ -52,6 +54,7 @@ jobs:
           python -c "import utils.date_utils"
           python -c "import utils.block_builder"
           python -c "import utils.storage"
+          python -c "import utils.message_generator"
           echo "All imports successful!"
 
       - name: Run unit tests

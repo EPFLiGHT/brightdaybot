@@ -402,19 +402,15 @@ def check_and_announce_special_days(app, moment):
                         [special_day], app=app
                     )
 
-                    # Build blocks for this individual observance
+                    # Build blocks for this individual observance (unified function with list)
                     from utils.block_builder import build_special_day_blocks
                     from config import SPECIAL_DAYS_PERSONALITY
 
                     blocks, fallback_text = build_special_day_blocks(
-                        observance_name=special_day.name,
-                        message=message,
-                        observance_date=special_day.date,
-                        source=special_day.source,
+                        [special_day],
+                        message,
                         personality=SPECIAL_DAYS_PERSONALITY,
                         detailed_content=detailed_content,
-                        category=special_day.category,
-                        url=special_day.url,
                     )
 
                     # Send this individual announcement
@@ -472,38 +468,20 @@ def check_and_announce_special_days(app, moment):
                 )
 
             # Build Block Kit blocks for special day announcement
+            # Unified function handles both single and multiple special days
             try:
-                from utils.block_builder import (
-                    build_special_day_blocks,
-                    build_consolidated_special_days_blocks,
-                )
+                from utils.block_builder import build_special_day_blocks
                 from config import SPECIAL_DAYS_PERSONALITY
 
-                # Handle single or multiple special days
-                if len(special_days) == 1:
-                    special_day = special_days[0]
-                    blocks, fallback_text = build_special_day_blocks(
-                        observance_name=special_day.name,
-                        message=message,
-                        observance_date=special_day.date,
-                        source=special_day.source,
-                        personality=SPECIAL_DAYS_PERSONALITY,
-                        detailed_content=detailed_content,  # NEW: Use detailed content instead of description
-                        category=special_day.category,
-                        url=special_day.url,
-                    )
-                else:
-                    # For multiple special days, use consolidated block structure
-                    # Shows all observances with their categories in structured fields
-                    blocks, fallback_text = build_consolidated_special_days_blocks(
-                        special_days=special_days,
-                        message=message,
-                        personality=SPECIAL_DAYS_PERSONALITY,
-                        detailed_content=detailed_content,
-                    )
+                blocks, fallback_text = build_special_day_blocks(
+                    special_days,
+                    message,
+                    personality=SPECIAL_DAYS_PERSONALITY,
+                    detailed_content=detailed_content,
+                )
 
                 logger.info(
-                    f"SPECIAL_DAYS: Built Block Kit structure with {len(blocks)} blocks"
+                    f"SPECIAL_DAYS: Built Block Kit structure for {len(special_days)} observance(s) with {len(blocks)} blocks"
                 )
             except Exception as block_error:
                 logger.warning(

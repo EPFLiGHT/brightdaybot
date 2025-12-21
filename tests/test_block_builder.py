@@ -14,6 +14,7 @@ from utils.block_builder import (
     build_birthday_check_blocks,
     build_birthday_not_found_blocks,
     build_unrecognized_input_blocks,
+    build_special_day_blocks,
 )
 
 
@@ -180,3 +181,64 @@ class TestBuildUnrecognizedInputBlocks:
         blocks, _ = build_unrecognized_input_blocks()
         field_blocks = [b for b in blocks if "fields" in b]
         assert len(field_blocks) >= 1
+
+
+class TestBuildSpecialDayBlocks:
+    """Tests for build_special_day_blocks() structure"""
+
+    def test_returns_tuple(self):
+        """Function returns (blocks, fallback_text) tuple"""
+        result = build_special_day_blocks(
+            [{"name": "World Health Day", "date": "07/04", "source": "WHO"}],
+            "Today we celebrate health!",
+        )
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+
+    def test_blocks_is_list(self):
+        """First element is a list of blocks"""
+        blocks, _ = build_special_day_blocks(
+            [{"name": "World Health Day", "date": "07/04", "source": "WHO"}],
+            "Today we celebrate health!",
+        )
+        assert isinstance(blocks, list)
+        assert len(blocks) > 0
+
+    def test_has_header_block(self):
+        """Blocks include a header type"""
+        blocks, _ = build_special_day_blocks(
+            [{"name": "World Health Day", "date": "07/04", "source": "WHO"}],
+            "Today we celebrate health!",
+        )
+        header_blocks = [b for b in blocks if b.get("type") == "header"]
+        assert len(header_blocks) == 1
+
+    def test_single_day_header(self):
+        """Single special day gets observance name in header"""
+        blocks, _ = build_special_day_blocks(
+            [{"name": "World Health Day", "date": "07/04", "source": "WHO"}],
+            "Today we celebrate health!",
+        )
+        header = blocks[0]
+        assert "World Health Day" in header["text"]["text"]
+
+    def test_multiple_days_header(self):
+        """Multiple special days get count in header"""
+        blocks, _ = build_special_day_blocks(
+            [
+                {"name": "World Health Day", "date": "07/04", "source": "WHO"},
+                {"name": "World Book Day", "date": "07/04", "source": "UNESCO"},
+            ],
+            "Today we celebrate!",
+        )
+        header = blocks[0]
+        assert "2 Special Days" in header["text"]["text"]
+
+    def test_fallback_text_not_empty(self):
+        """Fallback text is non-empty string"""
+        _, fallback = build_special_day_blocks(
+            [{"name": "World Health Day", "date": "07/04", "source": "WHO"}],
+            "Today we celebrate health!",
+        )
+        assert isinstance(fallback, str)
+        assert len(fallback) > 0
