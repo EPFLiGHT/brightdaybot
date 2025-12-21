@@ -417,7 +417,7 @@ def handle_admin_special_command(args, user_id, say, app):
                 date_str = args[1]
                 day, month = map(int, date_str.split("/"))
                 test_date = datetime.now().replace(day=day, month=month)
-            except:
+            except (ValueError, IndexError):
                 say("Invalid date format. Use DD/MM")
                 return
 

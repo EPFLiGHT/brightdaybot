@@ -107,7 +107,7 @@ def celebrate_bot_birthday(app, moment):
             from utils.special_days_storage import load_special_days
 
             special_days_count = len(load_special_days())
-        except:
+        except Exception:
             special_days_count = 0
 
         # Generate Ludo's mystical celebration message
