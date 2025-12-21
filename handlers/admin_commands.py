@@ -556,7 +556,7 @@ def handle_timezone_command(args, user_id, say, app, username):
 
 def handle_backup_command(_args, user_id, say, app, username):
     """Handle backup commands"""
-    backup_path = create_backup("manual", username, app)
+    backup_path = create_backup()
     if backup_path:
         say("Manual backup of birthdays file created successfully.")
         if EXTERNAL_BACKUP_ENABLED:
