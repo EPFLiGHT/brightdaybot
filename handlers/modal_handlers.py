@@ -33,8 +33,13 @@ def register_modal_handlers(app):
         # Extract values from modal
         values = view["state"]["values"]
 
-        # Get date from date_picker (format: YYYY-MM-DD)
-        date_value = values["birthday_date_block"]["birthday_date"]["selected_date"]
+        # Get month and day from dropdowns
+        month_value = values["birthday_month_block"]["birthday_month"][
+            "selected_option"
+        ]["value"]
+        day_value = values["birthday_day_block"]["birthday_day"]["selected_option"][
+            "value"
+        ]
 
         # Get optional year from text input
         year_block = values.get("birth_year_block", {})
@@ -43,13 +48,55 @@ def register_modal_handlers(app):
 
         logger.info(
             f"MODAL: Received birthday submission from {username}: "
-            f"date={date_value}, year={year_value}"
+            f"month={month_value}, day={day_value}, year={year_value}"
         )
 
         try:
-            # Convert YYYY-MM-DD to DD/MM format
-            date_obj = datetime.strptime(date_value, "%Y-%m-%d")
-            date_ddmm = date_obj.strftime("%d/%m")
+            # Validate date (check for invalid combinations like Feb 30)
+            month_int = int(month_value)
+            day_int = int(day_value)
+
+            # Days in each month (non-leap year for validation)
+            days_in_month = {
+                1: 31,
+                2: 29,
+                3: 31,
+                4: 30,
+                5: 31,
+                6: 30,
+                7: 31,
+                8: 31,
+                9: 30,
+                10: 31,
+                11: 30,
+                12: 31,
+            }
+
+            if day_int > days_in_month[month_int]:
+                month_names = [
+                    "",
+                    "January",
+                    "February",
+                    "March",
+                    "April",
+                    "May",
+                    "June",
+                    "July",
+                    "August",
+                    "September",
+                    "October",
+                    "November",
+                    "December",
+                ]
+                _send_modal_error(
+                    client,
+                    user_id,
+                    f"Invalid date: {month_names[month_int]} doesn't have {day_int} days.",
+                )
+                return
+
+            # Construct DD/MM format
+            date_ddmm = f"{day_value}/{month_value}"
 
             # Validate and parse year if provided
             birth_year = None

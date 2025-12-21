@@ -214,14 +214,56 @@ class TestSlashCommandParsing:
 
 
 class TestModalDateConversion:
-    """Tests for modal date picker value handling"""
+    """Tests for modal dropdown value handling"""
 
-    def test_datepicker_to_ddmm_conversion(self):
-        """Slack datepicker YYYY-MM-DD converts to DD/MM"""
-        date_value = "2024-12-25"
-        date_obj = datetime.strptime(date_value, "%Y-%m-%d")
-        date_ddmm = date_obj.strftime("%d/%m")
+    def test_dropdown_to_ddmm_conversion(self):
+        """Month and day dropdowns convert to DD/MM format"""
+        month_value = "12"
+        day_value = "25"
+        date_ddmm = f"{day_value}/{month_value}"
         assert date_ddmm == "25/12"
+
+    def test_invalid_date_feb_30(self):
+        """February 30 is invalid"""
+        month_int = 2
+        day_int = 30
+        days_in_month = {
+            1: 31,
+            2: 29,
+            3: 31,
+            4: 30,
+            5: 31,
+            6: 30,
+            7: 31,
+            8: 31,
+            9: 30,
+            10: 31,
+            11: 30,
+            12: 31,
+        }
+        is_valid = day_int <= days_in_month[month_int]
+        assert not is_valid
+
+    def test_valid_date_feb_29(self):
+        """February 29 is valid (leap year birthdays)"""
+        month_int = 2
+        day_int = 29
+        days_in_month = {
+            1: 31,
+            2: 29,
+            3: 31,
+            4: 30,
+            5: 31,
+            6: 30,
+            7: 31,
+            8: 31,
+            9: 30,
+            10: 31,
+            11: 30,
+            12: 31,
+        }
+        is_valid = day_int <= days_in_month[month_int]
+        assert is_valid
 
     def test_year_validation_too_old(self):
         """Year before 1900 is rejected"""

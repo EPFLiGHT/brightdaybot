@@ -153,23 +153,27 @@ def _build_home_view(user_id, app):
     )
 
     if upcoming:
+        # Build bulleted list of upcoming birthdays
+        birthday_lines = []
         for bday in upcoming:
             if bday["days_until"] == 0:
-                days_text = "Today!"
+                days_text = "Today! 🎂"
             elif bday["days_until"] == 1:
                 days_text = "Tomorrow"
             else:
                 days_text = f"in {bday['days_until']} days"
 
-            blocks.append(
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": f"<@{bday['user_id']}> - {days_text}",
-                    },
-                }
-            )
+            birthday_lines.append(f"• <@{bday['user_id']}> - {days_text}")
+
+        blocks.append(
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "\n".join(birthday_lines),
+                },
+            }
+        )
     else:
         blocks.append(
             {

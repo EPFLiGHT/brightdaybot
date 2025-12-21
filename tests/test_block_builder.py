@@ -271,15 +271,30 @@ class TestBuildBirthdayModal:
         assert isinstance(modal["blocks"], list)
         assert len(modal["blocks"]) >= 2
 
-    def test_has_datepicker_input(self):
-        """Modal includes datepicker input block"""
+    def test_has_month_dropdown(self):
+        """Modal includes month dropdown"""
         modal = build_birthday_modal("U123")
         input_blocks = [b for b in modal["blocks"] if b.get("type") == "input"]
-        assert len(input_blocks) >= 1
-        datepicker_block = input_blocks[0]
-        assert datepicker_block["element"]["type"] == "datepicker"
-        assert datepicker_block["block_id"] == "birthday_date_block"
-        assert datepicker_block["element"]["action_id"] == "birthday_date"
+        month_block = next(
+            (b for b in input_blocks if b.get("block_id") == "birthday_month_block"),
+            None,
+        )
+        assert month_block is not None
+        assert month_block["element"]["type"] == "static_select"
+        assert month_block["element"]["action_id"] == "birthday_month"
+        assert len(month_block["element"]["options"]) == 12
+
+    def test_has_day_dropdown(self):
+        """Modal includes day dropdown"""
+        modal = build_birthday_modal("U123")
+        input_blocks = [b for b in modal["blocks"] if b.get("type") == "input"]
+        day_block = next(
+            (b for b in input_blocks if b.get("block_id") == "birthday_day_block"), None
+        )
+        assert day_block is not None
+        assert day_block["element"]["type"] == "static_select"
+        assert day_block["element"]["action_id"] == "birthday_day"
+        assert len(day_block["element"]["options"]) == 31
 
     def test_has_optional_year_input(self):
         """Modal includes optional year text input"""

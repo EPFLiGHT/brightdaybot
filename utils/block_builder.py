@@ -2104,7 +2104,7 @@ def build_unrecognized_input_blocks() -> tuple[List[Dict[str, Any]], str]:
 
 def build_birthday_modal(user_id: str) -> Dict[str, Any]:
     """
-    Build the birthday input modal with date picker.
+    Build the birthday input modal with month/day dropdowns.
 
     Args:
         user_id: User ID for the modal
@@ -2112,6 +2112,32 @@ def build_birthday_modal(user_id: str) -> Dict[str, Any]:
     Returns:
         Modal view definition
     """
+    # Month options
+    months = [
+        ("01", "January"),
+        ("02", "February"),
+        ("03", "March"),
+        ("04", "April"),
+        ("05", "May"),
+        ("06", "June"),
+        ("07", "July"),
+        ("08", "August"),
+        ("09", "September"),
+        ("10", "October"),
+        ("11", "November"),
+        ("12", "December"),
+    ]
+    month_options = [
+        {"text": {"type": "plain_text", "text": name}, "value": num}
+        for num, name in months
+    ]
+
+    # Day options (1-31)
+    day_options = [
+        {"text": {"type": "plain_text", "text": str(d)}, "value": f"{d:02d}"}
+        for d in range(1, 32)
+    ]
+
     return {
         "type": "modal",
         "callback_id": "birthday_modal",
@@ -2128,16 +2154,25 @@ def build_birthday_modal(user_id: str) -> Dict[str, Any]:
             },
             {
                 "type": "input",
-                "block_id": "birthday_date_block",
+                "block_id": "birthday_month_block",
                 "element": {
-                    "type": "datepicker",
-                    "action_id": "birthday_date",
-                    "placeholder": {
-                        "type": "plain_text",
-                        "text": "Select your birthday",
-                    },
+                    "type": "static_select",
+                    "action_id": "birthday_month",
+                    "placeholder": {"type": "plain_text", "text": "Select month"},
+                    "options": month_options,
                 },
-                "label": {"type": "plain_text", "text": "Birthday Date"},
+                "label": {"type": "plain_text", "text": "Birthday Month"},
+            },
+            {
+                "type": "input",
+                "block_id": "birthday_day_block",
+                "element": {
+                    "type": "static_select",
+                    "action_id": "birthday_day",
+                    "placeholder": {"type": "plain_text", "text": "Select day"},
+                    "options": day_options,
+                },
+                "label": {"type": "plain_text", "text": "Birthday Day"},
             },
             {
                 "type": "input",
