@@ -39,6 +39,7 @@ class TestOpenAIConnection:
             temperature=0,
         )
 
+        print(f"\n[API Response]: {response}")
         assert response is not None
         assert len(response) > 0
 
@@ -60,6 +61,7 @@ class TestMessageGeneration:
             temperature=0.7,
         )
 
+        print(f"\n[Birthday Message]: {response}")
         assert response is not None
         assert len(response) > 10
         # Should mention the name or birthday

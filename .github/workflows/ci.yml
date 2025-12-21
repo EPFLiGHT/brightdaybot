@@ -93,4 +93,4 @@ jobs:
             echo "::warning::OPENAI_API_KEY secret not set - skipping integration tests"
             exit 0
           fi
-          pytest tests/test_integration.py -v --tb=short
+          pytest tests/test_integration.py -v -s --tb=short
