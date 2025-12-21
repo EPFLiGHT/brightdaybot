@@ -35,7 +35,7 @@ class TestOpenAIConnection:
         response = complete(
             instructions="Reply with exactly one word: OK",
             input_text="Test",
-            max_tokens=10,
+            max_tokens=16,  # Responses API minimum is 16
             temperature=0,
         )
 
