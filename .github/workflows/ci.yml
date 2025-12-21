@@ -54,14 +54,43 @@ jobs:
           python -c "import utils.storage"
           echo "All imports successful!"
 
-      - name: Run tests
-        run: pytest tests/ -v --tb=short
+      - name: Run unit tests
+        env:
+          OPENAI_API_KEY: "sk-dummy-key-for-ci"
+        run: pytest tests/ -v --tb=short --ignore=tests/test_integration.py
 
       - name: Test summary
         if: always()
         run: |
-          echo "Test files:"
-          ls -la tests/
-          echo ""
-          echo "Test count:"
-          python -m pytest tests/ --collect-only -q 2>/dev/null | tail -1
+          echo "Unit test count:"
+          python -m pytest tests/ --ignore=tests/test_integration.py --collect-only -q 2>/dev/null | tail -1
+
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Run integration tests
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+        run: |
+          if [ -z "$OPENAI_API_KEY" ] || [ "$OPENAI_API_KEY" = "" ]; then
+            echo "::warning::OPENAI_API_KEY secret not set - skipping integration tests"
+            exit 0
+          fi
+          pytest tests/test_integration.py -v --tb=short
