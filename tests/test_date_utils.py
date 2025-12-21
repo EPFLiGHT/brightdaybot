@@ -18,6 +18,10 @@ from utils.date_utils import (
     get_star_sign,
     check_if_birthday_today,
     calculate_days_until_birthday,
+    calculate_age,
+    format_date_european,
+    format_date_european_short,
+    _is_date_in_zodiac_range,
 )
 
 
@@ -174,3 +178,94 @@ class TestCalculateDaysUntilBirthday:
         """Invalid date returns None"""
         days = calculate_days_until_birthday("invalid", reference_date)
         assert days is None
+
+
+class TestCalculateAge:
+    """Tests for calculate_age() function"""
+
+    def test_age_calculation(self):
+        """Basic age calculation"""
+        current_year = datetime.now().year
+        assert calculate_age(1990) == current_year - 1990
+
+    def test_birth_this_year(self):
+        """Birth year = current year = 0"""
+        current_year = datetime.now().year
+        assert calculate_age(current_year) == 0
+
+    def test_old_age(self):
+        """Handles old birth years"""
+        current_year = datetime.now().year
+        assert calculate_age(1900) == current_year - 1900
+
+
+class TestFormatDateEuropean:
+    """Tests for format_date_european() function"""
+
+    def test_basic_format(self):
+        """Standard date formatting"""
+        date_obj = datetime(2025, 4, 15)
+        assert format_date_european(date_obj) == "15 April 2025"
+
+    def test_single_digit_day(self):
+        """Single digit day (no leading zero)"""
+        date_obj = datetime(2025, 1, 5)
+        assert format_date_european(date_obj) == "5 January 2025"
+
+    def test_december(self):
+        """December formatting"""
+        date_obj = datetime(2024, 12, 25)
+        assert format_date_european(date_obj) == "25 December 2024"
+
+
+class TestFormatDateEuropeanShort:
+    """Tests for format_date_european_short() function"""
+
+    def test_basic_format(self):
+        """Standard date formatting without year"""
+        date_obj = datetime(2025, 4, 15)
+        assert format_date_european_short(date_obj) == "15 April"
+
+    def test_single_digit_day(self):
+        """Single digit day"""
+        date_obj = datetime(2025, 1, 5)
+        assert format_date_european_short(date_obj) == "5 January"
+
+
+class TestIsDateInZodiacRange:
+    """Tests for _is_date_in_zodiac_range() boundary logic"""
+
+    def test_normal_range_inside(self):
+        """Date inside a normal range (Aries: Mar 21 - Apr 19)"""
+        # April 1 is inside Aries range
+        assert _is_date_in_zodiac_range(4, 1, 3, 21, 4, 19) is True
+
+    def test_normal_range_start_boundary(self):
+        """Date on start boundary"""
+        # March 21 is start of Aries
+        assert _is_date_in_zodiac_range(3, 21, 3, 21, 4, 19) is True
+
+    def test_normal_range_end_boundary(self):
+        """Date on end boundary"""
+        # April 19 is end of Aries
+        assert _is_date_in_zodiac_range(4, 19, 3, 21, 4, 19) is True
+
+    def test_normal_range_outside(self):
+        """Date outside a normal range"""
+        # April 20 is outside Aries (Taurus starts)
+        assert _is_date_in_zodiac_range(4, 20, 3, 21, 4, 19) is False
+
+    def test_year_boundary_december(self):
+        """Capricorn December portion (Dec 22 - Jan 19)"""
+        # December 25 is inside Capricorn
+        assert _is_date_in_zodiac_range(12, 25, 12, 22, 1, 19) is True
+
+    def test_year_boundary_january(self):
+        """Capricorn January portion"""
+        # January 10 is inside Capricorn
+        assert _is_date_in_zodiac_range(1, 10, 12, 22, 1, 19) is True
+
+    def test_year_boundary_outside(self):
+        """Date outside year-boundary range"""
+        # January 20 is Aquarius, not Capricorn
+        assert _is_date_in_zodiac_range(1, 20, 12, 22, 1, 19) is False

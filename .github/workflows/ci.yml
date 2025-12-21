@@ -7,7 +7,24 @@ on:
     branches: [main]
 
 jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Run ruff check
+        run: ruff check --select=E,F,W --ignore=E501,W503 .
+
   test:
+    name: Test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -23,7 +40,11 @@ jobs:
           pip install pytest
 
       - name: Syntax check
-        run: python -m py_compile app.py config.py personality_config.py
+        run: |
+          python -m py_compile app.py config.py personality_config.py
+          python -m py_compile handlers/*.py
+          python -m py_compile services/*.py
+          python -m py_compile utils/*.py
 
       - name: Import check
         env:
@@ -31,10 +52,32 @@ jobs:
           SLACK_BOT_TOKEN: "xoxb-dummy-token-for-ci"
           SLACK_APP_TOKEN: "xapp-dummy-token-for-ci"
         run: |
+          echo "Testing core imports..."
           python -c "from config import *"
           python -c "from personality_config import *"
+          echo "Testing handlers..."
           python -c "import handlers.command_handler"
+          python -c "import handlers.event_handler"
+          python -c "import handlers.admin_commands"
+          python -c "import handlers.birthday_commands"
+          echo "Testing services..."
           python -c "import services.birthday"
+          python -c "import services.scheduler"
+          python -c "import services.celebration"
+          echo "Testing utils..."
+          python -c "import utils.date_utils"
+          python -c "import utils.block_builder"
+          python -c "import utils.storage"
+          echo "All imports successful!"
 
       - name: Run tests
         run: pytest tests/ -v --tb=short
+
+      - name: Test summary
+        if: always()
+        run: |
+          echo "Test files:"
+          ls -la tests/
+          echo ""
+          echo "Test count:"
+          python -m pytest tests/ --collect-only -q 2>/dev/null | tail -1
