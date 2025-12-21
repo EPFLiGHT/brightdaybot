@@ -21,7 +21,7 @@ jobs:
         run: pip install ruff
 
       - name: Run ruff check
-        run: ruff check --select=E,F,W --ignore=E501,W503 .
+        run: ruff check --select=E,F,W --ignore=E501 .
 
   test:
     name: Test
