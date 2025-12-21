@@ -4,8 +4,7 @@ BrightDayBot Configuration - Core Settings and Constants
 Centralized configuration including environment variables, file paths, feature flags,
 and application constants. Functions moved to separate utility modules.
 
-Key modules: utils/app_config.py, utils/logging_config.py, utils/template_utils.py
-Provides backward compatibility imports for refactored functions.
+Key modules: utils/app_config.py, utils/logging_config.py
 """
 
 import os
