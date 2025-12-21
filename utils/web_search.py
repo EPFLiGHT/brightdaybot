@@ -17,6 +17,7 @@ from config import (
     DATE_FORMAT,
     TOKEN_LIMITS,
     TEMPERATURE_SETTINGS,
+    DEFAULT_OPENAI_MODEL,
 )
 import argparse
 import sys
@@ -24,8 +25,16 @@ from utils.openai_api import complete, get_openai_client, log_web_search_usage
 
 logger = get_logger("web_search")
 
-# Initialize OpenAI client for web search (uses special tools)
-client = get_openai_client()
+# Lazy-initialized OpenAI client (created on first use, not at import time)
+_client = None
+
+
+def _get_client():
+    """Get OpenAI client, initializing lazily on first use."""
+    global _client
+    if _client is None:
+        _client = get_openai_client()
+    return _client
 
 
 def process_facts_for_personality(facts_text, formatted_date, personality):
@@ -174,8 +183,8 @@ def get_birthday_facts(date_str, personality="mystic_dog"):
         )
 
         # Using the new responses.create method with web_search_preview tool
-        response = client.responses.create(
-            model="gpt-4.1",
+        response = _get_client().responses.create(
+            model=DEFAULT_OPENAI_MODEL,
             tools=[{"type": "web_search_preview"}],
             input=search_query,
         )

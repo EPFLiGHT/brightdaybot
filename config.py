@@ -200,8 +200,9 @@ SUPPORTED_OPENAI_MODELS = [
     "gpt-4-turbo",
 ]
 
-# Default OpenAI model
+# Default OpenAI models
 DEFAULT_OPENAI_MODEL = "gpt-4.1"
+DEFAULT_IMAGE_MODEL = "gpt-image-1.5"
 
 # ----- OPENAI API PARAMETERS -----
 

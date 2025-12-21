@@ -13,7 +13,7 @@ import requests
 import glob
 import random
 from datetime import datetime, timedelta
-from config import get_logger, CACHE_DIR, IMAGE_GENERATION_PARAMS
+from config import get_logger, CACHE_DIR, IMAGE_GENERATION_PARAMS, DEFAULT_IMAGE_MODEL
 from utils.openai_api import log_image_generation_usage, get_openai_client
 import base64
 from PIL import Image
@@ -21,8 +21,16 @@ import io
 
 logger = get_logger("image_generator")
 
-# Initialize OpenAI client
-client = get_openai_client()
+# Lazy-initialized OpenAI client (created on first use, not at import time)
+_client = None
+
+
+def _get_client():
+    """Get OpenAI client, initializing lazily on first use."""
+    global _client
+    if _client is None:
+        _client = get_openai_client()
+    return _client
 
 
 def generate_birthday_image(
@@ -127,8 +135,8 @@ def generate_birthday_image(
             for attempt in range(max_attempts):
                 try:
                     with open(profile_photo_path, "rb") as image_file:
-                        response = client.images.edit(
-                            model="gpt-image-1.5",
+                        response = _get_client().images.edit(
+                            model=DEFAULT_IMAGE_MODEL,
                             image=image_file,
                             prompt=prompt,
                             size=final_image_size,
@@ -144,7 +152,7 @@ def generate_birthday_image(
                         image_count=1,
                         quality=image_quality,
                         image_size=final_image_size,
-                        model="gpt-image-1.5",
+                        model=DEFAULT_IMAGE_MODEL,
                     )
 
                     logger.info(
@@ -199,7 +207,7 @@ def generate_birthday_image(
         if not use_reference_mode:
             # Standard text-only generation
             generation_params = {
-                "model": "gpt-image-1.5",
+                "model": DEFAULT_IMAGE_MODEL,
                 "prompt": prompt,
                 "size": final_image_size,
                 "quality": image_quality,
@@ -210,7 +218,7 @@ def generate_birthday_image(
                 generation_params["response_format"] = "b64_json"
                 generation_params["background"] = "transparent"
 
-            response = client.images.generate(**generation_params)
+            response = _get_client().images.generate(**generation_params)
 
             # Log usage for monitoring
             log_image_generation_usage(
@@ -220,7 +228,7 @@ def generate_birthday_image(
                 image_count=1,
                 quality=image_quality,
                 image_size=final_image_size,
-                model="gpt-image-1.5",
+                model=DEFAULT_IMAGE_MODEL,
             )
 
         # Handle both base64 and URL responses
@@ -244,7 +252,7 @@ def generate_birthday_image(
             "personality": personality,
             "generated_for": name,
             "generated_at": datetime.now().isoformat(),
-            "model": "gpt-image-1.5",
+            "model": DEFAULT_IMAGE_MODEL,
             "has_transparency": enable_transparency,
             "format": "png",  # PNG format for transparency support
             "generation_mode": "reference_photo" if use_reference_mode else "text_only",

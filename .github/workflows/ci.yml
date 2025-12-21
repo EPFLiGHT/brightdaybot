@@ -26,6 +26,10 @@ jobs:
         run: python -m py_compile app.py config.py personality_config.py
 
       - name: Import check
+        env:
+          OPENAI_API_KEY: "sk-dummy-key-for-ci-import-check"
+          SLACK_BOT_TOKEN: "xoxb-dummy-token-for-ci"
+          SLACK_APP_TOKEN: "xapp-dummy-token-for-ci"
         run: |
           python -c "from config import *"
           python -c "from personality_config import *"

@@ -259,7 +259,7 @@ def get_configured_openai_model():
             return configured_model
         else:
             # Fallback to environment variable
-            env_model = os.getenv("OPENAI_MODEL", "gpt-4.1")
+            env_model = os.getenv("OPENAI_MODEL", DEFAULT_OPENAI_MODEL)
             logger.warning(
                 f"CONFIG: Using fallback OpenAI model from environment: {env_model}"
             )
@@ -267,18 +267,17 @@ def get_configured_openai_model():
 
     except ImportError:
         # Fallback for backward compatibility during startup
-        env_model = os.getenv("OPENAI_MODEL", "gpt-4.1")
+        env_model = os.getenv("OPENAI_MODEL", DEFAULT_OPENAI_MODEL)
         logger.warning(
             f"CONFIG: Using fallback OpenAI model due to import error: {env_model}"
         )
         return env_model
     except Exception as e:
         # Ultimate fallback
-        fallback_model = "gpt-4.1"
         logger.error(
-            f"CONFIG_ERROR: Failed to get configured OpenAI model: {e}. Using fallback: {fallback_model}"
+            f"CONFIG_ERROR: Failed to get configured OpenAI model: {e}. Using fallback: {DEFAULT_OPENAI_MODEL}"
         )
-        return fallback_model
+        return DEFAULT_OPENAI_MODEL
 
 
 # =============================================================================
