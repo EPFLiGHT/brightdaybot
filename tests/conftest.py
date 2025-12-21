@@ -4,6 +4,7 @@ Shared pytest fixtures for BrightDayBot tests.
 
 import pytest
 from datetime import datetime, timezone
+from unittest.mock import MagicMock
 
 
 @pytest.fixture
@@ -16,3 +17,71 @@ def reference_date():
 def leap_year_reference():
     """Reference date in a leap year: February 28, 2024"""
     return datetime(2024, 2, 28, 12, 0, 0, tzinfo=timezone.utc)
+
+
+# Slack API mocking fixtures
+
+
+@pytest.fixture
+def mock_slack_app():
+    """Mock Slack app with client for testing API calls."""
+    app = MagicMock()
+    app.client = MagicMock()
+
+    # Default successful responses
+    app.client.users_profile_get.return_value = {
+        "ok": True,
+        "profile": {
+            "display_name": "TestUser",
+            "real_name": "Test User Full Name",
+            "title": "Software Engineer",
+            "image_512": "https://example.com/photo.jpg",
+        },
+    }
+    app.client.users_info.return_value = {
+        "ok": True,
+        "user": {
+            "tz": "America/New_York",
+            "tz_label": "Eastern Standard Time",
+            "tz_offset": -18000,
+            "is_admin": False,
+            "is_bot": False,
+            "deleted": False,
+        },
+    }
+    app.client.chat_postMessage.return_value = {
+        "ok": True,
+        "ts": "1234567890.123456",
+        "channel": "C123456",
+    }
+
+    return app
+
+
+@pytest.fixture
+def mock_slack_client():
+    """Standalone mock Slack client for direct client testing."""
+    client = MagicMock()
+    client.users_profile_get.return_value = {
+        "ok": True,
+        "profile": {"display_name": "TestUser", "real_name": "Test User"},
+    }
+    client.users_info.return_value = {
+        "ok": True,
+        "user": {"tz": "America/New_York", "is_admin": False},
+    }
+    client.chat_postMessage.return_value = {"ok": True, "ts": "1234567890.123456"}
+    return client
+
+
+@pytest.fixture
+def slack_api_error():
+    """Factory fixture for creating SlackApiError exceptions."""
+    from slack_sdk.errors import SlackApiError
+
+    def _create_error(error_code="channel_not_found"):
+        response = MagicMock()
+        response.data = {"error": error_code}
+        return SlackApiError(message=error_code, response=response)
+
+    return _create_error
