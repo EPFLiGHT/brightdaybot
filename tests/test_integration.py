@@ -12,8 +12,9 @@ import pytest
 
 # Skip all tests in this module if no API key
 pytestmark = pytest.mark.skipif(
-    not os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY").startswith("sk-dummy"),
-    reason="OPENAI_API_KEY not set or is dummy key"
+    not os.getenv("OPENAI_API_KEY")
+    or os.getenv("OPENAI_API_KEY").startswith("sk-dummy"),
+    reason="OPENAI_API_KEY not set or is dummy key",
 )
 
 
@@ -32,8 +33,8 @@ class TestOpenAIConnection:
         from utils.openai_api import complete
 
         response = complete(
-            system_content="Reply with exactly one word: OK",
-            user_content="Test",
+            instructions="Reply with exactly one word: OK",
+            input_text="Test",
             max_tokens=10,
             temperature=0,
         )
@@ -53,8 +54,8 @@ class TestMessageGeneration:
         personality = get_personality_config("standard")
 
         response = complete(
-            system_content=f"You are {personality['name']}, {personality['description']}. Be brief.",
-            user_content="Say happy birthday to Alice in one sentence.",
+            instructions=f"You are {personality['name']}, {personality['description']}. Be brief.",
+            input_text="Say happy birthday to Alice in one sentence.",
             max_tokens=50,
             temperature=0.7,
         )
