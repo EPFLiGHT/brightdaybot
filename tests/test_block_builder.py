@@ -16,7 +16,7 @@ from utils.block_builder import (
     build_unrecognized_input_blocks,
     build_special_day_blocks,
     build_birthday_modal,
-    build_birthday_list_blocks,
+    build_upcoming_birthdays_blocks,
     build_slash_help_blocks,
 )
 
@@ -308,18 +308,18 @@ class TestBuildBirthdayModal:
         assert year_block["element"]["type"] == "plain_text_input"
 
 
-class TestBuildBirthdayListBlocks:
-    """Tests for build_birthday_list_blocks() list structure"""
+class TestBuildUpcomingBirthdaysBlocks:
+    """Tests for build_upcoming_birthdays_blocks() list structure"""
 
     def test_returns_tuple(self):
         """Function returns (blocks, fallback_text) tuple"""
-        result = build_birthday_list_blocks([])
+        result = build_upcoming_birthdays_blocks([])
         assert isinstance(result, tuple)
         assert len(result) == 2
 
     def test_empty_list_message(self):
         """Empty list shows no birthdays message"""
-        blocks, fallback = build_birthday_list_blocks([])
+        blocks, fallback = build_upcoming_birthdays_blocks([])
         assert "No" in fallback or "no" in fallback
         section_texts = [
             b.get("text", {}).get("text", "")
@@ -333,7 +333,7 @@ class TestBuildBirthdayListBlocks:
 
     def test_has_header_block(self):
         """Blocks include header type"""
-        blocks, _ = build_birthday_list_blocks(
+        blocks, _ = build_upcoming_birthdays_blocks(
             [{"user_id": "U123", "username": "Alice", "date": "25/12", "days_until": 5}]
         )
         header_blocks = [b for b in blocks if b.get("type") == "header"]
@@ -341,7 +341,7 @@ class TestBuildBirthdayListBlocks:
 
     def test_shows_upcoming_birthdays(self):
         """Upcoming birthdays are listed"""
-        blocks, fallback = build_birthday_list_blocks(
+        blocks, fallback = build_upcoming_birthdays_blocks(
             [
                 {
                     "user_id": "U123",
@@ -369,7 +369,7 @@ class TestBuildBirthdayListBlocks:
 
     def test_today_shows_special_text(self):
         """Birthday today shows 'Today!' text"""
-        blocks, _ = build_birthday_list_blocks(
+        blocks, _ = build_upcoming_birthdays_blocks(
             [{"user_id": "U123", "username": "Alice", "date": "25/12", "days_until": 0}]
         )
         section_texts = " ".join(
@@ -383,7 +383,7 @@ class TestBuildBirthdayListBlocks:
 
     def test_tomorrow_shows_special_text(self):
         """Birthday tomorrow shows 'Tomorrow' text"""
-        blocks, _ = build_birthday_list_blocks(
+        blocks, _ = build_upcoming_birthdays_blocks(
             [{"user_id": "U123", "username": "Alice", "date": "25/12", "days_until": 1}]
         )
         section_texts = " ".join(

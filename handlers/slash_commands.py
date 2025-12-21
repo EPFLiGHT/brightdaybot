@@ -138,7 +138,7 @@ def _handle_slash_list(respond, app):
     from utils.storage import load_birthdays
     from utils.slack_utils import get_username
     from utils.date_utils import calculate_days_until_birthday
-    from utils.block_builder import build_birthday_list_blocks
+    from utils.block_builder import build_upcoming_birthdays_blocks
 
     birthdays = load_birthdays()
     reference_date = datetime.now(timezone.utc)
@@ -164,7 +164,7 @@ def _handle_slash_list(respond, app):
     # Limit to next 10
     upcoming = upcoming[:10]
 
-    blocks, fallback = build_birthday_list_blocks(upcoming)
+    blocks, fallback = build_upcoming_birthdays_blocks(upcoming)
     respond(blocks=blocks, text=fallback)
 
 

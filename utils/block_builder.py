@@ -2193,11 +2193,11 @@ def build_birthday_modal(user_id: str) -> Dict[str, Any]:
     }
 
 
-def build_birthday_list_blocks(
+def build_upcoming_birthdays_blocks(
     upcoming: List[Dict[str, Any]],
 ) -> tuple[List[Dict[str, Any]], str]:
     """
-    Build Block Kit structure for upcoming birthdays list.
+    Build Block Kit structure for upcoming birthdays list (slash command version).
 
     Args:
         upcoming: List of upcoming birthday dicts with user_id, username, date, days_until
