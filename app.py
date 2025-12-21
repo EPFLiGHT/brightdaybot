@@ -21,6 +21,9 @@ from services.birthday import timezone_aware_check, simple_daily_check
 
 # Import event handlers
 from handlers.event_handler import register_event_handlers
+from handlers.slash_commands import register_slash_commands
+from handlers.modal_handlers import register_modal_handlers
+from handlers.app_home import register_app_home_handlers
 
 # Initialize configuration from storage files
 initialize_config()
@@ -31,6 +34,11 @@ logger.info("INIT: App initialized")
 
 # Register event handlers
 register_event_handlers(app)
+
+# Register slash commands and interactive components
+register_slash_commands(app)
+register_modal_handlers(app)
+register_app_home_handlers(app)
 
 # Start the app
 if __name__ == "__main__":

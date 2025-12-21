@@ -10,6 +10,8 @@ A Slack bot that celebrates birthdays with AI-generated personalized messages an
 - **Multi-Timezone**: Celebrates at 9 AM in each user's timezone
 - **Special Days**: 75+ UN/WHO/UNESCO observances with AI-generated content
 - **Smart Consolidation**: Single message for multiple same-day birthdays
+- **Slash Commands**: `/birthday` and `/special-day` with modal forms
+- **App Home**: Dashboard with birthday status and upcoming birthdays
 - **Block Kit UI**: Professional Slack message layouts
 
 ## Quick Start
@@ -18,9 +20,12 @@ A Slack bot that celebrates birthdays with AI-generated personalized messages an
 
 1. Go to [api.slack.com/apps](https://api.slack.com/apps) → Create New App
 2. Enable **Socket Mode** with `connections:write` scope
-3. Add **Bot Events**: `app_mention`, `member_joined_channel`, `message.channels`, `message.im`
-4. Add **Bot Scopes**: `chat:write`, `chat:write.public`, `users:read`, `users.profile:read`, `files:write`, `channels:read`, `im:write`, `im:read`, `emoji:read`
-5. Install to workspace
+3. Add **Bot Events**: `app_mention`, `member_joined_channel`, `message.channels`, `message.im`, `app_home_opened`
+4. Add **Bot Scopes**: `chat:write`, `chat:write.public`, `users:read`, `users.profile:read`, `files:write`, `channels:read`, `im:write`, `im:read`, `emoji:read`, `commands`
+5. Add **Slash Commands**: `/birthday`, `/special-day`
+6. Enable **Interactivity & Shortcuts** (for modal forms)
+7. Enable **App Home** → Home Tab
+8. Install to workspace
 
 ### 2. Configure Environment
 
@@ -45,6 +50,18 @@ python app.py
 ```
 
 ## Commands
+
+### Slash Commands (Use Anywhere)
+
+| Command                  | Description               |
+| ------------------------ | ------------------------- |
+| `/birthday`              | Open birthday form        |
+| `/birthday add`          | Open birthday form        |
+| `/birthday check [@user]`| Check birthday            |
+| `/birthday list`         | List upcoming birthdays   |
+| `/special-day`           | Today's special days      |
+| `/special-day week`      | Next 7 days               |
+| `/special-day month`     | Next 30 days              |
 
 ### User Commands (DM the bot)
 
@@ -107,7 +124,11 @@ brightdaybot/
 ├── app.py                  # Entry point
 ├── config.py               # Configuration
 ├── personality_config.py   # Personality definitions
-├── handlers/               # Command handlers
+├── handlers/               # Command & event handlers
+│   ├── slash_commands.py   # /birthday, /special-day
+│   ├── modal_handlers.py   # Birthday form modal
+│   ├── app_home.py         # App Home dashboard
+│   └── event_handler.py    # DM & channel events
 ├── services/               # Business logic
 │   ├── birthday.py         # Celebrations
 │   ├── celebration.py      # Pipeline & validation

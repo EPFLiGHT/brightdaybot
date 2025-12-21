@@ -2095,3 +2095,182 @@ def build_unrecognized_input_blocks() -> tuple[List[Dict[str, Any]], str]:
     fallback_text = "I didn't recognize a valid date format or command. Please send your birthday as DD/MM or type 'help' for more options."
 
     return blocks, fallback_text
+
+
+# =============================================================================
+# Slash Command and Modal Block Builders
+# =============================================================================
+
+
+def build_birthday_modal(user_id: str) -> Dict[str, Any]:
+    """
+    Build the birthday input modal with date picker.
+
+    Args:
+        user_id: User ID for the modal
+
+    Returns:
+        Modal view definition
+    """
+    return {
+        "type": "modal",
+        "callback_id": "birthday_modal",
+        "title": {"type": "plain_text", "text": "Add Your Birthday"},
+        "submit": {"type": "plain_text", "text": "Save"},
+        "close": {"type": "plain_text", "text": "Cancel"},
+        "blocks": [
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "Enter your birthday to receive personalized celebrations!",
+                },
+            },
+            {
+                "type": "input",
+                "block_id": "birthday_date_block",
+                "element": {
+                    "type": "datepicker",
+                    "action_id": "birthday_date",
+                    "placeholder": {
+                        "type": "plain_text",
+                        "text": "Select your birthday",
+                    },
+                },
+                "label": {"type": "plain_text", "text": "Birthday Date"},
+            },
+            {
+                "type": "input",
+                "block_id": "birth_year_block",
+                "optional": True,
+                "element": {
+                    "type": "plain_text_input",
+                    "action_id": "birth_year",
+                    "placeholder": {"type": "plain_text", "text": "e.g., 1990"},
+                },
+                "label": {"type": "plain_text", "text": "Birth Year (Optional)"},
+                "hint": {
+                    "type": "plain_text",
+                    "text": "Add your birth year to show your age on celebrations",
+                },
+            },
+        ],
+    }
+
+
+def build_birthday_list_blocks(
+    upcoming: List[Dict[str, Any]],
+) -> tuple[List[Dict[str, Any]], str]:
+    """
+    Build Block Kit structure for upcoming birthdays list.
+
+    Args:
+        upcoming: List of upcoming birthday dicts with user_id, username, date, days_until
+
+    Returns:
+        Tuple of (blocks list, fallback_text string)
+    """
+    blocks = [
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": "Upcoming Birthdays"},
+        }
+    ]
+
+    if not upcoming:
+        blocks.append(
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "_No birthdays registered yet._",
+                },
+            }
+        )
+        return blocks, "No upcoming birthdays"
+
+    for bday in upcoming:
+        if bday["days_until"] == 0:
+            days_text = "Today!"
+        elif bday["days_until"] == 1:
+            days_text = "Tomorrow"
+        else:
+            days_text = f"in {bday['days_until']} days"
+
+        blocks.append(
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"<@{bday['user_id']}> ({bday['date']}) - {days_text}",
+                },
+            }
+        )
+
+    blocks.append(
+        {
+            "type": "context",
+            "elements": [
+                {
+                    "type": "mrkdwn",
+                    "text": f"Showing next {len(upcoming)} birthdays",
+                }
+            ],
+        }
+    )
+
+    fallback_text = f"Upcoming birthdays: {len(upcoming)} in the next 30 days"
+
+    return blocks, fallback_text
+
+
+def build_slash_help_blocks(
+    command_type: str,
+) -> tuple[List[Dict[str, Any]], str]:
+    """
+    Build help blocks for slash commands.
+
+    Args:
+        command_type: "birthday" or "special-day"
+
+    Returns:
+        Tuple of (blocks, fallback_text)
+    """
+    if command_type == "birthday":
+        blocks = [
+            {
+                "type": "header",
+                "text": {"type": "plain_text", "text": "/birthday Command Help"},
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "*Available subcommands:*\n\n"
+                    + "- `/birthday` or `/birthday add` - Open birthday form\n"
+                    + "- `/birthday check [@user]` - Check birthday\n"
+                    + "- `/birthday list` - List upcoming birthdays",
+                },
+            },
+        ]
+        fallback = "/birthday Command Help"
+    else:
+        blocks = [
+            {
+                "type": "header",
+                "text": {"type": "plain_text", "text": "/special-day Command Help"},
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "*Available options:*\n\n"
+                    + "- `/special-day` or `/special-day today` - Today's observances\n"
+                    + "- `/special-day week` - Next 7 days\n"
+                    + "- `/special-day month` - Next 30 days",
+                },
+            },
+        ]
+        fallback = "/special-day Command Help"
+
+    return blocks, fallback

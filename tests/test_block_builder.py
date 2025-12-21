@@ -15,6 +15,9 @@ from utils.block_builder import (
     build_birthday_not_found_blocks,
     build_unrecognized_input_blocks,
     build_special_day_blocks,
+    build_birthday_modal,
+    build_birthday_list_blocks,
+    build_slash_help_blocks,
 )
 
 
@@ -242,3 +245,189 @@ class TestBuildSpecialDayBlocks:
         )
         assert isinstance(fallback, str)
         assert len(fallback) > 0
+
+
+class TestBuildBirthdayModal:
+    """Tests for build_birthday_modal() modal structure"""
+
+    def test_returns_dict(self):
+        """Function returns a modal dict"""
+        result = build_birthday_modal("U123")
+        assert isinstance(result, dict)
+
+    def test_has_required_modal_fields(self):
+        """Modal has type, callback_id, title, submit, close"""
+        modal = build_birthday_modal("U123")
+        assert modal["type"] == "modal"
+        assert modal["callback_id"] == "birthday_modal"
+        assert "title" in modal
+        assert "submit" in modal
+        assert "close" in modal
+
+    def test_has_blocks_list(self):
+        """Modal contains blocks array"""
+        modal = build_birthday_modal("U123")
+        assert "blocks" in modal
+        assert isinstance(modal["blocks"], list)
+        assert len(modal["blocks"]) >= 2
+
+    def test_has_datepicker_input(self):
+        """Modal includes datepicker input block"""
+        modal = build_birthday_modal("U123")
+        input_blocks = [b for b in modal["blocks"] if b.get("type") == "input"]
+        assert len(input_blocks) >= 1
+        datepicker_block = input_blocks[0]
+        assert datepicker_block["element"]["type"] == "datepicker"
+        assert datepicker_block["block_id"] == "birthday_date_block"
+        assert datepicker_block["element"]["action_id"] == "birthday_date"
+
+    def test_has_optional_year_input(self):
+        """Modal includes optional year text input"""
+        modal = build_birthday_modal("U123")
+        input_blocks = [b for b in modal["blocks"] if b.get("type") == "input"]
+        year_block = next(
+            (b for b in input_blocks if b.get("block_id") == "birth_year_block"), None
+        )
+        assert year_block is not None
+        assert year_block["optional"] is True
+        assert year_block["element"]["type"] == "plain_text_input"
+
+
+class TestBuildBirthdayListBlocks:
+    """Tests for build_birthday_list_blocks() list structure"""
+
+    def test_returns_tuple(self):
+        """Function returns (blocks, fallback_text) tuple"""
+        result = build_birthday_list_blocks([])
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+
+    def test_empty_list_message(self):
+        """Empty list shows no birthdays message"""
+        blocks, fallback = build_birthday_list_blocks([])
+        assert "No" in fallback or "no" in fallback
+        section_texts = [
+            b.get("text", {}).get("text", "")
+            for b in blocks
+            if b.get("type") == "section"
+        ]
+        any_has_no_birthdays = any(
+            "No birthdays" in t or "no birthdays" in t.lower() for t in section_texts
+        )
+        assert any_has_no_birthdays or "registered" in str(section_texts).lower()
+
+    def test_has_header_block(self):
+        """Blocks include header type"""
+        blocks, _ = build_birthday_list_blocks(
+            [{"user_id": "U123", "username": "Alice", "date": "25/12", "days_until": 5}]
+        )
+        header_blocks = [b for b in blocks if b.get("type") == "header"]
+        assert len(header_blocks) == 1
+
+    def test_shows_upcoming_birthdays(self):
+        """Upcoming birthdays are listed"""
+        blocks, fallback = build_birthday_list_blocks(
+            [
+                {
+                    "user_id": "U123",
+                    "username": "Alice",
+                    "date": "25/12",
+                    "days_until": 5,
+                },
+                {
+                    "user_id": "U456",
+                    "username": "Bob",
+                    "date": "31/12",
+                    "days_until": 10,
+                },
+            ]
+        )
+        section_texts = " ".join(
+            [
+                b.get("text", {}).get("text", "")
+                for b in blocks
+                if b.get("type") == "section"
+            ]
+        )
+        assert "<@U123>" in section_texts
+        assert "<@U456>" in section_texts
+
+    def test_today_shows_special_text(self):
+        """Birthday today shows 'Today!' text"""
+        blocks, _ = build_birthday_list_blocks(
+            [{"user_id": "U123", "username": "Alice", "date": "25/12", "days_until": 0}]
+        )
+        section_texts = " ".join(
+            [
+                b.get("text", {}).get("text", "")
+                for b in blocks
+                if b.get("type") == "section"
+            ]
+        )
+        assert "Today!" in section_texts
+
+    def test_tomorrow_shows_special_text(self):
+        """Birthday tomorrow shows 'Tomorrow' text"""
+        blocks, _ = build_birthday_list_blocks(
+            [{"user_id": "U123", "username": "Alice", "date": "25/12", "days_until": 1}]
+        )
+        section_texts = " ".join(
+            [
+                b.get("text", {}).get("text", "")
+                for b in blocks
+                if b.get("type") == "section"
+            ]
+        )
+        assert "Tomorrow" in section_texts
+
+
+class TestBuildSlashHelpBlocks:
+    """Tests for build_slash_help_blocks() help structure"""
+
+    def test_returns_tuple(self):
+        """Function returns (blocks, fallback_text) tuple"""
+        result = build_slash_help_blocks("birthday")
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+
+    def test_birthday_help_has_header(self):
+        """Birthday help includes header"""
+        blocks, _ = build_slash_help_blocks("birthday")
+        header_blocks = [b for b in blocks if b.get("type") == "header"]
+        assert len(header_blocks) == 1
+        assert "/birthday" in header_blocks[0]["text"]["text"]
+
+    def test_birthday_help_shows_subcommands(self):
+        """Birthday help lists subcommands"""
+        blocks, fallback = build_slash_help_blocks("birthday")
+        section_texts = " ".join(
+            [
+                b.get("text", {}).get("text", "")
+                for b in blocks
+                if b.get("type") == "section"
+            ]
+        )
+        assert "add" in section_texts.lower()
+        assert "check" in section_texts.lower()
+        assert "list" in section_texts.lower()
+
+    def test_special_day_help_has_header(self):
+        """Special day help includes header"""
+        blocks, _ = build_slash_help_blocks("special-day")
+        header_blocks = [b for b in blocks if b.get("type") == "header"]
+        assert len(header_blocks) == 1
+        assert "/special-day" in header_blocks[0]["text"]["text"]
+
+    def test_special_day_help_shows_options(self):
+        """Special day help lists options"""
+        blocks, _ = build_slash_help_blocks("special-day")
+        section_texts = " ".join(
+            [
+                b.get("text", {}).get("text", "")
+                for b in blocks
+                if b.get("type") == "section"
+            ]
+        )
+        assert "today" in section_texts.lower()
+        assert "week" in section_texts.lower()
+        assert "month" in section_texts.lower()
