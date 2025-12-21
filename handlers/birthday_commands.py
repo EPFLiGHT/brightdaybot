@@ -23,7 +23,7 @@ from utils.slack_utils import (
 )
 from utils.slack_utils import get_user_mention
 from utils.message_generator import create_birthday_announcement
-from utils.celebration import (
+from services.celebration import (
     should_celebrate_immediately,
     create_birthday_update_notification,
     log_immediate_celebration_decision,
@@ -76,7 +76,7 @@ def send_immediate_birthday_announcement(
 
         try:
             # Use centralized celebration pipeline (same as scheduled announcements)
-            from utils.celebration import BirthdayCelebrationPipeline
+            from services.celebration import BirthdayCelebrationPipeline
 
             # Get user profile for personalization
             user_profile = get_user_profile(app, user_id)

@@ -37,7 +37,7 @@ from utils.message_generator import (
     create_consolidated_birthday_announcement,
 )
 from utils.date_utils import is_celebration_time_for_user
-from utils.celebration import BirthdayCelebrationPipeline
+from services.celebration import BirthdayCelebrationPipeline
 from config import (
     BIRTHDAY_CHANNEL,
     AI_IMAGE_GENERATION_ENABLED,
@@ -48,7 +48,7 @@ from config import (
     TIMEZONE_CELEBRATION_TIME,
     DAILY_CHECK_TIME,
 )
-from utils.celebration import (
+from services.celebration import (
     generate_bot_celebration_message,
     get_bot_celebration_image_title,
 )
@@ -104,7 +104,7 @@ def celebrate_bot_birthday(app, moment):
 
         # Get special days count for celebration
         try:
-            from services.special_days import load_special_days
+            from utils.special_days_storage import load_special_days
 
             special_days_count = len(load_special_days())
         except:
@@ -322,7 +322,7 @@ def check_and_announce_special_days(app, moment):
         SPECIAL_DAYS_CHANNEL,
         SPECIAL_DAYS_CHECK_TIME,
     )
-    from services.special_days import (
+    from utils.special_days_storage import (
         get_special_days_for_date,
         has_announced_special_day_today,
         mark_special_day_announced,
@@ -371,7 +371,7 @@ def check_and_announce_special_days(app, moment):
             return False
 
         # NEW: Check if observances should be split into separate announcements
-        from services.special_days import should_split_observances
+        from utils.special_days_storage import should_split_observances
 
         should_split = should_split_observances(special_days)
 

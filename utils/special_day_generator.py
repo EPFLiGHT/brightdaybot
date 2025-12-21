@@ -685,7 +685,7 @@ async def send_special_day_announcement(
 # Test function
 if __name__ == "__main__":
     import asyncio
-    from services.special_days import get_todays_special_days
+    from utils.special_days_storage import get_todays_special_days
 
     print("Testing Special Day Message Generator...")
 
@@ -706,7 +706,7 @@ if __name__ == "__main__":
         print("\nNo special days found for today")
 
         # Create a test special day
-        from services.special_days import SpecialDay
+        from utils.special_days_storage import SpecialDay
 
         test_day = SpecialDay(
             date="03/14",

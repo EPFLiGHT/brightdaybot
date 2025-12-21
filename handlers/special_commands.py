@@ -30,7 +30,7 @@ logger = get_logger("commands")
 
 def handle_special_command(args, user_id, say, app):
     """Handle user special days commands using Block Kit"""
-    from services.special_days import (
+    from utils.special_days_storage import (
         get_todays_special_days,
         get_upcoming_special_days,
         get_special_day_statistics,
@@ -195,7 +195,7 @@ def parse_quoted_args(command_text):
 
 def handle_admin_special_command_with_quotes(command_text, user_id, say, app):
     """Handle admin special days commands with quoted string parsing"""
-    from services.special_days import (
+    from utils.special_days_storage import (
         SpecialDay,
         save_special_day,
         remove_special_day,
@@ -299,7 +299,7 @@ def handle_admin_special_command_with_quotes(command_text, user_id, say, app):
 
 def handle_admin_special_command(args, user_id, say, app):
     """Handle admin special days commands (non-add commands only)"""
-    from services.special_days import (
+    from utils.special_days_storage import (
         remove_special_day,
         load_special_days,
         update_category_status,
@@ -430,7 +430,7 @@ def handle_admin_special_command(args, user_id, say, app):
             say(f"🧪 Testing special day announcement for {test_date_str}...")
 
             # NEW: Check if observances should be split
-            from services.special_days import should_split_observances
+            from utils.special_days_storage import should_split_observances
 
             should_split = should_split_observances(special_days)
 
@@ -618,7 +618,7 @@ def handle_admin_special_command(args, user_id, say, app):
 
     elif subcommand == "verify":
         # Verify special days data
-        from services.special_days import verify_special_days
+        from utils.special_days_storage import verify_special_days
 
         results = verify_special_days()
 
