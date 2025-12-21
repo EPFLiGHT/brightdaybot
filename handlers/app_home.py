@@ -148,7 +148,7 @@ def _build_home_view(user_id, app):
     blocks.append(
         {
             "type": "section",
-            "text": {"type": "mrkdwn", "text": "*Upcoming Birthdays (Next 30 Days)*"},
+            "text": {"type": "mrkdwn", "text": "*Upcoming Birthdays*"},
         }
     )
 
@@ -163,7 +163,9 @@ def _build_home_view(user_id, app):
             else:
                 days_text = f"in {bday['days_until']} days"
 
-            birthday_lines.append(f"• <@{bday['user_id']}> - {days_text}")
+            birthday_lines.append(
+                f"• <@{bday['user_id']}> ({bday['date']}) - {days_text}"
+            )
 
         blocks.append(
             {
@@ -180,7 +182,7 @@ def _build_home_view(user_id, app):
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": "_No upcoming birthdays in the next 30 days._",
+                    "text": "_No birthdays registered yet._",
                 },
             }
         )
@@ -226,13 +228,13 @@ def _build_home_view(user_id, app):
 
 
 def _get_upcoming_birthdays(birthdays, app, limit=5):
-    """Get list of upcoming birthdays within 30 days."""
+    """Get list of upcoming birthdays."""
     reference_date = datetime.now(timezone.utc)
     upcoming = []
 
     for uid, data in birthdays.items():
         days = calculate_days_until_birthday(data["date"], reference_date)
-        if days is not None and days <= 30:
+        if days is not None:
             upcoming.append(
                 {
                     "user_id": uid,

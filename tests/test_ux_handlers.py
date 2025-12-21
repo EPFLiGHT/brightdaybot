@@ -378,15 +378,15 @@ class TestUpcomingBirthdaysFiltering:
 
         assert len(result) <= 5
 
-    def test_get_upcoming_birthdays_filters_by_30_days(self):
-        """Only birthdays within 30 days are included"""
+    def test_get_upcoming_birthdays_includes_all_dates(self):
+        """All birthdays are included regardless of days until"""
         from handlers.app_home import _get_upcoming_birthdays
 
         mock_app = MagicMock()
 
         birthdays = {
             "U1": {"date": "01/01"},  # Will be 5 days
-            "U2": {"date": "02/01"},  # Will be 40 days (excluded)
+            "U2": {"date": "02/01"},  # Will be 40 days
         }
 
         with patch("handlers.app_home.get_username", return_value="User"):
@@ -396,5 +396,6 @@ class TestUpcomingBirthdaysFiltering:
             ):
                 result = _get_upcoming_birthdays(birthdays, mock_app, limit=10)
 
-        assert len(result) == 1
-        assert result[0]["user_id"] == "U1"
+        assert len(result) == 2
+        assert result[0]["user_id"] == "U1"  # Sorted by days_until
+        assert result[1]["user_id"] == "U2"
