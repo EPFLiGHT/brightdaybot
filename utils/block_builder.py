@@ -8,171 +8,130 @@ Block Kit provides rich, visually appealing message layouts with proper hierarch
 organization, and professional polish.
 """
 
+import warnings
 from typing import List, Dict, Any, Optional
 from personality_config import get_personality_display_name
 
 
 def build_birthday_blocks(
-    username: str,
-    user_id: str,
-    age: Optional[int],
-    star_sign: str,
-    message: str,
+    birthday_people_or_username=None,
+    message: str = None,
     historical_fact: Optional[str] = None,
     personality: str = "standard",
-    image_file_id: Optional[str] = None,
-    image_title: Optional[str] = None,
+    image_file_ids: Optional[List[Any]] = None,
+    # Old-style parameters for backward compatibility
+    username: str = None,
+    user_id: str = None,
+    age: int = None,
+    star_sign: str = None,
+    image_file_id: Any = None,
 ) -> tuple[List[Dict[str, Any]], str]:
     """
-    Build Block Kit structure for single birthday announcement
+    Build Block Kit structure for birthday announcements (single or multiple).
+
+    Unified function that handles both single and multiple birthday celebrations
+    with appropriate headers and layouts.
+
+    Supports two call styles for backward compatibility:
+    1. New style: build_birthday_blocks([{username:..., user_id:..., age:..., star_sign:...}], message, ...)
+    2. Old style: build_birthday_blocks(username=..., user_id=..., age=..., star_sign=..., message=..., ...)
 
     Args:
-        username: Display name of the birthday person
-        user_id: Slack user ID
-        age: Age in years (None if birth year not provided)
-        star_sign: Astrological sign with emoji
+        birthday_people_or_username: List of dicts with keys: username, user_id, age, star_sign
+                                    (can be a single-element list for one person)
         message: AI-generated birthday message
         historical_fact: Optional historical date fact
         personality: Bot personality name
-        image_file_id: Optional Slack file ID for embedded birthday image (can be tuple of (file_id, title))
-        image_title: Optional AI-generated image title (used if image_file_id is not a tuple)
+        image_file_ids: Optional list of Slack file IDs or tuples of (file_id, title)
+        username: (deprecated) Single person username
+        user_id: (deprecated) Single person user ID
+        age: (deprecated) Single person age
+        star_sign: (deprecated) Single person star sign
+        image_file_id: (deprecated) Single file ID
 
     Returns:
         Tuple of (blocks list, fallback_text string)
     """
-    blocks = [
-        {
-            "type": "header",
-            "text": {"type": "plain_text", "text": "🎂 Birthday Celebration"},
-        },
-        {"type": "section", "text": {"type": "mrkdwn", "text": message}},
-    ]
+    # Auto-detect call style: old (keyword args) vs new (list)
+    if username is not None or user_id is not None:
+        # Old style call - convert to new format
+        import warnings
 
-    # Add embedded birthday image if file ID provided (after message, before user info)
-    if image_file_id:
-        # Handle tuple format (file_id, title) or backward compat string
-        if isinstance(image_file_id, tuple):
-            file_id, ai_title = image_file_id
-        else:
-            file_id = image_file_id
-            ai_title = image_title
-
-        # Use AI-generated title if available, otherwise use generic title
-        display_title = (
-            ai_title if ai_title else f"🎂 {username}'s Birthday Celebration"
+        warnings.warn(
+            "build_birthday_blocks() with individual keyword arguments is deprecated. "
+            "Use build_birthday_blocks([{username:..., user_id:..., age:..., star_sign:...}], message, ...) instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
-
-        blocks.append(
+        birthday_people = [
             {
-                "type": "image",
-                "slack_file": {"id": file_id},  # Use file ID after processing wait
-                "alt_text": f"Birthday celebration image for {username}",
-                "title": {"type": "plain_text", "text": display_title},
+                "username": username or "Birthday Person",
+                "user_id": user_id,
+                "age": age,
+                "star_sign": star_sign,
             }
-        )
+        ]
+        # Handle old-style single image_file_id
+        if image_file_id is not None and image_file_ids is None:
+            image_file_ids = [image_file_id]
+    else:
+        birthday_people = birthday_people_or_username
 
-    # Add structured information section (matching consolidated format)
-    age_text = f" • {age} years" if age is not None else ""
-    fields = [{"type": "mrkdwn", "text": f"*<@{user_id}>*\n{star_sign}{age_text}"}]
+    if not birthday_people:
+        return [], ""
 
-    blocks.append({"type": "section", "fields": fields})
-
-    # Add context block for metadata
-    context_elements = []
-
-    if historical_fact:
-        context_elements.append(
-            {
-                "type": "mrkdwn",
-                "text": f"📜 *On this day in history:* {historical_fact}",
-            }
-        )
-
-    # Add personality attribution
-    personality_name = get_personality_display_name(personality)
-    context_elements.append(
-        {"type": "mrkdwn", "text": f"✨ _Brought to you by {personality_name}_"}
-    )
-
-    if context_elements:
-        blocks.append({"type": "context", "elements": context_elements})
-
-    # Fallback text for notifications and accessibility
-    age_text = f" ({age} years old)" if age else ""
-    fallback_text = f"🎂 Happy Birthday {username}!{age_text} {star_sign}"
-
-    return blocks, fallback_text
-
-
-def build_consolidated_birthday_blocks(
-    birthday_people: List[Dict[str, Any]],
-    message: str,
-    historical_fact: Optional[str] = None,
-    personality: str = "standard",
-    image_file_ids: Optional[List[str]] = None,
-    image_titles: Optional[List[str]] = None,
-) -> tuple[List[Dict[str, Any]], str]:
-    """
-    Build Block Kit structure for multiple birthday announcements
-
-    Args:
-        birthday_people: List of dicts with keys: username, user_id, age, star_sign
-        message: AI-generated consolidated birthday message
-        historical_fact: Optional historical date fact
-        personality: Bot personality name
-        image_file_ids: Optional list of Slack file IDs for embedded birthday images (can be list of tuples (file_id, title))
-        image_titles: Optional list of AI-generated image titles (used if image_file_ids are not tuples)
-
-    Returns:
-        Tuple of (blocks list, fallback_text string)
-    """
     count = len(birthday_people)
 
-    # Determine header title
-    if count == 2:
-        title_suffix = "Birthday Twins!"
+    # Determine header title based on count
+    if count == 1:
+        header_text = "Birthday Celebration"
+    elif count == 2:
+        header_text = "Birthday Twins!"
     elif count == 3:
-        title_suffix = "Birthday Triplets!"
+        header_text = "Birthday Triplets!"
     else:
-        title_suffix = f"{count} Birthday Celebrations!"
+        header_text = f"{count} Birthday Celebrations!"
 
     blocks = [
         {
             "type": "header",
-            "text": {"type": "plain_text", "text": f"🎂 {title_suffix}"},
+            "text": {"type": "plain_text", "text": f"🎂 {header_text}"},
         },
         {"type": "section", "text": {"type": "mrkdwn", "text": message}},
     ]
 
-    # Add embedded birthday images if file IDs provided (after message, before divider and user info)
+    # Add embedded birthday images if file IDs provided
     if image_file_ids:
         for i, file_id_or_tuple in enumerate(image_file_ids):
             # Get corresponding person info for alt text and title
             person = birthday_people[i] if i < len(birthday_people) else {}
             person_name = person.get("username", "Birthday Person")
 
-            # Handle tuple format (file_id, title) or backward compat string
+            # Handle tuple format (file_id, title) or string format
             if isinstance(file_id_or_tuple, tuple):
                 file_id, ai_title = file_id_or_tuple
             else:
                 file_id = file_id_or_tuple
-                ai_title = (
-                    image_titles[i] if image_titles and i < len(image_titles) else None
-                )
+                ai_title = None
 
             # Use AI-generated title if available, otherwise use generic title
-            display_title = ai_title if ai_title else f"🎂 {person_name}'s Birthday"
+            if count == 1:
+                display_title = (
+                    ai_title if ai_title else f"🎂 {person_name}'s Birthday Celebration"
+                )
+            else:
+                display_title = ai_title if ai_title else f"🎂 {person_name}'s Birthday"
 
             blocks.append(
                 {
                     "type": "image",
-                    "slack_file": {"id": file_id},  # Use file ID after processing wait
+                    "slack_file": {"id": file_id},
                     "alt_text": f"Birthday celebration image for {person_name}",
                     "title": {"type": "plain_text", "text": display_title},
                 }
             )
 
-    # Add individual person information in two-column layout
+    # Add person information in fields layout
     fields = []
     for person in birthday_people:
         age_text = f" • {person['age']} years" if person.get("age") is not None else ""
@@ -205,70 +164,256 @@ def build_consolidated_birthday_blocks(
     if context_elements:
         blocks.append({"type": "context", "elements": context_elements})
 
-    # Fallback text
-    names = ", ".join([person["username"] for person in birthday_people])
-    fallback_text = f"🎂 Happy Birthday to {names}!"
+    # Generate fallback text
+    if count == 1:
+        person = birthday_people[0]
+        age_text = f" ({person['age']} years old)" if person.get("age") else ""
+        fallback_text = (
+            f"🎂 Happy Birthday {person['username']}!{age_text} {person['star_sign']}"
+        )
+    else:
+        names = ", ".join([person["username"] for person in birthday_people])
+        fallback_text = f"🎂 Happy Birthday to {names}!"
 
     return blocks, fallback_text
 
 
-def build_special_day_blocks(
-    observance_name: str,
+def build_birthday_blocks_single(
+    username: str,
+    user_id: str,
+    age: Optional[int],
+    star_sign: str,
     message: str,
-    observance_date: str,
-    source: Optional[str] = None,
-    personality: str = "chronicler",
-    detailed_content: Optional[str] = None,
-    category: Optional[str] = None,
-    url: Optional[str] = None,
-    description: Optional[str] = None,  # DEPRECATED - kept for backward compatibility
+    historical_fact: Optional[str] = None,
+    personality: str = "standard",
+    image_file_id: Optional[Any] = None,
+    image_title: Optional[str] = None,
 ) -> tuple[List[Dict[str, Any]], str]:
     """
-    Build Block Kit structure for special day announcements with interactive Details button
+    DEPRECATED: Use build_birthday_blocks() with a single-element list instead.
+
+    Build Block Kit structure for single birthday announcement.
+    This is a backward-compatibility wrapper.
+    """
+    warnings.warn(
+        "build_birthday_blocks_single() is deprecated. "
+        "Use build_birthday_blocks() with a single-element list instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
+    # Convert single person to list format
+    birthday_people = [
+        {
+            "username": username,
+            "user_id": user_id,
+            "age": age,
+            "star_sign": star_sign,
+        }
+    ]
+
+    # Convert image to list format, handling tuple
+    image_file_ids = None
+    if image_file_id:
+        if isinstance(image_file_id, tuple):
+            image_file_ids = [image_file_id]
+        else:
+            image_file_ids = [(image_file_id, image_title)]
+
+    return build_birthday_blocks(
+        birthday_people_or_username=birthday_people,
+        message=message,
+        historical_fact=historical_fact,
+        personality=personality,
+        image_file_ids=image_file_ids,
+    )
+
+
+def build_consolidated_birthday_blocks(
+    birthday_people: List[Dict[str, Any]],
+    message: str,
+    historical_fact: Optional[str] = None,
+    personality: str = "standard",
+    image_file_ids: Optional[List[Any]] = None,
+    image_titles: Optional[List[str]] = None,
+) -> tuple[List[Dict[str, Any]], str]:
+    """
+    DEPRECATED: Use build_birthday_blocks() instead.
+
+    Build Block Kit structure for multiple birthday announcements.
+    This is a backward-compatibility wrapper.
+    """
+    warnings.warn(
+        "build_consolidated_birthday_blocks() is deprecated. "
+        "Use build_birthday_blocks() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
+    # Convert image_titles to tuple format if needed
+    converted_image_ids = None
+    if image_file_ids:
+        converted_image_ids = []
+        for i, file_id in enumerate(image_file_ids):
+            if isinstance(file_id, tuple):
+                converted_image_ids.append(file_id)
+            else:
+                title = (
+                    image_titles[i] if image_titles and i < len(image_titles) else None
+                )
+                converted_image_ids.append((file_id, title))
+
+    return build_birthday_blocks(
+        birthday_people_or_username=birthday_people,
+        message=message,
+        historical_fact=historical_fact,
+        personality=personality,
+        image_file_ids=converted_image_ids,
+    )
+
+
+def build_special_day_blocks(
+    special_days_or_name,  # Can be List[Any] or str (backward compat)
+    message: str,
+    observance_date: Optional[str] = None,  # Old signature param
+    source: Optional[str] = None,  # Old signature param
+    personality: str = "chronicler",
+    detailed_content: Optional[str] = None,
+    category: Optional[str] = None,  # Old signature param
+    url: Optional[str] = None,  # Old signature param
+    description: Optional[str] = None,  # Old signature param (deprecated)
+) -> tuple[List[Dict[str, Any]], str]:
+    """
+    Build Block Kit structure for special day announcements (single or multiple).
+
+    Unified function that handles both single and multiple special day celebrations
+    with appropriate headers and layouts.
+
+    Supports two call patterns:
+    1. New style: build_special_day_blocks([special_day1, special_day2], message, personality=..., detailed_content=...)
+    2. Old style: build_special_day_blocks("World Health Day", message, "07/04", source="WHO", ...)
 
     Args:
-        observance_name: Name of the special day/observance
-        message: AI-generated announcement message (SHORT teaser)
-        observance_date: Date of observance (DD/MM format)
-        source: Optional source attribution (UN, WHO, UNESCO, etc.)
+        special_days_or_name: List of SpecialDay objects/dicts, OR observance name string (old style)
+        message: AI-generated announcement message
+        observance_date: (Old style only) Date of observance (DD/MM format)
+        source: (Old style only) Source attribution
         personality: Bot personality name
         detailed_content: Optional AI-generated detailed content for "View Details" button
-        category: Optional category (Global Health, Tech, Culture, etc.)
-        url: Optional official URL for more information
-        description: DEPRECATED - use detailed_content instead (kept for backward compat)
+        category: (Old style only) Category
+        url: (Old style only) Official URL
+        description: DEPRECATED - use detailed_content instead
 
     Returns:
         Tuple of (blocks list, fallback_text string)
     """
+    # Detect call style: list = new style, string = old style
+    if isinstance(special_days_or_name, str):
+        # Old style call - convert to new style
+        special_days = [
+            {
+                "name": special_days_or_name,
+                "date": observance_date,
+                "source": source,
+                "category": category,
+                "url": url,
+                "emoji": "🌍",
+            }
+        ]
+        # Use description as fallback for detailed_content
+        if not detailed_content and description:
+            detailed_content = description
+    else:
+        # New style call - use list directly
+        special_days = special_days_or_name
+
+    if not special_days:
+        return [], ""
+
+    count = len(special_days)
+
+    # Helper to get attribute from object or dict
+    def get_attr(obj, attr, default=None):
+        if hasattr(obj, attr):
+            return getattr(obj, attr, default)
+        elif isinstance(obj, dict):
+            return obj.get(attr, default)
+        return default
+
+    # Determine header title based on count
+    if count == 1:
+        header_text = f"🌍 {get_attr(special_days[0], 'name', 'Special Day')}"
+    elif count == 2:
+        header_text = "🌍 2 Special Days Today"
+    elif count == 3:
+        header_text = "🌍 3 Special Observances Today"
+    else:
+        header_text = f"🌍 {count} Special Observances Today"
+
     blocks = [
         {
             "type": "header",
-            "text": {"type": "plain_text", "text": f"🌍 {observance_name}"},
+            "text": {"type": "plain_text", "text": header_text},
         },
         {"type": "section", "text": {"type": "mrkdwn", "text": message}},
     ]
 
-    # Add context block for metadata (date, source, and personality)
+    # For multiple special days, add fields layout showing each observance
+    if count > 1:
+        fields = []
+        for special_day in special_days:
+            emoji = get_attr(special_day, "emoji", "🌍") or "🌍"
+            name = get_attr(special_day, "name", "Special Day")
+            category = get_attr(special_day, "category")
+            category_text = f" • {category}" if category else ""
+
+            fields.append(
+                {
+                    "type": "mrkdwn",
+                    "text": f"{emoji} *{name}*{category_text}",
+                }
+            )
+
+        blocks.append({"type": "section", "fields": fields})
+
+    # Add context block for metadata (date, source(s), and personality)
     context_elements = []
 
-    # Add date if provided
-    if observance_date:
+    # Get date (all special days on same date)
+    date_str = get_attr(special_days[0], "date")
+    if date_str:
         from datetime import datetime
         from utils.date_utils import format_date_european_short
 
-        # Parse DD/MM format and format as European style (e.g., "08/03" → "8 March")
         try:
-            date_obj = datetime.strptime(observance_date, "%d/%m")
+            date_obj = datetime.strptime(date_str, "%d/%m")
             formatted_date = format_date_european_short(date_obj)
         except ValueError:
-            formatted_date = observance_date  # Fallback to original if parsing fails
+            formatted_date = date_str
 
         context_elements.append(
             {"type": "mrkdwn", "text": f"📅 *Date:* {formatted_date}"}
         )
 
-    if source:
-        context_elements.append({"type": "mrkdwn", "text": f"📋 *Source:* {source}"})
+    # Collect and display sources
+    sources = [
+        get_attr(day, "source") for day in special_days if get_attr(day, "source")
+    ]
+    if sources:
+        unique_sources = list(set(sources))
+        if len(unique_sources) == 1:
+            source_display = unique_sources[0]
+            source_label = "Source"
+        elif len(unique_sources) <= 3:
+            source_display = ", ".join(unique_sources)
+            source_label = "Sources"
+        else:
+            source_display = f"{len(unique_sources)} sources"
+            source_label = "Sources"
+
+        context_elements.append(
+            {"type": "mrkdwn", "text": f"📋 *{source_label}:* {source_display}"}
+        )
 
     # Add personality attribution
     personality_name = get_personality_display_name(personality)
@@ -279,21 +424,18 @@ def build_special_day_blocks(
     if context_elements:
         blocks.append({"type": "context", "elements": context_elements})
 
-    # Add interactive "Learn More" button if detailed_content or URL is available
-    # Use detailed_content if provided, fallback to description for backward compat
-    details_to_use = detailed_content or description
+    # Add interactive buttons if detailed content or URLs available
+    has_urls = any(get_attr(sd, "url") for sd in special_days)
 
-    if details_to_use or url:
+    if detailed_content or has_urls:
         actions = []
 
-        # If we have detailed content, add a "View Details" button
-        if details_to_use:
-            # Ensure we don't exceed Slack's 2000 char limit for button values
-            # Using 1950 for safety buffer
-            truncated_details = (
-                details_to_use[:1950] if len(details_to_use) > 1950 else details_to_use
-            )
-            if len(details_to_use) > 1950:
+        # "View Details" button for detailed content
+        if detailed_content:
+            # Slack limit: 2000 chars for single, 3000 for consolidated
+            char_limit = 1950 if count == 1 else 3000
+            truncated_details = detailed_content[:char_limit]
+            if len(detailed_content) > char_limit:
                 truncated_details += (
                     "...\n\nSee official source for complete information."
                 )
@@ -303,29 +445,49 @@ def build_special_day_blocks(
                     "type": "button",
                     "text": {"type": "plain_text", "text": "📖 View Details"},
                     "style": "primary",
-                    "action_id": f"special_day_details_{observance_date.replace('/', '_')}",
+                    "action_id": f"special_day_details_{date_str.replace('/', '_') if date_str else 'unknown'}",
                     "value": truncated_details,
                 }
             )
 
-        # If we have a URL, add a "Learn More" link button
-        if url:
-            actions.append(
-                {
-                    "type": "button",
-                    "text": {"type": "plain_text", "text": "🔗 Official Source"},
-                    "url": url,
-                    # NOTE: action_id not needed for URL buttons - they open links client-side
-                    # Without action_id, Slack won't send action events, eliminating log warnings
-                    # "action_id": f"special_day_url_{observance_date.replace('/', '_')}",
-                }
-            )
+        # URL buttons
+        if count == 1:
+            # Single: one "Official Source" button
+            url = get_attr(special_days[0], "url")
+            if url:
+                actions.append(
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "🔗 Official Source"},
+                        "url": url,
+                    }
+                )
+        else:
+            # Multiple: individual buttons for each URL
+            for special_day in special_days:
+                url = get_attr(special_day, "url")
+                if url:
+                    name = get_attr(special_day, "name", "Source")
+                    button_name = name[:30] + "..." if len(name) > 30 else name
+                    actions.append(
+                        {
+                            "type": "button",
+                            "text": {"type": "plain_text", "text": f"🔗 {button_name}"},
+                            "url": url,
+                        }
+                    )
 
         if actions:
             blocks.append({"type": "actions", "elements": actions})
 
-    # Fallback text
-    fallback_text = f"🌍 {observance_name}"
+    # Generate fallback text
+    if count == 1:
+        fallback_text = f"🌍 {get_attr(special_days[0], 'name', 'Special Day')}"
+    else:
+        names = ", ".join(
+            [get_attr(day, "name", "Special Day") for day in special_days]
+        )
+        fallback_text = f"🌍 {count} Special Observances Today: {names}"
 
     return blocks, fallback_text
 
@@ -337,141 +499,24 @@ def build_consolidated_special_days_blocks(
     detailed_content: Optional[str] = None,
 ) -> tuple[List[Dict[str, Any]], str]:
     """
-    Build Block Kit structure for multiple special day announcements
+    DEPRECATED: Use build_special_day_blocks() instead.
 
-    Args:
-        special_days: List of SpecialDay objects with attributes: name, date, category, source, url
-        message: AI-generated consolidated special days message
-        personality: Bot personality name
-        detailed_content: Optional AI-generated detailed content for "View Details" button
-
-    Returns:
-        Tuple of (blocks list, fallback_text string)
+    Build Block Kit structure for multiple special day announcements.
+    This is a backward-compatibility wrapper.
     """
-    count = len(special_days)
-
-    # Determine header title
-    if count == 2:
-        title_suffix = "2 Special Days Today"
-    elif count == 3:
-        title_suffix = "3 Special Observances Today"
-    else:
-        title_suffix = f"{count} Special Observances Today"
-
-    blocks = [
-        {
-            "type": "header",
-            "text": {"type": "plain_text", "text": f"🌍 {title_suffix}"},
-        },
-        {"type": "section", "text": {"type": "mrkdwn", "text": message}},
-    ]
-
-    # Add individual observance information in two-column layout
-    fields = []
-    for special_day in special_days:
-        # Build observance field with emoji, name, and category
-        emoji = (
-            special_day.emoji
-            if hasattr(special_day, "emoji") and special_day.emoji
-            else "🌍"
-        )
-        category_text = f" • {special_day.category}" if special_day.category else ""
-
-        fields.append(
-            {
-                "type": "mrkdwn",
-                "text": f"{emoji} *{special_day.name}*{category_text}",
-            }
-        )
-
-    blocks.append({"type": "section", "fields": fields})
-
-    # Add interactive buttons if detailed content or URLs available
-    if detailed_content or any(hasattr(sd, "url") and sd.url for sd in special_days):
-        actions = []
-
-        # 1. "View Details" button for combined detailed content
-        if detailed_content:
-            actions.append(
-                {
-                    "type": "button",
-                    "text": {"type": "plain_text", "text": "📖 View Details"},
-                    "style": "primary",
-                    "action_id": f"special_day_details_{special_days[0].date.replace('/', '_')}",
-                    "value": detailed_content[:3000],  # Slack action value limit
-                }
-            )
-
-        # 2. Individual "Official Source" buttons for each observance with URL
-        for special_day in special_days:
-            if hasattr(special_day, "url") and special_day.url:
-                # Truncate name if too long for button display
-                button_name = (
-                    special_day.name[:30] + "..."
-                    if len(special_day.name) > 30
-                    else special_day.name
-                )
-                actions.append(
-                    {
-                        "type": "button",
-                        "text": {"type": "plain_text", "text": f"🔗 {button_name}"},
-                        "url": special_day.url,
-                    }
-                )
-
-        if actions:
-            blocks.append({"type": "actions", "elements": actions})
-
-    # Add context block for metadata (date and sources)
-    context_elements = []
-
-    # Get date from first special day (all have same date since filtered by same day)
-    if special_days and special_days[0].date:
-        from datetime import datetime
-        from utils.date_utils import format_date_european_short
-
-        date_str = special_days[0].date
-        try:
-            date_obj = datetime.strptime(date_str, "%d/%m")
-            formatted_date = format_date_european_short(date_obj)
-        except ValueError:
-            formatted_date = date_str
-
-        context_elements.append(
-            {"type": "mrkdwn", "text": f"📅 *Date:* {formatted_date}"}
-        )
-
-    # Collect sources from all special days
-    sources = [day.source for day in special_days if day.source]
-
-    # Add source information
-    if sources:
-        unique_sources = list(set(sources))
-        if len(unique_sources) == 1:
-            source_display = unique_sources[0]
-        elif len(unique_sources) <= 3:
-            source_display = ", ".join(unique_sources)
-        else:
-            source_display = f"{len(unique_sources)} sources"
-
-        context_elements.append(
-            {"type": "mrkdwn", "text": f"📋 *Sources:* {source_display}"}
-        )
-
-    # Add personality attribution
-    personality_name = get_personality_display_name(personality)
-    context_elements.append(
-        {"type": "mrkdwn", "text": f"✨ _Brought to you by {personality_name}_"}
+    warnings.warn(
+        "build_consolidated_special_days_blocks() is deprecated. "
+        "Use build_special_day_blocks() instead.",
+        DeprecationWarning,
+        stacklevel=2,
     )
 
-    if context_elements:
-        blocks.append({"type": "context", "elements": context_elements})
-
-    # Fallback text
-    names = ", ".join([day.name for day in special_days])
-    fallback_text = f"🌍 {count} Special Observances Today: {names}"
-
-    return blocks, fallback_text
+    return build_special_day_blocks(
+        special_days=special_days,
+        message=message,
+        personality=personality,
+        detailed_content=detailed_content,
+    )
 
 
 def build_announce_result_blocks(success: bool) -> tuple[List[Dict[str, Any]], str]:

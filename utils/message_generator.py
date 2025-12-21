@@ -360,102 +360,83 @@ Any exciting birthday plans to share? :eyes:
 ]
 
 
-def completion(
-    date: str,
-    user_id: str = None,
-    birth_date: str = None,
-    birth_year: int = None,
-    max_retries: int = 2,
-    app=None,  # Add app parameter to fetch custom emojis
-    user_profile: dict = None,  # Enhanced profile data
-    include_image: bool = False,  # Whether to generate AI image
-    test_mode: bool = False,  # Use low-cost mode for testing
-    quality: str = None,  # Override image quality ("low", "medium", "high", "auto")
-    image_size: str = None,  # Override image size ("auto", "1024x1024", "1536x1024", "1024x1536")
-) -> str:
+# ============================================================================
+# UNIFIED BIRTHDAY MESSAGE GENERATION
+# ============================================================================
+
+
+def _generate_birthday_message(
+    birthday_people,
+    app=None,
+    include_image=False,
+    test_mode=False,
+    quality=None,
+    image_size=None,
+    max_retries=2,
+):
     """
-    Generate an enthusiastic, fun birthday message using OpenAI or fallback messages
-    with validation to ensure proper mentions are included.
+    Unified internal function to generate birthday messages for one or more people.
+
+    This function handles both single and multiple birthday scenarios with shared
+    logic for personality selection, web search facts, emoji context, validation,
+    and image generation.
 
     Args:
-        date: User's birthday in natural language format (e.g. "2nd of April")
-        user_id: User's Slack ID for mentioning them with @
-        birth_date: Original birth date in DD/MM format (for star sign)
-        birth_year: Optional birth year for age-related content
+        birthday_people: List of dicts with keys: user_id, username, date, year, date_words, profile
+        app: Optional Slack app instance for custom emoji fetching
+        include_image: Whether to generate AI birthday images
+        test_mode: If True, uses lower quality/smaller size to reduce costs
+        quality: Override image quality ("low", "medium", "high", "auto")
+        image_size: Override image size ("auto", "1024x1024", "1536x1024", "1024x1536")
         max_retries: Maximum number of retries if validation fails
-        app: Slack app instance for fetching custom emojis
-        user_profile: Enhanced profile data (includes preferred_name, formatted profile_details)
-        include_image: Whether to generate AI birthday image
 
     Returns:
-        If include_image is True: tuple of (message, image_data)
-        Otherwise: birthday message string
+        Tuple of (message, images_list_or_none, actual_personality_name)
     """
-    # Extract name from user_profile
-    name = (
-        user_profile.get("preferred_name", "Birthday Person")
-        if user_profile
-        else "Birthday Person"
-    )
+    if not birthday_people:
+        return "", None, "standard"
 
-    # Get current personality info for the request
+    is_single = len(birthday_people) == 1
+    count = len(birthday_people)
+
+    # === SHARED: Personality Selection ===
     current_personality_name = get_current_personality_name()
 
-    # If using random personality, get the actual personality being used
     if current_personality_name == "random":
         selected_personality_name = get_random_personality_name()
-        # Use the selected personality's settings, not the "random" personality's settings
         personality = BOT_PERSONALITIES.get(
             selected_personality_name, BOT_PERSONALITIES["standard"]
         )
         logger.info(
-            f"RANDOM: Using personality '{selected_personality_name}' with name '{personality['name']}'"
+            f"{'RANDOM' if is_single else 'CONSOLIDATED_RANDOM'}: Using personality "
+            f"'{selected_personality_name}' for {count} birthday(s)"
         )
     else:
         selected_personality_name = current_personality_name
-        personality = get_current_personality()
+        personality = BOT_PERSONALITIES.get(
+            selected_personality_name, BOT_PERSONALITIES["standard"]
+        )
 
-    # Create user mention format if user_id is provided
-    user_mention = f"{get_user_mention(user_id)}" if user_id else name
-
-    # Get star sign if possible
-    star_sign = get_star_sign(birth_date) if birth_date else None
-    star_sign_text = f" Their star sign is {star_sign}." if star_sign else ""
-
-    # Age information
-    age_text = ""
-    if birth_year:
-        age = datetime.now().year - birth_year
-        age_text = f" They're turning {age} today!"
-
-    # Get emoji context for AI message generation (uses config default: 50)
-    from utils.slack_utils import get_emoji_context_for_ai
-
-    emoji_ctx = get_emoji_context_for_ai(app)
-    safe_emoji_examples = emoji_ctx["emoji_examples"]
-    emoji_instruction = emoji_ctx["emoji_instruction"]
-    emoji_warning = emoji_ctx["emoji_warning"]
-
-    # Get birthday facts for personalities that use web search
+    # === SHARED: Get birthday facts for personalities that use web search ===
+    birthday_date = birthday_people[0]["date"]  # All share same date for consolidated
     birthday_facts_text = ""
     personalities_using_web_search = [
         "mystic_dog",
         "time_traveler",
         "superhero",
         "pirate",
-        "poet",  # Adding the remaining personalities
+        "poet",
         "tech_guru",
         "chef",
-        "standard",  # Even the standard personality can benefit from interesting facts!
+        "standard",
     ]
 
-    if selected_personality_name in personalities_using_web_search and birth_date:
+    if selected_personality_name in personalities_using_web_search and birthday_date:
         try:
-            # Get facts formatted for this specific personality
-            birthday_facts = get_birthday_facts(birth_date, selected_personality_name)
-
+            birthday_facts = get_birthday_facts(
+                birthday_date, selected_personality_name
+            )
             if birthday_facts and birthday_facts["facts"]:
-                # Get birthday facts text from centralized configuration
                 from personality_config import get_personality_config
 
                 personality_config = get_personality_config(selected_personality_name)
@@ -466,46 +447,262 @@ def completion(
                 birthday_facts_text = (
                     f"\n\n{facts_template.format(facts=birthday_facts['facts'])}"
                 )
-
-                # Add sources if available
                 if birthday_facts["sources"]:
-                    sources_text = "\n\nYou may reference where this information came from in a way that fits your personality, without mentioning specific URLs."
-                    birthday_facts_text += sources_text
-
+                    birthday_facts_text += "\n\nYou may reference where this information came from in a way that fits your personality, without mentioning specific URLs."
                 logger.info(
-                    f"AI: Added {selected_personality_name}-specific facts for {birth_date}"
+                    f"AI: Added {selected_personality_name}-specific facts for {birthday_date}"
                 )
         except Exception as e:
-            logger.error(
-                f"AI_ERROR: Failed to get birthday facts for {selected_personality_name}: {e}"
-            )
-            # Continue without facts if there's an error
+            logger.error(f"AI_ERROR: Failed to get birthday facts: {e}")
 
-    # Extract profile information for personalization (pre-formatted in slack_utils.py)
+    # === SHARED: Get emoji context ===
+    from utils.slack_utils import get_emoji_context_for_ai
+
+    emoji_ctx = get_emoji_context_for_ai(app)
+
+    # === CONDITIONAL: Build prompt based on single vs multiple ===
+    if is_single:
+        messages, required_mentions, user_mention = _build_single_birthday_prompt(
+            birthday_people[0],
+            personality,
+            selected_personality_name,
+            birthday_facts_text,
+            emoji_ctx,
+            include_image,
+        )
+        token_limit = TOKEN_LIMITS["single_birthday"]
+    else:
+        messages, required_mentions, mention_text = _build_consolidated_birthday_prompt(
+            birthday_people,
+            personality,
+            selected_personality_name,
+            birthday_facts_text,
+            emoji_ctx,
+        )
+        token_limit = TOKEN_LIMITS["consolidated_birthday"]
+
+    # === SHARED: API call with retry logic ===
+    retry_count = 0
+    message = None
+
+    while retry_count <= max_retries:
+        try:
+            log_prefix = "AI" if is_single else "CONSOLIDATED_AI"
+            name_desc = (
+                birthday_people[0]["username"] if is_single else f"{count} people"
+            )
+            logger.info(
+                f"{log_prefix}: Requesting birthday message for {name_desc} using "
+                f"{selected_personality_name} personality"
+                + (f" (retry {retry_count})" if retry_count > 0 else "")
+            )
+
+            message = complete(
+                messages=messages,
+                max_tokens=token_limit,
+                temperature=TEMPERATURE_SETTINGS["creative"],
+                context="SINGLE_BIRTHDAY" if is_single else "CONSOLIDATED_AI",
+            )
+            message = message.strip()
+
+            # Fix common Slack formatting issues
+            message = fix_slack_formatting(message)
+
+            # === CONDITIONAL: Validation ===
+            if is_single:
+                is_valid, validation_errors = _validate_single_message(
+                    message, required_mentions[0] if required_mentions else None
+                )
+            else:
+                # Post-process to ensure all required mentions are present
+                message = _ensure_mentions_present(
+                    message, required_mentions, mention_text
+                )
+                is_valid = _validate_consolidated_message(message, required_mentions)
+                validation_errors = (
+                    [] if is_valid else ["Consolidated validation failed"]
+                )
+
+            if is_valid:
+                logger.info(
+                    f"{log_prefix}: Successfully generated birthday message (passed validation)"
+                )
+                break
+
+            # Validation failed - retry
+            if retry_count < max_retries:
+                logger.warning(
+                    f"{log_prefix}_VALIDATION: Message failed validation: {validation_errors}. Retrying..."
+                )
+                retry_count += 1
+
+                if is_single:
+                    # Add clarification for next attempt
+                    messages.append({"role": "assistant", "content": message})
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": f"The message you provided is missing: {', '.join(validation_errors)}. "
+                            f"Please regenerate the message including both the user mention "
+                            f"{required_mentions[0] if required_mentions else ''} and here mention <!here> formats exactly as specified.",
+                        }
+                    )
+                else:
+                    # For consolidated, just retry without modification
+                    pass
+            else:
+                logger.error(
+                    f"{log_prefix}_VALIDATION: Message failed validation after {max_retries} retries. Using anyway."
+                )
+                break
+
+        except Exception as e:
+            logger.error(f"{log_prefix}_ERROR: Failed to generate completion: {e}")
+            # Use fallback message
+            if is_single:
+                message = _get_fallback_single_message(
+                    birthday_people[0], selected_personality_name
+                )
+            else:
+                message = _generate_fallback_consolidated_message(birthday_people)
+            break
+
+    # === SHARED: Image generation ===
+    generated_images = []
+    if include_image and message:
+        try:
+            from utils.image_generator import (
+                generate_birthday_image,
+                create_profile_photo_birthday_image,
+            )
+
+            for person in birthday_people:
+                try:
+                    person_image = generate_birthday_image(
+                        person.get("profile", {}),
+                        selected_personality_name,
+                        person.get("date"),
+                        enable_transparency=False,
+                        birthday_message=message,
+                        test_mode=test_mode,
+                        quality=quality,
+                        image_size=image_size,
+                    )
+
+                    if person_image:
+                        person_image["birthday_person"] = {
+                            "user_id": person["user_id"],
+                            "username": person["username"],
+                            "date": person.get("date"),
+                            "year": person.get("year"),
+                        }
+                        generated_images.append(person_image)
+                        logger.info(
+                            f"IMAGE: Successfully generated image for {person['username']}"
+                        )
+                    else:
+                        # Try profile photo fallback
+                        logger.warning(
+                            f"IMAGE: AI generation failed for {person['username']}, trying fallback"
+                        )
+                        fallback_image = create_profile_photo_birthday_image(
+                            person.get("profile", {}),
+                            personality=selected_personality_name,
+                            date_str=person.get("date"),
+                            test_mode=test_mode,
+                        )
+                        if fallback_image:
+                            fallback_image["birthday_person"] = {
+                                "user_id": person["user_id"],
+                                "username": person["username"],
+                                "date": person.get("date"),
+                                "year": person.get("year"),
+                            }
+                            generated_images.append(fallback_image)
+                            logger.info(
+                                f"IMAGE: Used profile photo fallback for {person['username']}"
+                            )
+
+                except Exception as img_e:
+                    logger.error(
+                        f"IMAGE_ERROR: Failed to generate image for {person['username']}: {img_e}"
+                    )
+
+            logger.info(
+                f"IMAGE: Generated {len(generated_images)}/{count} birthday images"
+            )
+
+        except Exception as e:
+            logger.error(f"IMAGE_ERROR: Failed during image generation: {e}")
+
+    # === SHARED: Return format ===
+    if include_image:
+        return (
+            message,
+            generated_images if generated_images else [],
+            selected_personality_name,
+        )
+    return message, None, selected_personality_name
+
+
+def _build_single_birthday_prompt(
+    person,
+    personality,
+    selected_personality_name,
+    birthday_facts_text,
+    emoji_ctx,
+    include_image,
+):
+    """
+    Build the prompt messages for a single birthday person.
+
+    Returns:
+        Tuple of (messages_list, required_mentions_list, user_mention_str)
+    """
+    name = person.get("profile", {}).get("preferred_name") or person.get(
+        "username", "Birthday Person"
+    )
+    user_id = person.get("user_id")
+    birth_date = person.get("date")
+    birth_year = person.get("year")
+    date_words = person.get("date_words", "their birthday")
+    user_profile = person.get("profile", {})
+
+    user_mention = f"{get_user_mention(user_id)}" if user_id else name
+    required_mentions = [user_mention] if user_id else []
+
+    # Star sign
+    star_sign = get_star_sign(birth_date) if birth_date else None
+    star_sign_text = f" Their star sign is {star_sign}." if star_sign else ""
+
+    # Age
+    age_text = ""
+    if birth_year:
+        age = datetime.now().year - birth_year
+        age_text = f" They're turning {age} today!"
+
+    # Profile context
     profile_context = ""
     if user_profile:
         profile_details = user_profile.get("profile_details", [])
         name_context = user_profile.get("name_context", "")
-
         if profile_details:
             profile_context = f"\n\nPersonalize the message using this information about them: {', '.join(profile_details)}."
-
         profile_context += name_context
 
-    # Note: Image will be generated after the message is created
+    # Image context
     image_context = ""
     if include_image and user_profile:
         image_context = f"\n\nNote: A personalized birthday image will be generated for them in {selected_personality_name} style. Do NOT mention the image in your message as it will be sent automatically with your text."
 
-    # Format date in European style for organic inclusion (only if birth_date available)
+    # Date inclusion requirement
     date_inclusion_req = ""
     if birth_date:
         from utils.date_utils import format_date_european_short
 
         date_obj = datetime.strptime(birth_date, DATE_FORMAT)
-        date_formatted = format_date_european_short(date_obj)  # e.g., "15 April"
-        day_of_week = datetime.now().strftime("%A")  # e.g., "Monday"
-
+        date_formatted = format_date_european_short(date_obj)
+        day_of_week = datetime.now().strftime("%A")
         date_inclusion_req = f"""
         3. **DATE INCLUSION**: Organically mention the date ({date_formatted}) somewhere in your message. Examples:
            - "Born on {date_formatted}..."
@@ -515,14 +712,14 @@ def completion(
            Keep it natural - don't force it awkwardly"""
 
     user_content = f"""
-        {name}'s birthday is on {date}.{star_sign_text}{age_text} Please write them a fun, enthusiastic birthday message for a workplace Slack channel.
+        {name}'s birthday is on {date_words}.{star_sign_text}{age_text} Please write them a fun, enthusiastic birthday message for a workplace Slack channel.
 
         IMPORTANT REQUIREMENTS:
         1. Include their Slack mention "{user_mention}" somewhere in the message
         2. Make sure to address active members with <!here> to notify those currently online{date_inclusion_req}
         - Create a message that's lively and engaging with good structure and flow
-        - {emoji_instruction} like: {safe_emoji_examples}
-        - {emoji_warning}
+        - {emoji_ctx['emoji_instruction']} like: {emoji_ctx['emoji_examples']}
+        - {emoji_ctx['emoji_warning']}
         - Remember to use Slack emoji format with colons (e.g., :cake:), not Unicode emojis (e.g., 🎂)
         - Your name is {personality["name"]} and you are {personality["description"]}
         {birthday_facts_text}{profile_context}{image_context}
@@ -530,454 +727,24 @@ def completion(
         Today is {datetime.now().strftime('%Y-%m-%d')}.
     """
 
-    # Build system prompt with the selected personality to keep content and name in sync
-    template = build_template(selected_personality_name)
-    template.append({"role": "user", "content": user_content})
+    messages = build_template(selected_personality_name)
+    messages.append({"role": "user", "content": user_content})
 
-    retry_count = 0
-    while retry_count <= max_retries:
-        try:
-            logger.info(
-                f"AI: Requesting birthday message for {name} ({date}) using {current_personality_name} personality"
-                + (f" (retry {retry_count})" if retry_count > 0 else "")
-            )
-
-            reply = complete(
-                messages=template,
-                max_tokens=TOKEN_LIMITS["single_birthday"],
-                temperature=TEMPERATURE_SETTINGS["creative"],
-                context="SINGLE_BIRTHDAY",
-            )
-
-            # Fix common Slack formatting issues
-            reply = fix_slack_formatting(reply)
-
-            # Validate the message contains required elements
-            is_valid = True
-            validation_errors = []
-
-            # Check for user mention
-            if user_id and f"{get_user_mention(user_id)}" not in reply:
-                is_valid = False
-                validation_errors.append(
-                    f"Missing user mention {get_user_mention(user_id)}"
-                )
-
-            # Check for channel mention
-            if "<!here>" not in reply:
-                is_valid = False
-                validation_errors.append("Missing here mention <!here>")
-
-            # If validation passed, generate image if requested and return
-            if is_valid:
-                logger.info(
-                    f"AI: Successfully generated birthday message (passed validation)"
-                )
-
-                # Generate AI image if requested (after message is created)
-                generated_image = None
-                if include_image and user_profile:
-                    try:
-                        from utils.image_generator import generate_birthday_image
-
-                        logger.info(f"IMAGE: Generating birthday image for {name}")
-                        generated_image = generate_birthday_image(
-                            user_profile,
-                            selected_personality_name,
-                            birth_date,
-                            birthday_message=reply,  # Pass the generated message
-                            test_mode=test_mode,
-                            quality=quality,
-                            image_size=image_size,
-                        )
-
-                        if generated_image:
-                            logger.info(
-                                f"IMAGE: Successfully generated image for {name}"
-                            )
-                        else:
-                            logger.warning(
-                                f"IMAGE: AI generation failed for {name}, trying profile photo fallback"
-                            )
-                            # Try profile photo fallback when AI generation fails
-                            try:
-                                from utils.image_generator import (
-                                    create_profile_photo_birthday_image,
-                                )
-
-                                generated_image = create_profile_photo_birthday_image(
-                                    user_profile,
-                                    personality=selected_personality_name,
-                                    date_str=birth_date,
-                                    test_mode=test_mode,
-                                )
-                                if generated_image:
-                                    logger.info(
-                                        f"IMAGE: Successfully used profile photo as fallback for {name}"
-                                    )
-                                else:
-                                    logger.warning(
-                                        f"IMAGE: Profile photo fallback also failed for {name}"
-                                    )
-                            except Exception as fallback_error:
-                                logger.error(
-                                    f"IMAGE_FALLBACK_ERROR: Profile photo fallback failed: {fallback_error}"
-                                )
-
-                    except Exception as e:
-                        logger.error(
-                            f"IMAGE_ERROR: Failed to generate birthday image: {e}"
-                        )
-                        # Try profile photo fallback when AI generation throws exception
-                        try:
-                            from utils.image_generator import (
-                                create_profile_photo_birthday_image,
-                            )
-
-                            logger.info(
-                                f"IMAGE: Attempting profile photo fallback after AI error for {name}"
-                            )
-                            generated_image = create_profile_photo_birthday_image(
-                                user_profile,
-                                personality=selected_personality_name,
-                                date_str=birth_date,
-                                test_mode=test_mode,
-                            )
-                            if generated_image:
-                                logger.info(
-                                    f"IMAGE: Successfully used profile photo as fallback after AI error for {name}"
-                                )
-                        except Exception as fallback_error:
-                            logger.error(
-                                f"IMAGE_FALLBACK_ERROR: Profile photo fallback failed after AI error: {fallback_error}"
-                            )
-
-                # Return actual personality used (important for "random" personality)
-                if include_image:
-                    return reply, generated_image, selected_personality_name
-                return reply, None, selected_personality_name
-
-            # If validation failed and we have retries left, try again
-            if retry_count < max_retries:
-                error_msg = ", ".join(validation_errors)
-                logger.warning(
-                    f"AI_VALIDATION: Message failed validation: {error_msg}. Retrying..."
-                )
-                retry_count += 1
-
-                # Add clarification for the next attempt
-                template.append({"role": "assistant", "content": reply})
-                template.append(
-                    {
-                        "role": "user",
-                        "content": f"The message you provided is missing: {error_msg}. Please regenerate the message including both the user mention {user_mention} and here mention <!here> formats exactly as specified.",
-                    }
-                )
-            else:
-                # Log the failure but return the last generated message
-                logger.error(
-                    f"AI_VALIDATION: Message failed validation after {max_retries} retries. Using last generated message anyway."
-                )
-
-                # Generate AI image if requested (after message is created)
-                generated_image = None
-                if include_image and user_profile:
-                    try:
-                        from utils.image_generator import generate_birthday_image
-
-                        logger.info(
-                            f"IMAGE: Generating birthday image for {name} (fallback case)"
-                        )
-                        generated_image = generate_birthday_image(
-                            user_profile,
-                            selected_personality_name,
-                            birth_date,
-                            birthday_message=reply,  # Pass the generated message
-                            test_mode=test_mode,
-                            quality=quality,
-                            image_size=image_size,
-                        )
-
-                        if generated_image:
-                            logger.info(
-                                f"IMAGE: Successfully generated image for {name}"
-                            )
-                        else:
-                            logger.warning(
-                                f"IMAGE: Failed to generate image for {name}"
-                            )
-
-                    except Exception as e:
-                        logger.error(
-                            f"IMAGE_ERROR: Failed to generate birthday image: {e}"
-                        )
-
-                # Return actual personality used (important for "random" personality)
-                if include_image:
-                    return reply, generated_image, selected_personality_name
-                return reply, None, selected_personality_name
-
-        except Exception as e:
-            logger.error(f"AI_ERROR: Failed to generate completion: {e}")
-
-            # Use personality-specific fallback messages if available
-            from personality_config import get_personality_config
-
-            personality_cfg = get_personality_config(selected_personality_name)
-            fallback_templates = personality_cfg.get(
-                "fallback_messages", BACKUP_MESSAGES
-            )
-
-            random_message = random.choice(fallback_templates)
-
-            # Replace {mention} with user mention (new format) or {name} (old format)
-            mention_text = user_mention if user_id else name
-            formatted_message = random_message.replace(
-                "{mention}", mention_text
-            ).replace("{name}", mention_text)
-
-            # Fix Slack formatting issues in fallback message
-            formatted_message = fix_slack_formatting(formatted_message)
-
-            logger.info(
-                f"AI: Used personality-specific fallback message ({selected_personality_name})"
-            )
-
-            # Generate AI image if requested (after message is created)
-            generated_image = None
-            if include_image and user_profile:
-                try:
-                    from utils.image_generator import generate_birthday_image
-
-                    logger.info(
-                        f"IMAGE: Generating birthday image for {name} (error fallback)"
-                    )
-                    generated_image = generate_birthday_image(
-                        user_profile,
-                        selected_personality_name,
-                        birth_date,
-                        birthday_message=formatted_message,  # Pass the fallback message
-                        test_mode=test_mode,
-                        quality=quality,
-                        image_size=image_size,
-                    )
-
-                    if generated_image:
-                        logger.info(f"IMAGE: Successfully generated image for {name}")
-                    else:
-                        logger.warning(
-                            f"IMAGE: AI generation failed for {name}, trying profile photo fallback"
-                        )
-                        # Try profile photo fallback when AI generation fails
-                        try:
-                            from utils.image_generator import (
-                                create_profile_photo_birthday_image,
-                            )
-
-                            generated_image = create_profile_photo_birthday_image(
-                                user_profile,
-                                personality=selected_personality_name,
-                                date_str=birth_date,
-                                test_mode=test_mode,
-                            )
-                            if generated_image:
-                                logger.info(
-                                    f"IMAGE: Successfully used profile photo as fallback for {name}"
-                                )
-                            else:
-                                logger.warning(
-                                    f"IMAGE: Profile photo fallback also failed for {name}"
-                                )
-                        except Exception as fallback_error:
-                            logger.error(
-                                f"IMAGE_FALLBACK_ERROR: Profile photo fallback failed: {fallback_error}"
-                            )
-
-                except Exception as e:
-                    logger.error(f"IMAGE_ERROR: Failed to generate birthday image: {e}")
-                    # Try profile photo fallback when AI generation throws exception
-                    try:
-                        from utils.image_generator import (
-                            create_profile_photo_birthday_image,
-                        )
-
-                        logger.info(
-                            f"IMAGE: Attempting profile photo fallback after AI error for {name}"
-                        )
-                        generated_image = create_profile_photo_birthday_image(
-                            user_profile,
-                            personality=selected_personality_name,
-                            date_str=birth_date,
-                            test_mode=test_mode,
-                        )
-                        if generated_image:
-                            logger.info(
-                                f"IMAGE: Successfully used profile photo as fallback after AI error for {name}"
-                            )
-                    except Exception as fallback_error:
-                        logger.error(
-                            f"IMAGE_FALLBACK_ERROR: Profile photo fallback failed after AI error: {fallback_error}"
-                        )
-
-            # Return actual personality used (important for "random" personality)
-            if include_image:
-                return formatted_message, generated_image, selected_personality_name
-            return formatted_message, None, selected_personality_name
-
-        # End of retry loop
-
-    # We should never get here due to the returns in the loop
-    logger.error("AI_ERROR: Unexpected flow in completion function")
-    fallback_message = create_birthday_announcement(
-        user_id, name, birth_date, birth_year, test_mode=test_mode, quality=quality
-    )
-    # Return with "standard" personality for fallback
-    return fallback_message, None, "standard"
+    return messages, required_mentions, user_mention
 
 
-def create_consolidated_birthday_announcement(
+def _build_consolidated_birthday_prompt(
     birthday_people,
-    app=None,
-    include_image=False,
-    test_mode=False,
-    quality=None,
-    image_size=None,
+    personality,
+    selected_personality_name,
+    birthday_facts_text,
+    emoji_ctx,
 ):
     """
-    Create a single AI-powered consolidated birthday announcement for one or more people
-
-    Args:
-        birthday_people: List of dicts with keys: user_id, username, date, year, date_words, profile
-        app: Optional Slack app instance for custom emoji fetching
-        include_image: Whether to generate AI image for multiple birthdays
-        test_mode: If True, uses lower quality/smaller size to reduce costs for testing
-        quality: Override image quality ("low", "medium", "high", or "auto"). If None, uses test_mode logic
-        image_size: Override image size ("auto", "1024x1024", "1536x1024", "1024x1536"). If None, defaults to "auto"
+    Build the prompt messages for multiple birthday people.
 
     Returns:
-        If include_image is True and multiple people: tuple of (message, image_data)
-        Otherwise: birthday announcement message string
-    """
-    if not birthday_people:
-        return ""
-
-    if len(birthday_people) == 1:
-        # Single birthday - use existing single-person completion function
-        person = birthday_people[0]
-        try:
-            result = completion(
-                person["date_words"],
-                person["user_id"],
-                person["date"],
-                person.get("year"),
-                app=app,
-                user_profile=person.get("profile"),
-                include_image=include_image,
-                test_mode=test_mode,
-                quality=quality,
-                image_size=image_size,
-            )
-
-            # Convert single person result to consistent list format
-            # Unpack result (now returns 3 elements: message, image, personality)
-            if isinstance(result, tuple) and len(result) == 3:
-                message, single_image, actual_personality = result
-            else:
-                # Fallback for old format (should not happen)
-                message = result if isinstance(result, str) else result[0]
-                single_image = None
-                actual_personality = None
-
-            if include_image:
-                if single_image:
-                    # Add person identification to image metadata for consistency
-                    single_image["birthday_person"] = {
-                        "user_id": person["user_id"],
-                        "username": person["username"],
-                        "date": person.get("date"),
-                        "year": person.get("year"),
-                    }
-                    return (
-                        message,
-                        [single_image],
-                        actual_personality,
-                    )  # Return personality as 3rd element
-                else:
-                    return message, [], actual_personality  # Empty list if no image
-            else:
-                return (
-                    message,
-                    None,
-                    actual_personality,
-                )  # Return personality even for message-only case
-
-        except Exception as e:
-            logger.error(
-                f"AI_ERROR: Failed to generate consolidated message for {person['username']}: {e}"
-            )
-            fallback_message = create_birthday_announcement(
-                person["user_id"],
-                person["username"],
-                person["date"],
-                person.get("year"),
-            )
-            if include_image:
-                return (
-                    fallback_message,
-                    [],
-                    "standard",
-                )  # Return with standard personality for fallback
-            return (
-                fallback_message,
-                None,
-                "standard",
-            )  # Return with standard personality for fallback
-
-    # Multiple birthdays - use AI to create creative consolidated message
-    try:
-        return _generate_ai_consolidated_message(
-            birthday_people, app, include_image, test_mode, quality, image_size
-        )
-    except Exception as e:
-        logger.error(f"AI_ERROR: Failed to generate AI consolidated message: {e}")
-        # Fallback to static template for multiple birthdays
-        if include_image:
-            return (
-                _generate_fallback_consolidated_message(birthday_people),
-                [],
-                "standard",  # Return with standard personality for fallback
-            )
-        return (
-            _generate_fallback_consolidated_message(birthday_people),
-            None,
-            "standard",
-        )  # Return with standard personality for fallback
-
-
-def _generate_ai_consolidated_message(
-    birthday_people,
-    app=None,
-    include_image=False,
-    test_mode=False,
-    quality=None,
-    image_size=None,
-):
-    """
-    Generate AI-powered consolidated birthday message for multiple people
-
-    Args:
-        birthday_people: List of birthday person dicts
-        app: Optional Slack app instance
-        include_image: Whether to generate AI image for multiple birthdays
-        test_mode: If True, uses lower quality/smaller size to reduce costs for testing
-        quality: Override image quality ("low", "medium", "high", or "auto"). If None, uses test_mode logic
-        image_size: Override image size ("auto", "1024x1024", "1536x1024", "1024x1536"). If None, defaults to "auto"
-
-    Returns:
-        tuple of (message, image_data, actual_personality):
-        - message: AI-generated consolidated birthday message
-        - image_data: List of generated images (or None if include_image=False)
-        - actual_personality: The actual personality used (important for "random" personality)
+        Tuple of (messages_list, required_mentions_list, formatted_mention_text)
     """
     # Prepare birthday people information
     people_info = []
@@ -992,14 +759,13 @@ def _generate_ai_consolidated_message(
             age = datetime.now().year - person["year"]
             age_info = f" (turning {age})"
 
-        # Add profile information if available (fields already parsed in slack_utils.py)
+        # Profile information
         profile_info = ""
         name_info = ""
         if person.get("profile"):
             profile = person["profile"]
             profile_details = []
 
-            # Dual-name system for consolidated messages
             display_name = profile.get("display_name", "")
             real_name = profile.get("real_name", "")
             if display_name and real_name and display_name != real_name:
@@ -1007,15 +773,10 @@ def _generate_ai_consolidated_message(
                     f" [display name: '{display_name}', full name: '{real_name}']"
                 )
 
-            # Pronouns (critical for inclusive language)
             if profile.get("pronouns"):
                 profile_details.append(f"pronouns: {profile['pronouns']}")
-
-            # Job title
             if profile.get("title"):
                 profile_details.append(f"job: {profile['title']}")
-
-            # Current status (adds humor and context)
             if profile.get("status_text"):
                 status_display = (
                     f"{profile['status_emoji']} {profile['status_text']}"
@@ -1023,8 +784,6 @@ def _generate_ai_consolidated_message(
                     else profile["status_text"]
                 )
                 profile_details.append(f"status: {status_display}")
-
-            # Start date (time with organization/lab) - abbreviated as "Xy" for consolidated
             if profile.get("start_date"):
                 try:
                     start = datetime.fromisoformat(profile["start_date"])
@@ -1032,14 +791,11 @@ def _generate_ai_consolidated_message(
                     if years > 0:
                         profile_details.append(f"{years}y")
                 except (ValueError, TypeError):
-                    # Invalid date format, skip calculation
                     pass
 
-            # Custom profile fields (already parsed in slack_utils, abbreviate for space)
             custom_fields = profile.get("custom_fields", {})
             for label, value in custom_fields.items():
                 if value:
-                    # Abbreviate for space: use first word of label and value
                     label_short = label.split()[0] if " " in label else label
                     value_short = value.split()[0] if " " in value else value
                     profile_details.append(f"{label_short}: {value_short}")
@@ -1051,7 +807,7 @@ def _generate_ai_consolidated_message(
             f"{person['username']} ({user_mention}){age_info}{name_info}{profile_info}"
         )
 
-    # Format mentions for use in message
+    # Format mentions
     if len(mentions) == 2:
         mention_text = f"{mentions[0]} and {mentions[1]}"
         count_word = "both"
@@ -1065,92 +821,19 @@ def _generate_ai_consolidated_message(
         count_word = f"all {len(mentions)}"
         relationship = f"{len(mentions)}-way birthday celebration"
 
-    # Get current personality configuration
-    current_personality_name = get_current_personality_name()
-
-    # Handle random personality selection
-    if current_personality_name == "random":
-        selected_personality_name = get_random_personality_name()
-        personality = BOT_PERSONALITIES.get(
-            selected_personality_name, BOT_PERSONALITIES["standard"]
-        )
-        logger.info(
-            f"CONSOLIDATED_RANDOM: Using personality '{selected_personality_name}' for multiple birthdays"
-        )
-    else:
-        selected_personality_name = current_personality_name
-        personality = BOT_PERSONALITIES.get(
-            selected_personality_name, BOT_PERSONALITIES["standard"]
-        )
-
-    # Get birthday facts for personalities that use web search (same logic as single birthdays)
-    birthday_facts_text = ""
-    personalities_using_web_search = [
-        "mystic_dog",
-        "time_traveler",
-        "superhero",
-        "pirate",
-        "poet",
-        "tech_guru",
-        "chef",
-        "standard",
-    ]
-
-    # Format shared birthday date in European style for organic inclusion
-    shared_birthday_date = birthday_people[0]["date"]  # DD/MM format
+    # Format shared birthday date
+    shared_birthday_date = birthday_people[0]["date"]
     from utils.date_utils import format_date_european_short
 
     date_obj = datetime.strptime(shared_birthday_date, DATE_FORMAT)
-    shared_date_formatted = format_date_european_short(date_obj)  # e.g., "15 April"
-    day_of_week = datetime.now().strftime("%A")  # e.g., "Monday"
+    shared_date_formatted = format_date_european_short(date_obj)
+    day_of_week = datetime.now().strftime("%A")
 
-    if selected_personality_name in personalities_using_web_search and birthday_people:
-        try:
-            # Get facts formatted for this specific personality
-            birthday_facts = get_birthday_facts(
-                shared_birthday_date, selected_personality_name
-            )
-
-            if birthday_facts and birthday_facts["facts"]:
-                # Get birthday facts text from centralized configuration
-                from personality_config import get_personality_config
-
-                personality_config = get_personality_config(selected_personality_name)
-                facts_template = personality_config.get(
-                    "birthday_facts_text",
-                    "Incorporate these interesting facts about their shared birthday date: {facts}",
-                )
-                birthday_facts_text = (
-                    f"\n\n{facts_template.format(facts=birthday_facts['facts'])}"
-                )
-
-                # Add sources if available
-                if birthday_facts["sources"]:
-                    sources_text = "\n\nYou may reference where this information came from in a way that fits your personality, without mentioning specific URLs."
-                    birthday_facts_text += sources_text
-
-                logger.info(
-                    f"CONSOLIDATED_AI: Added {selected_personality_name}-specific facts for shared date {shared_birthday_date}"
-                )
-        except Exception as e:
-            logger.error(
-                f"CONSOLIDATED_AI_ERROR: Failed to get birthday facts for {selected_personality_name}: {e}"
-            )
-            # Continue without facts if there's an error
-
-    # Get emoji context for AI message generation (uses config default: 50)
-    from utils.slack_utils import get_emoji_context_for_ai
-
-    emoji_ctx = get_emoji_context_for_ai(app)
-    emoji_list = emoji_ctx["emoji_list"]  # Keep for backward compatibility if needed
-    emoji_instruction = emoji_ctx["emoji_instruction"]
-
-    # Build the consolidated prompt based on personality
+    # Build system prompt
     system_prompt = _build_consolidated_system_prompt(
         personality, selected_personality_name
     )
 
-    # Create the user prompt with all the birthday information
     user_prompt = f"""Create a consolidated birthday celebration message for multiple people sharing the same birthday!
 
 BIRTHDAY PEOPLE:
@@ -1163,7 +846,7 @@ CRITICAL FORMATTING REQUIREMENTS (MUST FOLLOW EXACTLY):
    - These EXACT strings must appear in your response: {mention_text}
 2. **NOTIFICATION**: Include <!here> exactly as written to notify active members
 3. **LENGTH**: Keep the message to 8-12 lines maximum
-4. **EMOJIS**: {emoji_instruction}
+4. **EMOJIS**: {emoji_ctx['emoji_instruction']}
 5. **AVAILABLE EMOJIS**: {emoji_ctx['emoji_examples']}
 6. **DATE INCLUSION**: Organically mention today's date ({shared_date_formatted}) in your message. Examples:
    - "All born on {shared_date_formatted}..."
@@ -1185,112 +868,172 @@ Happy Birthday {mention_text}! [Continue with creative content...]"{birthday_fac
 
 **IMPORTANT**: The mentions {mention_text} must appear EXACTLY as provided. Generate an amazing consolidated birthday message!"""
 
-    # Make the API call
-    try:
-        message = complete(
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            max_tokens=TOKEN_LIMITS["consolidated_birthday"],
-            temperature=TEMPERATURE_SETTINGS["creative"],
-            context="CONSOLIDATED_AI",
-        )
-        message = message.strip()
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
 
-        # Fix any formatting issues
-        message = fix_slack_formatting(message)
+    return messages, mentions, mention_text
 
-        # Post-process to ensure all required mentions are present
-        message = _ensure_mentions_present(message, mentions, mention_text)
 
-        # Validate the message contains required elements
-        if not _validate_consolidated_message(message, mentions):
-            logger.error(
-                f"CONSOLIDATED_AI: Message validation failed after post-processing. "
-                f"Required mentions: {mentions}. Message length: {len(message)}. "
-                f"Message preview: {message[:200]}..."
-            )
-            logger.warning(
-                "CONSOLIDATED_AI: Generated message failed validation, regenerating..."
-            )
-            raise ValueError("Message validation failed")
+def _validate_single_message(message, user_mention):
+    """
+    Validate that a single birthday message contains required elements.
 
-        logger.info(
-            f"CONSOLIDATED_AI: Successfully generated consolidated message for {len(birthday_people)} people"
-        )
+    Returns:
+        Tuple of (is_valid, validation_errors_list)
+    """
+    validation_errors = []
 
-        # Generate individual images for each birthday person if requested
-        generated_images = []
-        if include_image:
-            try:
-                from utils.image_generator import generate_birthday_image
+    if user_mention and user_mention not in message:
+        validation_errors.append(f"Missing user mention {user_mention}")
 
-                logger.info(
-                    f"IMAGE: Generating individual birthday images for {len(birthday_people)} people using {selected_personality_name} personality"
-                )
+    if "<!here>" not in message:
+        validation_errors.append("Missing here mention <!here>")
 
-                # Generate individual images for each person using consistent personality
-                for person in birthday_people:
-                    try:
-                        person_image = generate_birthday_image(
-                            person.get("profile", {}),
-                            selected_personality_name,  # Use consistent personality across all images
-                            person.get("date"),
-                            enable_transparency=False,
-                            birthday_message=message,  # Pass the consolidated message for context
-                            test_mode=test_mode,
-                            quality=quality,
-                            image_size=image_size,
-                        )
+    return len(validation_errors) == 0, validation_errors
 
-                        if person_image:
-                            # Add person identification to image metadata
-                            person_image["birthday_person"] = {
-                                "user_id": person["user_id"],
-                                "username": person["username"],
-                                "date": person.get("date"),
-                                "year": person.get("year"),
-                            }
-                            generated_images.append(person_image)
-                            logger.info(
-                                f"IMAGE: Successfully generated individual image for {person['username']}"
-                            )
-                        else:
-                            logger.warning(
-                                f"IMAGE: Failed to generate individual image for {person['username']}"
-                            )
 
-                    except Exception as e:
-                        logger.error(
-                            f"IMAGE_ERROR: Failed to generate individual image for {person['username']}: {e}"
-                        )
+def _get_fallback_single_message(person, selected_personality_name):
+    """
+    Get a fallback message for a single birthday person when AI fails.
+    """
+    from personality_config import get_personality_config
 
-                logger.info(
-                    f"IMAGE: Generated {len(generated_images)} individual birthday images out of {len(birthday_people)} people"
-                )
+    name = person.get("profile", {}).get("preferred_name") or person.get(
+        "username", "Birthday Person"
+    )
+    user_id = person.get("user_id")
+    user_mention = f"{get_user_mention(user_id)}" if user_id else name
 
-            except Exception as e:
-                logger.error(
-                    f"IMAGE_ERROR: Failed to generate individual birthday images: {e}"
-                )
+    personality_cfg = get_personality_config(selected_personality_name)
+    fallback_templates = personality_cfg.get("fallback_messages", BACKUP_MESSAGES)
 
-        # Return tuple with actual personality used (important for "random" personality)
-        if include_image:
-            return (
-                message,
-                generated_images,
-                selected_personality_name,  # Return actual personality used
-            )
-        return (
-            message,
-            None,
-            selected_personality_name,
-        )  # Return actual personality even for message-only case
+    random_message = random.choice(fallback_templates)
+    formatted_message = random_message.replace("{mention}", user_mention).replace(
+        "{name}", user_mention
+    )
+    formatted_message = fix_slack_formatting(formatted_message)
 
-    except Exception as e:
-        logger.error(f"CONSOLIDATED_AI_ERROR: {e}")
-        raise
+    logger.info(
+        f"AI: Used personality-specific fallback message ({selected_personality_name})"
+    )
+    return formatted_message
+
+
+# ============================================================================
+# PUBLIC API FUNCTIONS (Backward Compatible)
+# ============================================================================
+
+
+def completion(
+    date: str,
+    user_id: str = None,
+    birth_date: str = None,
+    birth_year: int = None,
+    max_retries: int = 2,
+    app=None,
+    user_profile: dict = None,
+    include_image: bool = False,
+    test_mode: bool = False,
+    quality: str = None,
+    image_size: str = None,
+) -> str:
+    """
+    Generate an enthusiastic, fun birthday message using OpenAI or fallback messages
+    with validation to ensure proper mentions are included.
+
+    This is a backward-compatible wrapper around _generate_birthday_message().
+
+    Args:
+        date: User's birthday in natural language format (e.g. "2nd of April")
+        user_id: User's Slack ID for mentioning them with @
+        birth_date: Original birth date in DD/MM format (for star sign)
+        birth_year: Optional birth year for age-related content
+        max_retries: Maximum number of retries if validation fails
+        app: Slack app instance for fetching custom emojis
+        user_profile: Enhanced profile data (includes preferred_name, formatted profile_details)
+        include_image: Whether to generate AI birthday image
+        test_mode: Use low-cost mode for testing
+        quality: Override image quality ("low", "medium", "high", "auto")
+        image_size: Override image size ("auto", "1024x1024", "1536x1024", "1024x1536")
+
+    Returns:
+        Tuple of (message, image_data, personality_name)
+    """
+    # Extract name from user_profile for backward compatibility
+    name = (
+        user_profile.get("preferred_name", "Birthday Person")
+        if user_profile
+        else "Birthday Person"
+    )
+
+    # Convert old-style parameters to unified format
+    birthday_person = {
+        "user_id": user_id,
+        "username": name,
+        "date": birth_date,
+        "year": birth_year,
+        "date_words": date,
+        "profile": user_profile or {},
+    }
+
+    # Call unified function
+    message, images, actual_personality = _generate_birthday_message(
+        birthday_people=[birthday_person],
+        app=app,
+        include_image=include_image,
+        test_mode=test_mode,
+        quality=quality,
+        image_size=image_size,
+        max_retries=max_retries,
+    )
+
+    # Convert result format for backward compatibility
+    # Old completion() returned single image, not list
+    if include_image:
+        single_image = images[0] if images else None
+        return message, single_image, actual_personality
+    return message, None, actual_personality
+
+
+def create_consolidated_birthday_announcement(
+    birthday_people,
+    app=None,
+    include_image=False,
+    test_mode=False,
+    quality=None,
+    image_size=None,
+):
+    """
+    Create a single AI-powered consolidated birthday announcement for one or more people.
+
+    This is the main public API for birthday message generation. It handles both
+    single and multiple birthday scenarios through the unified _generate_birthday_message().
+
+    Args:
+        birthday_people: List of dicts with keys: user_id, username, date, year, date_words, profile
+        app: Optional Slack app instance for custom emoji fetching
+        include_image: Whether to generate AI birthday images
+        test_mode: If True, uses lower quality/smaller size to reduce costs for testing
+        quality: Override image quality ("low", "medium", "high", or "auto")
+        image_size: Override image size ("auto", "1024x1024", "1536x1024", "1024x1536")
+
+    Returns:
+        Tuple of (message, images_list_or_none, actual_personality_name)
+    """
+    if not birthday_people:
+        return "", None, "standard"
+
+    # Use unified function for both single and multiple birthdays
+    return _generate_birthday_message(
+        birthday_people=birthday_people,
+        app=app,
+        include_image=include_image,
+        test_mode=test_mode,
+        quality=quality,
+        image_size=image_size,
+    )
 
 
 def _build_consolidated_system_prompt(personality, personality_name):

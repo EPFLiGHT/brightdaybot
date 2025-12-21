@@ -23,11 +23,8 @@ class TestBuildBirthdayBlocks:
     def test_returns_tuple(self):
         """Function returns (blocks, fallback_text) tuple"""
         result = build_birthday_blocks(
-            username="Alice",
-            user_id="U123",
-            age=30,
-            star_sign="Aries",
-            message="Happy birthday!",
+            [{"username": "Alice", "user_id": "U123", "age": 30, "star_sign": "Aries"}],
+            "Happy birthday!",
         )
         assert isinstance(result, tuple)
         assert len(result) == 2
@@ -35,11 +32,8 @@ class TestBuildBirthdayBlocks:
     def test_blocks_is_list(self):
         """First element is a list of blocks"""
         blocks, _ = build_birthday_blocks(
-            username="Alice",
-            user_id="U123",
-            age=30,
-            star_sign="Aries",
-            message="Happy birthday!",
+            [{"username": "Alice", "user_id": "U123", "age": 30, "star_sign": "Aries"}],
+            "Happy birthday!",
         )
         assert isinstance(blocks, list)
         assert len(blocks) > 0
@@ -47,11 +41,8 @@ class TestBuildBirthdayBlocks:
     def test_has_header_block(self):
         """Blocks include a header type"""
         blocks, _ = build_birthday_blocks(
-            username="Alice",
-            user_id="U123",
-            age=30,
-            star_sign="Aries",
-            message="Happy birthday!",
+            [{"username": "Alice", "user_id": "U123", "age": 30, "star_sign": "Aries"}],
+            "Happy birthday!",
         )
         header_blocks = [b for b in blocks if b.get("type") == "header"]
         assert len(header_blocks) == 1
@@ -59,14 +50,37 @@ class TestBuildBirthdayBlocks:
     def test_fallback_text_not_empty(self):
         """Fallback text is non-empty string"""
         _, fallback = build_birthday_blocks(
-            username="Alice",
-            user_id="U123",
-            age=30,
-            star_sign="Aries",
-            message="Happy birthday!",
+            [{"username": "Alice", "user_id": "U123", "age": 30, "star_sign": "Aries"}],
+            "Happy birthday!",
         )
         assert isinstance(fallback, str)
         assert len(fallback) > 0
+
+    def test_multiple_people_header(self):
+        """Multiple people get appropriate header"""
+        blocks, _ = build_birthday_blocks(
+            [
+                {
+                    "username": "Alice",
+                    "user_id": "U123",
+                    "age": 30,
+                    "star_sign": "Aries",
+                },
+                {"username": "Bob", "user_id": "U456", "age": 25, "star_sign": "Leo"},
+            ],
+            "Happy birthday!",
+        )
+        header = blocks[0]
+        assert "Twins" in header["text"]["text"]
+
+    def test_single_person_header(self):
+        """Single person gets 'Birthday Celebration' header"""
+        blocks, _ = build_birthday_blocks(
+            [{"username": "Alice", "user_id": "U123", "age": 30, "star_sign": "Aries"}],
+            "Happy birthday!",
+        )
+        header = blocks[0]
+        assert "Birthday Celebration" in header["text"]["text"]
 
 
 class TestBuildBirthdayErrorBlocks:
