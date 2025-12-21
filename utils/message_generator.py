@@ -15,6 +15,7 @@ import random
 import argparse
 import sys
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from config import get_logger, USE_CUSTOM_EMOJIS, DATE_FORMAT
 from config import (
@@ -567,7 +568,7 @@ def _generate_birthday_message(
                 message = _generate_fallback_consolidated_message(birthday_people)
             break
 
-    # === SHARED: Image generation ===
+    # === SHARED: Image generation (parallel for multiple people) ===
     generated_images = []
     if include_image and message:
         try:
@@ -576,7 +577,8 @@ def _generate_birthday_message(
                 create_profile_photo_birthday_image,
             )
 
-            for person in birthday_people:
+            def _generate_image_for_person(person):
+                """Generate image for a single person (used in parallel execution)."""
                 try:
                     person_image = generate_birthday_image(
                         person.get("profile", {}),
@@ -596,10 +598,10 @@ def _generate_birthday_message(
                             "date": person.get("date"),
                             "year": person.get("year"),
                         }
-                        generated_images.append(person_image)
                         logger.info(
                             f"IMAGE: Successfully generated image for {person['username']}"
                         )
+                        return person_image
                     else:
                         # Try profile photo fallback
                         logger.warning(
@@ -618,15 +620,33 @@ def _generate_birthday_message(
                                 "date": person.get("date"),
                                 "year": person.get("year"),
                             }
-                            generated_images.append(fallback_image)
                             logger.info(
                                 f"IMAGE: Used profile photo fallback for {person['username']}"
                             )
-
+                            return fallback_image
                 except Exception as img_e:
                     logger.error(
                         f"IMAGE_ERROR: Failed to generate image for {person['username']}: {img_e}"
                     )
+                return None
+
+            # Use parallel execution for multiple people (3 workers to avoid API overload)
+            if count > 1:
+                logger.info(f"IMAGE: Starting parallel generation for {count} people")
+                with ThreadPoolExecutor(max_workers=3) as executor:
+                    future_to_person = {
+                        executor.submit(_generate_image_for_person, person): person
+                        for person in birthday_people
+                    }
+                    for future in as_completed(future_to_person):
+                        result = future.result()
+                        if result:
+                            generated_images.append(result)
+            else:
+                # Single person - no need for thread pool overhead
+                result = _generate_image_for_person(birthday_people[0])
+                if result:
+                    generated_images.append(result)
 
             logger.info(
                 f"IMAGE: Generated {len(generated_images)}/{count} birthday images"
