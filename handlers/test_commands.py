@@ -237,13 +237,16 @@ def handle_test_command(
 
 def handle_test_block_command(user_id, args, say, app):
     """
-    Handles the admin test-block command to test Block Kit rendering.
+    Test Block Kit rendering without AI content generation.
 
-    Usage:
-        admin test-block birthday [@user]     - Test birthday block
-        admin test-block multi @user1 @user2  - Test multiple birthdays block
-        admin test-block special              - Test special day block
-        admin test-block bot                  - Test bot celebration block
+    Supports testing birthday, multi-birthday, special day, and bot celebration
+    block layouts with sample data.
+
+    Args:
+        user_id: Slack user ID requesting the test
+        args: Block type and optional user mentions [birthday|multi|special|bot, @users...]
+        say: Slack say function for sending messages
+        app: Slack app instance for API calls
     """
     from utils.block_builder import (
         build_birthday_blocks,
@@ -429,7 +432,17 @@ def handle_test_block_command(user_id, args, say, app):
 
 
 def handle_test_upload_command(user_id, say, app):
-    """Handles the admin test-upload command."""
+    """
+    Test single image upload to Slack.
+
+    Creates a simple test image and uploads it to the requesting user's DM
+    to verify image upload functionality.
+
+    Args:
+        user_id: Slack user ID to receive test image
+        say: Slack say function for sending messages
+        app: Slack app instance for file upload
+    """
     say("Attempting to upload a test image to you via DM...")
     try:
         from PIL import Image, ImageDraw
@@ -469,7 +482,17 @@ def handle_test_upload_command(user_id, say, app):
 
 
 def handle_test_upload_multi_command(user_id, say, app):
-    """Handles the admin test-upload-multi command to test multiple attachment functionality."""
+    """
+    Test multiple image attachment upload system.
+
+    Creates multiple dummy images simulating consolidated birthday celebrations
+    and tests the batch upload functionality.
+
+    Args:
+        user_id: Slack user ID to receive test images
+        say: Slack say function for sending messages
+        app: Slack app instance for file uploads
+    """
     from utils.slack_utils import send_message_with_multiple_attachments, get_username
 
     username = get_username(app, user_id)
@@ -594,7 +617,17 @@ def handle_test_upload_multi_command(user_id, say, app):
 
 
 def handle_test_file_upload_command(user_id, say, app):
-    """Handles the admin test-file-upload command to test text file uploads."""
+    """
+    Test text file upload functionality.
+
+    Creates a temporary test file with sample birthday data format and uploads
+    it to verify the external backup file delivery system.
+
+    Args:
+        user_id: Slack user ID to receive test file
+        say: Slack say function for sending messages
+        app: Slack app instance for file upload
+    """
     import tempfile
     import os
     from datetime import datetime
@@ -698,7 +731,17 @@ This test file contains sample birthday data in the same format used by the exte
 
 
 def handle_test_external_backup_command(user_id, say, app):
-    """Handles the admin test-external-backup command to test the external backup system."""
+    """
+    Test the external backup delivery system.
+
+    Displays current backup configuration, finds the latest backup file,
+    and triggers a test delivery to configured admin users.
+
+    Args:
+        user_id: Slack user ID requesting the test
+        say: Slack say function for sending messages
+        app: Slack app instance for backup delivery
+    """
     from utils.slack_utils import get_username
     from utils.storage import send_external_backup
     from datetime import datetime
@@ -868,7 +911,16 @@ def handle_test_blockkit_command(user_id, args, say, app):
 
 
 def _test_blockkit_with_channel(app, user_id, username, image_bytes, say):
-    """Test Mode 1: Upload with channel parameter (current failing approach)"""
+    """
+    Test Block Kit image embedding with channel parameter upload.
+
+    Args:
+        app: Slack app instance for API calls
+        user_id: Slack user ID to receive test
+        username: Display name for logging
+        image_bytes: PNG image data to upload
+        say: Slack say function for status messages
+    """
     import time
 
     say("Uploading image WITH channel parameter...")
@@ -947,7 +999,16 @@ def _test_blockkit_with_channel(app, user_id, username, image_bytes, say):
 
 
 def _test_blockkit_private(app, user_id, username, image_bytes, say):
-    """Test Mode 2: Upload without channel parameter (private upload)"""
+    """
+    Test Block Kit image embedding with private upload (no channel parameter).
+
+    Args:
+        app: Slack app instance for API calls
+        user_id: Slack user ID to receive test
+        username: Display name for logging
+        image_bytes: PNG image data to upload
+        say: Slack say function for status messages
+    """
     import time
 
     say("Uploading image WITHOUT channel parameter (private)...")
@@ -1023,7 +1084,16 @@ def _test_blockkit_private(app, user_id, username, image_bytes, say):
 
 
 def _test_blockkit_url_only(app, user_id, username, image_bytes, say):
-    """Test Mode 3: Use image_url instead of slack_file"""
+    """
+    Test Block Kit image embedding using image_url instead of slack_file.
+
+    Args:
+        app: Slack app instance for API calls
+        user_id: Slack user ID to receive test
+        username: Display name for logging
+        image_bytes: PNG image data to upload
+        say: Slack say function for status messages
+    """
     import time
 
     say("Uploading image and using `image_url` instead of `slack_file`...")
@@ -1099,7 +1169,16 @@ def _test_blockkit_url_only(app, user_id, username, image_bytes, say):
 
 
 def _test_blockkit_simple(app, user_id, username, image_bytes, say):
-    """Test Mode 4: Simplest possible block structure"""
+    """
+    Test Block Kit image embedding with minimal block structure.
+
+    Args:
+        app: Slack app instance for API calls
+        user_id: Slack user ID to receive test
+        username: Display name for logging
+        image_bytes: PNG image data to upload
+        say: Slack say function for status messages
+    """
     import time
 
     say("Uploading image and using SIMPLEST possible block structure...")
@@ -1166,7 +1245,18 @@ def _test_blockkit_simple(app, user_id, username, image_bytes, say):
 
 
 def handle_test_join_command(args, user_id, say, app):
-    """Handles the admin test-join [@user] command to simulate birthday channel welcome."""
+    """
+    Simulate a member joining the birthday channel.
+
+    Triggers the welcome message flow for the specified user or the requesting
+    admin, useful for testing the onboarding experience.
+
+    Args:
+        args: Optional user mention to simulate join for
+        user_id: Slack user ID requesting the test (default target)
+        say: Slack say function for sending messages
+        app: Slack app instance for API calls
+    """
     from utils.slack_utils import get_username
     from config import BIRTHDAY_CHANNEL
 
@@ -1272,7 +1362,18 @@ No worries! If you'd prefer to opt out, simply leave {get_channel_mention(BIRTHD
 
 
 def handle_test_birthday_command(args, user_id, say, app):
-    """Handles the admin test @user1 [@user2 @user3...] [quality] [size] [--text-only] command to generate test birthday message and image(s)."""
+    """
+    Generate test birthday celebration for specified users.
+
+    Supports single or multiple user testing with optional quality, size,
+    and text-only parameters. Uses the production celebration pipeline.
+
+    Args:
+        args: User mentions and optional parameters [@users, quality, size, --text-only]
+        user_id: Slack user ID requesting the test
+        say: Slack say function for sending messages
+        app: Slack app instance for API calls
+    """
     if not args:
         say(
             "Please specify user(s): `admin test @user1 [@user2 @user3...] [quality] [size] [--text-only]`\n"
@@ -1334,7 +1435,20 @@ def handle_test_birthday_command(args, user_id, say, app):
 def handle_test_bot_celebration_command(
     user_id, say, app, quality=None, image_size=None, text_only=None
 ):
-    """Handle the admin test-bot-celebration command to test bot's self-celebration in DM."""
+    """
+    Test the bot's self-celebration feature.
+
+    Generates Ludo's mystical birthday message and optional AI image,
+    displaying current statistics and celebration configuration.
+
+    Args:
+        user_id: Slack user ID to receive test celebration
+        say: Slack say function for sending messages
+        app: Slack app instance for API calls
+        quality: Optional image quality (low/medium/high/auto)
+        image_size: Optional image size (auto/1024x1024/etc.)
+        text_only: Skip image generation if True
+    """
     from utils.slack_utils import (
         get_username,
         get_channel_members,

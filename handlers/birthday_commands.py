@@ -153,7 +153,18 @@ def send_immediate_birthday_announcement(
 
 
 def handle_list_command(parts, user_id, say, app):
-    """List birthdays - upcoming or all"""
+    """
+    List birthdays - upcoming or all registered birthdays.
+
+    Supports "list" for upcoming 10 and "list all" for complete list grouped by month.
+    Requires appropriate permissions to view birthday list.
+
+    Args:
+        parts: Command parts list (e.g., ["list"] or ["list", "all"])
+        user_id: Slack user ID requesting the list
+        say: Slack say function for sending messages
+        app: Slack app instance
+    """
     # Check if this is "list all" command
     list_all = len(parts) > 1 and parts[1].lower() == "all"
 
@@ -188,7 +199,7 @@ def handle_list_command(parts, user_id, say, app):
     # Convert to list for formatting
     birthday_list = []
 
-    for uid, data in birthdays.items():
+    for bday_user_id, data in birthdays.items():
         bdate = data["date"]
         birth_year = data.get("year")
 
@@ -205,8 +216,8 @@ def handle_list_command(parts, user_id, say, app):
         username = None
         user_mention = None
         if list_all:
-            username = get_username(app, uid)
-            user_mention = get_user_mention(uid)
+            username = get_username(app, bday_user_id)
+            user_mention = get_user_mention(bday_user_id)
 
         # Create approximate sort key for regular list (month*100 + day)
         # This is much faster than calculating exact days for all users
@@ -220,7 +231,7 @@ def handle_list_command(parts, user_id, say, app):
 
         birthday_list.append(
             (
-                uid,
+                bday_user_id,
                 bdate,
                 birth_year,
                 username,  # None for regular list, populated for list_all
@@ -240,7 +251,7 @@ def handle_list_command(parts, user_id, say, app):
 
         # Calculate age text for list_all users
         for i, (
-            uid,
+            bday_user_id,
             bdate,
             birth_year,
             username,
@@ -258,7 +269,7 @@ def handle_list_command(parts, user_id, say, app):
 
             # Update the tuple with age_text
             birthday_list[i] = (
-                uid,
+                bday_user_id,
                 bdate,
                 birth_year,
                 username,
@@ -279,15 +290,15 @@ def handle_list_command(parts, user_id, say, app):
         candidates = birthday_list[:15]  # Get 15 to be safe, in case some are invalid
         precise_candidates = []
 
-        for uid, bdate, birth_year, _, _, _, month, day, _ in candidates:
+        for bday_user_id, bdate, birth_year, _, _, _, month, day, _ in candidates:
             # Calculate precise days until birthday
             days_until = calculate_days_until_birthday(bdate, reference_date)
             if days_until is None:
                 continue  # Skip invalid dates
 
             # Get username and mention (only for candidates we'll actually display)
-            username = get_username(app, uid)
-            user_mention = get_user_mention(uid)
+            username = get_username(app, bday_user_id)
+            user_mention = get_user_mention(bday_user_id)
 
             # Calculate age text
             age_text = (
@@ -298,7 +309,7 @@ def handle_list_command(parts, user_id, say, app):
 
             precise_candidates.append(
                 (
-                    uid,
+                    bday_user_id,
                     bdate,
                     birth_year,
                     username,
@@ -322,7 +333,7 @@ def handle_list_command(parts, user_id, say, app):
     if list_all:
         # For "list all", format as (month_name, day_str, user_mention, year_str)
         for (
-            uid,
+            bday_user_id,
             bdate,
             birth_year,
             username,
@@ -348,7 +359,7 @@ def handle_list_command(parts, user_id, say, app):
     else:
         # For "list" command, format as (user_mention, date_words, age_text, days_text)
         for (
-            uid,
+            bday_user_id,
             bdate,
             birth_year,
             username,
@@ -374,7 +385,18 @@ def handle_list_command(parts, user_id, say, app):
 
 
 def handle_check_command(parts, user_id, say, app):
-    """Check a specific user's birthday or your own"""
+    """
+    Check a specific user's birthday or your own.
+
+    Displays birthday date, star sign, and age (if birth year provided).
+    Can check self or another user via @mention.
+
+    Args:
+        parts: Command parts list (e.g., ["check"] or ["check", "@user"])
+        user_id: Slack user ID requesting the check
+        say: Slack say function for sending messages
+        app: Slack app instance
+    """
     target_user = parts[1].strip("<@>") if len(parts) > 1 else user_id
     target_user = target_user.upper()
 
@@ -420,7 +442,20 @@ def handle_check_command(parts, user_id, say, app):
 def handle_remind_command(
     parts, user_id, say, app, add_pending_confirmation, CONFIRMATION_TIMEOUT_MINUTES
 ):
-    """Send reminders to users with confirmation"""
+    """
+    Send birthday reminders to users who haven't added their birthday.
+
+    Supports reminder types: "new" (never added), "update" (no year), "all" (both).
+    Requires confirmation before sending to prevent accidental mass notifications.
+
+    Args:
+        parts: Command parts list (e.g., ["remind", "new", "custom message"])
+        user_id: Slack user ID of admin sending reminders
+        say: Slack say function for sending messages
+        app: Slack app instance
+        add_pending_confirmation: Function to add pending confirmation
+        CONFIRMATION_TIMEOUT_MINUTES: Timeout for confirmation expiry
+    """
     username = get_username(app, user_id)
 
     if not check_command_permission(app, user_id, "remind"):

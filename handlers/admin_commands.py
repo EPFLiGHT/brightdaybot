@@ -44,7 +44,17 @@ logger = get_logger("commands")
 
 
 def handle_stats_command(user_id, say, app):
-    """Get birthday statistics"""
+    """
+    Display birthday statistics for the workspace.
+
+    Shows total birthdays recorded, channel member count, coverage percentage,
+    birthdays with year data, and distribution by month.
+
+    Args:
+        user_id: Slack user ID requesting stats
+        say: Slack say function for sending messages
+        app: Slack app instance for API calls
+    """
     if not check_command_permission(app, user_id, "stats"):
         from utils.block_builder import build_permission_error_blocks
 
@@ -117,7 +127,18 @@ def handle_stats_command(user_id, say, app):
 
 
 def handle_config_command(parts, user_id, say, app):
-    """Configure command permissions"""
+    """
+    Configure command permissions for non-admin users.
+
+    Allows admins to set which commands are admin-only vs available to all users.
+    Without arguments, displays current permission settings.
+
+    Args:
+        parts: Command arguments [command_name, true/false]
+        user_id: Slack user ID requesting config change
+        say: Slack say function for sending messages
+        app: Slack app instance for permission checks
+    """
     if not is_admin(app, user_id):
         say("Only admins can change command permissions")
         username = get_username(app, user_id)
@@ -195,7 +216,20 @@ def handle_config_command(parts, user_id, say, app):
 def handle_announce_command(
     args, user_id, say, app, add_pending_confirmation, CONFIRMATION_TIMEOUT_MINUTES
 ):
-    """Handle announcement commands to birthday channel with confirmation"""
+    """
+    Handle announcement commands to the birthday channel.
+
+    Supports predefined announcements (e.g., image feature) and custom messages.
+    All announcements require confirmation before sending.
+
+    Args:
+        args: Command arguments (announcement type or custom message text)
+        user_id: Slack user ID requesting announcement
+        say: Slack say function for sending messages
+        app: Slack app instance for channel info
+        add_pending_confirmation: Function to store pending confirmation
+        CONFIRMATION_TIMEOUT_MINUTES: Minutes before confirmation expires
+    """
     username = get_username(app, user_id)
 
     if not args:
@@ -266,7 +300,19 @@ def handle_announce_command(
 
 
 def handle_model_command(args, user_id, say, _app, username):
-    """Handle OpenAI model management commands"""
+    """
+    Manage OpenAI model settings.
+
+    Supports viewing current model, listing available models, setting a new model,
+    and resetting to the default model.
+
+    Args:
+        args: Subcommand and arguments [list|set|reset, model_name]
+        user_id: Slack user ID for logging
+        say: Slack say function for sending messages
+        _app: Slack app instance (unused)
+        username: Display name of requesting user for logging
+    """
     from utils.app_config import get_openai_model_info
 
     if not args:
@@ -371,7 +417,17 @@ def handle_model_command(args, user_id, say, _app, username):
 
 
 def handle_cache_command(parts, user_id, say, app):
-    """Handle cache management commands"""
+    """
+    Manage web search cache for special days.
+
+    Clears cached historical facts data, optionally for a specific date.
+
+    Args:
+        parts: Command arguments ['clear'] or ['clear', 'DD/MM']
+        user_id: Slack user ID for logging
+        say: Slack say function for sending messages
+        app: Slack app instance for username lookup
+    """
     username = get_username(app, user_id)
 
     # parts will be ['clear'] or ['clear', 'DD/MM']
@@ -413,7 +469,18 @@ def handle_cache_command(parts, user_id, say, app):
 
 
 def handle_status_command(parts, user_id, say, app):
-    """Handler for the status command"""
+    """
+    Display system health status and component information.
+
+    Shows health of all bot components including storage, cache, scheduler,
+    and API connections. Supports detailed mode for additional diagnostics.
+
+    Args:
+        parts: Command arguments (optional 'detailed' for verbose output)
+        user_id: Slack user ID for logging
+        say: Slack say function for sending messages
+        app: Slack app instance for API calls
+    """
     from utils.health_check import get_system_status
     from utils.block_builder import build_health_status_blocks
     from services.scheduler import get_scheduler_summary
@@ -475,7 +542,19 @@ def handle_status_command(parts, user_id, say, app):
 
 
 def handle_timezone_command(args, user_id, say, app, username):
-    """Handle timezone-aware announcement settings"""
+    """
+    Manage timezone-aware birthday announcement settings.
+
+    Controls whether birthday announcements are sent at a fixed server time
+    or at each user's local time based on their Slack timezone.
+
+    Args:
+        args: Subcommand [enable|disable|status]
+        user_id: Slack user ID for logging
+        say: Slack say function for sending messages
+        app: Slack app instance for timezone data
+        username: Display name of requesting user for logging
+    """
     from utils.app_config import save_timezone_settings, load_timezone_settings
     from utils.date_utils import format_timezone_schedule
 
@@ -563,7 +642,19 @@ def handle_timezone_command(args, user_id, say, app, username):
 
 
 def handle_backup_command(_args, user_id, say, app, username):
-    """Handle backup commands"""
+    """
+    Create a manual backup of birthday data.
+
+    Triggers immediate backup of the birthdays file. Also sends external
+    backup to admin users if external backup is enabled.
+
+    Args:
+        _args: Command arguments (unused)
+        user_id: Slack user ID for logging
+        say: Slack say function for sending messages
+        app: Slack app instance (unused but kept for consistent signature)
+        username: Display name of requesting user for logging
+    """
     backup_path = create_backup()
     if backup_path:
         say("Manual backup of birthdays file created successfully.")
@@ -575,7 +666,18 @@ def handle_backup_command(_args, user_id, say, app, username):
 
 
 def handle_restore_command(args, _user_id, say, _app, _username):
-    """Handle restore commands"""
+    """
+    Restore birthday data from a backup.
+
+    Currently supports restoring from the most recent backup only.
+
+    Args:
+        args: Command arguments (expects 'latest')
+        _user_id: Slack user ID (unused)
+        say: Slack say function for sending messages
+        _app: Slack app instance (unused)
+        _username: Display name (unused)
+    """
     if args and args[0] == "latest":
         if restore_latest_backup():
             say("Successfully restored from the latest backup")
@@ -586,7 +688,19 @@ def handle_restore_command(args, _user_id, say, _app, _username):
 
 
 def handle_personality_command(args, user_id, say, _app, username):
-    """Handle personality management commands"""
+    """
+    Manage bot personality settings.
+
+    Without arguments, displays current personality and available options.
+    With a personality name argument, changes the bot's personality.
+
+    Args:
+        args: Optional personality name to set
+        user_id: Slack user ID for logging
+        say: Slack say function for sending messages
+        _app: Slack app instance (unused)
+        username: Display name of requesting user for logging
+    """
     if not args:
         # Display current personality with descriptions
         current = get_current_personality_name()
@@ -621,7 +735,18 @@ def handle_personality_command(args, user_id, say, _app, username):
 
 
 def handle_admin_list_command(_args, _user_id, say, app, _username):
-    """List all configured admin users"""
+    """
+    Display all configured admin users.
+
+    Lists admin user IDs with their display names from the admin configuration file.
+
+    Args:
+        _args: Command arguments (unused)
+        _user_id: Slack user ID (unused)
+        say: Slack say function for sending messages
+        app: Slack app instance for username lookups
+        _username: Display name (unused)
+    """
     from utils.app_config import get_current_admins
 
     current_admins = get_current_admins()
@@ -646,7 +771,19 @@ def handle_admin_list_command(_args, _user_id, say, app, _username):
 
 
 def handle_admin_add_command(args, user_id, say, app, username):
-    """Add a new admin user"""
+    """
+    Add a user to the admin list.
+
+    Validates the user exists in Slack before adding. Updates both the
+    configuration file and the in-memory admin list.
+
+    Args:
+        args: User ID or mention to add as admin
+        user_id: Slack user ID of requesting admin for logging
+        say: Slack say function for sending messages
+        app: Slack app instance for user validation
+        username: Display name of requesting admin for logging
+    """
     global ADMIN_USERS
 
     if not args:
@@ -695,7 +832,18 @@ def handle_admin_add_command(args, user_id, say, app, username):
 
 
 def handle_admin_remove_command(args, user_id, say, app, username):
-    """Remove an admin user"""
+    """
+    Remove a user from the admin list.
+
+    Updates both the configuration file and the in-memory admin list.
+
+    Args:
+        args: User ID or mention to remove from admin
+        user_id: Slack user ID of requesting admin for logging
+        say: Slack say function for sending messages
+        app: Slack app instance for username lookup
+        username: Display name of requesting admin for logging
+    """
     global ADMIN_USERS
 
     if not args:

@@ -1049,11 +1049,13 @@ May the birthday forces be with you always! 🌌
 
 def get_bot_celebration_image_prompt():
     """
-    Get the special image prompt for Ludo's birthday celebration from personality config.
-    Features Ludo and all 9 personalities in a mystical scene.
+    Get the image generation prompt for Ludo's birthday celebration.
+
+    Retrieves the special prompt from mystic_dog personality config that creates
+    a scene featuring Ludo and all 9 bot personalities in a cosmic birthday setting.
 
     Returns:
-        str: Image generation prompt
+        str: Image generation prompt for the celebration scene
     """
     mystic_dog = PERSONALITIES.get("mystic_dog", {})
     return mystic_dog.get(
@@ -1064,10 +1066,14 @@ def get_bot_celebration_image_prompt():
 
 def get_bot_celebration_image_title():
     """
-    Generate AI-powered title for Ludo's birthday image using the special bot celebration prompt.
+    Generate an AI-powered title for Ludo's birthday image.
+
+    Uses the bot_celebration_image_title_prompt from mystic_dog personality
+    to create a mystical, cosmic-themed title. Enforces 100-char limit for
+    Slack compatibility.
 
     Returns:
-        str: AI-generated image title
+        str: AI-generated image title (max 100 characters)
     """
     try:
         # Get the bot celebration title prompt from mystic_dog personality

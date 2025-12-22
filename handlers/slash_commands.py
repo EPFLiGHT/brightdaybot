@@ -83,7 +83,18 @@ def _open_birthday_modal(client, trigger_id, user_id):
 
 
 def _handle_slash_check(text, user_id, respond, app):
-    """Handle /birthday check command."""
+    """
+    Handle /birthday check command.
+
+    Displays birthday information for the requesting user or a mentioned user.
+    Shows date, star sign, and age (if year provided).
+
+    Args:
+        text: Full command text (may contain @mention of target user)
+        user_id: Slack user ID who invoked the command
+        respond: Slack respond function for ephemeral messages
+        app: Slack app instance
+    """
     from utils.storage import load_birthdays
     from utils.slack_utils import get_username
     from utils.date_utils import date_to_words, calculate_age, get_star_sign
@@ -133,7 +144,15 @@ def _handle_slash_check(text, user_id, respond, app):
 
 
 def _handle_slash_list(respond, app):
-    """Handle /birthday list command."""
+    """
+    Handle /birthday list command.
+
+    Displays the next 10 upcoming birthdays sorted by days until celebration.
+
+    Args:
+        respond: Slack respond function for ephemeral messages
+        app: Slack app instance for username lookups
+    """
     from datetime import datetime, timezone
     from utils.storage import load_birthdays
     from utils.slack_utils import get_username
@@ -169,7 +188,14 @@ def _handle_slash_list(respond, app):
 
 
 def _send_birthday_help(respond):
-    """Send slash command help."""
+    """
+    Send slash command help information.
+
+    Displays available /birthday subcommands and usage examples.
+
+    Args:
+        respond: Slack respond function for ephemeral messages
+    """
     from utils.block_builder import build_slash_help_blocks
 
     blocks, fallback = build_slash_help_blocks("birthday")

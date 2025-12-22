@@ -93,7 +93,12 @@ CONFIRMATION_TIMEOUT_MINUTES = 5
 
 
 def clear_expired_confirmations():
-    """Remove expired confirmation requests"""
+    """
+    Remove expired confirmation requests from the pending confirmations store.
+
+    Iterates through all pending confirmations and removes any that have
+    exceeded the CONFIRMATION_TIMEOUT_MINUTES threshold.
+    """
     current_time = datetime.now(timezone.utc)
     expired_users = []
 
@@ -109,7 +114,14 @@ def clear_expired_confirmations():
 
 
 def add_pending_confirmation(user_id, action_type, data):
-    """Add a pending confirmation for a user"""
+    """
+    Add a pending confirmation for a user.
+
+    Args:
+        user_id: Slack user ID requesting the action
+        action_type: Type of action awaiting confirmation (e.g., "announce", "remind")
+        data: Dictionary containing action-specific data to store
+    """
     clear_expired_confirmations()  # Clean up first
     PENDING_CONFIRMATIONS[user_id] = {
         "action": action_type,
@@ -122,13 +134,26 @@ def add_pending_confirmation(user_id, action_type, data):
 
 
 def get_pending_confirmation(user_id):
-    """Get pending confirmation for a user"""
+    """
+    Get pending confirmation for a user.
+
+    Args:
+        user_id: Slack user ID to look up
+
+    Returns:
+        Dict with keys 'action', 'data', 'timestamp' if confirmation exists, None otherwise
+    """
     clear_expired_confirmations()  # Clean up first
     return PENDING_CONFIRMATIONS.get(user_id)
 
 
 def remove_pending_confirmation(user_id):
-    """Remove pending confirmation for a user"""
+    """
+    Remove pending confirmation for a user.
+
+    Args:
+        user_id: Slack user ID whose confirmation should be removed
+    """
     if user_id in PENDING_CONFIRMATIONS:
         action = PENDING_CONFIRMATIONS[user_id]["action"]
         del PENDING_CONFIRMATIONS[user_id]
@@ -138,7 +163,17 @@ def remove_pending_confirmation(user_id):
 
 
 def handle_confirm_command(user_id, say, app):
-    """Handle confirmation of pending mass notification commands"""
+    """
+    Handle confirmation of pending mass notification commands.
+
+    Executes the pending action (announce/remind) if a valid confirmation exists
+    for the user and it hasn't expired.
+
+    Args:
+        user_id: Slack user ID confirming the action
+        say: Slack say function for sending messages
+        app: Slack app instance
+    """
     username = get_username(app, user_id)
 
     # Check if there's a pending confirmation for this user
@@ -225,7 +260,14 @@ def handle_confirm_command(user_id, say, app):
 
 
 def handle_dm_help(say):
-    """Send help information for DM commands"""
+    """
+    Send help information for DM commands.
+
+    Displays available commands for regular users in Block Kit format.
+
+    Args:
+        say: Slack say function for sending messages
+    """
     from utils.block_builder import build_help_blocks
 
     blocks, fallback = build_help_blocks(is_admin=False)
@@ -234,7 +276,17 @@ def handle_dm_help(say):
 
 
 def handle_dm_admin_help(say, user_id, app):
-    """Send admin help information using fully structured Block Kit"""
+    """
+    Send admin help information using fully structured Block Kit.
+
+    Checks admin permission before displaying admin-specific commands.
+    Shows permission error if user is not an admin.
+
+    Args:
+        say: Slack say function for sending messages
+        user_id: Slack user ID requesting admin help
+        app: Slack app instance for permission checking
+    """
     if not is_admin(app, user_id):
         from utils.block_builder import build_permission_error_blocks
 
@@ -250,7 +302,18 @@ def handle_dm_admin_help(say, user_id, app):
 
 
 def handle_dm_date(say, user, result, app):
-    """Handle a date sent in a DM"""
+    """
+    Handle a date sent in a DM to set or update user's birthday.
+
+    Parses the date result, saves the birthday, and sends appropriate
+    confirmation. Triggers immediate celebration if birthday is today.
+
+    Args:
+        say: Slack say function for sending messages
+        user: Slack user ID who sent the date
+        result: Dict from extract_date() with keys 'date', 'year', 'status'
+        app: Slack app instance
+    """
     date = result["date"]
     year = result["year"]
 
@@ -339,7 +402,15 @@ def handle_dm_date(say, user, result, app):
 
 
 def _send_external_backup_if_enabled(updated, username, app, change_type=None):
-    """Helper to send external backup after birthday changes"""
+    """
+    Send external backup after birthday changes if enabled.
+
+    Args:
+        updated: Whether this was an update (True) or new addition (False)
+        username: Username of the person whose birthday changed
+        app: Slack app instance for sending backup
+        change_type: Optional override for change type ("add", "update", "remove")
+    """
     try:
         from utils.storage import send_external_backup
         from config import BACKUP_ON_EVERY_CHANGE, BACKUP_DIR
@@ -462,7 +533,19 @@ def handle_command(text, user_id, say, app):
 
 
 def _handle_add_command(parts, user_id, username, say, app):
-    """Handle the add birthday command"""
+    """
+    Handle the add birthday command.
+
+    Parses date from command parts, validates it, and saves the birthday.
+    Sends appropriate confirmation or error messages via Block Kit.
+
+    Args:
+        parts: List of command parts (e.g., ["add", "25/12", "1990"])
+        user_id: Slack user ID adding their birthday
+        username: Display name of the user
+        say: Slack say function for sending messages
+        app: Slack app instance
+    """
     date_text = " ".join(parts[1:])
     result = extract_date(date_text)
 
@@ -562,7 +645,17 @@ def _handle_add_command(parts, user_id, username, say, app):
 
 
 def _handle_remove_command(user_id, username, say, app):
-    """Handle the remove birthday command"""
+    """
+    Handle the remove birthday command.
+
+    Removes the user's birthday from storage and sends confirmation.
+
+    Args:
+        user_id: Slack user ID requesting removal
+        username: Display name of the user
+        say: Slack say function for sending messages
+        app: Slack app instance
+    """
     removed = remove_birthday(user_id, username)
 
     try:
@@ -612,7 +705,15 @@ def _handle_remove_command(user_id, username, say, app):
 
 
 def _handle_hello_command(user_id, say):
-    """Handle the hello greeting command"""
+    """
+    Handle the hello greeting command.
+
+    Sends a personality-specific greeting to the user using Block Kit.
+
+    Args:
+        user_id: Slack user ID to greet
+        say: Slack say function for sending messages
+    """
     current_personality = get_current_personality_name()
 
     # Handle random personality by selecting a specific one
@@ -643,7 +744,18 @@ def _handle_hello_command(user_id, say):
 def handle_admin_command(
     subcommand, args, say, user_id, app, add_pending_fn=None, timeout_minutes=None
 ):
-    """Handle admin-specific commands - routes to appropriate handler"""
+    """
+    Handle admin-specific commands by routing to appropriate handler.
+
+    Args:
+        subcommand: Admin subcommand (e.g., "list", "add", "backup", "status")
+        args: List of additional arguments for the subcommand
+        say: Slack say function for sending messages
+        user_id: Slack user ID of admin executing command
+        app: Slack app instance
+        add_pending_fn: Optional custom function for adding pending confirmations
+        timeout_minutes: Optional custom timeout for confirmations
+    """
     username = get_username(app, user_id)
 
     # Use provided confirmation functions or fall back to module-level ones
