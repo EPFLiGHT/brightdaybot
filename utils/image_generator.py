@@ -13,7 +13,14 @@ import requests
 import glob
 import random
 from datetime import datetime, timedelta
-from config import get_logger, CACHE_DIR, IMAGE_GENERATION_PARAMS, DEFAULT_IMAGE_MODEL
+from config import (
+    get_logger,
+    CACHE_DIR,
+    IMAGE_GENERATION_PARAMS,
+    DEFAULT_IMAGE_MODEL,
+    RETRY_LIMITS,
+    TIMEOUTS,
+)
 from utils.openai_api import log_image_generation_usage, get_openai_client
 import base64
 from PIL import Image
@@ -131,7 +138,7 @@ def generate_birthday_image(
         if use_reference_mode and profile_photo_path:
             # Use GPT-Image-1.5's image editing API with reference photo
             # Retry once if safety system rejects the request
-            max_attempts = 2
+            max_attempts = RETRY_LIMITS["image_generation"]
             for attempt in range(max_attempts):
                 try:
                     with open(profile_photo_path, "rb") as image_file:
@@ -451,7 +458,7 @@ def download_image(image_url):
         Image data as bytes, or None if failed
     """
     try:
-        response = requests.get(image_url, timeout=30)
+        response = requests.get(image_url, timeout=TIMEOUTS["http_request"])
         response.raise_for_status()
         return response.content
     except Exception as e:

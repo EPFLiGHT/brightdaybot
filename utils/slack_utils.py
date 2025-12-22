@@ -23,6 +23,7 @@ from config import (
     CUSTOM_SLACK_EMOJIS,
     USE_CUSTOM_EMOJIS,
     EMOJI_GENERATION_PARAMS,
+    RETRY_LIMITS,
     get_logger,
 )
 from utils.app_config import get_current_admins
@@ -823,7 +824,7 @@ def upload_birthday_images_for_blocks(
                     file_title = file_id_to_title.get(file_name, "")
 
                 # Poll for file processing completion (max 10 seconds)
-                max_attempts = 10
+                max_attempts = RETRY_LIMITS["file_processing"]
                 for attempt in range(max_attempts):
                     try:
                         file_info_response = app.client.files_info(file=file_id)
@@ -1060,7 +1061,7 @@ def send_message_with_multiple_attachments(
                     continue
 
                 # Poll for file processing completion (max 10 seconds)
-                max_attempts = 10
+                max_attempts = RETRY_LIMITS["file_processing"]
                 for attempt in range(max_attempts):
                     try:
                         file_info_response = app.client.files_info(file=file_id)

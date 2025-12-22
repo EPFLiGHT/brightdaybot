@@ -20,8 +20,8 @@ from utils.slack_utils import (
     check_command_permission,
     get_channel_members,
     send_message,
+    get_user_mention,
 )
-from utils.slack_utils import get_user_mention
 from utils.message_generator import create_birthday_announcement
 from services.celebration import (
     should_celebrate_immediately,

@@ -13,8 +13,9 @@ from utils.slack_utils import (
     check_command_permission,
     get_channel_members,
     is_admin,
+    get_user_mention,
+    get_channel_mention,
 )
-from utils.slack_utils import get_user_mention, get_channel_mention
 from utils.message_generator import get_current_personality
 from personality_config import get_personality_descriptions
 from config import (

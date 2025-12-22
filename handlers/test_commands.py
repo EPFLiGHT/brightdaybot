@@ -36,8 +36,9 @@ from utils.slack_utils import (
     send_message,
     send_message_with_image,
     get_channel_members,
+    get_user_mention,
+    get_channel_mention,
 )
-from utils.slack_utils import get_user_mention, get_channel_mention
 
 logger = get_logger("commands")
 

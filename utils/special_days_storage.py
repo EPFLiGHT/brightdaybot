@@ -26,6 +26,7 @@ from config import (
     MAX_BACKUPS,
     DEFAULT_ANNOUNCEMENT_TIME,
     DATE_FORMAT,
+    TIMEOUTS,
 )
 from utils.logging_config import get_logger
 
@@ -88,7 +89,7 @@ def load_special_days() -> List[SpecialDay]:
 
     try:
         lock_file = f"{SPECIAL_DAYS_FILE}.lock"
-        with FileLock(lock_file, timeout=10):
+        with FileLock(lock_file, timeout=TIMEOUTS["file_lock"]):
             with open(SPECIAL_DAYS_FILE, "r", encoding="utf-8") as f:
                 reader = csv.DictReader(f)
                 for row in reader:
@@ -156,7 +157,7 @@ def save_special_day(special_day: SpecialDay, app=None, username=None) -> bool:
 
         # Write back to file
         lock_file = f"{SPECIAL_DAYS_FILE}.lock"
-        with FileLock(lock_file, timeout=10):
+        with FileLock(lock_file, timeout=TIMEOUTS["file_lock"]):
             with open(SPECIAL_DAYS_FILE, "w", encoding="utf-8", newline="") as f:
                 fieldnames = [
                     "date",
@@ -240,7 +241,7 @@ def remove_special_day(
 
         # Write back to file
         lock_file = f"{SPECIAL_DAYS_FILE}.lock"
-        with FileLock(lock_file, timeout=10):
+        with FileLock(lock_file, timeout=TIMEOUTS["file_lock"]):
             with open(SPECIAL_DAYS_FILE, "w", encoding="utf-8", newline="") as f:
                 fieldnames = [
                     "date",

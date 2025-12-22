@@ -17,7 +17,7 @@ import sys
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from config import get_logger, USE_CUSTOM_EMOJIS, DATE_FORMAT
+from config import get_logger, USE_CUSTOM_EMOJIS, DATE_FORMAT, RETRY_LIMITS
 from config import (
     BOT_PERSONALITIES,
     TEAM_NAME,
@@ -1337,7 +1337,7 @@ def generate_birthday_image_title(
         logger.info(f"TITLE_GEN: Generating AI title for {name} in {personality} style")
 
         # Generate title using OpenAI with name validation and retry logic
-        max_retries = 2
+        max_retries = RETRY_LIMITS["title_generation"]
         for attempt in range(max_retries + 1):
             try:
                 ai_title = complete(

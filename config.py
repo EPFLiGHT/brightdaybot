@@ -240,6 +240,20 @@ IMAGE_GENERATION_PARAMS = {
     },
 }
 
+# Retry limits for various operations
+RETRY_LIMITS = {
+    "message_generation": 2,  # AI message generation retries
+    "image_generation": 2,  # AI image generation retries
+    "title_generation": 2,  # Image title generation retries
+    "file_processing": 10,  # Slack file processing wait attempts
+}
+
+# Timeout values in seconds
+TIMEOUTS = {
+    "http_request": 30,  # HTTP request timeout
+    "file_lock": 10,  # File lock acquisition timeout
+}
+
 # Emoji generation parameters for AI messages
 EMOJI_GENERATION_PARAMS = {
     "sample_size": 50,  # Number of random emojis to show AI as examples

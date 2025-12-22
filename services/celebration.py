@@ -1095,7 +1095,16 @@ def get_bot_celebration_image_title():
             formatted_title = fix_slack_formatting(generated_title)
             # Ensure fix_slack_formatting didn't return None or empty string
             if formatted_title and formatted_title.strip():
-                logger.info("BOT_CELEBRATION: Successfully generated AI title")
+                # Validate title length (Slack file title limit ~200 chars, keep <=100 for readability)
+                if len(formatted_title) > 100:
+                    logger.warning(
+                        f"BOT_CELEBRATION: Title too long ({len(formatted_title)} chars), truncating"
+                    )
+                    # Truncate and add ellipsis
+                    formatted_title = formatted_title[:97] + "..."
+                logger.info(
+                    f"BOT_CELEBRATION: Successfully generated AI title ({len(formatted_title)} chars)"
+                )
                 return formatted_title
             else:
                 logger.warning(

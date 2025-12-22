@@ -232,13 +232,13 @@ def _get_upcoming_birthdays(birthdays, app, limit=5):
     reference_date = datetime.now(timezone.utc)
     upcoming = []
 
-    for uid, data in birthdays.items():
+    for user_id, data in birthdays.items():
         days = calculate_days_until_birthday(data["date"], reference_date)
         if days is not None:
             upcoming.append(
                 {
-                    "user_id": uid,
-                    "username": get_username(app, uid),
+                    "user_id": user_id,
+                    "username": get_username(app, user_id),
                     "date": data["date"],
                     "year": data.get("year"),
                     "days_until": days,
