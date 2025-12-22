@@ -17,19 +17,24 @@ from config import (
     DATE_FORMAT,
     TOKEN_LIMITS,
     TEMPERATURE_SETTINGS,
+    DEFAULT_OPENAI_MODEL,
 )
 import argparse
 import sys
-from utils.openai_client import get_openai_client
+from utils.openai_api import complete, get_openai_client, log_web_search_usage
 
 logger = get_logger("web_search")
 
-# Initialize OpenAI client
-client = get_openai_client()
+# Lazy-initialized OpenAI client (created on first use, not at import time)
+_client = None
 
-# Import centralized model configuration function
-from utils.app_config import get_configured_openai_model
-from utils.usage_logging import log_chat_completion_usage, log_web_search_usage
+
+def _get_client():
+    """Get OpenAI client, initializing lazily on first use."""
+    global _client
+    if _client is None:
+        _client = get_openai_client()
+    return _client
 
 
 def process_facts_for_personality(facts_text, formatted_date, personality):
@@ -74,21 +79,17 @@ def process_facts_for_personality(facts_text, formatted_date, personality):
                 # Ultimate fallback
                 return f"On this day, {formatted_date}, several notable events occurred in history and remarkable individuals were born."
 
-        # Use OpenAI to reformat the facts in the appropriate personality style
-        response = client.chat.completions.create(
-            model=get_configured_openai_model(),
+        # Use Responses API to reformat the facts in the appropriate personality style
+        processed_facts = complete(
             messages=[
                 {"role": "system", "content": system_content},
                 {"role": "user", "content": user_content},
             ],
-            max_completion_tokens=TOKEN_LIMITS["web_search_facts"],
+            max_tokens=TOKEN_LIMITS["web_search_facts"],
             temperature=TEMPERATURE_SETTINGS["default"],
+            context="WEB_SEARCH_FACTS",
         )
-
-        # Log token usage for monitoring
-        log_chat_completion_usage(response, "WEB_SEARCH_FACTS", logger)
-
-        processed_facts = response.choices[0].message.content.strip()
+        processed_facts = processed_facts.strip()
         logger.info(
             f"WEB_SEARCH: Successfully processed facts for {formatted_date} using {personality} personality"
         )
@@ -133,7 +134,7 @@ def get_birthday_facts(date_str, personality="mystic_dog"):
             try:
                 os.makedirs(CACHE_DIR, exist_ok=True)
                 open(cleanup_marker, "a").close()
-            except Exception:
+            except OSError:
                 pass  # Ignore cleanup marker creation errors
 
     # Check cache first if caching is enabled
@@ -145,7 +146,7 @@ def get_birthday_facts(date_str, personality="mystic_dog"):
                     f"WEB_SEARCH: Using cached results for {date_str} ({personality})"
                 )
                 return cached_data
-        except Exception as e:
+        except (OSError, json.JSONDecodeError) as e:
             logger.error(f"CACHE_ERROR: Failed to read cache: {e}")
 
     try:
@@ -182,8 +183,8 @@ def get_birthday_facts(date_str, personality="mystic_dog"):
         )
 
         # Using the new responses.create method with web_search_preview tool
-        response = client.responses.create(
-            model="gpt-4.1",
+        response = _get_client().responses.create(
+            model=DEFAULT_OPENAI_MODEL,
             tools=[{"type": "web_search_preview"}],
             input=search_query,
         )
@@ -227,7 +228,7 @@ def get_birthday_facts(date_str, personality="mystic_dog"):
                     logger.info(
                         f"WEB_SEARCH: Cached results for {date_str} ({personality})"
                     )
-            except Exception as e:
+            except (OSError, TypeError) as e:
                 logger.error(f"CACHE_ERROR: Failed to write to cache: {e}")
 
         return results
@@ -277,7 +278,7 @@ def clear_old_cache_files():
 
         return cleared_count
 
-    except Exception as e:
+    except OSError as e:
         logger.error(f"CACHE_ERROR: Failed to clear old cache files: {e}")
         return 0
 
@@ -319,7 +320,7 @@ def clear_cache(date_str=None):
 
         return cleared_count
 
-    except Exception as e:
+    except OSError as e:
         logger.error(f"CACHE_ERROR: Failed to clear cache: {e}")
         return 0
 

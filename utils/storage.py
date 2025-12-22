@@ -23,7 +23,7 @@ from config import (
 )
 
 # Import all potentially circular dependencies at the top
-from utils.config_storage import get_current_admins
+from utils.app_config import get_current_admins
 from utils.slack_utils import send_message_with_file
 
 logger = get_logger("storage")
@@ -330,7 +330,8 @@ def save_birthdays(birthdays):
         with lock:
             with open(BIRTHDAYS_FILE, "w") as f:
                 for user, data in birthdays.items():
-                    year_part = f",{data['year']}" if data["year"] else ""
+                    year = data.get("year")
+                    year_part = f",{year}" if year else ""
                     f.write(f"{user},{data['date']}{year_part}\n")
 
             logger.info(f"STORAGE: Saved {len(birthdays)} birthdays to file")

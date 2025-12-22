@@ -20,18 +20,13 @@ from config import (
     TEAM_NAME,
 )
 from personality_config import get_personality_config
-from utils.app_config import get_configured_openai_model
 from utils.logging_config import get_logger
 from utils.web_search import get_birthday_facts
-from utils.usage_logging import log_chat_completion_usage
 from utils.image_generator import generate_birthday_image
-from utils.openai_client import get_openai_client
+from utils.openai_api import complete
 
 # Get dedicated logger
 logger = get_logger("special_days")
-
-# Initialize OpenAI client
-client = get_openai_client()
 
 
 def generate_special_day_message(
@@ -75,7 +70,7 @@ def generate_special_day_message(
         personality_config = get_personality_config(personality)
 
     # Get emoji context for AI message generation (uses config default: 50)
-    from utils.emoji_utils import get_emoji_context_for_ai
+    from utils.slack_utils import get_emoji_context_for_ai
 
     emoji_ctx = get_emoji_context_for_ai(app)
     emoji_examples = emoji_ctx["emoji_examples"]
@@ -208,8 +203,7 @@ def generate_special_day_message(
         # Add channel mention
         prompt += f"\n\nInclude <!here> to notify the channel."
 
-        # Generate the message
-        model = get_configured_openai_model()
+        # Generate the message using Responses API
         # Use lower token limit for teasers (shorter messages)
         max_tokens = 200 if use_teaser else TOKEN_LIMITS.get("single_birthday", 500)
         temperature = TEMPERATURE_SETTINGS.get("default", 0.7)
@@ -219,8 +213,7 @@ def generate_special_day_message(
         )
         logger.debug(f"Prompt preview: {prompt[:200]}...")
 
-        response = client.chat.completions.create(
-            model=model,
+        message = complete(
             messages=[
                 {
                     "role": "system",
@@ -230,16 +223,11 @@ def generate_special_day_message(
             ],
             max_tokens=max_tokens,
             temperature=temperature,
+            context="SPECIAL_DAY_MESSAGE",
         )
+        message = message.strip()
 
-        message = response.choices[0].message.content.strip()
-
-        # Log usage
-        log_chat_completion_usage(response, "SPECIAL_DAY_MESSAGE", logger)
-
-        logger.info(
-            f"Successfully generated special day message ({response.usage.total_tokens} tokens)"
-        )
+        logger.info("Successfully generated special day message")
         return message
 
     except Exception as e:
@@ -315,7 +303,7 @@ def generate_special_day_details(
         personality_config = get_personality_config(personality)
 
     # Get emoji context for AI message generation
-    from utils.emoji_utils import get_emoji_context_for_ai
+    from utils.slack_utils import get_emoji_context_for_ai
 
     emoji_ctx = get_emoji_context_for_ai(app)
     emoji_examples = emoji_ctx["emoji_examples"]
@@ -485,9 +473,7 @@ TONE & STYLE:
             if facts_text:
                 prompt += f"\n\nADDITIONAL CONTEXT: Historical events on this date that may provide relevant context:\n{facts_text}\n\nYou may reference these if they connect meaningfully to the observances, but they are not required."
 
-        # Generate the detailed message
-        model = get_configured_openai_model()
-
+        # Generate the detailed message using Responses API
         # Use appropriate token limit based on number of observances
         if len(special_days) == 1:
             max_tokens = TOKEN_LIMITS.get(
@@ -502,8 +488,7 @@ TONE & STYLE:
 
         logger.info(f"Generating special day details with {personality} personality")
 
-        response = client.chat.completions.create(
-            model=model,
+        details = complete(
             messages=[
                 {
                     "role": "system",
@@ -513,16 +498,11 @@ TONE & STYLE:
             ],
             max_tokens=max_tokens,
             temperature=temperature,
+            context="SPECIAL_DAY_DETAILS",
         )
+        details = details.strip()
 
-        details = response.choices[0].message.content.strip()
-
-        # Log usage
-        log_chat_completion_usage(response, "SPECIAL_DAY_DETAILS", logger)
-
-        logger.info(
-            f"Successfully generated special day details ({response.usage.total_tokens} tokens)"
-        )
+        logger.info("Successfully generated special day details")
 
         # Truncate if too long for Slack button value (2000 char limit, using 1950 for safety buffer)
         if len(details) > 1950:
@@ -705,7 +685,7 @@ async def send_special_day_announcement(
 # Test function
 if __name__ == "__main__":
     import asyncio
-    from services.special_days import get_todays_special_days
+    from utils.special_days_storage import get_todays_special_days
 
     print("Testing Special Day Message Generator...")
 
@@ -726,7 +706,7 @@ if __name__ == "__main__":
         print("\nNo special days found for today")
 
         # Create a test special day
-        from services.special_days import SpecialDay
+        from utils.special_days_storage import SpecialDay
 
         test_day = SpecialDay(
             date="03/14",

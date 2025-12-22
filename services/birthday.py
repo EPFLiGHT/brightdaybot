@@ -12,6 +12,8 @@ import random
 import os
 from datetime import datetime, timezone
 
+from slack_sdk.errors import SlackApiError
+
 from utils.date_utils import (
     check_if_birthday_today,
     date_to_words,
@@ -32,12 +34,12 @@ from utils.slack_utils import (
     get_user_status_and_info,
     get_channel_members,
 )
-from utils.slack_formatting import get_user_mention, get_channel_mention
+from utils.slack_utils import get_user_mention, get_channel_mention
 from utils.message_generator import (
     create_consolidated_birthday_announcement,
 )
-from utils.timezone_utils import is_celebration_time_for_user
-from utils.birthday_celebration_pipeline import BirthdayCelebrationPipeline
+from utils.date_utils import is_celebration_time_for_user
+from services.celebration import BirthdayCelebrationPipeline
 from config import (
     BIRTHDAY_CHANNEL,
     AI_IMAGE_GENERATION_ENABLED,
@@ -48,7 +50,7 @@ from config import (
     TIMEZONE_CELEBRATION_TIME,
     DAILY_CHECK_TIME,
 )
-from utils.bot_celebration import (
+from services.celebration import (
     generate_bot_celebration_message,
     get_bot_celebration_image_title,
 )
@@ -104,10 +106,11 @@ def celebrate_bot_birthday(app, moment):
 
         # Get special days count for celebration
         try:
-            from services.special_days import load_special_days
+            from utils.special_days_storage import load_special_days
 
             special_days_count = len(load_special_days())
-        except:
+        except (FileNotFoundError, ValueError, KeyError) as e:
+            logger.debug(f"BOT_BIRTHDAY: Could not load special days count: {e}")
             special_days_count = 0
 
         # Generate Ludo's mystical celebration message
@@ -206,7 +209,7 @@ def celebrate_bot_birthday(app, moment):
                             logger.info(
                                 f"BOT_BIRTHDAY: Built Block Kit structure with {len(blocks)} blocks{image_note}"
                             )
-                        except Exception as block_error:
+                        except (TypeError, ValueError, KeyError) as block_error:
                             logger.warning(
                                 f"BOT_BIRTHDAY: Failed to build Block Kit blocks: {block_error}. Using plain text."
                             )
@@ -219,7 +222,7 @@ def celebrate_bot_birthday(app, moment):
                             "BOT_BIRTHDAY: Sent celebration message with Block Kit embedded image"
                         )
 
-                    except Exception as upload_error:
+                    except (SlackApiError, OSError) as upload_error:
                         logger.error(
                             f"BOT_BIRTHDAY: Upload/block building failed: {upload_error}, falling back to message only"
                         )
@@ -230,7 +233,10 @@ def celebrate_bot_birthday(app, moment):
                             blocks, fallback_text = build_bot_celebration_blocks(
                                 celebration_message, bot_age, personality="mystic_dog"
                             )
-                        except Exception as block_error:
+                        except (TypeError, ValueError, KeyError) as block_error:
+                            logger.debug(
+                                f"BOT_BIRTHDAY: Block building failed: {block_error}"
+                            )
                             blocks = None
                             fallback_text = celebration_message
 
@@ -246,7 +252,10 @@ def celebrate_bot_birthday(app, moment):
                         blocks, fallback_text = build_bot_celebration_blocks(
                             celebration_message, bot_age, personality="mystic_dog"
                         )
-                    except Exception as block_error:
+                    except (TypeError, ValueError, KeyError) as block_error:
+                        logger.debug(
+                            f"BOT_BIRTHDAY: Block building failed: {block_error}"
+                        )
                         blocks = None
                         fallback_text = celebration_message
 
@@ -255,7 +264,7 @@ def celebrate_bot_birthday(app, moment):
                         "BOT_BIRTHDAY: Sent celebration message with Block Kit formatting (image generation failed)"
                     )
 
-            except Exception as image_error:
+            except (SlackApiError, OSError, ValueError) as image_error:
                 logger.warning(f"BOT_BIRTHDAY: Image generation failed: {image_error}")
                 # Fallback to message only with blocks
                 try:
@@ -264,7 +273,8 @@ def celebrate_bot_birthday(app, moment):
                     blocks, fallback_text = build_bot_celebration_blocks(
                         celebration_message, bot_age, personality="mystic_dog"
                     )
-                except Exception as block_error:
+                except (TypeError, ValueError, KeyError) as block_error:
+                    logger.debug(f"BOT_BIRTHDAY: Block building failed: {block_error}")
                     blocks = None
                     fallback_text = celebration_message
 
@@ -280,7 +290,8 @@ def celebrate_bot_birthday(app, moment):
                 blocks, fallback_text = build_bot_celebration_blocks(
                     celebration_message, bot_age, personality="mystic_dog"
                 )
-            except Exception as block_error:
+            except (TypeError, ValueError, KeyError) as block_error:
+                logger.debug(f"BOT_BIRTHDAY: Block building failed: {block_error}")
                 blocks = None
                 fallback_text = celebration_message
 
@@ -322,7 +333,7 @@ def check_and_announce_special_days(app, moment):
         SPECIAL_DAYS_CHANNEL,
         SPECIAL_DAYS_CHECK_TIME,
     )
-    from services.special_days import (
+    from utils.special_days_storage import (
         get_special_days_for_date,
         has_announced_special_day_today,
         mark_special_day_announced,
@@ -371,7 +382,7 @@ def check_and_announce_special_days(app, moment):
             return False
 
         # NEW: Check if observances should be split into separate announcements
-        from utils.observance_utils import should_split_observances
+        from utils.special_days_storage import should_split_observances
 
         should_split = should_split_observances(special_days)
 
@@ -402,19 +413,15 @@ def check_and_announce_special_days(app, moment):
                         [special_day], app=app
                     )
 
-                    # Build blocks for this individual observance
+                    # Build blocks for this individual observance (unified function with list)
                     from utils.block_builder import build_special_day_blocks
                     from config import SPECIAL_DAYS_PERSONALITY
 
                     blocks, fallback_text = build_special_day_blocks(
-                        observance_name=special_day.name,
-                        message=message,
-                        observance_date=special_day.date,
-                        source=special_day.source,
+                        [special_day],
+                        message,
                         personality=SPECIAL_DAYS_PERSONALITY,
                         detailed_content=detailed_content,
-                        category=special_day.category,
-                        url=special_day.url,
                     )
 
                     # Send this individual announcement
@@ -472,38 +479,20 @@ def check_and_announce_special_days(app, moment):
                 )
 
             # Build Block Kit blocks for special day announcement
+            # Unified function handles both single and multiple special days
             try:
-                from utils.block_builder import (
-                    build_special_day_blocks,
-                    build_consolidated_special_days_blocks,
-                )
+                from utils.block_builder import build_special_day_blocks
                 from config import SPECIAL_DAYS_PERSONALITY
 
-                # Handle single or multiple special days
-                if len(special_days) == 1:
-                    special_day = special_days[0]
-                    blocks, fallback_text = build_special_day_blocks(
-                        observance_name=special_day.name,
-                        message=message,
-                        observance_date=special_day.date,
-                        source=special_day.source,
-                        personality=SPECIAL_DAYS_PERSONALITY,
-                        detailed_content=detailed_content,  # NEW: Use detailed content instead of description
-                        category=special_day.category,
-                        url=special_day.url,
-                    )
-                else:
-                    # For multiple special days, use consolidated block structure
-                    # Shows all observances with their categories in structured fields
-                    blocks, fallback_text = build_consolidated_special_days_blocks(
-                        special_days=special_days,
-                        message=message,
-                        personality=SPECIAL_DAYS_PERSONALITY,
-                        detailed_content=detailed_content,
-                    )
+                blocks, fallback_text = build_special_day_blocks(
+                    special_days,
+                    message,
+                    personality=SPECIAL_DAYS_PERSONALITY,
+                    detailed_content=detailed_content,
+                )
 
                 logger.info(
-                    f"SPECIAL_DAYS: Built Block Kit structure with {len(blocks)} blocks"
+                    f"SPECIAL_DAYS: Built Block Kit structure for {len(special_days)} observance(s) with {len(blocks)} blocks"
                 )
             except Exception as block_error:
                 logger.warning(
@@ -829,7 +818,7 @@ def timezone_aware_check(app, moment):
             return
         channel_member_set = set(channel_members)
         logger.info(f"TIMEZONE: Birthday channel has {len(channel_members)} members")
-    except Exception as e:
+    except SlackApiError as e:
         logger.error(f"TIMEZONE: Failed to get channel members: {e}")
         return
 
@@ -909,7 +898,7 @@ def timezone_aware_check(app, moment):
             ):
                 trigger_people.append(birthday_person)
                 # Get actual current time in user's timezone for accurate logging
-                from utils.timezone_utils import get_user_current_time
+                from utils.date_utils import get_user_current_time
 
                 user_current_time = get_user_current_time(user_timezone)
                 logger.info(
@@ -1005,7 +994,7 @@ def simple_daily_check(app, moment):
         logger.info(
             f"SIMPLE_DAILY: Birthday channel has {len(channel_members)} members"
         )
-    except Exception as e:
+    except SlackApiError as e:
         logger.error(f"SIMPLE_DAILY: Failed to get channel members: {e}")
         return
 

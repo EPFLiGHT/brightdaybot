@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Syntax check
+        run: |
+          python -m py_compile app.py config.py personality_config.py
+          python -m py_compile handlers/*.py
+          python -m py_compile services/*.py
+          python -m py_compile utils/*.py
+
+      - name: Import check
+        env:
+          OPENAI_API_KEY: "sk-dummy-key-for-ci-import-check"
+          SLACK_BOT_TOKEN: "xoxb-dummy-token-for-ci"
+          SLACK_APP_TOKEN: "xapp-dummy-token-for-ci"
+        run: |
+          echo "Testing core imports..."
+          python -c "from config import *"
+          python -c "from personality_config import *"
+          echo "Testing handlers..."
+          python -c "import handlers.command_handler"
+          python -c "import handlers.event_handler"
+          python -c "import handlers.admin_commands"
+          python -c "import handlers.birthday_commands"
+          python -c "import handlers.test_commands"
+          python -c "import handlers.special_commands"
+          echo "Testing services..."
+          python -c "import services.birthday"
+          python -c "import services.scheduler"
+          python -c "import services.celebration"
+          echo "Testing utils..."
+          python -c "import utils.date_utils"
+          python -c "import utils.block_builder"
+          python -c "import utils.storage"
+          python -c "import utils.message_generator"
+          echo "All imports successful!"
+
+      - name: Run unit tests
+        env:
+          OPENAI_API_KEY: "sk-dummy-key-for-ci"
+        run: pytest tests/ -v --tb=short --ignore=tests/test_integration.py
+
+      - name: Test summary
+        if: always()
+        run: |
+          echo "Unit test count:"
+          python -m pytest tests/ --ignore=tests/test_integration.py --collect-only -q 2>/dev/null | tail -1
+
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Run integration tests
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+        run: |
+          if [ -z "$OPENAI_API_KEY" ] || [ "$OPENAI_API_KEY" = "" ]; then
+            echo "::warning::OPENAI_API_KEY secret not set - skipping integration tests"
+            exit 0
+          fi
+          pytest tests/test_integration.py -v -s --tb=short

@@ -4,8 +4,7 @@ BrightDayBot Configuration - Core Settings and Constants
 Centralized configuration including environment variables, file paths, feature flags,
 and application constants. Functions moved to separate utility modules.
 
-Key modules: utils/app_config.py, utils/logging_config.py, utils/template_utils.py
-Provides backward compatibility imports for refactored functions.
+Key modules: utils/app_config.py, utils/logging_config.py
 """
 
 import os
@@ -51,30 +50,86 @@ BACKUP_CHANNEL_ID = os.getenv("BACKUP_CHANNEL_ID")
 # Send backup on every change vs. batched/daily digest
 BACKUP_ON_EVERY_CHANGE = os.getenv("BACKUP_ON_EVERY_CHANGE", "true").lower() == "true"
 
-# ----- MESSAGE ARCHIVING CONFIGURATION -----
+# ----- EMOJI CONSTANTS -----
 
-# Enable or disable comprehensive message archiving
-MESSAGE_ARCHIVING_ENABLED = (
-    os.getenv("MESSAGE_ARCHIVING_ENABLED", "true").lower() == "true"
-)
-# Number of days to retain archived messages (default: 90 days)
-ARCHIVE_RETENTION_DAYS = int(os.getenv("ARCHIVE_RETENTION_DAYS", "90"))
-# Compress archives older than this many days (default: 7 days)
-ARCHIVE_COMPRESSION_DAYS = int(os.getenv("ARCHIVE_COMPRESSION_DAYS", "7"))
-# Maximum messages per daily archive file before rotation
-DAILY_MESSAGE_LIMIT = int(os.getenv("DAILY_MESSAGE_LIMIT", "10000"))
+# Common Slack emojis that work across all workspaces
+SAFE_SLACK_EMOJIS = [
+    ":tada:",
+    ":birthday:",
+    ":cake:",
+    ":balloon:",
+    ":gift:",
+    ":confetti_ball:",
+    ":sparkles:",
+    ":star:",
+    ":star2:",
+    ":dizzy:",
+    ":heart:",
+    ":hearts:",
+    ":champagne:",
+    ":clap:",
+    ":raised_hands:",
+    ":thumbsup:",
+    ":muscle:",
+    ":crown:",
+    ":trophy:",
+    ":medal:",
+    ":first_place_medal:",
+    ":mega:",
+    ":loudspeaker:",
+    ":partying_face:",
+    ":smile:",
+    ":grinning:",
+    ":joy:",
+    ":sunglasses:",
+    ":rainbow:",
+    ":fire:",
+    ":boom:",
+    ":zap:",
+    ":bulb:",
+    ":art:",
+    ":musical_note:",
+    ":notes:",
+    ":rocket:",
+    ":100:",
+    ":pizza:",
+    ":hamburger:",
+    ":sushi:",
+    ":ice_cream:",
+    ":beers:",
+    ":cocktail:",
+    ":wine_glass:",
+    ":tumbler_glass:",
+    ":drum_with_drumsticks:",
+    ":guitar:",
+    ":microphone:",
+    ":headphones:",
+    ":game_die:",
+    ":dart:",
+    ":bowling:",
+    ":soccer:",
+    ":basketball:",
+    ":football:",
+    ":baseball:",
+    ":tennis:",
+    ":8ball:",
+    ":table_tennis_paddle_and_ball:",
+    ":eyes:",
+    ":wave:",
+    ":point_up:",
+    ":point_down:",
+    ":point_left:",
+    ":point_right:",
+    ":ok_hand:",
+    ":v:",
+    ":handshake:",
+    ":writing_hand:",
+    ":pray:",
+    ":clinking_glasses:",
+]
 
-# Privacy and filtering settings
-ARCHIVE_DM_MESSAGES = os.getenv("ARCHIVE_DM_MESSAGES", "true").lower() == "true"
-ARCHIVE_FAILED_MESSAGES = os.getenv("ARCHIVE_FAILED_MESSAGES", "true").lower() == "true"
-ARCHIVE_SYSTEM_MESSAGES = os.getenv("ARCHIVE_SYSTEM_MESSAGES", "true").lower() == "true"
-ARCHIVE_TEST_MESSAGES = os.getenv("ARCHIVE_TEST_MESSAGES", "true").lower() == "true"
-
-# Automatic cleanup settings
-AUTO_CLEANUP_ENABLED = os.getenv("ARCHIVE_AUTO_CLEANUP", "true").lower() == "true"
-CLEANUP_SCHEDULE_HOURS = int(
-    os.getenv("ARCHIVE_CLEANUP_HOURS", "24")
-)  # Run cleanup every 24 hours
+# Dictionary to store fetched custom workspace emojis
+CUSTOM_SLACK_EMOJIS = {}
 
 # ----- FILE PATHS -----
 
@@ -128,8 +183,10 @@ COMMAND_PERMISSIONS = {
 # ----- PERFORMANCE OPTIMIZATIONS -----
 
 # Cache for username lookups to reduce API calls
+# Structure: {user_id: (username, timestamp)}
 username_cache = {}
 USERNAME_CACHE_MAX_SIZE = 1000  # Maximum number of cached usernames
+USERNAME_CACHE_TTL_HOURS = 24  # Cache entries expire after 24 hours
 
 # ----- OPENAI MODEL CONFIGURATION -----
 
@@ -145,8 +202,9 @@ SUPPORTED_OPENAI_MODELS = [
     "gpt-4-turbo",
 ]
 
-# Default OpenAI model
+# Default OpenAI models
 DEFAULT_OPENAI_MODEL = "gpt-4.1"
+DEFAULT_IMAGE_MODEL = "gpt-image-1.5"
 
 # ----- OPENAI API PARAMETERS -----
 
@@ -182,6 +240,35 @@ IMAGE_GENERATION_PARAMS = {
         "default": "high",  # Always high for face preservation
         "options": ["low", "high"],
     },
+}
+
+# Retry limits for various operations
+RETRY_LIMITS = {
+    "message_generation": 2,  # AI message generation retries
+    "image_generation": 2,  # AI image generation retries
+    "title_generation": 2,  # Image title generation retries
+    "file_processing": 10,  # Slack file processing wait attempts
+}
+
+# Timeout values in seconds
+TIMEOUTS = {
+    "http_request": 30,  # HTTP request timeout
+    "file_lock": 10,  # File lock acquisition timeout
+}
+
+# Scheduler timing constants
+SCHEDULER_CHECK_INTERVAL_SECONDS = 60  # How often scheduler checks for birthdays
+HEARTBEAT_STALE_THRESHOLD_SECONDS = 120  # When to consider scheduler unhealthy (2 min)
+
+# Lookahead windows for upcoming events
+UPCOMING_DAYS_DEFAULT = 7  # Default lookahead for upcoming birthdays/special days
+UPCOMING_DAYS_EXTENDED = 30  # Extended lookahead for calendar/list views
+
+# Cache retention policies (in days)
+CACHE_RETENTION_DAYS = {
+    "images_default": 30,  # Default image cache cleanup
+    "images_generated": 365,  # AI-generated birthday images (keep longer)
+    "profile_photos": 7,  # Temporary profile photos (clean more aggressively)
 }
 
 # Emoji generation parameters for AI messages
@@ -235,6 +322,17 @@ SPECIAL_DAYS_IMAGE_ENABLED = (
     os.getenv("SPECIAL_DAYS_IMAGE_ENABLED", "false").lower() == "true"
 )
 
+# ----- DEFAULT VALUES -----
+
+# Default personality for birthday messages (used as fallback throughout the codebase)
+DEFAULT_PERSONALITY = "standard"
+
+# Default timezone for users without timezone set
+DEFAULT_TIMEZONE = "UTC"
+
+# Default announcement time format (string version for display/config)
+DEFAULT_ANNOUNCEMENT_TIME = "09:00"
+
 # ----- PERSONALITY CONFIGURATION -----
 
 # Import centralized personality configurations
@@ -287,7 +385,7 @@ from utils.app_config import (
     initialize_config,
 )
 
-from utils.template_utils import (
+from utils.app_config import (
     get_emoji_instructions,
     get_base_template,
     get_full_template_for_personality,

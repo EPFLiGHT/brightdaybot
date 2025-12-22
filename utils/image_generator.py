@@ -1,5 +1,5 @@
 """
-AI-powered birthday image generation using GPT-Image-1.
+AI-powered birthday image generation using GPT-Image-1.5.
 
 Supports face-accurate images with user profile photos and text-only fallback.
 Features quality control, automatic cleanup, and personality-themed styles.
@@ -13,18 +13,32 @@ import requests
 import glob
 import random
 from datetime import datetime, timedelta
-from config import get_logger, CACHE_DIR, IMAGE_GENERATION_PARAMS
-from utils.usage_logging import log_image_generation_usage
-import json
+from config import (
+    get_logger,
+    CACHE_DIR,
+    IMAGE_GENERATION_PARAMS,
+    DEFAULT_IMAGE_MODEL,
+    RETRY_LIMITS,
+    TIMEOUTS,
+    CACHE_RETENTION_DAYS,
+)
+from utils.openai_api import log_image_generation_usage, get_openai_client
 import base64
 from PIL import Image
 import io
-from utils.openai_client import get_openai_client
 
 logger = get_logger("image_generator")
 
-# Initialize OpenAI client
-client = get_openai_client()
+# Lazy-initialized OpenAI client (created on first use, not at import time)
+_client = None
+
+
+def _get_client():
+    """Get OpenAI client, initializing lazily on first use."""
+    global _client
+    if _client is None:
+        _client = get_openai_client()
+    return _client
 
 
 def generate_birthday_image(
@@ -39,7 +53,7 @@ def generate_birthday_image(
     image_size=None,
 ):
     """
-    Generate a personalized birthday image using GPT-Image-1
+    Generate a personalized birthday image using GPT-Image-1.5
 
     Args:
         user_profile: Dictionary with user profile information (from get_user_profile)
@@ -123,14 +137,14 @@ def generate_birthday_image(
 
         # Generate image using either reference-based editing or text-only generation
         if use_reference_mode and profile_photo_path:
-            # Use GPT-Image-1's image editing API with reference photo
+            # Use GPT-Image-1.5's image editing API with reference photo
             # Retry once if safety system rejects the request
-            max_attempts = 2
+            max_attempts = RETRY_LIMITS["image_generation"]
             for attempt in range(max_attempts):
                 try:
                     with open(profile_photo_path, "rb") as image_file:
-                        response = client.images.edit(
-                            model="gpt-image-1",
+                        response = _get_client().images.edit(
+                            model=DEFAULT_IMAGE_MODEL,
                             image=image_file,
                             prompt=prompt,
                             size=final_image_size,
@@ -146,7 +160,7 @@ def generate_birthday_image(
                         image_count=1,
                         quality=image_quality,
                         image_size=final_image_size,
-                        model="gpt-image-1",
+                        model=DEFAULT_IMAGE_MODEL,
                     )
 
                     logger.info(
@@ -201,7 +215,7 @@ def generate_birthday_image(
         if not use_reference_mode:
             # Standard text-only generation
             generation_params = {
-                "model": "gpt-image-1",
+                "model": DEFAULT_IMAGE_MODEL,
                 "prompt": prompt,
                 "size": final_image_size,
                 "quality": image_quality,
@@ -212,7 +226,7 @@ def generate_birthday_image(
                 generation_params["response_format"] = "b64_json"
                 generation_params["background"] = "transparent"
 
-            response = client.images.generate(**generation_params)
+            response = _get_client().images.generate(**generation_params)
 
             # Log usage for monitoring
             log_image_generation_usage(
@@ -222,7 +236,7 @@ def generate_birthday_image(
                 image_count=1,
                 quality=image_quality,
                 image_size=final_image_size,
-                model="gpt-image-1",
+                model=DEFAULT_IMAGE_MODEL,
             )
 
         # Handle both base64 and URL responses
@@ -246,7 +260,7 @@ def generate_birthday_image(
             "personality": personality,
             "generated_for": name,
             "generated_at": datetime.now().isoformat(),
-            "model": "gpt-image-1",
+            "model": DEFAULT_IMAGE_MODEL,
             "has_transparency": enable_transparency,
             "format": "png",  # PNG format for transparency support
             "generation_mode": "reference_photo" if use_reference_mode else "text_only",
@@ -263,10 +277,12 @@ def generate_birthday_image(
             try:
                 # Occasionally clean up old images and profile photos (10% chance on each generation)
                 if random.random() < 0.1:  # 10% chance
-                    cleanup_old_images(days_to_keep=365)
+                    cleanup_old_images(
+                        days_to_keep=CACHE_RETENTION_DAYS["images_generated"]
+                    )
                     cleanup_old_profile_photos(
-                        days_to_keep=7
-                    )  # Clean profile photos more aggressively
+                        days_to_keep=CACHE_RETENTION_DAYS["profile_photos"]
+                    )
 
                 # Create a filename based on the user name, personality, and timestamp
                 safe_name = "".join(
@@ -308,7 +324,7 @@ def create_image_prompt(
     use_reference_mode=False,
 ):
     """
-    Create personality-specific prompts for GPT-Image-1 generation with randomness for creativity
+    Create personality-specific prompts for GPT-Image-1.5 generation with randomness for creativity
 
     Args:
         name: User's name
@@ -319,7 +335,7 @@ def create_image_prompt(
         use_reference_mode: Whether using reference photo (changes prompt style)
 
     Returns:
-        String prompt for GPT-Image-1 (either edit or generate mode)
+        String prompt for GPT-Image-1.5 (either edit or generate mode)
     """
     # Include job title context if available
     title_context = f", who works as a {title}" if title else ""
@@ -445,7 +461,7 @@ def download_image(image_url):
         Image data as bytes, or None if failed
     """
     try:
-        response = requests.get(image_url, timeout=30)
+        response = requests.get(image_url, timeout=TIMEOUTS["http_request"])
         response.raise_for_status()
         return response.content
     except Exception as e:
@@ -455,7 +471,7 @@ def download_image(image_url):
 
 def download_and_prepare_profile_photo(user_profile, name):
     """
-    Download user's profile photo and prepare it for GPT-Image-1 reference
+    Download user's profile photo and prepare it for GPT-Image-1.5 reference
 
     Args:
         user_profile: User profile dictionary with photo URLs
@@ -504,7 +520,7 @@ def download_and_prepare_profile_photo(user_profile, name):
         elif image.mode != "RGB":
             image = image.convert("RGB")
 
-        # Resize to standard size for GPT-Image-1 (1024x1024 max)
+        # Resize to standard size for GPT-Image-1.5 (1024x1024 max)
         max_size = 1024
         if image.width > max_size or image.height > max_size:
             image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
@@ -584,7 +600,7 @@ def test_image_generation():
     personalities = ["mystic_dog", "superhero", "pirate", "tech_guru"]
 
     print("=== Testing NEW Reference Photo Image Generation ===")
-    print("🚀 This tests the revolutionary GPT-Image-1 reference photo capabilities!")
+    print("🚀 This tests the revolutionary GPT-Image-1.5 reference photo capabilities!")
 
     for personality in personalities:
         print(f"\n--- Testing {personality} personality with REFERENCE PHOTO ---")
@@ -644,16 +660,19 @@ def test_image_generation():
     print("   🧹 Automatic cleanup of temporary profile photos")
 
 
-def cleanup_old_images(days_to_keep=30):
+def cleanup_old_images(days_to_keep=None):
     """
     Clean up old generated birthday images to save disk space
 
     Args:
-        days_to_keep: Number of days to keep images (default: 30)
+        days_to_keep: Number of days to keep images (default: from config)
 
     Returns:
         Number of files deleted
     """
+    if days_to_keep is None:
+        days_to_keep = CACHE_RETENTION_DAYS["images_default"]
+
     try:
         images_dir = os.path.join(CACHE_DIR, "images")
         if not os.path.exists(images_dir):
@@ -697,16 +716,19 @@ def cleanup_old_images(days_to_keep=30):
         return 0
 
 
-def cleanup_old_profile_photos(days_to_keep=7):
+def cleanup_old_profile_photos(days_to_keep=None):
     """
     Clean up old downloaded profile photos to save disk space
 
     Args:
-        days_to_keep: Number of days to keep profile photos (default: 7)
+        days_to_keep: Number of days to keep profile photos (default: from config)
 
     Returns:
         Number of files deleted
     """
+    if days_to_keep is None:
+        days_to_keep = CACHE_RETENTION_DAYS["profile_photos"]
+
     try:
         profiles_dir = os.path.join(CACHE_DIR, "profiles")
         if not os.path.exists(profiles_dir):

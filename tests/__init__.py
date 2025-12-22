@@ -1,0 +1,1 @@
+# BrightDayBot test suite

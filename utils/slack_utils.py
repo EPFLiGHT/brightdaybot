@@ -9,141 +9,27 @@ Key functions: get_user_profile(), send_message_with_image(), is_admin().
 
 from slack_sdk.errors import SlackApiError
 from datetime import datetime
+from typing import Dict, Optional
 import requests
 import random
 import os
+import re
 
 from config import (
     username_cache,
     USERNAME_CACHE_MAX_SIZE,
+    USERNAME_CACHE_TTL_HOURS,
     COMMAND_PERMISSIONS,
+    SAFE_SLACK_EMOJIS,
+    CUSTOM_SLACK_EMOJIS,
+    USE_CUSTOM_EMOJIS,
+    EMOJI_GENERATION_PARAMS,
+    RETRY_LIMITS,
     get_logger,
 )
-from utils.config_storage import get_current_admins
-from utils.constants import SAFE_SLACK_EMOJIS, CUSTOM_SLACK_EMOJIS
-from utils.slack_formatting import get_user_mention
-from utils.message_generator import generate_birthday_image_title
-from utils.message_archive import archive_message
+from utils.app_config import get_current_admins
 
 logger = get_logger("slack")
-
-
-def _determine_message_type(channel: str, text: str, context: dict = None) -> str:
-    """
-    Determine the message type for archiving purposes
-
-    Args:
-        channel: Channel ID or user ID
-        text: Message text content
-        context: Optional context information
-
-    Returns:
-        Message type string
-    """
-    if context and context.get("message_type"):
-        return context["message_type"]
-
-    # Check for DM (user ID starts with 'U')
-    if channel.startswith("U"):
-        return "dm"
-
-    # Check for common patterns
-    text_lower = text.lower()
-    if "birthday" in text_lower or "🎂" in text:
-        return "birthday"
-    elif text_lower.startswith("test") or "test" in text_lower:
-        return "test"
-    elif "error" in text_lower or "failed" in text_lower:
-        return "error"
-    else:
-        return "system"
-
-
-def _extract_attachment_metadata(
-    image_data: dict = None, file_path: str = None
-) -> list:
-    """
-    Extract attachment metadata for archiving
-
-    Args:
-        image_data: Image data dictionary from image generator
-        file_path: File path for file attachments
-
-    Returns:
-        List of attachment metadata dictionaries
-    """
-    attachments = []
-
-    if image_data and image_data.get("image_data"):
-        attachment = {
-            "type": "image",
-            "filename": f"birthday_{image_data.get('personality', 'standard')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png",
-            "format": image_data.get("format", "png"),
-            "generated_for": image_data.get("generated_for"),
-            "personality": image_data.get("personality"),
-            "ai_title": image_data.get("custom_title"),
-        }
-        attachments.append(attachment)
-
-    elif file_path:
-        attachment = {
-            "type": "file",
-            "filename": os.path.basename(file_path),
-            "size_bytes": (
-                os.path.getsize(file_path) if os.path.exists(file_path) else None
-            ),
-        }
-        attachments.append(attachment)
-
-    return attachments
-
-
-def _extract_message_metadata(context: dict = None, image_data: dict = None) -> dict:
-    """
-    Extract metadata for message archiving
-
-    Args:
-        context: Context information (personality, tokens, etc.)
-        image_data: Image generation data
-
-    Returns:
-        Metadata dictionary
-    """
-    metadata = {}
-
-    if context:
-        metadata.update(
-            {
-                "personality": context.get("personality"),
-                "celebration_type": context.get("celebration_type"),
-                "ai_tokens_used": context.get("ai_tokens_used"),
-                "command_name": context.get("command_name"),
-                "image_quality": context.get("image_quality"),
-                "image_size": context.get("image_size"),
-                "generation_mode": context.get("generation_mode"),
-                "is_fallback": context.get("is_fallback", False),
-                "retry_count": context.get("retry_count", 0),
-            }
-        )
-
-    if image_data:
-        metadata.update(
-            {
-                "personality": metadata.get("personality")
-                or image_data.get("personality"),
-                "image_quality": metadata.get("image_quality")
-                or image_data.get("quality"),
-                "image_size": metadata.get("image_size") or image_data.get("size"),
-                "generation_mode": (
-                    "reference"
-                    if image_data.get("reference_photo_used")
-                    else "text_only"
-                ),
-            }
-        )
-
-    # Remove None values
-    return {k: v for k, v in metadata.items() if v is not None}
 
 
 def get_user_profile(app, user_id):
@@ -299,17 +185,27 @@ def get_username(app, user_id):
     Returns:
         Display name or formatted mention
     """
-    # Check cache first
+    # Check cache first (with TTL validation)
     if user_id in username_cache:
-        return username_cache[user_id]
+        cached_username, cached_time = username_cache[user_id]
+        cache_age_hours = (datetime.now() - cached_time).total_seconds() / 3600
+        if cache_age_hours < USERNAME_CACHE_TTL_HOURS:
+            return cached_username
+        else:
+            # Cache entry expired, remove it
+            del username_cache[user_id]
+            logger.debug(f"CACHE: Expired username cache for {user_id}")
 
     # Check if cache is getting too large
     if len(username_cache) >= USERNAME_CACHE_MAX_SIZE:
-        # Remove oldest entries (simple FIFO strategy)
-        oldest_keys = list(username_cache.keys())[: USERNAME_CACHE_MAX_SIZE // 4]
-        for key in oldest_keys:
+        # Remove oldest entries based on timestamp (LRU-like)
+        sorted_entries = sorted(username_cache.items(), key=lambda x: x[1][1])
+        entries_to_remove = sorted_entries[: USERNAME_CACHE_MAX_SIZE // 4]
+        for key, _ in entries_to_remove:
             del username_cache[key]
-        logger.info(f"CACHE: Cleaned up {len(oldest_keys)} old username cache entries")
+        logger.info(
+            f"CACHE: Cleaned up {len(entries_to_remove)} old username cache entries"
+        )
 
     try:
         response = app.client.users_profile_get(user=user_id)
@@ -317,8 +213,8 @@ def get_username(app, user_id):
             display_name = response["profile"]["display_name"]
             real_name = response["profile"]["real_name"]
             username = display_name if display_name else real_name
-            # Cache the result
-            username_cache[user_id] = username
+            # Cache the result with timestamp
+            username_cache[user_id] = (username, datetime.now())
             return username
         logger.error(f"API_ERROR: Failed to get profile for user {user_id}")
     except SlackApiError as e:
@@ -355,16 +251,29 @@ def get_user_status_and_info(app, user_id):
             real_name = profile.get("real_name", "")
             username = display_name if display_name else real_name
 
-            # Cache the username if active
-            if is_active and username and user_id not in username_cache:
-                if len(username_cache) >= USERNAME_CACHE_MAX_SIZE:
-                    # Remove oldest entries
-                    oldest_keys = list(username_cache.keys())[
-                        : USERNAME_CACHE_MAX_SIZE // 4
-                    ]
-                    for key in oldest_keys:
-                        del username_cache[key]
-                username_cache[user_id] = username
+            # Cache the username if active (with timestamp for TTL)
+            if is_active and username:
+                # Check if we should update/add cache entry
+                should_cache = True
+                if user_id in username_cache:
+                    _, cached_time = username_cache[user_id]
+                    cache_age_hours = (
+                        datetime.now() - cached_time
+                    ).total_seconds() / 3600
+                    should_cache = cache_age_hours >= USERNAME_CACHE_TTL_HOURS
+
+                if should_cache:
+                    if len(username_cache) >= USERNAME_CACHE_MAX_SIZE:
+                        # Remove oldest entries based on timestamp
+                        sorted_entries = sorted(
+                            username_cache.items(), key=lambda x: x[1][1]
+                        )
+                        entries_to_remove = sorted_entries[
+                            : USERNAME_CACHE_MAX_SIZE // 4
+                        ]
+                        for key, _ in entries_to_remove:
+                            del username_cache[key]
+                    username_cache[user_id] = (username, datetime.now())
 
             return is_active, is_bot, is_deleted, username
         else:
@@ -376,37 +285,6 @@ def get_user_status_and_info(app, user_id):
     except Exception as e:
         logger.error(f"ERROR: Unexpected error getting user info for {user_id}: {e}")
         return False, False, False, f"<@{user_id}>"
-
-
-def check_profile_completeness(user_profile):
-    """
-    Check if a user profile is complete for optimal birthday celebrations
-
-    Args:
-        user_profile: User profile dictionary from get_user_profile()
-
-    Returns:
-        tuple: (is_complete, missing_items) where missing_items is a list of what's missing
-    """
-    missing_items = []
-
-    if not user_profile:
-        return False, ["profile data"]
-
-    # Check for profile photo
-    if not user_profile.get("photo_512") and not user_profile.get("photo_original"):
-        missing_items.append("profile photo")
-
-    # Check for job title
-    if not user_profile.get("title"):
-        missing_items.append("job title")
-
-    # Check for timezone
-    if not user_profile.get("timezone"):
-        missing_items.append("timezone")
-
-    is_complete = len(missing_items) == 0
-    return is_complete, missing_items
 
 
 def is_admin(app, user_id):
@@ -572,6 +450,10 @@ def send_message_with_image(
                 else:
                     # Generate AI-powered title for the image
                     try:
+                        from utils.message_generator import (
+                            generate_birthday_image_title,
+                        )
+
                         # Extract name and context from image_data
                         name = image_data.get("generated_for", "Birthday Person")
                         personality = image_data.get("personality", "standard")
@@ -634,39 +516,6 @@ def send_message_with_image(
                     logger.info(
                         f"IMAGE: Successfully sent message with image to {target_channel}"
                     )
-
-                    # Archive the successful message with image
-                    try:
-                        username = (
-                            get_username(app, channel)
-                            if channel.startswith("U")
-                            else None
-                        )
-                        message_type = _determine_message_type(channel, text, context)
-                        metadata = _extract_message_metadata(context, image_data)
-                        attachments = _extract_attachment_metadata(
-                            image_data=image_data
-                        )
-
-                        archive_message(
-                            message_type=message_type,
-                            channel=channel,
-                            text=text,
-                            user=channel if channel.startswith("U") else None,
-                            username=username,
-                            blocks=blocks,
-                            attachments=attachments,
-                            metadata=metadata,
-                            status="success",
-                            slack_ts=upload_response.get("file", {}).get(
-                                "id"
-                            ),  # Use file ID as reference
-                        )
-                    except Exception as archive_error:
-                        logger.warning(
-                            f"ARCHIVE_WARNING: Failed to archive image message: {archive_error}"
-                        )
-
                     return True
                 else:
                     logger.error(
@@ -999,7 +848,7 @@ def upload_birthday_images_for_blocks(
                     file_title = file_id_to_title.get(file_name, "")
 
                 # Poll for file processing completion (max 10 seconds)
-                max_attempts = 10
+                max_attempts = RETRY_LIMITS["file_processing"]
                 for attempt in range(max_attempts):
                     try:
                         file_info_response = app.client.files_info(file=file_id)
@@ -1236,7 +1085,7 @@ def send_message_with_multiple_attachments(
                     continue
 
                 # Poll for file processing completion (max 10 seconds)
-                max_attempts = 10
+                max_attempts = RETRY_LIMITS["file_processing"]
                 for attempt in range(max_attempts):
                     try:
                         file_info_response = app.client.files_info(file=file_id)
@@ -1278,41 +1127,6 @@ def send_message_with_multiple_attachments(
             logger.info(
                 f"MULTI_ATTACH: Successfully sent message with {len(file_uploads)} attachments ({processed_count} processed) to {target_channel}"
             )
-
-            # Archive the successful message with multiple attachments
-            try:
-                username = (
-                    get_username(app, channel) if channel.startswith("U") else None
-                )
-                message_type = _determine_message_type(channel, text, context)
-                metadata = _extract_message_metadata(context)
-
-                # Create attachment metadata for all uploaded files
-                attachments = []
-                for i, image_data in enumerate(image_list):
-                    if image_data and image_data.get("image_data"):
-                        attachment_meta = _extract_attachment_metadata(
-                            image_data=image_data
-                        )
-                        if attachment_meta:
-                            attachments.extend(attachment_meta)
-
-                archive_message(
-                    message_type=message_type,
-                    channel=channel,
-                    text=text,
-                    user=channel if channel.startswith("U") else None,
-                    username=username,
-                    blocks=blocks,
-                    attachments=attachments,
-                    metadata=metadata,
-                    status="success",
-                    slack_ts=upload_response.get("ts"),  # Use timestamp from response
-                )
-            except Exception as archive_error:
-                logger.warning(
-                    f"ARCHIVE_WARNING: Failed to archive multiple attachment message: {archive_error}"
-                )
 
             # Log individual attachment details
             uploaded_files = upload_response.get("files", [])
@@ -1400,10 +1214,6 @@ def send_message(app, channel: str, text: str, blocks=None, context: dict = None
     Returns:
         True if successful, False otherwise
     """
-    slack_ts = None
-    username = None
-    message_type = _determine_message_type(channel, text, context)
-
     try:
         # Send the message
         if blocks:
@@ -1413,60 +1223,16 @@ def send_message(app, channel: str, text: str, blocks=None, context: dict = None
         else:
             response = app.client.chat_postMessage(channel=channel, text=text)
 
-        # Extract Slack timestamp from response
-        slack_ts = response.get("ts") if response.get("ok") else None
-
-        # Get username for archiving
         if channel.startswith("U"):
             username = get_username(app, channel)
             logger.info(f"MESSAGE: Sent DM to {username} ({channel})")
         else:
             logger.info(f"MESSAGE: Sent message to channel {channel}")
 
-        # Archive the successful message
-        try:
-            metadata = _extract_message_metadata(context)
-            archive_message(
-                message_type=message_type,
-                channel=channel,
-                text=text,
-                user=channel if channel.startswith("U") else None,
-                username=username,
-                blocks=blocks,
-                metadata=metadata,
-                status="success",
-                slack_ts=slack_ts,
-            )
-        except Exception as archive_error:
-            logger.warning(
-                f"ARCHIVE_WARNING: Failed to archive message: {archive_error}"
-            )
-
         return True
 
     except SlackApiError as e:
         logger.error(f"API_ERROR: Failed to send message to {channel}: {e}")
-
-        # Archive the failed message
-        try:
-            metadata = _extract_message_metadata(context)
-            archive_message(
-                message_type=message_type,
-                channel=channel,
-                text=text,
-                user=channel if channel.startswith("U") else None,
-                username=username
-                or (get_username(app, channel) if channel.startswith("U") else None),
-                blocks=blocks,
-                metadata=metadata,
-                status="failed",
-                error_details=str(e),
-            )
-        except Exception as archive_error:
-            logger.warning(
-                f"ARCHIVE_WARNING: Failed to archive failed message: {archive_error}"
-            )
-
         return False
 
 
@@ -1474,14 +1240,14 @@ def send_message_with_file(
     app, channel: str, text: str, file_path: str, context: dict = None
 ):
     """
-    Send a message to a Slack channel with file attachment and automatic archiving
+    Send a message to a Slack channel with file attachment.
 
     Args:
         app: Slack app instance
         channel: Channel ID or user ID to send to
         text: Message text
         file_path: Path to file to upload
-        context: Optional context for archiving (message_type, etc.)
+        context: Optional context (unused, kept for API compatibility)
 
     Returns:
         bool: True if successful, False otherwise
@@ -1516,8 +1282,7 @@ def send_message_with_file(
             logger.error(f"FILE_UPLOAD_ERROR: API returned not ok: {response}")
             return False
 
-        # Log successful send (use original channel ID for user-friendly logging)
-        username = None
+        # Log successful send
         if channel.startswith("U"):
             username = get_username(app, channel)
             logger.info(
@@ -1528,110 +1293,18 @@ def send_message_with_file(
                 f"MESSAGE: Sent file to channel {channel}: {os.path.basename(file_path)}"
             )
 
-        # Archive the successful file message
-        try:
-            message_type = _determine_message_type(channel, text, context)
-            metadata = _extract_message_metadata(context)
-            attachments = _extract_attachment_metadata(file_path=file_path)
-
-            archive_message(
-                message_type=message_type,
-                channel=channel,
-                text=text,
-                user=channel if channel.startswith("U") else None,
-                username=username,
-                attachments=attachments,
-                metadata=metadata,
-                status="success",
-                slack_ts=response.get("file", {}).get("id"),  # Use file ID as reference
-            )
-        except Exception as archive_error:
-            logger.warning(
-                f"ARCHIVE_WARNING: Failed to archive file message: {archive_error}"
-            )
-
         return True
 
     except SlackApiError as e:
         logger.error(f"API_ERROR: Failed to send file to {channel}: {e}")
-
-        # Archive the failed message
-        try:
-            message_type = _determine_message_type(channel, text, context)
-            metadata = _extract_message_metadata(context)
-            attachments = _extract_attachment_metadata(file_path=file_path)
-            username = get_username(app, channel) if channel.startswith("U") else None
-
-            archive_message(
-                message_type=message_type,
-                channel=channel,
-                text=text,
-                user=channel if channel.startswith("U") else None,
-                username=username,
-                attachments=attachments,
-                metadata=metadata,
-                status="failed",
-                error_details=f"Slack API Error: {str(e)}",
-            )
-        except Exception as archive_error:
-            logger.warning(
-                f"ARCHIVE_WARNING: Failed to archive failed file message: {archive_error}"
-            )
-
         return False
 
     except FileNotFoundError:
         logger.error(f"FILE_ERROR: File not found: {file_path}")
-
-        # Archive the failed message
-        try:
-            message_type = _determine_message_type(channel, text, context)
-            metadata = _extract_message_metadata(context)
-            username = get_username(app, channel) if channel.startswith("U") else None
-
-            archive_message(
-                message_type=message_type,
-                channel=channel,
-                text=text,
-                user=channel if channel.startswith("U") else None,
-                username=username,
-                metadata=metadata,
-                status="failed",
-                error_details=f"File not found: {file_path}",
-            )
-        except Exception as archive_error:
-            logger.warning(
-                f"ARCHIVE_WARNING: Failed to archive failed file message: {archive_error}"
-            )
-
         return False
 
     except Exception as e:
         logger.error(f"UPLOAD_ERROR: Unexpected error sending file to {channel}: {e}")
-
-        # Archive the failed message
-        try:
-            message_type = _determine_message_type(channel, text, context)
-            metadata = _extract_message_metadata(context)
-            attachments = _extract_attachment_metadata(file_path=file_path)
-            username = get_username(app, channel) if channel.startswith("U") else None
-
-            archive_message(
-                message_type=message_type,
-                channel=channel,
-                text=text,
-                user=channel if channel.startswith("U") else None,
-                username=username,
-                attachments=attachments,
-                metadata=metadata,
-                status="failed",
-                error_details=f"Upload error: {str(e)}",
-            )
-        except Exception as archive_error:
-            logger.warning(
-                f"ARCHIVE_WARNING: Failed to archive failed file message: {archive_error}"
-            )
-
         return False
 
 
@@ -1710,3 +1383,182 @@ def get_random_emojis(app, count=5, include_custom=True):
     all_emojis = get_all_emojis(app, include_custom)
     # Return at most 'count' random emojis, or all if count > available emojis
     return random.sample(all_emojis, min(count, len(all_emojis)))
+
+
+# =============================================================================
+# Slack Formatting Utilities
+# =============================================================================
+
+
+def get_user_mention(user_id):
+    """
+    Get a formatted mention for a user
+
+    Args:
+        user_id: User ID to format
+
+    Returns:
+        Formatted mention string
+    """
+    return f"<@{user_id}>" if user_id else "Unknown User"
+
+
+def get_channel_mention(channel_id):
+    """
+    Get a formatted mention for a channel
+
+    Args:
+        channel_id: Channel ID to format
+
+    Returns:
+        Formatted channel mention string
+    """
+    return f"<#{channel_id}>" if channel_id else "Unknown Channel"
+
+
+def fix_slack_formatting(text):
+    """
+    Fix common formatting issues in Slack messages:
+    - Replace **bold** with *bold* for Slack-compatible bold text
+    - Replace __italic__ with _italic_ for Slack-compatible italic text
+    - Fix markdown-style links to Slack-compatible format
+    - Ensure proper emoji format with colons
+    - Fix other formatting issues
+
+    Args:
+        text: The text to fix formatting in
+
+    Returns:
+        Fixed text with Slack-compatible formatting
+    """
+    # Fix bold formatting: Replace **bold** with *bold*
+    text = re.sub(r"\*\*(.*?)\*\*", r"*\1*", text)
+
+    # Fix italic formatting: Replace __italic__ with _italic_
+    # and also _italic_ if it's not already correct
+    text = re.sub(r"__(.*?)__", r"_\1_", text)
+
+    # Fix markdown links: Replace [text](url) with <url|text>
+    text = re.sub(r"\[(.*?)\]\((.*?)\)", r"<\2|\1>", text)
+
+    # Fix emoji format: Ensure emoji codes have colons on both sides
+    text = re.sub(
+        r"(?<!\:)([a-z0-9_+-]+)(?!\:)",
+        lambda m: (
+            m.group(1)
+            if m.group(1)
+            in [
+                "and",
+                "the",
+                "to",
+                "for",
+                "with",
+                "in",
+                "of",
+                "on",
+                "at",
+                "by",
+                "from",
+                "as",
+            ]
+            else m.group(1)
+        ),
+        text,
+    )
+
+    # Fix markdown headers with # to just bold text
+    text = re.sub(r"^(#{1,6})\s+(.*?)$", r"*\2*", text, flags=re.MULTILINE)
+
+    # Remove HTML tags that might slip in
+    text = re.sub(r"<(?![@!#])(.*?)>", r"\1", text)
+
+    # Check for and fix incorrect code blocks
+    text = re.sub(r"```(.*?)```", r"`\1`", text, flags=re.DOTALL)
+
+    # Fix blockquotes: replace markdown > with Slack's blockquote
+    text = re.sub(r"^>\s+(.*?)$", r">>>\1", text, flags=re.MULTILINE)
+
+    logger.debug(f"AI_FORMAT: Fixed Slack formatting issues in message")
+    return text
+
+
+# =============================================================================
+# Emoji Context for AI
+# =============================================================================
+
+
+def get_emoji_context_for_ai(app=None, sample_size=None) -> Dict[str, str]:
+    """
+    Get emoji information for AI message generation.
+
+    Retrieves emojis (standard + custom workspace emojis if available),
+    generates sample list, and creates instruction/warning text.
+
+    Args:
+        app: Optional Slack app instance for fetching custom emojis
+        sample_size: Number of random emojis to include in examples.
+                     If None, uses EMOJI_GENERATION_PARAMS["sample_size"] from config
+
+    Returns:
+        Dictionary with:
+        - emoji_list: Full list of available emojis
+        - emoji_examples: Comma-separated sample of emojis for prompt
+        - emoji_instruction: Instruction text for AI
+        - emoji_warning: Warning/guidance text for AI
+        - custom_count: Number of custom emojis available
+
+    Example:
+        >>> emoji_ctx = get_emoji_context_for_ai(app)  # Uses config default
+        >>> prompt += f"Available emojis: {emoji_ctx['emoji_examples']}"
+    """
+    # Use configured sample size if not specified
+    if sample_size is None:
+        sample_size = EMOJI_GENERATION_PARAMS.get("sample_size", 50)
+
+    emoji_list = list(SAFE_SLACK_EMOJIS)
+    emoji_instruction = "ONLY USE STANDARD SLACK EMOJIS"
+    emoji_warning = "DO NOT use custom emojis like :birthday_party_parrot: or :rave: as they may not exist in all workspaces"
+    custom_count = 0
+
+    # Try to get custom emojis if enabled and app provided
+    if USE_CUSTOM_EMOJIS and app:
+        try:
+            all_emojis = get_all_emojis(app, include_custom=True)
+            if len(all_emojis) > len(SAFE_SLACK_EMOJIS):
+                emoji_list = all_emojis
+                custom_count = len(all_emojis) - len(SAFE_SLACK_EMOJIS)
+                emoji_instruction = "USE STANDARD OR CUSTOM SLACK EMOJIS"
+                emoji_warning = (
+                    f"The workspace has {custom_count} custom emoji(s) that you can use"
+                )
+                logger.info(
+                    f"EMOJI: Including {custom_count} custom emojis for AI generation"
+                )
+        except Exception as e:
+            logger.warning(
+                f"EMOJI: Failed to get custom emojis, using standard only: {e}"
+            )
+
+    # Generate random sample for AI prompt
+    actual_sample_size = min(sample_size, len(emoji_list))
+
+    try:
+        emoji_examples = ", ".join(random.sample(emoji_list, actual_sample_size))
+    except Exception as e:
+        # Fallback to configured fallback emojis if sampling fails
+        logger.error(f"EMOJI: Failed to generate emoji sample: {e}")
+        emoji_examples = EMOJI_GENERATION_PARAMS.get(
+            "fallback_emojis", ":tada: :sparkles: :star:"
+        )
+
+    logger.debug(
+        f"EMOJI: Prepared {actual_sample_size} emoji examples ({len(emoji_list)} total available)"
+    )
+
+    return {
+        "emoji_list": emoji_list,
+        "emoji_examples": emoji_examples,
+        "emoji_instruction": emoji_instruction,
+        "emoji_warning": emoji_warning,
+        "custom_count": custom_count,
+    }

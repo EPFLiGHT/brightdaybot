@@ -15,12 +15,11 @@ from datetime import datetime, timezone
 
 from config import (
     DAILY_CHECK_TIME,
+    SCHEDULER_CHECK_INTERVAL_SECONDS,
+    HEARTBEAT_STALE_THRESHOLD_SECONDS,
     get_logger,
-    AUTO_CLEANUP_ENABLED,
-    CLEANUP_SCHEDULE_HOURS,
 )
 from services.birthday import timezone_aware_check, celebrate_missed_birthdays
-from utils.message_archive import cleanup_old_archives, force_process_pending_archives
 
 logger = get_logger("scheduler")
 
@@ -72,50 +71,6 @@ def daily_task():
         logger.error("SCHEDULER: No simple daily callback or app instance registered")
 
 
-def archive_cleanup_task():
-    """
-    Archive cleanup task - runs automatic cleanup of old archived messages
-    """
-    try:
-        if not AUTO_CLEANUP_ENABLED:
-            logger.debug("SCHEDULER: Archive cleanup is disabled")
-            return
-
-        local_time = datetime.now()
-        logger.info(
-            f"SCHEDULER: Running archive cleanup at {local_time.strftime('%H:%M:%S')} local time"
-        )
-
-        # Force process any pending archives before cleanup
-        pending_count = force_process_pending_archives()
-        if pending_count > 0:
-            logger.info(
-                f"SCHEDULER: Processed {pending_count} pending archives before cleanup"
-            )
-
-        # Run cleanup
-        cleanup_result = cleanup_old_archives()
-
-        if "error" in cleanup_result:
-            logger.error(
-                f"SCHEDULER: Archive cleanup failed: {cleanup_result['error']}"
-            )
-            return
-
-        deleted_files = cleanup_result.get("deleted_files", 0)
-        compressed_files = cleanup_result.get("compressed_files", 0)
-
-        if deleted_files > 0 or compressed_files > 0:
-            logger.info(
-                f"SCHEDULER: Archive cleanup completed - {deleted_files} files deleted, {compressed_files} files compressed"
-            )
-        else:
-            logger.debug("SCHEDULER: Archive cleanup completed - no files processed")
-
-    except Exception as e:
-        logger.error(f"SCHEDULER: Archive cleanup task failed: {e}")
-
-
 def run_scheduler():
     """Run the scheduler in a separate thread with health monitoring"""
     global _last_heartbeat, _total_executions, _failed_executions, _scheduler_running
@@ -134,12 +89,14 @@ def run_scheduler():
                 _total_executions += 1
 
             schedule.run_pending()
-            time.sleep(60)  # Check every minute
+            time.sleep(SCHEDULER_CHECK_INTERVAL_SECONDS)
 
         except Exception as e:
             _failed_executions += 1
             logger.error(f"SCHEDULER_HEALTH: Error in scheduler loop: {e}")
-            time.sleep(60)  # Continue running even after errors
+            time.sleep(
+                SCHEDULER_CHECK_INTERVAL_SECONDS
+            )  # Continue running even after errors
 
 
 def setup_scheduler(app, timezone_aware_check, simple_daily_check):
@@ -157,7 +114,7 @@ def setup_scheduler(app, timezone_aware_check, simple_daily_check):
     _app_instance = app
 
     # Load timezone settings
-    from utils.config_storage import load_timezone_settings
+    from utils.app_config import load_timezone_settings
 
     _timezone_enabled, _check_interval = load_timezone_settings()
 
@@ -183,33 +140,6 @@ def setup_scheduler(app, timezone_aware_check, simple_daily_check):
         logger.info(
             f"SCHEDULER: Daily primary check scheduled for {DAILY_CHECK_TIME.strftime('%H:%M')} local time ({local_timezone})"
         )
-
-    # Schedule archive cleanup if enabled
-    if AUTO_CLEANUP_ENABLED:
-        if CLEANUP_SCHEDULE_HOURS == 24:
-            # Daily cleanup at 2 AM local time (after birthday processing)
-            schedule.every().day.at("02:00").do(archive_cleanup_task)
-            logger.info(
-                "SCHEDULER: Archive cleanup scheduled daily at 02:00 local time"
-            )
-        elif CLEANUP_SCHEDULE_HOURS == 1:
-            # Hourly cleanup (for testing/high-activity environments)
-            schedule.every().hour.do(archive_cleanup_task)
-            logger.info("SCHEDULER: Archive cleanup scheduled every hour")
-        elif CLEANUP_SCHEDULE_HOURS == 168:  # Weekly (7 * 24)
-            # Weekly cleanup on Sunday at 1 AM
-            schedule.every().sunday.at("01:00").do(archive_cleanup_task)
-            logger.info(
-                "SCHEDULER: Archive cleanup scheduled weekly on Sunday at 01:00"
-            )
-        else:
-            # Custom interval - schedule based on hours
-            schedule.every(CLEANUP_SCHEDULE_HOURS).hours.do(archive_cleanup_task)
-            logger.info(
-                f"SCHEDULER: Archive cleanup scheduled every {CLEANUP_SCHEDULE_HOURS} hours"
-            )
-    else:
-        logger.info("SCHEDULER: Archive cleanup is disabled")
 
     # Start the scheduler in a separate thread
     _scheduler_thread = threading.Thread(target=run_scheduler)
@@ -277,13 +207,13 @@ def get_scheduler_health():
     # Check if thread is alive
     thread_alive = _scheduler_thread is not None and _scheduler_thread.is_alive()
 
-    # Check heartbeat freshness (should be within last 2 minutes)
+    # Check heartbeat freshness (should be within threshold)
     heartbeat_fresh = False
     heartbeat_age_seconds = None
     if _last_heartbeat:
         heartbeat_age = now - _last_heartbeat
         heartbeat_age_seconds = heartbeat_age.total_seconds()
-        heartbeat_fresh = heartbeat_age_seconds < 120  # 2 minutes
+        heartbeat_fresh = heartbeat_age_seconds < HEARTBEAT_STALE_THRESHOLD_SECONDS
 
     # Calculate success rate
     success_rate = None

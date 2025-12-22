@@ -24,6 +24,9 @@ from config import (
     SPECIAL_DAYS_CHANNEL,
     BACKUP_DIR,
     MAX_BACKUPS,
+    DEFAULT_ANNOUNCEMENT_TIME,
+    DATE_FORMAT,
+    TIMEOUTS,
 )
 from utils.logging_config import get_logger
 
@@ -86,7 +89,7 @@ def load_special_days() -> List[SpecialDay]:
 
     try:
         lock_file = f"{SPECIAL_DAYS_FILE}.lock"
-        with FileLock(lock_file, timeout=10):
+        with FileLock(lock_file, timeout=TIMEOUTS["file_lock"]):
             with open(SPECIAL_DAYS_FILE, "r", encoding="utf-8") as f:
                 reader = csv.DictReader(f)
                 for row in reader:
@@ -142,14 +145,19 @@ def save_special_day(special_day: SpecialDay, app=None, username=None) -> bool:
         if not updated:
             existing_days.append(special_day)
 
-        # Sort by date (DD/MM format)
-        existing_days.sort(
-            key=lambda d: (int(d.date.split("/")[1]), int(d.date.split("/")[0]))
-        )
+        # Sort by date using datetime parsing
+        def get_date_sort_key(d):
+            try:
+                date_obj = datetime.strptime(d.date, DATE_FORMAT)
+                return (date_obj.month, date_obj.day)
+            except ValueError:
+                return (0, 0)  # Put invalid dates first
+
+        existing_days.sort(key=get_date_sort_key)
 
         # Write back to file
         lock_file = f"{SPECIAL_DAYS_FILE}.lock"
-        with FileLock(lock_file, timeout=10):
+        with FileLock(lock_file, timeout=TIMEOUTS["file_lock"]):
             with open(SPECIAL_DAYS_FILE, "w", encoding="utf-8", newline="") as f:
                 fieldnames = [
                     "date",
@@ -233,7 +241,7 @@ def remove_special_day(
 
         # Write back to file
         lock_file = f"{SPECIAL_DAYS_FILE}.lock"
-        with FileLock(lock_file, timeout=10):
+        with FileLock(lock_file, timeout=TIMEOUTS["file_lock"]):
             with open(SPECIAL_DAYS_FILE, "w", encoding="utf-8", newline="") as f:
                 fieldnames = [
                     "date",
@@ -362,7 +370,7 @@ def load_special_days_config() -> dict:
         "enabled": SPECIAL_DAYS_ENABLED,
         "personality": SPECIAL_DAYS_PERSONALITY,
         "categories_enabled": {cat: True for cat in SPECIAL_DAYS_CATEGORIES},
-        "announcement_time": "09:00",
+        "announcement_time": DEFAULT_ANNOUNCEMENT_TIME,
         "channel_override": None,
         "image_generation": False,
         "test_mode": False,
@@ -602,12 +610,10 @@ def verify_special_days() -> Dict[str, List[str]]:
         else:
             date_counts[day.date] = day.name
 
-        # Validate date format (DD/MM)
+        # Validate date format (DD/MM) using datetime
         try:
-            day_num, month = map(int, day.date.split("/"))
-            if not (1 <= day_num <= 31 and 1 <= month <= 12):
-                raise ValueError()
-        except:
+            datetime.strptime(day.date, DATE_FORMAT)
+        except (ValueError, TypeError, AttributeError):
             results["invalid_dates"].append(f"{day.date}: {day.name}")
 
         # Count by category
@@ -721,72 +727,81 @@ def restore_latest_special_days_backup() -> bool:
         return False
 
 
-def add_source_info(date: str, name: str, source: str, url: str = "") -> bool:
+# ----- OBSERVANCE RELATIONSHIP ANALYSIS -----
+
+
+def should_split_observances(special_days: list) -> bool:
     """
-    Add source information to a special day.
+    Determine if multiple observances should be split into separate announcements
+    based on their thematic relationship.
+
+    Strategy:
+    - Always split if observances are from DIFFERENT categories (Culture vs Tech vs Global Health)
+    - Combine only if observances share the SAME category (e.g., Culture + Culture)
+
+    This ensures each observance gets proper attention and avoids forced connections
+    between fundamentally different topics (e.g., LGBTQ+ rights + telecommunications).
 
     Args:
-        date: Date in DD/MM format
-        name: Name of the special day
-        source: Source organization (UN, WHO, UNESCO, etc.)
-        url: Optional official URL
+        special_days: List of SpecialDay objects for today
 
     Returns:
-        True if successful, False otherwise
+        bool: True if observances should be split, False if they should be combined
     """
-    try:
-        all_days = load_special_days()
+    if not special_days or len(special_days) <= 1:
+        return False  # Nothing to split
 
-        # Find the matching day
-        found = False
-        for day in all_days:
-            if day.date == date and day.name == name:
-                day.source = source
-                day.url = url
-                found = True
-                break
+    # Extract categories
+    categories = [day.category for day in special_days if hasattr(day, "category")]
 
-        if not found:
-            logger.warning(f"Special day not found: {date} - {name}")
-            return False
-
-        # Save back with updated info
-        lock_file = f"{SPECIAL_DAYS_FILE}.lock"
-        with FileLock(lock_file, timeout=10):
-            with open(SPECIAL_DAYS_FILE, "w", encoding="utf-8", newline="") as f:
-                fieldnames = [
-                    "date",
-                    "name",
-                    "category",
-                    "description",
-                    "emoji",
-                    "enabled",
-                    "source",
-                    "url",
-                ]
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-
-                for day in all_days:
-                    writer.writerow(
-                        {
-                            "date": day.date,
-                            "name": day.name,
-                            "category": day.category,
-                            "description": day.description,
-                            "emoji": day.emoji,
-                            "enabled": str(day.enabled).lower(),
-                            "source": getattr(day, "source", ""),
-                            "url": getattr(day, "url", ""),
-                        }
-                    )
-
-        logger.info(f"Added source info for {name}: {source}")
+    if not categories:
+        logger.warning("No categories found for observances, defaulting to split")
         return True
 
-    except Exception as e:
-        logger.error(f"Error adding source info: {e}")
+    # Check if all categories are the same
+    unique_categories = set(categories)
+
+    if len(unique_categories) == 1:
+        # All observances share the same category - can be combined
+        logger.info(
+            f"OBSERVANCE_ANALYSIS: {len(special_days)} observances share category '{categories[0]}' - will combine"
+        )
         return False
+    else:
+        # Multiple different categories - should split
+        logger.info(
+            f"OBSERVANCE_ANALYSIS: {len(special_days)} observances have different categories {unique_categories} - will split"
+        )
+        return True
+
+
+def group_observances_by_category(special_days: list) -> dict:
+    """
+    Group observances by their category for potential combined announcements.
+
+    This is used when we want to send multiple combined announcements, one per category.
+    For example: Culture observances together, Tech observances together.
+
+    Args:
+        special_days: List of SpecialDay objects
+
+    Returns:
+        dict: Dictionary mapping category names to lists of SpecialDay objects
+              e.g., {"Culture": [day1, day2], "Tech": [day3]}
+    """
+    grouped = {}
+
+    for day in special_days:
+        category = getattr(day, "category", "Unknown")
+        if category not in grouped:
+            grouped[category] = []
+        grouped[category].append(day)
+
+    logger.info(
+        f"OBSERVANCE_GROUPING: Grouped {len(special_days)} observances into {len(grouped)} categories"
+    )
+
+    return grouped
 
 
 # Test function for development
