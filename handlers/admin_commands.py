@@ -7,6 +7,7 @@ cache management, status checks, backup/restore, personality, and timezone setti
 
 from datetime import datetime
 from calendar import month_name
+from slack_sdk.errors import SlackApiError
 from utils.storage import load_birthdays, create_backup, restore_latest_backup
 from utils.slack_utils import (
     get_username,
@@ -249,7 +250,7 @@ def handle_announce_command(
     try:
         channel_members = get_channel_members(app, BIRTHDAY_CHANNEL)
         user_count = len(channel_members) if channel_members else "unknown number of"
-    except Exception as e:
+    except SlackApiError as e:
         logger.warning(f"Could not get channel member count: {e}")
         user_count = "unknown number of"
 
@@ -578,7 +579,7 @@ def handle_timezone_command(args, user_id, say, app, username):
             try:
                 schedule_info = format_timezone_schedule(app)
                 status_msg += f"\n\n{schedule_info}"
-            except Exception as e:
+            except (SlackApiError, ValueError) as e:
                 logger.error(f"ADMIN_ERROR: Failed to get timezone schedule: {e}")
 
         say(status_msg)
@@ -628,7 +629,7 @@ def handle_timezone_command(args, user_id, say, app, username):
             try:
                 schedule_info = format_timezone_schedule(app)
                 status_msg += schedule_info
-            except Exception as e:
+            except (SlackApiError, ValueError) as e:
                 status_msg += f"Failed to get timezone schedule: {e}"
                 logger.error(f"ADMIN_ERROR: Failed to get timezone schedule: {e}")
         else:
@@ -763,7 +764,7 @@ def handle_admin_list_command(_args, _user_id, say, app, _username):
         try:
             admin_name = get_username(app, admin_id)
             admin_list.append(f"• {admin_name} ({admin_id})")
-        except Exception as e:
+        except SlackApiError as e:
             logger.error(f"ERROR: Failed to get username for admin {admin_id}: {e}")
             admin_list.append(f"• {admin_id} (name unavailable)")
 
@@ -798,7 +799,7 @@ def handle_admin_add_command(args, user_id, say, app, username):
         if not user_info.get("ok", False):
             say(f"User ID `{new_admin}` not found.")
             return
-    except Exception:
+    except SlackApiError:
         say(f"User ID `{new_admin}` not found or invalid.")
         return
 

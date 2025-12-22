@@ -183,8 +183,10 @@ COMMAND_PERMISSIONS = {
 # ----- PERFORMANCE OPTIMIZATIONS -----
 
 # Cache for username lookups to reduce API calls
+# Structure: {user_id: (username, timestamp)}
 username_cache = {}
 USERNAME_CACHE_MAX_SIZE = 1000  # Maximum number of cached usernames
+USERNAME_CACHE_TTL_HOURS = 24  # Cache entries expire after 24 hours
 
 # ----- OPENAI MODEL CONFIGURATION -----
 

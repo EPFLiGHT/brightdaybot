@@ -521,7 +521,7 @@ def handle_test_upload_multi_command(user_id, say, app):
             try:
                 # Try to use default font, fallback to basic if not available
                 font = ImageFont.load_default()
-            except Exception:
+            except OSError:
                 font = None
 
             d.text((10, 20), config["text"], fill="white", font=font)
@@ -724,7 +724,7 @@ This test file contains sample birthday data in the same format used by the exte
                 logger.debug(
                     f"TEST_FILE_UPLOAD: Cleaned up temporary file: {temp_file_path}"
                 )
-            except Exception as cleanup_error:
+            except OSError as cleanup_error:
                 logger.warning(
                     f"TEST_FILE_UPLOAD: Failed to clean up temporary file {temp_file_path}: {cleanup_error}"
                 )
@@ -1496,7 +1496,8 @@ def handle_test_bot_celebration_command(
             from utils.special_days_storage import load_special_days
 
             special_days_count = len(load_special_days())
-        except Exception:
+        except (FileNotFoundError, ValueError, KeyError) as e:
+            logger.debug(f"TEST_BOT_CELEBRATION: Could not load special days: {e}")
             special_days_count = 0
 
         # Add logging for test start
@@ -1703,7 +1704,10 @@ def handle_test_bot_celebration_command(
                             blocks, fallback_text = build_bot_celebration_blocks(
                                 celebration_message, bot_age, personality="mystic_dog"
                             )
-                        except Exception:
+                        except (TypeError, ValueError, KeyError) as block_err:
+                            logger.debug(
+                                f"TEST_BOT_CELEBRATION: Block building failed: {block_err}"
+                            )
                             blocks = None
                             fallback_text = celebration_message
 
@@ -1730,7 +1734,10 @@ def handle_test_bot_celebration_command(
                         blocks, fallback_text = build_bot_celebration_blocks(
                             celebration_message, bot_age, personality="mystic_dog"
                         )
-                    except Exception:
+                    except (TypeError, ValueError, KeyError) as block_err:
+                        logger.debug(
+                            f"TEST_BOT_CELEBRATION: Block building failed: {block_err}"
+                        )
                         blocks = None
                         fallback_text = celebration_message
 
@@ -1761,7 +1768,10 @@ def handle_test_bot_celebration_command(
                     blocks, fallback_text = build_bot_celebration_blocks(
                         celebration_message, bot_age, personality="mystic_dog"
                     )
-                except Exception:
+                except (TypeError, ValueError, KeyError) as block_err:
+                    logger.debug(
+                        f"TEST_BOT_CELEBRATION: Block building failed: {block_err}"
+                    )
                     blocks = None
                     fallback_text = celebration_message
 
@@ -1785,7 +1795,10 @@ def handle_test_bot_celebration_command(
                 blocks, fallback_text = build_bot_celebration_blocks(
                     celebration_message, bot_age, personality="mystic_dog"
                 )
-            except Exception:
+            except (TypeError, ValueError, KeyError) as block_err:
+                logger.debug(
+                    f"TEST_BOT_CELEBRATION: Block building failed: {block_err}"
+                )
                 blocks = None
                 fallback_text = celebration_message
 

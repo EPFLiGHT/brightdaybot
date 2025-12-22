@@ -134,7 +134,7 @@ def get_birthday_facts(date_str, personality="mystic_dog"):
             try:
                 os.makedirs(CACHE_DIR, exist_ok=True)
                 open(cleanup_marker, "a").close()
-            except Exception:
+            except OSError:
                 pass  # Ignore cleanup marker creation errors
 
     # Check cache first if caching is enabled
@@ -146,7 +146,7 @@ def get_birthday_facts(date_str, personality="mystic_dog"):
                     f"WEB_SEARCH: Using cached results for {date_str} ({personality})"
                 )
                 return cached_data
-        except Exception as e:
+        except (OSError, json.JSONDecodeError) as e:
             logger.error(f"CACHE_ERROR: Failed to read cache: {e}")
 
     try:
@@ -228,7 +228,7 @@ def get_birthday_facts(date_str, personality="mystic_dog"):
                     logger.info(
                         f"WEB_SEARCH: Cached results for {date_str} ({personality})"
                     )
-            except Exception as e:
+            except (OSError, TypeError) as e:
                 logger.error(f"CACHE_ERROR: Failed to write to cache: {e}")
 
         return results
@@ -278,7 +278,7 @@ def clear_old_cache_files():
 
         return cleared_count
 
-    except Exception as e:
+    except OSError as e:
         logger.error(f"CACHE_ERROR: Failed to clear old cache files: {e}")
         return 0
 
@@ -320,7 +320,7 @@ def clear_cache(date_str=None):
 
         return cleared_count
 
-    except Exception as e:
+    except OSError as e:
         logger.error(f"CACHE_ERROR: Failed to clear cache: {e}")
         return 0
 

@@ -135,8 +135,11 @@ class TestGetUsername:
     def test_uses_cache_when_available(self, mock_slack_app):
         """Uses cached username instead of making API call."""
         from utils.slack_utils import get_username
+        from datetime import datetime
 
-        with patch("utils.slack_utils.username_cache", {"U123456": "CachedName"}):
+        # Cache now stores (username, timestamp) tuples
+        cache_with_ttl = {"U123456": ("CachedName", datetime.now())}
+        with patch("utils.slack_utils.username_cache", cache_with_ttl):
             result = get_username(mock_slack_app, "U123456")
 
         assert result == "CachedName"
@@ -238,9 +241,12 @@ class TestIsAdmin:
     def test_checks_admin_users_list_first(self, mock_slack_app):
         """Checks configured ADMIN_USERS before making API call."""
         from utils.slack_utils import is_admin
+        from datetime import datetime
 
+        # Cache now stores (username, timestamp) tuples
+        cache_with_ttl = {"U123456": ("AdminUser", datetime.now())}
         with patch("utils.slack_utils.get_current_admins", return_value=["U123456"]):
-            with patch("utils.slack_utils.username_cache", {"U123456": "AdminUser"}):
+            with patch("utils.slack_utils.username_cache", cache_with_ttl):
                 result = is_admin(mock_slack_app, "U123456")
 
         assert result is True

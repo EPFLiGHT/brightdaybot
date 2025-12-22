@@ -18,6 +18,7 @@ import re
 from config import (
     username_cache,
     USERNAME_CACHE_MAX_SIZE,
+    USERNAME_CACHE_TTL_HOURS,
     COMMAND_PERMISSIONS,
     SAFE_SLACK_EMOJIS,
     CUSTOM_SLACK_EMOJIS,
@@ -184,17 +185,27 @@ def get_username(app, user_id):
     Returns:
         Display name or formatted mention
     """
-    # Check cache first
+    # Check cache first (with TTL validation)
     if user_id in username_cache:
-        return username_cache[user_id]
+        cached_username, cached_time = username_cache[user_id]
+        cache_age_hours = (datetime.now() - cached_time).total_seconds() / 3600
+        if cache_age_hours < USERNAME_CACHE_TTL_HOURS:
+            return cached_username
+        else:
+            # Cache entry expired, remove it
+            del username_cache[user_id]
+            logger.debug(f"CACHE: Expired username cache for {user_id}")
 
     # Check if cache is getting too large
     if len(username_cache) >= USERNAME_CACHE_MAX_SIZE:
-        # Remove oldest entries (simple FIFO strategy)
-        oldest_keys = list(username_cache.keys())[: USERNAME_CACHE_MAX_SIZE // 4]
-        for key in oldest_keys:
+        # Remove oldest entries based on timestamp (LRU-like)
+        sorted_entries = sorted(username_cache.items(), key=lambda x: x[1][1])
+        entries_to_remove = sorted_entries[: USERNAME_CACHE_MAX_SIZE // 4]
+        for key, _ in entries_to_remove:
             del username_cache[key]
-        logger.info(f"CACHE: Cleaned up {len(oldest_keys)} old username cache entries")
+        logger.info(
+            f"CACHE: Cleaned up {len(entries_to_remove)} old username cache entries"
+        )
 
     try:
         response = app.client.users_profile_get(user=user_id)
@@ -202,8 +213,8 @@ def get_username(app, user_id):
             display_name = response["profile"]["display_name"]
             real_name = response["profile"]["real_name"]
             username = display_name if display_name else real_name
-            # Cache the result
-            username_cache[user_id] = username
+            # Cache the result with timestamp
+            username_cache[user_id] = (username, datetime.now())
             return username
         logger.error(f"API_ERROR: Failed to get profile for user {user_id}")
     except SlackApiError as e:
@@ -240,16 +251,29 @@ def get_user_status_and_info(app, user_id):
             real_name = profile.get("real_name", "")
             username = display_name if display_name else real_name
 
-            # Cache the username if active
-            if is_active and username and user_id not in username_cache:
-                if len(username_cache) >= USERNAME_CACHE_MAX_SIZE:
-                    # Remove oldest entries
-                    oldest_keys = list(username_cache.keys())[
-                        : USERNAME_CACHE_MAX_SIZE // 4
-                    ]
-                    for key in oldest_keys:
-                        del username_cache[key]
-                username_cache[user_id] = username
+            # Cache the username if active (with timestamp for TTL)
+            if is_active and username:
+                # Check if we should update/add cache entry
+                should_cache = True
+                if user_id in username_cache:
+                    _, cached_time = username_cache[user_id]
+                    cache_age_hours = (
+                        datetime.now() - cached_time
+                    ).total_seconds() / 3600
+                    should_cache = cache_age_hours >= USERNAME_CACHE_TTL_HOURS
+
+                if should_cache:
+                    if len(username_cache) >= USERNAME_CACHE_MAX_SIZE:
+                        # Remove oldest entries based on timestamp
+                        sorted_entries = sorted(
+                            username_cache.items(), key=lambda x: x[1][1]
+                        )
+                        entries_to_remove = sorted_entries[
+                            : USERNAME_CACHE_MAX_SIZE // 4
+                        ]
+                        for key, _ in entries_to_remove:
+                            del username_cache[key]
+                    username_cache[user_id] = (username, datetime.now())
 
             return is_active, is_bot, is_deleted, username
         else:

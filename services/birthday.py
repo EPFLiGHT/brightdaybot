@@ -12,6 +12,8 @@ import random
 import os
 from datetime import datetime, timezone
 
+from slack_sdk.errors import SlackApiError
+
 from utils.date_utils import (
     check_if_birthday_today,
     date_to_words,
@@ -107,7 +109,8 @@ def celebrate_bot_birthday(app, moment):
             from utils.special_days_storage import load_special_days
 
             special_days_count = len(load_special_days())
-        except Exception:
+        except (FileNotFoundError, ValueError, KeyError) as e:
+            logger.debug(f"BOT_BIRTHDAY: Could not load special days count: {e}")
             special_days_count = 0
 
         # Generate Ludo's mystical celebration message
@@ -206,7 +209,7 @@ def celebrate_bot_birthday(app, moment):
                             logger.info(
                                 f"BOT_BIRTHDAY: Built Block Kit structure with {len(blocks)} blocks{image_note}"
                             )
-                        except Exception as block_error:
+                        except (TypeError, ValueError, KeyError) as block_error:
                             logger.warning(
                                 f"BOT_BIRTHDAY: Failed to build Block Kit blocks: {block_error}. Using plain text."
                             )
@@ -219,7 +222,7 @@ def celebrate_bot_birthday(app, moment):
                             "BOT_BIRTHDAY: Sent celebration message with Block Kit embedded image"
                         )
 
-                    except Exception as upload_error:
+                    except (SlackApiError, OSError) as upload_error:
                         logger.error(
                             f"BOT_BIRTHDAY: Upload/block building failed: {upload_error}, falling back to message only"
                         )
@@ -230,7 +233,10 @@ def celebrate_bot_birthday(app, moment):
                             blocks, fallback_text = build_bot_celebration_blocks(
                                 celebration_message, bot_age, personality="mystic_dog"
                             )
-                        except Exception as block_error:
+                        except (TypeError, ValueError, KeyError) as block_error:
+                            logger.debug(
+                                f"BOT_BIRTHDAY: Block building failed: {block_error}"
+                            )
                             blocks = None
                             fallback_text = celebration_message
 
@@ -246,7 +252,10 @@ def celebrate_bot_birthday(app, moment):
                         blocks, fallback_text = build_bot_celebration_blocks(
                             celebration_message, bot_age, personality="mystic_dog"
                         )
-                    except Exception as block_error:
+                    except (TypeError, ValueError, KeyError) as block_error:
+                        logger.debug(
+                            f"BOT_BIRTHDAY: Block building failed: {block_error}"
+                        )
                         blocks = None
                         fallback_text = celebration_message
 
@@ -255,7 +264,7 @@ def celebrate_bot_birthday(app, moment):
                         "BOT_BIRTHDAY: Sent celebration message with Block Kit formatting (image generation failed)"
                     )
 
-            except Exception as image_error:
+            except (SlackApiError, OSError, ValueError) as image_error:
                 logger.warning(f"BOT_BIRTHDAY: Image generation failed: {image_error}")
                 # Fallback to message only with blocks
                 try:
@@ -264,7 +273,8 @@ def celebrate_bot_birthday(app, moment):
                     blocks, fallback_text = build_bot_celebration_blocks(
                         celebration_message, bot_age, personality="mystic_dog"
                     )
-                except Exception as block_error:
+                except (TypeError, ValueError, KeyError) as block_error:
+                    logger.debug(f"BOT_BIRTHDAY: Block building failed: {block_error}")
                     blocks = None
                     fallback_text = celebration_message
 
@@ -280,7 +290,8 @@ def celebrate_bot_birthday(app, moment):
                 blocks, fallback_text = build_bot_celebration_blocks(
                     celebration_message, bot_age, personality="mystic_dog"
                 )
-            except Exception as block_error:
+            except (TypeError, ValueError, KeyError) as block_error:
+                logger.debug(f"BOT_BIRTHDAY: Block building failed: {block_error}")
                 blocks = None
                 fallback_text = celebration_message
 
@@ -807,7 +818,7 @@ def timezone_aware_check(app, moment):
             return
         channel_member_set = set(channel_members)
         logger.info(f"TIMEZONE: Birthday channel has {len(channel_members)} members")
-    except Exception as e:
+    except SlackApiError as e:
         logger.error(f"TIMEZONE: Failed to get channel members: {e}")
         return
 
@@ -983,7 +994,7 @@ def simple_daily_check(app, moment):
         logger.info(
             f"SIMPLE_DAILY: Birthday channel has {len(channel_members)} members"
         )
-    except Exception as e:
+    except SlackApiError as e:
         logger.error(f"SIMPLE_DAILY: Failed to get channel members: {e}")
         return
 
