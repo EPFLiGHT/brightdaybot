@@ -20,6 +20,7 @@ from config import (
     DEFAULT_IMAGE_MODEL,
     RETRY_LIMITS,
     TIMEOUTS,
+    CACHE_RETENTION_DAYS,
 )
 from utils.openai_api import log_image_generation_usage, get_openai_client
 import base64
@@ -276,10 +277,12 @@ def generate_birthday_image(
             try:
                 # Occasionally clean up old images and profile photos (10% chance on each generation)
                 if random.random() < 0.1:  # 10% chance
-                    cleanup_old_images(days_to_keep=365)
+                    cleanup_old_images(
+                        days_to_keep=CACHE_RETENTION_DAYS["images_generated"]
+                    )
                     cleanup_old_profile_photos(
-                        days_to_keep=7
-                    )  # Clean profile photos more aggressively
+                        days_to_keep=CACHE_RETENTION_DAYS["profile_photos"]
+                    )
 
                 # Create a filename based on the user name, personality, and timestamp
                 safe_name = "".join(
@@ -657,16 +660,19 @@ def test_image_generation():
     print("   🧹 Automatic cleanup of temporary profile photos")
 
 
-def cleanup_old_images(days_to_keep=30):
+def cleanup_old_images(days_to_keep=None):
     """
     Clean up old generated birthday images to save disk space
 
     Args:
-        days_to_keep: Number of days to keep images (default: 30)
+        days_to_keep: Number of days to keep images (default: from config)
 
     Returns:
         Number of files deleted
     """
+    if days_to_keep is None:
+        days_to_keep = CACHE_RETENTION_DAYS["images_default"]
+
     try:
         images_dir = os.path.join(CACHE_DIR, "images")
         if not os.path.exists(images_dir):
@@ -710,16 +716,19 @@ def cleanup_old_images(days_to_keep=30):
         return 0
 
 
-def cleanup_old_profile_photos(days_to_keep=7):
+def cleanup_old_profile_photos(days_to_keep=None):
     """
     Clean up old downloaded profile photos to save disk space
 
     Args:
-        days_to_keep: Number of days to keep profile photos (default: 7)
+        days_to_keep: Number of days to keep profile photos (default: from config)
 
     Returns:
         Number of files deleted
     """
+    if days_to_keep is None:
+        days_to_keep = CACHE_RETENTION_DAYS["profile_photos"]
+
     try:
         profiles_dir = os.path.join(CACHE_DIR, "profiles")
         if not os.path.exists(profiles_dir):

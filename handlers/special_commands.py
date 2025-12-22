@@ -23,6 +23,7 @@ from config import (
     SPECIAL_DAYS_PERSONALITY,
     DEFAULT_ANNOUNCEMENT_TIME,
     DATE_FORMAT,
+    UPCOMING_DAYS_EXTENDED,
 )
 from utils.slack_utils import get_username, send_message
 
@@ -80,14 +81,14 @@ def handle_special_command(args, user_id, say, app):
         say(blocks=blocks, text=fallback)
 
     elif subcommand == "month":
-        # Show special days for the next 30 days using Block Kit
-        upcoming = get_upcoming_special_days(30)
+        # Show special days for the extended lookahead period using Block Kit
+        upcoming = get_upcoming_special_days(UPCOMING_DAYS_EXTENDED)
 
         # Build dict structure for Block Kit (date_str -> [days])
         # Sort by actual date objects for proper chronological order
         today = datetime.now()
         sorted_upcoming = {}
-        for i in range(30):
+        for i in range(UPCOMING_DAYS_EXTENDED):
             check_date = today + timedelta(days=i)
             date_str = check_date.strftime("%d/%m")
             if date_str in upcoming:

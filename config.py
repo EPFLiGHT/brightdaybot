@@ -254,6 +254,21 @@ TIMEOUTS = {
     "file_lock": 10,  # File lock acquisition timeout
 }
 
+# Scheduler timing constants
+SCHEDULER_CHECK_INTERVAL_SECONDS = 60  # How often scheduler checks for birthdays
+HEARTBEAT_STALE_THRESHOLD_SECONDS = 120  # When to consider scheduler unhealthy (2 min)
+
+# Lookahead windows for upcoming events
+UPCOMING_DAYS_DEFAULT = 7  # Default lookahead for upcoming birthdays/special days
+UPCOMING_DAYS_EXTENDED = 30  # Extended lookahead for calendar/list views
+
+# Cache retention policies (in days)
+CACHE_RETENTION_DAYS = {
+    "images_default": 30,  # Default image cache cleanup
+    "images_generated": 365,  # AI-generated birthday images (keep longer)
+    "profile_photos": 7,  # Temporary profile photos (clean more aggressively)
+}
+
 # Emoji generation parameters for AI messages
 EMOJI_GENERATION_PARAMS = {
     "sample_size": 50,  # Number of random emojis to show AI as examples

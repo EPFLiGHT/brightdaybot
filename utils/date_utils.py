@@ -112,6 +112,43 @@ def calculate_age(birth_year: int) -> int:
     return current_year - birth_year
 
 
+def calculate_next_birthday_age(
+    birth_year: int, month: int, day: int, reference_date=None
+) -> str:
+    """
+    Calculate the age someone will turn on their next birthday.
+
+    Handles Feb 29 birthdays gracefully by falling back to simple age calculation.
+
+    Args:
+        birth_year: Year of birth
+        month: Birth month (1-12)
+        day: Birth day (1-31)
+        reference_date: Optional reference date, defaults to now in UTC
+
+    Returns:
+        Formatted age text like " (turning 30)" or " (age: 30)" for Feb 29
+    """
+    if not reference_date:
+        reference_date = datetime.now(timezone.utc)
+
+    try:
+        next_birthday_year = reference_date.year
+        birthday_this_year = datetime(
+            next_birthday_year, month, day, tzinfo=timezone.utc
+        )
+
+        if birthday_this_year < reference_date:
+            next_birthday_year += 1
+
+        next_age = next_birthday_year - birth_year
+        return f" (turning {next_age})"
+
+    except ValueError:
+        # Handle Feb 29 in non-leap years
+        return f" (age: {reference_date.year - birth_year})"
+
+
 def check_if_birthday_today(date_str, reference_date=None):
     """
     Check if a date string in DD/MM format matches today's date

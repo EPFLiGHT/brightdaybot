@@ -15,6 +15,8 @@ from datetime import datetime, timezone
 
 from config import (
     DAILY_CHECK_TIME,
+    SCHEDULER_CHECK_INTERVAL_SECONDS,
+    HEARTBEAT_STALE_THRESHOLD_SECONDS,
     get_logger,
 )
 from services.birthday import timezone_aware_check, celebrate_missed_birthdays
@@ -87,12 +89,14 @@ def run_scheduler():
                 _total_executions += 1
 
             schedule.run_pending()
-            time.sleep(60)  # Check every minute
+            time.sleep(SCHEDULER_CHECK_INTERVAL_SECONDS)
 
         except Exception as e:
             _failed_executions += 1
             logger.error(f"SCHEDULER_HEALTH: Error in scheduler loop: {e}")
-            time.sleep(60)  # Continue running even after errors
+            time.sleep(
+                SCHEDULER_CHECK_INTERVAL_SECONDS
+            )  # Continue running even after errors
 
 
 def setup_scheduler(app, timezone_aware_check, simple_daily_check):
@@ -203,13 +207,13 @@ def get_scheduler_health():
     # Check if thread is alive
     thread_alive = _scheduler_thread is not None and _scheduler_thread.is_alive()
 
-    # Check heartbeat freshness (should be within last 2 minutes)
+    # Check heartbeat freshness (should be within threshold)
     heartbeat_fresh = False
     heartbeat_age_seconds = None
     if _last_heartbeat:
         heartbeat_age = now - _last_heartbeat
         heartbeat_age_seconds = heartbeat_age.total_seconds()
-        heartbeat_fresh = heartbeat_age_seconds < 120  # 2 minutes
+        heartbeat_fresh = heartbeat_age_seconds < HEARTBEAT_STALE_THRESHOLD_SECONDS
 
     # Calculate success rate
     success_rate = None

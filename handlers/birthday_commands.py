@@ -11,6 +11,7 @@ from utils.date_utils import (
     date_to_words,
     calculate_age,
     calculate_days_until_birthday,
+    calculate_next_birthday_age,
     get_star_sign,
 )
 from utils.storage import load_birthdays, mark_birthday_announced
@@ -249,25 +250,11 @@ def handle_list_command(parts, user_id, say, app):
             day,
             user_mention,
         ) in enumerate(birthday_list):
-            age_text = ""
-            if birth_year:
-                # Calculate age they will be on their next birthday
-                next_birthday_year = reference_date.year
-
-                try:
-                    birthday_this_year = datetime(
-                        next_birthday_year, month, day, tzinfo=timezone.utc
-                    )
-
-                    if birthday_this_year < reference_date:
-                        next_birthday_year += 1
-
-                    next_age = next_birthday_year - birth_year
-                    age_text = f" (turning {next_age})"
-
-                except ValueError:
-                    # Handle Feb 29 in non-leap years
-                    age_text = f" (age: {reference_date.year - birth_year})"
+            age_text = (
+                calculate_next_birthday_age(birth_year, month, day, reference_date)
+                if birth_year
+                else ""
+            )
 
             # Update the tuple with age_text
             birthday_list[i] = (
@@ -303,24 +290,11 @@ def handle_list_command(parts, user_id, say, app):
             user_mention = get_user_mention(uid)
 
             # Calculate age text
-            age_text = ""
-            if birth_year:
-                next_birthday_year = reference_date.year
-
-                try:
-                    birthday_this_year = datetime(
-                        next_birthday_year, month, day, tzinfo=timezone.utc
-                    )
-
-                    if birthday_this_year < reference_date:
-                        next_birthday_year += 1
-
-                    next_age = next_birthday_year - birth_year
-                    age_text = f" (turning {next_age})"
-
-                except ValueError:
-                    # Handle Feb 29 in non-leap years
-                    age_text = f" (age: {reference_date.year - birth_year})"
+            age_text = (
+                calculate_next_birthday_age(birth_year, month, day, reference_date)
+                if birth_year
+                else ""
+            )
 
             precise_candidates.append(
                 (
