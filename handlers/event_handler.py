@@ -157,6 +157,20 @@ def register_event_handlers(app):
 
     events_logger.info("EVENT_HANDLER: Button action handler registered successfully")
 
+    @app.action(re.compile("^link_"))
+    def handle_link_button(ack, body, action):
+        """
+        Handle link button clicks (URL buttons).
+
+        Link buttons normally just open URLs without triggering actions,
+        but this handler prevents 'Unhandled request' warnings if Slack
+        sends an action event anyway.
+        """
+        ack()
+        events_logger.debug(
+            f"LINK_BUTTON: User clicked link button {action.get('action_id', 'unknown')}"
+        )
+
     @app.event("message")
     def handle_message(event, say, client, logger):
         """Handle direct message events"""

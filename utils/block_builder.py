@@ -450,7 +450,7 @@ def build_special_day_blocks(
                 }
             )
 
-        # URL buttons
+        # URL buttons (link buttons still need action_id for Slack tracking)
         if count == 1:
             # Single: one "Official Source" button
             url = get_attr(special_days[0], "url")
@@ -459,12 +459,13 @@ def build_special_day_blocks(
                     {
                         "type": "button",
                         "text": {"type": "plain_text", "text": "🔗 Official Source"},
+                        "action_id": f"link_official_source_{date_str.replace('/', '_') if date_str else 'unknown'}",
                         "url": url,
                     }
                 )
         else:
             # Multiple: individual buttons for each URL
-            for special_day in special_days:
+            for idx, special_day in enumerate(special_days):
                 url = get_attr(special_day, "url")
                 if url:
                     name = get_attr(special_day, "name", "Source")
@@ -473,6 +474,7 @@ def build_special_day_blocks(
                         {
                             "type": "button",
                             "text": {"type": "plain_text", "text": f"🔗 {button_name}"},
+                            "action_id": f"link_source_{idx}_{date_str.replace('/', '_') if date_str else 'unknown'}",
                             "url": url,
                         }
                     )

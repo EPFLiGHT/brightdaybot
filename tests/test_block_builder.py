@@ -246,6 +246,28 @@ class TestBuildSpecialDayBlocks:
         assert isinstance(fallback, str)
         assert len(fallback) > 0
 
+    def test_url_buttons_have_action_id(self):
+        """URL buttons have explicit action_id to prevent Slack warnings"""
+        blocks, _ = build_special_day_blocks(
+            [
+                {
+                    "name": "World Health Day",
+                    "date": "07/04",
+                    "url": "https://example.com",
+                }
+            ],
+            "Today we celebrate health!",
+        )
+        # Find actions block
+        actions_block = next((b for b in blocks if b.get("type") == "actions"), None)
+        assert actions_block is not None
+        # Find URL button (has url property)
+        url_buttons = [e for e in actions_block["elements"] if e.get("url")]
+        assert len(url_buttons) > 0
+        for button in url_buttons:
+            assert "action_id" in button
+            assert button["action_id"].startswith("link_")
+
 
 class TestBuildBirthdayModal:
     """Tests for build_birthday_modal() modal structure"""
