@@ -288,7 +288,7 @@ def log_image_generation_usage(
         image_count: Number of images generated (default: 1)
         quality: Quality setting used ("low", "medium", "high", "auto")
         image_size: Size setting used (e.g., "1024x1024", "auto")
-        model: Model used (e.g., "gpt-image-1.5")
+        model: Model used for image generation
     """
     try:
         if hasattr(response, "data") and response.data:

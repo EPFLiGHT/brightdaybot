@@ -589,6 +589,7 @@ def _generate_birthday_message(
                         test_mode=test_mode,
                         quality=quality,
                         image_size=image_size,
+                        birth_year=person.get("year"),
                     )
 
                     if person_image:

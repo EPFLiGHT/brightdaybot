@@ -147,6 +147,7 @@ def celebrate_bot_birthday(app, moment):
                     image_size=IMAGE_GENERATION_PARAMS["size"][
                         "default"
                     ],  # Use default size from config
+                    birth_year=BOT_BIRTH_YEAR,
                 )
 
                 if image_result and image_result.get("success"):

@@ -1,5 +1,5 @@
 """
-AI-powered birthday image generation using GPT-Image-1.5.
+AI-powered birthday image generation using OpenAI's image generation API.
 
 Supports face-accurate images with user profile photos and text-only fallback.
 Features quality control, automatic cleanup, and personality-themed styles.
@@ -51,20 +51,22 @@ def generate_birthday_image(
     test_mode=False,
     quality=None,
     image_size=None,
+    birth_year=None,
 ):
     """
-    Generate a personalized birthday image using GPT-Image-1.5
+    Generate a personalized birthday image using OpenAI's image generation API
 
     Args:
         user_profile: Dictionary with user profile information (from get_user_profile)
         personality: Bot personality for styling the image
-        date_str: Date string in DD/MM format (optional, for caching)
+        date_str: Date string in DD/MM format (optional, for caching and text overlay)
         enable_transparency: Whether to enable transparent background (requires response_format="b64_json")
         save_to_file: Whether to automatically save the generated image to disk (default: True)
         birthday_message: Optional birthday announcement message to incorporate into the image
         test_mode: If True, uses lower quality/smaller size to reduce costs for testing
         quality: Override quality setting ("low", "medium", "high", or "auto"). If None, uses test_mode logic
         image_size: Override image size ("auto", "1024x1024", "1536x1024", "1024x1536"). If None, defaults to "auto"
+        birth_year: Optional birth year for age calculation and display in image
 
     Returns:
         Dictionary with image URL and metadata, or None if failed
@@ -105,7 +107,14 @@ def generate_birthday_image(
 
         # Create personality-specific prompts (adjusted for reference vs text-only mode)
         prompt = create_image_prompt(
-            name, title, personality, user_profile, birthday_message, use_reference_mode
+            name,
+            title,
+            personality,
+            user_profile,
+            birthday_message,
+            use_reference_mode,
+            date_str=date_str,
+            birth_year=birth_year,
         )
 
         # Determine quality and fidelity - allow override via quality parameter
@@ -137,7 +146,7 @@ def generate_birthday_image(
 
         # Generate image using either reference-based editing or text-only generation
         if use_reference_mode and profile_photo_path:
-            # Use GPT-Image-1.5's image editing API with reference photo
+            # Use OpenAI's image editing API with reference photo
             # Retry once if safety system rejects the request
             max_attempts = RETRY_LIMITS["image_generation"]
             for attempt in range(max_attempts):
@@ -189,6 +198,8 @@ def generate_birthday_image(
                             user_profile,
                             birthday_message=None,
                             use_reference_mode=True,
+                            date_str=date_str,
+                            birth_year=birth_year,
                         )
                         continue  # Retry with modified prompt
                     else:
@@ -209,6 +220,8 @@ def generate_birthday_image(
                             user_profile,
                             birthday_message,
                             False,
+                            date_str=date_str,
+                            birth_year=birth_year,
                         )
                         break  # Exit retry loop
 
@@ -322,9 +335,11 @@ def create_image_prompt(
     user_profile=None,
     birthday_message=None,
     use_reference_mode=False,
+    date_str=None,
+    birth_year=None,
 ):
     """
-    Create personality-specific prompts for GPT-Image-1.5 generation with randomness for creativity
+    Create personality-specific prompts for OpenAI image generation with randomness for creativity
 
     Args:
         name: User's name
@@ -333,9 +348,11 @@ def create_image_prompt(
         user_profile: Full user profile data (includes photo URLs)
         birthday_message: Optional birthday announcement message to incorporate
         use_reference_mode: Whether using reference photo (changes prompt style)
+        date_str: Date string in DD/MM format for text overlay
+        birth_year: Birth year for age calculation and display
 
     Returns:
-        String prompt for GPT-Image-1.5 (either edit or generate mode)
+        String prompt for OpenAI image API (either edit or generate mode)
     """
     # Include job title context if available
     title_context = f", who works as a {title}" if title else ""
@@ -345,6 +362,36 @@ def create_image_prompt(
         multiple_context = " This is a special shared birthday celebration with multiple people celebrating together."
     else:
         multiple_context = ""
+
+    # Create date and age display text for image overlays
+    date_display = ""
+    age_display = ""
+    date_age_text = ""
+
+    if date_str:
+        try:
+            from utils.date_utils import format_date_european_short
+
+            date_obj = datetime.strptime(date_str, "%d/%m")
+            date_display = format_date_european_short(date_obj)  # e.g., "25 December"
+        except (ValueError, ImportError):
+            date_display = date_str
+
+    if birth_year:
+        try:
+            current_year = datetime.now().year
+            age = current_year - int(birth_year)
+            age_display = str(age)
+        except (ValueError, TypeError):
+            age_display = ""
+
+    # Build the combined date/age text instruction
+    if date_display and age_display:
+        date_age_text = f', with "{date_display}" as the date and "Turning {age_display}" displayed elegantly'
+    elif date_display:
+        date_age_text = f', with "{date_display}" displayed as the date'
+    elif age_display:
+        date_age_text = f', showing "Turning {age_display}"'
 
     # Calculate bot celebration status once (used in multiple places)
     is_bot_celebration = user_profile and user_profile.get("user_id") == "BRIGHTDAYBOT"
@@ -434,6 +481,9 @@ def create_image_prompt(
             multiple_context=multiple_context,
             face_context=face_context,
             message_context=message_context,
+            date_display=date_display,
+            age_display=age_display,
+            date_age_text=date_age_text,
         )
     except KeyError as e:
         logger.warning(f"IMAGE_PROMPT: Template formatting issue for {name}: {e}")
@@ -471,7 +521,7 @@ def download_image(image_url):
 
 def download_and_prepare_profile_photo(user_profile, name):
     """
-    Download user's profile photo and prepare it for GPT-Image-1.5 reference
+    Download user's profile photo and prepare it for OpenAI image API reference
 
     Args:
         user_profile: User profile dictionary with photo URLs
@@ -520,7 +570,7 @@ def download_and_prepare_profile_photo(user_profile, name):
         elif image.mode != "RGB":
             image = image.convert("RGB")
 
-        # Resize to standard size for GPT-Image-1.5 (1024x1024 max)
+        # Resize to standard size for OpenAI image API (1024x1024 max)
         max_size = 1024
         if image.width > max_size or image.height > max_size:
             image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
@@ -600,7 +650,7 @@ def test_image_generation():
     personalities = ["mystic_dog", "superhero", "pirate", "tech_guru"]
 
     print("=== Testing NEW Reference Photo Image Generation ===")
-    print("🚀 This tests the revolutionary GPT-Image-1.5 reference photo capabilities!")
+    print("🚀 This tests OpenAI's reference photo image generation capabilities!")
 
     for personality in personalities:
         print(f"\n--- Testing {personality} personality with REFERENCE PHOTO ---")

@@ -1588,6 +1588,7 @@ def handle_test_bot_celebration_command(
                     test_mode=True,  # Use test mode for cost efficiency
                     quality=final_quality,  # Use custom or default quality
                     image_size=final_image_size,  # Use custom or default size
+                    birth_year=BOT_BIRTH_YEAR,
                 )
 
                 if image_result and image_result.get("success"):
