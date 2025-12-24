@@ -42,7 +42,6 @@ def handle_special_command(args, user_id, say, app):
         build_special_days_list_blocks,
         build_special_day_stats_blocks,
     )
-    from datetime import datetime, timedelta
 
     # Default to showing today if no args
     if not args:
@@ -190,8 +189,6 @@ def handle_admin_special_command_with_quotes(command_text, user_id, say, app):
         mark_special_day_announced,
     )
     from utils.special_day_generator import generate_special_day_message
-    from datetime import datetime
-    import csv
 
     username = get_username(app, user_id)
 
@@ -292,8 +289,6 @@ def handle_admin_special_command(args, user_id, say, app):
         mark_special_day_announced,
     )
     from utils.special_day_generator import generate_special_day_message
-    from datetime import datetime
-    import csv
 
     username = get_username(app, user_id)
 
@@ -691,8 +686,6 @@ def handle_admin_special_command(args, user_id, say, app):
 
             last_updated = status.get("last_updated")
             if last_updated:
-                from datetime import datetime
-
                 last_dt = datetime.fromisoformat(last_updated)
                 last_str = last_dt.strftime("%Y-%m-%d %H:%M")
             else:
@@ -757,8 +750,6 @@ _Cache refreshes weekly. Use `admin special un-refresh` to force update._"""
 
             last_prefetch = status.get("last_prefetch")
             if last_prefetch:
-                from datetime import datetime
-
                 last_dt = datetime.fromisoformat(last_prefetch)
                 last_str = last_dt.strftime("%Y-%m-%d %H:%M")
             else:

@@ -8,10 +8,9 @@ Integrates with the existing birthday infrastructure for consistent user experie
 import os
 import csv
 import json
-import logging
 import shutil
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional
 from filelock import FileLock
 
 from config import (
@@ -21,7 +20,6 @@ from config import (
     SPECIAL_DAYS_ENABLED,
     SPECIAL_DAYS_CATEGORIES,
     SPECIAL_DAYS_PERSONALITY,
-    SPECIAL_DAYS_CHANNEL,
     BACKUP_DIR,
     MAX_BACKUPS,
     DEFAULT_ANNOUNCEMENT_TIME,
@@ -1105,6 +1103,47 @@ def group_observances_by_category(special_days: list) -> dict:
     )
 
     return grouped
+
+
+def initialize_special_days_cache():
+    """
+    Initialize special days caches on startup if stale or missing.
+
+    Called from app.py at startup to ensure caches are populated.
+    """
+    # UN Observances
+    try:
+        from utils.un_observances import get_un_client
+
+        client = get_un_client()
+        if not client._is_cache_fresh():
+            logger.info("INIT: UN observances cache stale/missing, refreshing...")
+            stats = client.refresh_cache()
+            if stats.get("error"):
+                logger.warning(f"INIT: UN refresh failed: {stats['error']}")
+            else:
+                logger.info(
+                    f"INIT: UN cache refreshed with {stats['fetched']} observances"
+                )
+        else:
+            logger.info("INIT: UN observances cache is fresh")
+    except Exception as e:
+        logger.warning(f"INIT: Failed to initialize UN cache: {e}")
+
+    # Calendarific
+    if CALENDARIFIC_ENABLED:
+        try:
+            from utils.calendarific_api import get_calendarific_client
+
+            client = get_calendarific_client()
+            if client.needs_prefetch():
+                logger.info("INIT: Calendarific cache needs prefetch, running...")
+                stats = client.weekly_prefetch()
+                logger.info(f"INIT: Calendarific prefetch complete: {stats}")
+            else:
+                logger.info("INIT: Calendarific cache is fresh")
+        except Exception as e:
+            logger.warning(f"INIT: Failed to initialize Calendarific cache: {e}")
 
 
 # Test function for development

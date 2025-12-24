@@ -18,6 +18,7 @@ from config import logger, initialize_config
 # Import services
 from services.scheduler import setup_scheduler, run_now
 from services.birthday import timezone_aware_check, simple_daily_check
+from utils.special_days_storage import initialize_special_days_cache
 
 # Import event handlers
 from handlers.event_handler import register_event_handlers
@@ -47,6 +48,9 @@ if __name__ == "__main__":
     try:
         # Set up the scheduler with direct birthday check functions
         setup_scheduler(app, timezone_aware_check, simple_daily_check)
+
+        # Initialize special days caches if stale or missing
+        initialize_special_days_cache()
 
         # Check for today's birthdays at startup and catch up on missed celebrations
         run_now()
