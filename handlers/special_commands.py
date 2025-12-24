@@ -36,7 +36,7 @@ def handle_special_command(args, user_id, say, app):
         get_todays_special_days,
         get_upcoming_special_days,
         get_special_day_statistics,
-        load_special_days,
+        load_all_special_days,
     )
     from utils.block_builder import (
         build_special_days_list_blocks,
@@ -99,29 +99,10 @@ def handle_special_command(args, user_id, say, app):
         )
         say(blocks=blocks, text=fallback)
 
-    elif subcommand == "search":
-        # Search for specific special days using Block Kit
-        if len(args) < 2:
-            say("Please provide a search term. Example: `special search mental health`")
-            return
-
-        search_term = " ".join(args[1:]).lower()
-        all_days = load_special_days()
-
-        # Search in name and description
-        matches = [
-            day
-            for day in all_days
-            if search_term in day.name.lower() or search_term in day.description.lower()
-        ]
-
-        blocks, fallback = build_special_days_list_blocks(matches, view_mode="search")
-        say(blocks=blocks, text=fallback)
-
     elif subcommand == "list":
-        # List all special days by category using Block Kit
+        # List all special days by category using Block Kit (all sources)
         category_filter = args[1] if len(args) > 1 else None
-        all_days = load_special_days()
+        all_days = load_all_special_days()
 
         if category_filter:
             all_days = [
@@ -140,17 +121,16 @@ def handle_special_command(args, user_id, say, app):
         say(blocks=blocks, text=fallback)
 
     else:
-        # Help message (keeping as plain text for now)
+        # Help message
         help_text = """*Special Days Commands:*
 
 • `special` or `special today` - Show today's special days
 • `special week` - Show special days for the next 7 days
 • `special month` - Show special days for the next 30 days
 • `special list [category]` - List all special days (optionally by category)
-• `special search [term]` - Search for specific special days
 • `special stats` - Show special days statistics
 
-_Special days include global health observances, technology celebrations, and cultural events._"""
+_Sources: UN/WHO/UNESCO observances, Calendarific holidays, and custom entries._"""
         say(help_text)
 
     logger.info(
@@ -303,6 +283,7 @@ def handle_admin_special_command(args, user_id, say, app):
     from utils.special_days_storage import (
         remove_special_day,
         load_special_days,
+        load_all_special_days,
         update_category_status,
         load_special_days_config,
         save_special_days_config,
@@ -337,9 +318,9 @@ def handle_admin_special_command(args, user_id, say, app):
             say(f"❌ No special day found for {date_str}")
 
     elif subcommand == "list":
-        # List all special days or by category
+        # List all special days or by category (all sources)
         category_filter = args[1] if len(args) > 1 else None
-        all_days = load_special_days()
+        all_days = load_all_special_days()
 
         if category_filter:
             all_days = [
@@ -701,6 +682,59 @@ def handle_admin_special_command(args, user_id, say, app):
             say(f"❌ Prefetch error: {e}")
             logger.error(f"ADMIN_SPECIAL: Calendarific refresh failed: {e}")
 
+    elif subcommand in ["un-status", "un"]:
+        # UN Observances: Show cache status
+        try:
+            from utils.un_observances import get_un_cache_status
+
+            status = get_un_cache_status()
+
+            last_updated = status.get("last_updated")
+            if last_updated:
+                from datetime import datetime
+
+                last_dt = datetime.fromisoformat(last_updated)
+                last_str = last_dt.strftime("%Y-%m-%d %H:%M")
+            else:
+                last_str = "Never"
+
+            message = f"""📊 *UN Observances Cache Status*
+
+• Cache exists: {'✅ Yes' if status['cache_exists'] else '❌ No'}
+• Cache fresh: {'✅ Yes' if status['cache_fresh'] else '⚠️ Stale'}
+• Last updated: {last_str}
+• Observances cached: {status['observance_count']}
+
+*Source:* {status['source_url']}
+
+_Cache refreshes weekly. Use `admin special un-refresh` to force update._"""
+            say(message)
+
+        except Exception as e:
+            say(f"❌ Failed to get UN cache status: {e}")
+            logger.error(f"ADMIN_SPECIAL: Failed to get UN status: {e}")
+
+    elif subcommand == "un-refresh":
+        # UN Observances: Force refresh
+        try:
+            from utils.un_observances import refresh_un_cache
+
+            say("🔄 Refreshing UN observances cache...")
+
+            stats = refresh_un_cache(force=True)
+
+            if stats.get("error"):
+                say(f"❌ Refresh failed: {stats['error']}")
+            else:
+                say(
+                    f"✅ UN observances cache refreshed: {stats['fetched']} observances"
+                )
+                logger.info(f"ADMIN_SPECIAL: {username} refreshed UN cache")
+
+        except Exception as e:
+            say(f"❌ Refresh error: {e}")
+            logger.error(f"ADMIN_SPECIAL: UN refresh failed: {e}")
+
     elif subcommand in ["api-status", "api", "calendarific"]:
         # Calendarific: Show API status
         from config import CALENDARIFIC_ENABLED, CALENDARIFIC_API_KEY
@@ -757,30 +791,23 @@ _Run `admin special refresh` to update cache_"""
         # Help message
         help_text = """*Admin Special Days Commands:*
 
-• `admin special add DD/MM "Name" "Category" "Description" ["emoji"] ["source"] ["url"]` - Add a special day (quoted strings support spaces)
-• `admin special remove DD/MM [name]` - Remove a special day
-• `admin special list [category]` - List all special days
+• `admin special add DD/MM "Name" "Category" "Description" ["emoji"] ["source"] ["url"]` - Add a custom day
+• `admin special remove DD/MM [name]` - Remove a custom day
+• `admin special list [category]` - List all special days (all sources)
 • `admin special categories [enable/disable category]` - Manage categories
 • `admin special test [DD/MM]` - Test announcement for a date
 • `admin special config [setting value]` - View/update configuration
-• `admin special verify` - Verify data accuracy and completeness
-• `admin special import` - Import from CSV (coming soon)
+• `admin special verify` - Verify CSV data accuracy
 
-*Calendarific API (auto-fetches observances):*
-• `admin special api-status` - Show API status and cache
-• `admin special refresh [days] [force]` - Prefetch upcoming days (default: 7)
+*UN Observances (~230 days):*
+• `admin special un-status` - Show UN cache status
+• `admin special un-refresh` - Force refresh UN cache
 
-*Categories:* Global Health, Tech, Culture, Company
+*Calendarific API (national holidays):*
+• `admin special api-status` - Show Calendarific status
+• `admin special refresh [days]` - Prefetch upcoming days
 
-*Add Command Examples:*
-```
-admin special add 15/03 "World Sleep Day" "Global Health" "Promoting healthy sleep"
-admin special add 15/03 "World Sleep Day" "Global Health" "Promoting healthy sleep" "💤"
-admin special add 15/03 "World Sleep Day" "Global Health" "Promoting healthy sleep" "💤" "World Sleep Society"
-admin special add 15/03 "World Sleep Day" "Global Health" "Promoting healthy sleep" "💤" "World Sleep Society" "https://worldsleepday.org"
-```
-
-*Note:* Use quotes around parameters with spaces. Source and URL are automatically integrated into AI-generated messages."""
+*Categories:* Global Health, Tech, Culture, Company"""
         say(help_text)
 
     logger.info(

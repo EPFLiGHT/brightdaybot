@@ -121,6 +121,96 @@ def load_special_days() -> List[SpecialDay]:
         return []
 
 
+def load_all_special_days() -> List[SpecialDay]:
+    """
+    Load special days from ALL sources (CSV, UN cache, Calendarific cache).
+
+    Unlike load_special_days() which only reads CSV, this function combines
+    all available data sources and deduplicates them.
+
+    Returns:
+        List of SpecialDay objects from all sources, deduplicated
+    """
+    all_days = []
+
+    # 1. Load CSV entries
+    csv_days = load_special_days()
+    all_days.extend(csv_days)
+
+    # 2. Load UN observances from cache
+    try:
+        from utils.un_observances import UN_CACHE_FILE
+        import json
+        import os
+
+        if os.path.exists(UN_CACHE_FILE):
+            with open(UN_CACHE_FILE, "r") as f:
+                un_data = json.load(f)
+                for obs in un_data.get("observances", []):
+                    all_days.append(
+                        SpecialDay(
+                            date=obs["date"],
+                            name=obs["name"],
+                            category=obs.get("category", "Culture"),
+                            description=obs.get("description", ""),
+                            emoji=obs.get("emoji", ""),
+                            enabled=True,
+                            source=obs.get("source", "UN"),
+                            url=obs.get("url", ""),
+                        )
+                    )
+    except Exception as e:
+        logger.warning(f"Failed to load UN observances cache: {e}")
+
+    # 3. Load Calendarific from cache
+    try:
+        from config import CALENDARIFIC_ENABLED, CALENDARIFIC_CACHE_DIR
+        import os
+        import json
+
+        if CALENDARIFIC_ENABLED and os.path.exists(CALENDARIFIC_CACHE_DIR):
+            for filename in os.listdir(CALENDARIFIC_CACHE_DIR):
+                if filename.endswith(".json") and filename != "rate_counter.json":
+                    filepath = os.path.join(CALENDARIFIC_CACHE_DIR, filename)
+                    try:
+                        with open(filepath, "r") as f:
+                            holidays = json.load(f)
+                            for h in holidays:
+                                # Convert to DD/MM format
+                                iso_date = h.get("date", {}).get("iso", "")
+                                if iso_date:
+                                    from datetime import datetime
+
+                                    dt = datetime.fromisoformat(iso_date[:10])
+                                    date_str = dt.strftime("%d/%m")
+                                    all_days.append(
+                                        SpecialDay(
+                                            date=date_str,
+                                            name=h.get("name", ""),
+                                            category=h.get("category", "Culture"),
+                                            description=h.get("description", ""),
+                                            emoji=h.get("emoji", ""),
+                                            enabled=True,
+                                            source=h.get("source", "Calendarific"),
+                                            url=h.get("url", ""),
+                                        )
+                                    )
+                    except (json.JSONDecodeError, IOError):
+                        continue
+    except Exception as e:
+        logger.warning(f"Failed to load Calendarific cache: {e}")
+
+    # Deduplicate
+    unique_days = _deduplicate_special_days(all_days)
+
+    logger.info(
+        f"Loaded {len(unique_days)} unique special days from all sources "
+        f"(CSV: {len(csv_days)}, total before dedup: {len(all_days)})"
+    )
+
+    return unique_days
+
+
 def save_special_day(special_day: SpecialDay, app=None, username=None) -> bool:
     """
     Add or update a special day in the CSV file with backup.
@@ -737,18 +827,27 @@ def get_special_days_by_category(category: str) -> List[SpecialDay]:
 
 def get_special_day_statistics() -> dict:
     """
-    Get statistics about special days in the system.
+    Get statistics about special days in the system (all sources).
 
     Returns:
         Dictionary with statistics
     """
-    all_days = load_special_days()
+    all_days = load_all_special_days()
+    csv_days = load_special_days()
     config = load_special_days_config()
+
+    # Count by source
+    by_source = {}
+    for day in all_days:
+        source = day.source or "Unknown"
+        by_source[source] = by_source.get(source, 0) + 1
 
     stats = {
         "total_days": len(all_days),
         "enabled_days": len([d for d in all_days if d.enabled]),
         "by_category": {},
+        "by_source": by_source,
+        "csv_entries": len(csv_days),
         "next_7_days": len(get_upcoming_special_days(7)),
         "next_30_days": len(get_upcoming_special_days(30)),
         "feature_enabled": config.get("enabled", False),

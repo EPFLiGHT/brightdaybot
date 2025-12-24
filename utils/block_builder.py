@@ -14,6 +14,7 @@ from config import DEFAULT_IMAGE_PERSONALITY, BOT_BIRTHDAY
 from personality_config import (
     get_personality_display_name,
     get_celebration_personality_count,
+    get_personality_descriptions,
 )
 from utils.date_utils import date_to_words
 
@@ -1411,11 +1412,15 @@ _(All announcements require confirmation)_"""
                 "text": {"type": "mrkdwn", "text": "*🎭 Bot Personality*"},
             }
         )
-        personality = """• `admin personality` - Show current bot personality
+        # Get personality list dynamically
+        personality_names = get_personality_descriptions().keys()
+        personality_list = ", ".join(f"`{p}`" for p in personality_names)
+
+        personality = f"""• `admin personality` - Show current bot personality
 • `admin personality [name]` - Change bot personality
 
 *Available Personalities:*
-`standard`, `mystic_dog`, `poet`, `tech_guru`, `chef`, `superhero`, `time_traveler`, `pirate`, `random`, `custom`
+{personality_list}
 
 *Custom Personality Commands:*
 • `admin custom name [value]` - Set custom bot name
@@ -1437,11 +1442,11 @@ _(All announcements require confirmation)_"""
             }
         )
         special_days = """• `admin special` - View special days help
-• `admin special add DD/MM "Name" "Category" "Description" ["emoji"] ["source"] ["url"]` - Add observance
-• `admin special remove DD/MM [name]` - Remove observance
-• `admin special list [category]` - List all observances
+• `admin special list [category]` - List all observances (all sources)
+• `admin special add/remove` - Manage custom days
 • `admin special test [DD/MM]` - Test announcement
-• `admin special verify` - Verify data integrity"""
+• `admin special un-status` - UN cache status
+• `admin special api-status` - Calendarific status"""
         blocks.append(
             {"type": "section", "text": {"type": "mrkdwn", "text": special_days}}
         )
@@ -1528,7 +1533,6 @@ _(All announcements require confirmation)_"""
 • `special week` - Show next 7 days
 • `special month` - Show next 30 days
 • `special list [category]` - List all special days
-• `special search [term]` - Search observances
 • `special stats` - View statistics"""
 
         blocks.append(
@@ -1845,6 +1849,24 @@ def build_special_day_stats_blocks(
             {"type": "section", "text": {"type": "mrkdwn", "text": category_text}}
         )
 
+    # Source breakdown
+    by_source = stats.get("by_source", {})
+    if by_source:
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*By Source:*"},
+            }
+        )
+
+        source_text = ""
+        for source, count in sorted(by_source.items(), key=lambda x: -x[1]):
+            source_text += f"  • *{source}:* {count}\n"
+
+        blocks.append(
+            {"type": "section", "text": {"type": "mrkdwn", "text": source_text}}
+        )
+
     # Context footer
     blocks.append(
         {
@@ -1852,7 +1874,7 @@ def build_special_day_stats_blocks(
             "elements": [
                 {
                     "type": "mrkdwn",
-                    "text": "💡 Use `admin special` to manage special days",
+                    "text": "💡 Use `admin special` to manage special days | `admin special un-status` for UN cache",
                 }
             ],
         }
