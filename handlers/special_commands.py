@@ -652,6 +652,107 @@ def handle_admin_special_command(args, user_id, say, app):
             "📥 Import feature not yet implemented. Please add special days individually or edit the CSV file directly."
         )
 
+    elif subcommand == "refresh":
+        # Calendarific: Force weekly prefetch
+        from config import CALENDARIFIC_ENABLED, CALENDARIFIC_API_KEY
+
+        if not CALENDARIFIC_ENABLED:
+            say(
+                "❌ Calendarific API is not enabled. Set `CALENDARIFIC_ENABLED=true` in .env"
+            )
+            return
+
+        if not CALENDARIFIC_API_KEY:
+            say(
+                "❌ Calendarific API key not configured. Add `CALENDARIFIC_API_KEY=...` to .env"
+            )
+            return
+
+        try:
+            from utils.calendarific_api import get_calendarific_client
+
+            client = get_calendarific_client()
+
+            # Check if force refresh
+            force = len(args) > 1 and args[1].lower() == "force"
+            days = 7  # Default
+
+            if len(args) > 1 and args[1].isdigit():
+                days = min(int(args[1]), 14)  # Max 14 days to limit API calls
+
+            say(f"🔄 Refreshing Calendarific cache for next {days} days...")
+
+            stats = client.weekly_prefetch(days_ahead=days, force=force)
+
+            if "error" in stats:
+                say(f"❌ Prefetch failed: {stats['error']}")
+            else:
+                message = f"""✅ *Calendarific Prefetch Complete*
+
+• Days fetched: {stats['fetched']}
+• Days skipped (cached): {stats['skipped']}
+• Holidays found: {stats['holidays_found']}
+• API calls made: {stats['api_calls']}
+• Failed: {stats['failed']}"""
+                say(message)
+                logger.info(f"ADMIN_SPECIAL: {username} ran Calendarific refresh")
+
+        except Exception as e:
+            say(f"❌ Prefetch error: {e}")
+            logger.error(f"ADMIN_SPECIAL: Calendarific refresh failed: {e}")
+
+    elif subcommand in ["api-status", "api", "calendarific"]:
+        # Calendarific: Show API status
+        from config import CALENDARIFIC_ENABLED, CALENDARIFIC_API_KEY
+
+        if not CALENDARIFIC_ENABLED:
+            say(
+                """📊 *Calendarific API Status*
+
+• Status: ❌ Disabled
+• To enable: Set `CALENDARIFIC_ENABLED=true` in .env
+• Get free API key at: https://calendarific.com"""
+            )
+            return
+
+        try:
+            from utils.calendarific_api import get_calendarific_client
+
+            client = get_calendarific_client()
+            status = client.get_api_status()
+
+            last_prefetch = status.get("last_prefetch")
+            if last_prefetch:
+                from datetime import datetime
+
+                last_dt = datetime.fromisoformat(last_prefetch)
+                last_str = last_dt.strftime("%Y-%m-%d %H:%M")
+            else:
+                last_str = "Never"
+
+            message = f"""📊 *Calendarific API Status*
+
+• Status: {'✅ Enabled' if status['enabled'] else '❌ Disabled'}
+• API Key: {'✅ Configured' if status['api_key_configured'] else '❌ Missing'}
+• Country: {status['country']}
+
+*Usage This Month:*
+• API calls: {status['month_calls']} / {status['monthly_limit']}
+• Remaining: {status['calls_remaining']}
+
+*Cache:*
+• Cached days: {status['cache_files']}
+• Cache TTL: {status['cache_ttl_days']} days
+• Last prefetch: {last_str}
+• Needs refresh: {'⚠️ Yes' if status['needs_prefetch'] else '✅ No'}
+
+_Run `admin special refresh` to update cache_"""
+            say(message)
+
+        except Exception as e:
+            say(f"❌ Failed to get API status: {e}")
+            logger.error(f"ADMIN_SPECIAL: Failed to get Calendarific status: {e}")
+
     else:
         # Help message
         help_text = """*Admin Special Days Commands:*
@@ -664,6 +765,10 @@ def handle_admin_special_command(args, user_id, say, app):
 • `admin special config [setting value]` - View/update configuration
 • `admin special verify` - Verify data accuracy and completeness
 • `admin special import` - Import from CSV (coming soon)
+
+*Calendarific API (auto-fetches observances):*
+• `admin special api-status` - Show API status and cache
+• `admin special refresh [days] [force]` - Prefetch upcoming days (default: 7)
 
 *Categories:* Global Health, Tech, Culture, Company
 

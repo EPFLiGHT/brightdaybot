@@ -112,7 +112,21 @@ python app.py
 OPENAI_MODEL="gpt-4.1"              # AI model (default: gpt-4.1)
 AI_IMAGE_GENERATION_ENABLED="true"  # Enable AI images
 EXTERNAL_BACKUP_ENABLED="true"      # Backup to admin DMs
+CALENDARIFIC_API_KEY="..."          # For national/local holidays
+CALENDARIFIC_ENABLED="true"         # Enable Calendarific integration
 ```
+
+### Special Days Setup (Optional)
+
+```bash
+# UN Observances (requires crawl4ai)
+pip install crawl4ai && crawl4ai-setup
+
+# Calendarific holidays (optional, 500 free calls/month)
+# Add to .env: CALENDARIFIC_API_KEY="..." CALENDARIFIC_ENABLED="true"
+```
+
+Both sources auto-populate on first access. Duplicate events are automatically deduplicated with UN taking priority.
 
 ### Timezone Modes
 
@@ -140,12 +154,16 @@ brightdaybot/
 ├── utils/                  # Utilities
 │   ├── message_generator.py
 │   ├── image_generator.py
-│   └── block_builder.py
+│   ├── block_builder.py
+│   ├── un_observances.py   # UN/WHO/UNESCO day scraper
+│   └── calendarific_api.py # National holiday API
 └── data/
     ├── storage/            # Birthday data, configs
     ├── logs/               # 9 component logs
     ├── backups/            # Auto backups
-    └── cache/              # Images, profiles
+    └── cache/              # Images, profiles, special days
+        ├── un_observances/ # UN days (weekly refresh)
+        └── calendarific/   # Holidays (weekly refresh)
 ```
 
 ## Production Deployment

@@ -27,6 +27,9 @@ from config import (
     DEFAULT_ANNOUNCEMENT_TIME,
     DATE_FORMAT,
     TIMEOUTS,
+    UN_OBSERVANCES_ENABLED,
+    CALENDARIFIC_ENABLED,
+    CALENDARIFIC_API_KEY,
 )
 from utils.logging_config import get_logger
 
@@ -300,9 +303,165 @@ def get_todays_special_days() -> List[SpecialDay]:
     return get_special_days_for_date(today)
 
 
+def _normalize_name(name: str) -> str:
+    """
+    Normalize a special day name for deduplication comparison.
+
+    Removes common prefixes, converts to lowercase, strips punctuation.
+
+    Examples:
+        "International Day of Peace" -> "peace"
+        "World Health Day" -> "health"
+        "International Women's Day" -> "women"
+    """
+    import re
+
+    name = name.lower().strip()
+
+    # Remove common prefixes
+    prefixes = [
+        "international day of the ",
+        "international day of ",
+        "international day for the ",
+        "international day for ",
+        "international ",
+        "world day of ",
+        "world day for ",
+        "world ",
+        "united nations ",
+        "un ",
+        "global ",
+        "national ",
+    ]
+    for prefix in prefixes:
+        if name.startswith(prefix):
+            name = name[len(prefix) :]
+            break
+
+    # Remove common suffixes
+    suffixes = [" day", " week", " month", " year"]
+    for suffix in suffixes:
+        if name.endswith(suffix):
+            name = name[: -len(suffix)]
+            break
+
+    # Remove punctuation and extra whitespace
+    name = re.sub(r"[^\w\s]", "", name)
+    name = re.sub(r"\s+", " ", name).strip()
+
+    return name
+
+
+def _names_match(name1: str, name2: str) -> bool:
+    """
+    Check if two special day names refer to the same event.
+
+    Uses multiple matching strategies:
+    1. Exact match (case-insensitive)
+    2. Normalized match (after stripping prefixes/suffixes)
+    3. Containment match (one name contains the other's key terms)
+
+    Args:
+        name1: First name to compare
+        name2: Second name to compare
+
+    Returns:
+        True if names likely refer to the same event
+    """
+    # Exact match (case-insensitive)
+    if name1.lower().strip() == name2.lower().strip():
+        return True
+
+    # Normalized match
+    norm1 = _normalize_name(name1)
+    norm2 = _normalize_name(name2)
+
+    if norm1 == norm2:
+        return True
+
+    # Containment match - only if the shorter name is a significant portion
+    # E.g., "women" matches "womens rights" but "health" doesn't match "mental health"
+    if len(norm1) >= 4 and len(norm2) >= 4:
+        shorter, longer = (norm1, norm2) if len(norm1) <= len(norm2) else (norm2, norm1)
+        # Only match if shorter is at least 60% of longer (prevents "health" matching "mental health")
+        if shorter in longer and len(shorter) >= len(longer) * 0.6:
+            return True
+
+    # Check word overlap - if 2+ significant words match
+    words1 = set(w for w in norm1.split() if len(w) >= 4)
+    words2 = set(w for w in norm2.split() if len(w) >= 4)
+    common_words = words1 & words2
+
+    if len(common_words) >= 2:
+        return True
+
+    # Single word match - only for single-word normalized names that are identical
+    # This prevents "health" from matching "mental health"
+    if len(words1) == 1 and len(words2) == 1 and words1 == words2:
+        return True
+
+    return False
+
+
+def _deduplicate_special_days(special_days: List[SpecialDay]) -> List[SpecialDay]:
+    """
+    Deduplicate special days using smart matching.
+
+    Handles:
+    - Case differences: "World Health Day" vs "world health day"
+    - Prefix variations: "International Day of X" vs "World X Day"
+    - Similar names: "Women's Day" vs "International Women's Day"
+
+    Priority: UN source > Calendarific > CSV (first match wins within same priority)
+
+    Args:
+        special_days: List of SpecialDay objects (may contain duplicates)
+
+    Returns:
+        List of unique SpecialDay objects
+    """
+    if not special_days:
+        return []
+
+    # Sort by source priority: UN first, then Calendarific, then others
+    source_priority = {"UN": 0, "WHO": 0, "UNESCO": 0, "Calendarific": 1}
+
+    def get_priority(day: SpecialDay) -> int:
+        source = getattr(day, "source", "") or ""
+        return source_priority.get(source, 2)
+
+    sorted_days = sorted(special_days, key=get_priority)
+
+    unique_days = []
+    for day in sorted_days:
+        is_duplicate = False
+        for existing in unique_days:
+            if _names_match(day.name, existing.name):
+                is_duplicate = True
+                logger.debug(
+                    f"DEDUP: Skipping '{day.name}' (matches '{existing.name}')"
+                )
+                break
+
+        if not is_duplicate:
+            unique_days.append(day)
+
+    if len(special_days) != len(unique_days):
+        logger.info(
+            f"DEDUP: Reduced {len(special_days)} entries to {len(unique_days)} unique"
+        )
+
+    return unique_days
+
+
 def get_special_days_for_date(date: datetime) -> List[SpecialDay]:
     """
-    Get all special days for a specific date.
+    Get all special days for a specific date from multiple sources.
+
+    Sources (in order of priority):
+    1. UN Observances (scraped from un.org) - Global Health, Tech, Culture
+    2. Calendarific API (if enabled) - Swiss national/local holidays
+    3. CSV file - Company custom days (always loaded)
 
     Args:
         date: datetime object to check
@@ -311,28 +470,73 @@ def get_special_days_for_date(date: datetime) -> List[SpecialDay]:
         List of SpecialDay objects for that date
     """
     date_str = date.strftime("%d/%m")
-    special_days = load_special_days()
+    special_days = []
 
     # Load config to check category settings
     config = load_special_days_config()
     categories_enabled = config.get("categories_enabled", {})
 
-    # Filter for this date, enabled days, and enabled categories
-    todays_days = [
+    # Source 1: UN Observances (if enabled)
+    if UN_OBSERVANCES_ENABLED:
+        try:
+            from utils.un_observances import get_un_observances_for_date
+
+            un_days = get_un_observances_for_date(date)
+            special_days.extend(un_days)
+            if un_days:
+                logger.debug(
+                    f"UN_OBSERVANCES: Found {len(un_days)} observance(s) for {date_str}"
+                )
+        except Exception as e:
+            logger.error(f"UN_OBSERVANCES: Failed to fetch for {date_str}: {e}")
+
+    # Source 2: Calendarific API (if enabled) - Swiss national holidays
+    if CALENDARIFIC_ENABLED and CALENDARIFIC_API_KEY:
+        try:
+            from utils.calendarific_api import get_calendarific_client
+
+            client = get_calendarific_client()
+            api_days = client.get_holidays_for_date(date)
+            special_days.extend(api_days)
+            if api_days:
+                logger.debug(
+                    f"CALENDARIFIC: Found {len(api_days)} holiday(s) for {date_str}"
+                )
+        except Exception as e:
+            logger.error(f"CALENDARIFIC: Failed to fetch for {date_str}: {e}")
+
+    # Source 3: CSV for Company days (always load)
+    csv_days = load_special_days()
+    company_days = [
+        d for d in csv_days if d.date == date_str and d.category == "Company"
+    ]
+    special_days.extend(company_days)
+
+    # If no external sources provided data, fall back to full CSV
+    if not UN_OBSERVANCES_ENABLED and not (
+        CALENDARIFIC_ENABLED and CALENDARIFIC_API_KEY
+    ):
+        # Legacy mode: use CSV for everything
+        all_csv_days = [d for d in csv_days if d.date == date_str]
+        special_days = all_csv_days
+
+    # Filter by enabled status and enabled categories
+    filtered_days = [
         day
         for day in special_days
-        if day.date == date_str
-        and day.enabled
-        and categories_enabled.get(day.category, True)
+        if day.enabled and categories_enabled.get(day.category, True)
     ]
 
-    if todays_days:
+    # Deduplicate using smart matching (case-insensitive + fuzzy)
+    unique_days = _deduplicate_special_days(filtered_days)
+
+    if unique_days:
         logger.info(
-            f"Found {len(todays_days)} special day(s) for {date_str}: "
-            + ", ".join([d.name for d in todays_days])
+            f"Found {len(unique_days)} special day(s) for {date_str}: "
+            + ", ".join([d.name for d in unique_days])
         )
 
-    return todays_days
+    return unique_days
 
 
 def get_upcoming_special_days(days_ahead: int = 7) -> Dict[str, List[SpecialDay]]:

@@ -322,6 +322,30 @@ SPECIAL_DAYS_IMAGE_ENABLED = (
     os.getenv("SPECIAL_DAYS_IMAGE_ENABLED", "false").lower() == "true"
 )
 
+# ----- CALENDARIFIC API CONFIGURATION -----
+
+# Calendarific API for national/local holidays (NOT UN observances)
+# Get free API key at: https://calendarific.com
+# Free tier: 500 requests/month - we use weekly prefetch strategy (~52 calls/year)
+# Note: UN/WHO/UNESCO observances come from un_observances.py (scraped from un.org)
+CALENDARIFIC_API_KEY = os.getenv("CALENDARIFIC_API_KEY")
+CALENDARIFIC_ENABLED = os.getenv("CALENDARIFIC_ENABLED", "false").lower() == "true"
+CALENDARIFIC_COUNTRY = os.getenv("CALENDARIFIC_COUNTRY", "CH")  # Switzerland
+CALENDARIFIC_STATE = os.getenv("CALENDARIFIC_STATE", "VD")  # Vaud canton
+CALENDARIFIC_CACHE_DIR = os.path.join(CACHE_DIR, "calendarific")
+CALENDARIFIC_CACHE_TTL_DAYS = 7  # Cache valid for 7 days (weekly refresh)
+CALENDARIFIC_PREFETCH_DAYS = 7  # Prefetch next 7 days each week
+CALENDARIFIC_RATE_LIMIT_MONTHLY = 500  # Free tier: 500 calls/month
+CALENDARIFIC_RATE_WARNING_THRESHOLD = 400  # Warn when approaching limit
+
+# ----- UN OBSERVANCES CONFIGURATION -----
+
+# UN International Days scraped from official UN website
+# Source: https://www.un.org/en/observances/list-days-weeks
+# Uses crawl4ai for intelligent scraping (pip install crawl4ai && crawl4ai-setup)
+UN_OBSERVANCES_ENABLED = os.getenv("UN_OBSERVANCES_ENABLED", "true").lower() == "true"
+UN_OBSERVANCES_CACHE_TTL_DAYS = 7  # Refresh weekly
+
 # ----- DEFAULT VALUES -----
 
 # Default personality for birthday messages (used as fallback throughout the codebase)
@@ -365,6 +389,7 @@ for directory in [
     BACKUP_DIR,
     CACHE_DIR,
     MESSAGES_CACHE_DIR,
+    CALENDARIFIC_CACHE_DIR,
 ]:
     if not os.path.exists(directory):
         os.makedirs(directory)
