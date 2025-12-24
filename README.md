@@ -168,8 +168,22 @@ brightdaybot/
 
 ## Production Deployment
 
+### Playwright Setup (for UN Observances)
+
+If using UN observances with crawl4ai, install Playwright browsers to a shared path:
+
 ```bash
-# systemd service
+# Create shared directory
+sudo mkdir -p /opt/playwright
+sudo chmod 777 /opt/playwright
+
+# Install Chromium (replace paths as needed)
+sudo -u <service_user> PLAYWRIGHT_BROWSERS_PATH=/opt/playwright /path/to/venv/bin/python -m playwright install chromium
+```
+
+### systemd Service
+
+```bash
 sudo nano /etc/systemd/system/brightdaybot.service
 ```
 
@@ -180,10 +194,13 @@ After=network-online.target
 
 [Service]
 Type=simple
+User=<service_user>
 ExecStart=/path/to/venv/bin/python /path/to/app.py
 WorkingDirectory=/path/to/brightdaybot
 Restart=always
 RestartSec=30
+Environment="PATH=/path/to/venv/bin:/usr/bin:/bin"
+Environment="PLAYWRIGHT_BROWSERS_PATH=/opt/playwright"
 
 [Install]
 WantedBy=multi-user.target
