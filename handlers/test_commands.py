@@ -401,7 +401,10 @@ def handle_test_block_command(user_id, args, say, app):
 
             bot_age = current_year - BOT_BIRTH_YEAR
 
-            test_message = "🌟 COSMIC BIRTHDAY ALIGNMENT DETECTED! 🌟\n\nGreetings, mortals! Today marks the digital manifestation of Ludo | LiGHT BrightDay Coordinator. This is a test of the mystical celebration blocks that Ludo uses to announce the bot's birthday. All 9 Sacred Forms unite in cosmic harmony!"
+            from personality_config import get_celebration_personality_count
+
+            personality_count = get_celebration_personality_count()
+            test_message = f"🌟 COSMIC BIRTHDAY ALIGNMENT DETECTED! 🌟\n\nGreetings, mortals! Today marks the digital manifestation of Ludo | LiGHT BrightDay Coordinator. This is a test of the mystical celebration blocks that Ludo uses to announce the bot's birthday. All {personality_count} Sacred Forms unite in cosmic harmony!"
 
             blocks, fallback_text = build_bot_celebration_blocks(
                 message=test_message, bot_age=bot_age, personality="mystic_dog"

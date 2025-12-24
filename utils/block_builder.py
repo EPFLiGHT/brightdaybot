@@ -10,8 +10,12 @@ organization, and professional polish.
 
 import warnings
 from typing import List, Dict, Any, Optional
-from config import DEFAULT_IMAGE_PERSONALITY
-from personality_config import get_personality_display_name
+from config import DEFAULT_IMAGE_PERSONALITY, BOT_BIRTHDAY
+from personality_config import (
+    get_personality_display_name,
+    get_celebration_personality_count,
+)
+from utils.date_utils import date_to_words
 
 
 def build_birthday_blocks(
@@ -662,7 +666,12 @@ def build_bot_celebration_blocks(
             ai_title = image_title
 
         # Use AI-generated title if available, otherwise use generic mystical title
-        display_title = ai_title if ai_title else "🎂✨ The 9 Sacred Forms of Ludo ✨🎂"
+        personality_count = get_celebration_personality_count()
+        display_title = (
+            ai_title
+            if ai_title
+            else f"🎂✨ The {personality_count} Sacred Forms of Ludo ✨🎂"
+        )
 
         blocks.append(
             {
@@ -674,14 +683,16 @@ def build_bot_celebration_blocks(
         )
 
     # Add bot information
+    birthday_display = date_to_words(BOT_BIRTHDAY)  # e.g., "5th of March"
+    personality_count = get_celebration_personality_count()
     fields = [
         {"type": "mrkdwn", "text": f"*Bot Name:*\nLudo | LiGHT BrightDay Coordinator"},
         {
             "type": "mrkdwn",
             "text": f"*Age:*\n{bot_age} year{'s' if bot_age != 1 else ''} old",
         },
-        {"type": "mrkdwn", "text": "*Birthday:*\nMarch 5th"},
-        {"type": "mrkdwn", "text": "*Personalities:*\n9 forms"},
+        {"type": "mrkdwn", "text": f"*Birthday:*\n{birthday_display}"},
+        {"type": "mrkdwn", "text": f"*Personalities:*\n{personality_count} forms"},
     ]
 
     blocks.append({"type": "section", "fields": fields})
