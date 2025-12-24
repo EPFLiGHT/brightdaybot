@@ -842,6 +842,13 @@ def timezone_aware_check(app, moment):
     for user_id, birthday_data in birthdays.items():
         total_birthdays_checked += 1
 
+        # Skip malformed entries without "date" key
+        if not isinstance(birthday_data, dict) or "date" not in birthday_data:
+            logger.warning(
+                f"SKIP: Malformed birthday data for {user_id}, missing 'date' key"
+            )
+            continue
+
         # Get user status and profile info efficiently FIRST (moved up to get timezone)
         _, is_bot, is_deleted, username = get_user_status_and_info(app, user_id)
 
@@ -1004,6 +1011,13 @@ def simple_daily_check(app, moment):
 
     # Find all birthdays for today
     for user_id, birthday_data in birthdays.items():
+        # Skip malformed entries without "date" key
+        if not isinstance(birthday_data, dict) or "date" not in birthday_data:
+            logger.warning(
+                f"SKIP: Malformed birthday data for {user_id}, missing 'date' key"
+            )
+            continue
+
         # Get user status and profile info efficiently FIRST (moved up to get timezone)
         _, is_bot, is_deleted, username = get_user_status_and_info(app, user_id)
 
@@ -1110,6 +1124,13 @@ def celebrate_missed_birthdays(app):
         birthday_people_today = []
 
         for user_id, birthday_data in birthdays.items():
+            # Skip malformed entries without "date" key
+            if not isinstance(birthday_data, dict) or "date" not in birthday_data:
+                logger.warning(
+                    f"SKIP: Malformed birthday data for {user_id}, missing 'date' key"
+                )
+                continue
+
             date_str = birthday_data["date"]
 
             # Check if it's their birthday today

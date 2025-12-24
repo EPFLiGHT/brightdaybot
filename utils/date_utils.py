@@ -203,7 +203,7 @@ def check_if_birthday_today_in_user_timezone(date_str, user_timezone_str):
         # Use the timezone-aware birthday check logic
         return check_if_birthday_today(date_str, current_user_time)
 
-    except Exception as e:
+    except (ValueError, pytz.UnknownTimeZoneError) as e:
         logger.error(
             f"TIMEZONE_BIRTHDAY_CHECK_ERROR: Failed to check birthday for timezone {user_timezone_str}: {e}"
         )
@@ -329,9 +329,6 @@ def get_star_sign(date_str):
     except ValueError as e:
         logger.error(f"Invalid date format for star sign calculation: {date_str} - {e}")
         return None
-    except Exception as e:
-        logger.error(f"Unexpected error determining star sign for {date_str}: {e}")
-        return None
 
 
 def _is_date_in_zodiac_range(month, day, start_month, start_day, end_month, end_day):
@@ -422,7 +419,7 @@ def get_timezone_object(timezone_str):
         if not timezone_str:
             return pytz.UTC
         return pytz.timezone(timezone_str)
-    except Exception as e:
+    except pytz.UnknownTimeZoneError as e:
         logger.warning(f"TIMEZONE: Invalid timezone '{timezone_str}': {e}")
         return pytz.UTC
 
@@ -473,7 +470,7 @@ def is_celebration_time_for_user(user_timezone_str, target_time=None, utc_moment
 
         return is_celebration_time
 
-    except Exception as e:
+    except (ValueError, pytz.UnknownTimeZoneError) as e:
         logger.error(
             f"TIMEZONE_ERROR: Failed to check celebration time for {user_timezone_str}: {e}"
         )
@@ -493,7 +490,7 @@ def get_user_current_time(user_timezone_str):
     try:
         user_tz = get_timezone_object(user_timezone_str)
         return datetime.now(user_tz)
-    except Exception as e:
+    except pytz.UnknownTimeZoneError as e:
         logger.error(f"TIMEZONE_ERROR: Failed to get time for {user_timezone_str}: {e}")
         return datetime.now(pytz.UTC)
 
@@ -584,7 +581,7 @@ def format_timezone_schedule(app=None):
                     "users": data["users"],
                 }
 
-            except Exception as e:
+            except ValueError as e:
                 logger.error(
                     f"TIMEZONE_ERROR: Failed to calculate next celebration for UTC{offset_hours:+.1f}: {e}"
                 )

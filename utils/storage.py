@@ -68,7 +68,7 @@ def create_backup():
 
         return backup_file
 
-    except Exception as e:
+    except OSError as e:
         logger.error(f"BACKUP_ERROR: Failed to create backup: {e}")
         return None
 
@@ -94,7 +94,7 @@ def rotate_backups():
             os.remove(oldest)
             logger.info(f"BACKUP: Removed old backup {oldest}")
 
-    except Exception as e:
+    except OSError as e:
         logger.error(f"BACKUP_ERROR: Failed to rotate backups: {e}")
 
 
@@ -257,7 +257,7 @@ def restore_latest_backup():
         logger.info(f"RESTORE: Successfully restored from {latest}")
         return True
 
-    except Exception as e:
+    except OSError as e:
         logger.error(f"RESTORE_ERROR: Failed to restore from backup: {e}")
         return False
 
@@ -416,7 +416,7 @@ def get_announced_birthdays_today():
                 return [line.strip() for line in f if line.strip()]
         else:
             return []
-    except Exception as e:
+    except OSError as e:
         logger.error(f"FILE_ERROR: Failed to read announced birthdays: {e}")
         return []
 
@@ -436,7 +436,7 @@ def mark_birthday_announced(user_id):
         with open(announced_file, "a") as f:
             f.write(f"{user_id}\n")
         logger.info(f"BIRTHDAY: Marked {user_id}'s birthday as announced")
-    except Exception as e:
+    except OSError as e:
         logger.error(f"FILE_ERROR: Failed to mark birthday as announced: {e}")
 
 
@@ -456,7 +456,7 @@ def cleanup_old_announcement_files():
                 file_path = os.path.join(TRACKING_DIR, filename)
                 os.remove(file_path)
                 logger.info(f"CLEANUP: Removed old announcement file {filename}")
-    except Exception as e:
+    except OSError as e:
         logger.error(f"FILE_ERROR: Failed to clean up old announcement files: {e}")
 
 
@@ -478,7 +478,7 @@ def get_timezone_announced_birthdays_today():
                 return [line.strip() for line in f if line.strip()]
         else:
             return []
-    except Exception as e:
+    except OSError as e:
         logger.error(f"FILE_ERROR: Failed to read timezone announced birthdays: {e}")
         return []
 
@@ -504,7 +504,7 @@ def mark_timezone_birthday_announced(user_id, user_timezone):
         logger.info(
             f"TIMEZONE: Marked {user_id}'s birthday as announced in {user_timezone}"
         )
-    except Exception as e:
+    except OSError as e:
         logger.error(f"FILE_ERROR: Failed to mark timezone birthday as announced: {e}")
 
 
@@ -526,7 +526,7 @@ def cleanup_timezone_announcement_files():
                 logger.info(
                     f"CLEANUP: Removed old timezone announcement file {filename}"
                 )
-    except Exception as e:
+    except OSError as e:
         logger.error(
             f"FILE_ERROR: Failed to clean up old timezone announcement files: {e}"
         )

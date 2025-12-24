@@ -13,7 +13,7 @@ Key functions:
 
 import os
 from datetime import datetime
-from openai import OpenAI
+from openai import OpenAI, APIError, APIConnectionError, RateLimitError, APITimeoutError
 from config import get_logger
 from utils.app_config import get_configured_openai_model
 
@@ -153,8 +153,17 @@ def complete(
 
         return response.output_text
 
-    except Exception as e:
-        logger.error(f"AI_{context}_ERROR: Responses API call failed: {e}")
+    except RateLimitError as e:
+        logger.error(f"AI_{context}_ERROR: Rate limit exceeded: {e}")
+        raise
+    except APITimeoutError as e:
+        logger.error(f"AI_{context}_ERROR: API request timed out: {e}")
+        raise
+    except APIConnectionError as e:
+        logger.error(f"AI_{context}_ERROR: Connection failed: {e}")
+        raise
+    except APIError as e:
+        logger.error(f"AI_{context}_ERROR: API error: {e}")
         raise
 
 

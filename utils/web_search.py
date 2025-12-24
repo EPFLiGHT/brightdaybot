@@ -22,6 +22,7 @@ from config import (
 )
 import argparse
 import sys
+from openai import APIError, APIConnectionError, RateLimitError, APITimeoutError
 from utils.openai_api import complete, get_openai_client, log_web_search_usage
 
 logger = get_logger("web_search")
@@ -96,7 +97,7 @@ def process_facts_for_personality(facts_text, formatted_date, personality):
         )
         return processed_facts
 
-    except Exception as e:
+    except (APIError, APIConnectionError, RateLimitError, APITimeoutError) as e:
         logger.error(
             f"WEB_SEARCH_ERROR: Failed to process facts for {personality}: {e}"
         )
