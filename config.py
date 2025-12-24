@@ -327,6 +327,9 @@ SPECIAL_DAYS_IMAGE_ENABLED = (
 # Default personality for birthday messages (used as fallback throughout the codebase)
 DEFAULT_PERSONALITY = "standard"
 
+# Default personality for image generation (Ludo is the face of the bot)
+DEFAULT_IMAGE_PERSONALITY = "mystic_dog"
+
 # Default timezone for users without timezone set
 DEFAULT_TIMEZONE = "UTC"
 

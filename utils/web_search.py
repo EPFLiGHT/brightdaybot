@@ -18,6 +18,7 @@ from config import (
     TOKEN_LIMITS,
     TEMPERATURE_SETTINGS,
     DEFAULT_OPENAI_MODEL,
+    DEFAULT_IMAGE_PERSONALITY,
 )
 import argparse
 import sys
@@ -103,13 +104,13 @@ def process_facts_for_personality(facts_text, formatted_date, personality):
         return f"On this day, {formatted_date}, several notable events occurred in history and remarkable individuals were born."
 
 
-def get_birthday_facts(date_str, personality="mystic_dog"):
+def get_birthday_facts(date_str, personality=DEFAULT_IMAGE_PERSONALITY):
     """
     Get interesting facts about a specific date (like notable birthdays, especially in science)
 
     Args:
         date_str: Date in DD/MM format
-        personality: The bot personality to format facts for (default: "mystic_dog")
+        personality: The bot personality to format facts for
 
     Returns:
         Dictionary with interesting facts and sources
@@ -363,7 +364,7 @@ def main():
     parser.add_argument(
         "--personality",
         required=False,
-        default="mystic_dog",
+        default=DEFAULT_IMAGE_PERSONALITY,
         help="Personality for formatting facts (e.g., mystic_dog, time_traveler, superhero, pirate)",
     )
 

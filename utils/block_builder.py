@@ -10,6 +10,7 @@ organization, and professional polish.
 
 import warnings
 from typing import List, Dict, Any, Optional
+from config import DEFAULT_IMAGE_PERSONALITY
 from personality_config import get_personality_display_name
 
 
@@ -623,7 +624,7 @@ def build_remind_result_blocks(
 def build_bot_celebration_blocks(
     message: str,
     bot_age: int,
-    personality: str = "mystic_dog",
+    personality: str = DEFAULT_IMAGE_PERSONALITY,
     image_file_id: Optional[str] = None,
     image_title: Optional[str] = None,
 ) -> tuple[List[Dict[str, Any]], str]:
@@ -633,7 +634,7 @@ def build_bot_celebration_blocks(
     Args:
         message: AI-generated self-celebration message
         bot_age: Bot's age in years
-        personality: Bot personality (should be mystic_dog)
+        personality: Bot personality (defaults to DEFAULT_IMAGE_PERSONALITY)
         image_file_id: Optional Slack file ID for embedded celebration image (can be tuple of (file_id, title))
         image_title: Optional AI-generated image title (used if image_file_id is not a tuple)
 

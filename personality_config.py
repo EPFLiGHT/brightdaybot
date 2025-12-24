@@ -1,7 +1,7 @@
 """
 Centralized personality configurations for BrightDayBot.
 
-Contains complete definitions for 8+ bot personalities including basic info,
+Contains complete definitions for all bot personalities including basic info,
 message templates, image generation prompts, and web search formatting.
 Makes it easy to add or modify personalities in one location.
 """

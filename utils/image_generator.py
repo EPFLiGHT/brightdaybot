@@ -18,6 +18,7 @@ from config import (
     CACHE_DIR,
     IMAGE_GENERATION_PARAMS,
     DEFAULT_IMAGE_MODEL,
+    DEFAULT_IMAGE_PERSONALITY,
     RETRY_LIMITS,
     TIMEOUTS,
     CACHE_RETENTION_DAYS,
@@ -43,7 +44,7 @@ def _get_client():
 
 def generate_birthday_image(
     user_profile,
-    personality="mystic_dog",
+    personality=DEFAULT_IMAGE_PERSONALITY,
     date_str=None,
     enable_transparency=False,
     save_to_file=True,

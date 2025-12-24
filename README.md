@@ -101,6 +101,8 @@ python app.py
 | `gardener`      | Nature, growth themes     |
 | `gamer`         | Gaming achievements       |
 | `chronicler`    | Historical (special days) |
+| `random`        | Surprise selection        |
+| `custom`        | User-configurable         |
 
 ## Configuration
 

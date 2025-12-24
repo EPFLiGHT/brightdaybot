@@ -4,7 +4,7 @@ BrightDayBot - AI-Powered Slack Birthday Celebration Bot
 Main application entry point that initializes Slack Bot framework, event handlers,
 and background scheduling for automatic birthday celebrations.
 
-Features: AI messages/images, timezone-aware celebrations, 8+ personalities,
+Features: AI messages/images, timezone-aware celebrations, multiple personalities,
 admin system, automatic backups, component-specific logging.
 Uses Slack Bolt, OpenAI API, and background scheduling.
 """

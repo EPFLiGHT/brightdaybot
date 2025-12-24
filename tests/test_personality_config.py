@@ -108,6 +108,7 @@ class TestGetPersonalityDisplayName:
     def test_all_personalities_have_vivid_names(self):
         """All known personalities return vivid names with emojis"""
         known_personalities = [
+            "standard",
             "mystic_dog",
             "poet",
             "tech_guru",
@@ -115,8 +116,11 @@ class TestGetPersonalityDisplayName:
             "superhero",
             "time_traveler",
             "pirate",
+            "gardener",
+            "gamer",
+            "random",
             "chronicler",
-            "standard",
+            "custom",
         ]
         for personality in known_personalities:
             name = get_personality_display_name(personality, include_title=True)
