@@ -350,9 +350,10 @@ class CalendarificClient:
             "type": "national,local",  # Focus on national/local holidays (UN observances come from un_observances.py)
         }
 
-        # Add state/canton for regional holidays (e.g., VD for Vaud, Switzerland)
-        if self.state:
-            params["location"] = self.state
+        # Note: Location filter disabled - Calendarific returns empty for Swiss cantons
+        # The API returns "Common local holiday" at national level without canton-specific data
+        # if self.state:
+        #     params["location"] = f"{self.country}-{self.state}".lower()
 
         response = requests.get(
             self.BASE_URL,
@@ -377,12 +378,16 @@ class CalendarificClient:
         # Keep national and local holidays (UN observances come from un_observances.py)
         filtered = []
         for h in holidays:
-            holiday_type = h.get("type", [])
+            holiday_types = h.get("type", [])
+            # Convert to lowercase for case-insensitive matching
+            types_lower = [t.lower() for t in holiday_types]
 
-            # Include national, local, and observance types
+            # Include national, local (including "common local"), and observance types
+            # Exclude "Season" types (solstice, etc.)
             if any(
-                t in holiday_type
-                for t in ["National holiday", "Local holiday", "observance"]
+                keyword in t
+                for t in types_lower
+                for keyword in ["national", "local", "observance"]
             ):
                 filtered.append(h)
 
