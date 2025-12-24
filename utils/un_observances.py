@@ -268,7 +268,7 @@ class UNObservancesClient:
         import os
         import json
         import httpx
-        from config import get_openai_model
+        from config import get_current_openai_model
 
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
@@ -294,7 +294,7 @@ Markdown content:
             + markdown
         )
 
-        model = get_openai_model()
+        model = get_current_openai_model()
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
