@@ -161,24 +161,17 @@ def get_birthday_facts(date_str, personality=DEFAULT_IMAGE_PERSONALITY):
 
         formatted_date = format_date_european_short(search_date)  # e.g. "15 April"
 
-        # Customize search query based on personality
-        if personality == "pirate":
-            search_query = f"Naval history, maritime events, and exploration milestones that occurred on {formatted_date} throughout history"
-        elif personality == "time_traveler":
-            search_query = f"Significant historical events, technological milestones, and cultural shifts that occurred on {formatted_date} throughout history"
-        elif personality == "superhero":
-            search_query = f"Heroic achievements, scientific breakthroughs, and notable people born on {formatted_date} throughout history"
-        elif personality == "poet":
-            search_query = f"Literary figures, artistic achievements, and poetic events that occurred on {formatted_date} throughout history. Include poets born on this date."
-        elif personality == "tech_guru":
-            search_query = f"Technology inventions, computer science breakthroughs, and tech pioneers born on {formatted_date} throughout history"
-        elif personality == "chef":
-            search_query = f"Culinary history, food-related events, and famous chefs born on {formatted_date} throughout history. Also include any food discoveries or innovations."
-        elif personality == "standard":
-            search_query = f"Fun and interesting historical events and notable people born on {formatted_date} throughout history. Include surprising coincidences and remarkable achievements."
+        # Get search query from personality config (dynamic loading)
+        from personality_config import get_personality_config
+
+        personality_config = get_personality_config(personality)
+        search_query_template = personality_config.get("web_search_query")
+
+        if search_query_template:
+            search_query = search_query_template.format(formatted_date=formatted_date)
         else:
-            # Default query for mystic_dog and others
-            search_query = f"Notable people (especially scientists) born on {formatted_date} and significant historical events on this day"
+            # Fallback for personalities without custom query
+            search_query = f"Notable people born on {formatted_date} and significant historical events on this day"
 
         logger.info(
             f"WEB_SEARCH: Searching for facts about {formatted_date} for {personality}"

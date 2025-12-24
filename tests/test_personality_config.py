@@ -117,7 +117,7 @@ class TestGetPersonalityDisplayName:
             "time_traveler",
             "pirate",
             "gardener",
-            "gamer",
+            "philosopher",
             "random",
             "chronicler",
             "custom",

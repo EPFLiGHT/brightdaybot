@@ -99,7 +99,7 @@ python app.py
 | `time_traveler` | Sci-fi adventures         |
 | `pirate`        | Nautical swashbuckling    |
 | `gardener`      | Nature, growth themes     |
-| `gamer`         | Gaming achievements       |
+| `philosopher`   | Wisdom, life's journey    |
 | `chronicler`    | Historical (special days) |
 | `random`        | Surprise selection        |
 | `custom`        | User-configurable         |

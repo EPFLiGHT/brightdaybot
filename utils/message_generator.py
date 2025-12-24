@@ -1534,83 +1534,27 @@ def get_fallback_title(name, personality="standard", is_multiple_people=False):
     Returns:
         Fallback title string
     """
-    # Personality-specific fallback titles
-    fallback_titles = {
-        "mystic_dog": [
-            f"{name}'s Cosmic Birthday Vision",
-            f"The Stars Aligned for {name}",
-            f"Mystical Birthday Prophecy",
-            f"{name}'s Celestial Celebration",
-        ],
-        "superhero": [
-            f"Captain {name}'s Birthday Mission",
-            f"Super Birthday Powers Activated",
-            f"{name} Saves the Day Again",
-            f"Birthday Hero in Action",
-        ],
-        "pirate": [
-            f"Cap'n {name}'s Birthday Treasure",
-            f"Ahoy! {name}'s Special Day",
-            f"Birthday Bounty for {name}",
-            f"Sailing into Another Year",
-        ],
-        "tech_guru": [
-            f"{name}.birthday() Successfully Executed",
-            f"Deploying Birthday v{random.randint(1,9)}.0",
-            f"Birthday Algorithm Optimized",
-            f"{name}'s Annual System Update",
-        ],
-        "chef": [
-            f"{name}'s Birthday Recipe",
-            f"Master Chef {name}'s Special Day",
-            f"Birthday Feast in Progress",
-            f"Cooking Up Birthday Magic",
-        ],
-        "poet": [
-            f"Ode to {name}'s Birthday",
-            f"Birthday Verses for {name}",
-            f"A Poetic Birthday Celebration",
-            f"{name}'s Birthday Sonnet",
-        ],
-        "time_traveler": [
-            f"{name}'s Temporal Birthday Anomaly",
-            f"Birthday Timeline Established",
-            f"Celebrating Across Dimensions",
-            f"{name}'s Space-Time Birthday",
-        ],
-        "standard": [
-            f"{name}'s Amazing Birthday",
-            f"Birthday Celebration Mode",
-            f"Special Day for {name}",
-            f"Another Year of Awesome",
-        ],
-    }
+    # Get title templates from personality config (dynamic loading)
+    from personality_config import get_personality_config
 
-    # Modify for multiple people - include names!
+    config = get_personality_config(personality)
+
+    # Handle multiple people case
     if is_multiple_people:
-        # Create smart name formatting for multiple people
         formatted_names = _format_multiple_names(name)
+        template = config.get("image_title_multiple")
+        if template:
+            return template.format(formatted_names=formatted_names)
+        return f"{formatted_names}'s Birthday Celebration Squad"
 
-        if personality == "mystic_dog":
-            return f"{formatted_names}'s Cosmic Birthday Convergence"
-        elif personality == "superhero":
-            return f"{formatted_names}'s Super Birthday Team Assembly"
-        elif personality == "pirate":
-            return f"{formatted_names}'s Birthday Crew Celebration"
-        elif personality == "tech_guru":
-            return f"{formatted_names}'s Multi-User Birthday Deployment"
-        elif personality == "chef":
-            return f"{formatted_names}'s Group Birthday Feast"
-        elif personality == "poet":
-            return f"{formatted_names}'s Birthday Harmony in Verse"
-        elif personality == "time_traveler":
-            return f"{formatted_names}'s Synchronized Birthday Timeline"
-        else:
-            return f"{formatted_names}'s Birthday Celebration Squad"
+    # Single person case - get title templates and format with name
+    title_templates = config.get("image_title_single")
+    if title_templates:
+        template = random.choice(title_templates)
+        return template.format(name=name)
 
-    # Single person fallback
-    personality_titles = fallback_titles.get(personality, fallback_titles["standard"])
-    return random.choice(personality_titles)
+    # Ultimate fallback
+    return f"{name}'s Birthday Celebration"
 
 
 def test_fallback_messages(name="Test User", user_id="U123456789"):
