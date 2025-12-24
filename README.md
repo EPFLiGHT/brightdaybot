@@ -4,8 +4,8 @@ A Slack bot that celebrates birthdays with AI-generated personalized messages an
 
 ## Features
 
-- **AI Messages**: Personalized birthday wishes using OpenAI GPT-4.1
-- **AI Images**: Face-accurate images using Slack profile photos (GPT-Image-1.5)
+- **AI Messages**: Personalized birthday wishes using OpenAI's latest models
+- **AI Images**: Face-accurate images using Slack profile photos
 - **9 Personalities**: Ludo the Mystic Dog, Captain BirthdayBeard, TechBot 3000, and more
 - **Multi-Timezone**: Celebrates at 9 AM in each user's timezone
 - **Special Days**: 75+ UN/WHO/UNESCO observances with AI-generated content
