@@ -34,6 +34,12 @@ from utils.openai_api import complete
 
 logger = get_logger("llm")
 
+# ----- WEIGHTED RANDOM PERSONALITY SELECTION -----
+# Track recently used personalities to encourage variety
+# When "random" mode is active, we avoid repeating recent selections
+_recent_personalities = []
+_MAX_RECENT_PERSONALITIES = 3  # With 10 personalities, this leaves 7 choices (70%)
+
 
 # Import centralized model configuration function
 from utils.app_config import get_configured_openai_model as get_configured_model
@@ -139,26 +145,52 @@ def get_template():
 
 def get_random_personality_name():
     """
-    Get a random personality name from the available personalities (excluding 'random', 'custom', and 'chronicler')
+    Get a weighted-random personality name that avoids recent selections.
+
+    Uses a "recency avoidance" strategy: tracks the last N personalities used
+    and excludes them from the next selection. This ensures variety across
+    consecutive birthday celebrations while maintaining true randomness
+    within the available pool.
 
     Returns:
         str: Name of a randomly selected personality
     """
-    # Get a list of all available personalities, excluding 'random', 'custom', and 'chronicler'
+    global _recent_personalities
+
+    # Base pool: all personalities except meta-personalities
     # Chronicler is reserved for special days only, not birthday celebrations
-    available_personalities = [
+    base_pool = [
         name
         for name in BOT_PERSONALITIES.keys()
         if name not in ["random", "custom", "chronicler"]
     ]
 
-    # Select a random personality
-    if available_personalities:
-        random_personality = random.choice(available_personalities)
-        logger.info(f"RANDOM: Selected '{random_personality}' personality randomly")
-        return random_personality
+    # Weighted pool: exclude recently used personalities
+    weighted_pool = [p for p in base_pool if p not in _recent_personalities]
+
+    # Fallback: if we've somehow constrained too much, use full base pool
+    if len(weighted_pool) < 2:
+        logger.warning(
+            f"RANDOM: Weighted pool too small ({len(weighted_pool)}), using full pool"
+        )
+        weighted_pool = base_pool
+
+    # Select from the weighted pool
+    if weighted_pool:
+        selected = random.choice(weighted_pool)
+
+        # Update recency tracking
+        _recent_personalities.append(selected)
+        if len(_recent_personalities) > _MAX_RECENT_PERSONALITIES:
+            removed = _recent_personalities.pop(0)
+            logger.debug(f"RANDOM: Removed '{removed}' from recency list")
+
+        logger.info(
+            f"RANDOM: Selected '{selected}' (avoided: {_recent_personalities[:-1] or 'none'})"
+        )
+        return selected
     else:
-        # Fallback to standard if no other personalities are available
+        # Ultimate fallback
         logger.warning("RANDOM: No personalities available, using standard")
         return "standard"
 
@@ -421,18 +453,14 @@ def _generate_birthday_message(
     # === SHARED: Get birthday facts for personalities that use web search ===
     birthday_date = birthday_people[0]["date"]  # All share same date for consolidated
     birthday_facts_text = ""
-    personalities_using_web_search = [
-        "mystic_dog",
-        "time_traveler",
-        "superhero",
-        "pirate",
-        "poet",
-        "tech_guru",
-        "chef",
-        "standard",
-    ]
 
-    if selected_personality_name in personalities_using_web_search and birthday_date:
+    # Check if personality has web search configured (dynamic check)
+    from personality_config import get_personality_config
+
+    personality_cfg = get_personality_config(selected_personality_name)
+    has_web_search = bool(personality_cfg.get("web_search_query"))
+
+    if has_web_search and birthday_date:
         try:
             birthday_facts = get_birthday_facts(
                 birthday_date, selected_personality_name
