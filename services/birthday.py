@@ -62,7 +62,7 @@ logger = get_logger("birthday")
 def celebrate_bot_birthday(app, moment):
     """
     Check if today is BrightDayBot's birthday and celebrate if so.
-    Uses Ludo personality to celebrate the bot's creation and mention all 8 personalities.
+    Uses Ludo personality to celebrate the bot's creation and mention all personalities.
 
     Args:
         app: Slack app instance

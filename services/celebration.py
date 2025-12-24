@@ -24,7 +24,12 @@ from config import (
     TOKEN_LIMITS,
     TEMPERATURE_SETTINGS,
 )
-from personality_config import PERSONALITIES
+from personality_config import (
+    PERSONALITIES,
+    get_celebration_personality_count,
+    get_celebration_personality_list,
+    get_celebration_image_descriptions,
+)
 from utils.message_generator import create_consolidated_birthday_announcement
 from utils.slack_utils import (
     send_message,
@@ -1008,6 +1013,8 @@ def generate_bot_celebration_message(
         bot_age=bot_age,
         bot_birth_year=BOT_BIRTH_YEAR,
         bot_birthday=bot_birthday_formatted,  # "5th of March"
+        personality_count=get_celebration_personality_count(),
+        personality_list=get_celebration_personality_list(),
     )
 
     try:
@@ -1052,15 +1059,20 @@ def get_bot_celebration_image_prompt():
     Get the image generation prompt for Ludo's birthday celebration.
 
     Retrieves the special prompt from mystic_dog personality config that creates
-    a scene featuring Ludo and all 9 bot personalities in a cosmic birthday setting.
+    a scene featuring Ludo and all bot personalities in a cosmic birthday setting.
+    Dynamically injects personality descriptions from PERSONALITY_DISPLAY.
 
     Returns:
         str: Image generation prompt for the celebration scene
     """
     mystic_dog = PERSONALITIES.get("mystic_dog", {})
-    return mystic_dog.get(
+    prompt_template = mystic_dog.get(
         "bot_celebration_image_prompt",
         "A mystical birthday celebration for Ludo | LiGHT BrightDay Coordinator with Ludo and all personality dogs.",
+    )
+    # Inject dynamic personality descriptions
+    return prompt_template.format(
+        personality_image_descriptions=get_celebration_image_descriptions()
     )
 
 
@@ -1086,9 +1098,14 @@ def get_bot_celebration_image_title():
             )
             return "🌟 Ludo | LiGHT BrightDay Coordinator's Cosmic Birthday Celebration! 🎂✨"
 
+        # Inject dynamic personality count into prompt
+        formatted_prompt = title_prompt.format(
+            personality_count=get_celebration_personality_count()
+        )
+
         # Generate title using Responses API
         generated_title = complete(
-            instructions=title_prompt,
+            instructions=formatted_prompt,
             input_text="Generate the image title.",
             max_tokens=TOKEN_LIMITS["image_title_generation"],
             temperature=TEMPERATURE_SETTINGS["creative"],

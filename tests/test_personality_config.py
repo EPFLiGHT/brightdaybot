@@ -101,7 +101,7 @@ class TestGetPersonalityDisplayName:
     def test_invalid_personality_fallback(self):
         """Invalid personality falls back gracefully"""
         name = get_personality_display_name("nonexistent", include_title=True)
-        # Should return something reasonable (either from VIVID_NAMES fallback or config)
+        # Should return something reasonable (either from PERSONALITY_DISPLAY or PERSONALITIES config)
         assert isinstance(name, str)
         assert len(name) > 0
 

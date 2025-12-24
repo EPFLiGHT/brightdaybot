@@ -1690,7 +1690,7 @@ def handle_test_bot_celebration_command(
                             f"_Results:_\n"
                             f"• Ludo's mystical message: ✅ Generated successfully\n"
                             f"• AI image generation: ✅ Generated and sent\n"
-                            f"• Image features: Cosmic scene with all 8 personality incarnations\n"
+                            f"• Image features: Cosmic scene with all personality incarnations\n"
                             f"• Processing: Complete - ready for {date_to_words(BOT_BIRTHDAY)} automatic celebration\n\n"
                             f"🎉 _Test successful!_ This demonstrates the complete bot self-celebration flow."
                         )

@@ -6,9 +6,9 @@ A Slack bot that celebrates birthdays with AI-generated personalized messages an
 
 - **AI Messages**: Personalized birthday wishes using OpenAI's latest models
 - **AI Images**: Face-accurate images using Slack profile photos
-- **9 Personalities**: Ludo the Mystic Dog, Captain BirthdayBeard, TechBot 3000, and more
+- **Multiple Personalities**: Ludo the Mystic Dog, Captain BirthdayBeard, TechBot 3000, and more
 - **Multi-Timezone**: Celebrates at 9 AM in each user's timezone
-- **Special Days**: 75+ UN/WHO/UNESCO observances with AI-generated content
+- **Special Days**: UN/WHO/UNESCO observances with AI-generated content
 - **Smart Consolidation**: Single message for multiple same-day birthdays
 - **Slash Commands**: `/birthday` and `/special-day` with modal forms
 - **App Home**: Dashboard with birthday status and upcoming birthdays
@@ -53,15 +53,15 @@ python app.py
 
 ### Slash Commands (Use Anywhere)
 
-| Command                  | Description               |
-| ------------------------ | ------------------------- |
-| `/birthday`              | Open birthday form        |
-| `/birthday add`          | Open birthday form        |
-| `/birthday check [@user]`| Check birthday            |
-| `/birthday list`         | List upcoming birthdays   |
-| `/special-day`           | Today's special days      |
-| `/special-day week`      | Next 7 days               |
-| `/special-day month`     | Next 30 days              |
+| Command                   | Description             |
+| ------------------------- | ----------------------- |
+| `/birthday`               | Open birthday form      |
+| `/birthday add`           | Open birthday form      |
+| `/birthday check [@user]` | Check birthday          |
+| `/birthday list`          | List upcoming birthdays |
+| `/special-day`            | Today's special days    |
+| `/special-day week`       | Next 7 days             |
+| `/special-day month`      | Next 30 days            |
 
 ### User Commands (DM the bot)
 
@@ -98,6 +98,8 @@ python app.py
 | `superhero`     | Comic book heroics        |
 | `time_traveler` | Sci-fi adventures         |
 | `pirate`        | Nautical swashbuckling    |
+| `gardener`      | Nature, growth themes     |
+| `gamer`         | Gaming achievements       |
 | `chronicler`    | Historical (special days) |
 
 ## Configuration

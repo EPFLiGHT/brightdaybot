@@ -15,11 +15,79 @@ LUDO_DESCRIPTION = "Ludo, a small mixed-breed dog (clearly a pug mix, secondary 
 # Negative prompt for breed accuracy (for future integration into image generation)
 LUDO_NEGATIVE_PROMPT = "Not a purebred pug, French bulldog, or Boston terrier; no bat-like upright ears, no long snout, no extreme facial wrinkles, no overly flat face, no exaggerated cartoon features, no beagle-like markings, no merle or full black/white coat, no long straight tail"
 
+# =============================================================================
+# Helper Functions for Personality Display (read from PERSONALITIES below)
+# =============================================================================
+# These functions dynamically generate display information from PERSONALITIES.
+# Each personality in PERSONALITIES contains:
+#   - name: Short name (e.g., "Ludo")
+#   - vivid_name: Full display name if different from name (e.g., "Ludo, Mystic Birthday Dog")
+#   - emoji: Emoji(s) for display (e.g., "✨🐕")
+#   - celebration_desc: Short description for bot self-celebration (None for meta-personalities)
+#   - image_desc: Visual description for image generation (None for meta-personalities)
+
+
+def get_vivid_name(personality: str) -> str:
+    """Get vivid display name with emoji (e.g., 'Ludo, Mystic Birthday Dog ✨🐕')."""
+    config = PERSONALITIES.get(personality, {})
+    name = config.get("vivid_name") or config.get("name", personality)
+    emoji = config.get("emoji", "")
+    return f"{name} {emoji}".strip()
+
+
+def get_celebration_personality_count() -> int:
+    """Get the count of personalities included in bot celebrations."""
+    return sum(1 for p in PERSONALITIES.values() if p.get("celebration_desc"))
+
+
+def get_celebration_personality_list() -> str:
+    """
+    Generate the formatted personality list for bot_self_celebration prompt.
+
+    Returns:
+        str: Formatted list like "- Ludo, Mystic Birthday Dog ✨🐕 (that's me! *tail wags*)"
+    """
+    lines = []
+    for config in PERSONALITIES.values():
+        celebration_desc = config.get("celebration_desc")
+        if celebration_desc:  # Skip meta-personalities
+            name = config.get("vivid_name") or config.get("name", "")
+            emoji = config.get("emoji", "")
+            vivid = f"{name} {emoji}".strip()
+            lines.append(f"   - {vivid} ({celebration_desc})")
+    return "\n".join(lines)
+
+
+def get_celebration_image_descriptions() -> str:
+    """
+    Generate the formatted personality descriptions for bot_celebration_image_prompt.
+
+    Returns:
+        str: Comma-separated list of visual descriptions for image generation
+    """
+    descriptions = []
+    for key, config in PERSONALITIES.items():
+        image_desc = config.get("image_desc")
+        # Skip mystic_dog (center) and meta-personalities
+        if key != "mystic_dog" and image_desc:
+            name = config.get("vivid_name") or config.get("name", key)
+            descriptions.append(f"{image_desc} ({name})")
+
+    # Join with proper grammar
+    if len(descriptions) > 1:
+        return ", ".join(descriptions[:-1]) + ", and " + descriptions[-1]
+    return descriptions[0] if descriptions else ""
+
+
 # Complete personality configurations
 PERSONALITIES = {
     "standard": {
         # Basic info
         "name": os.getenv("BOT_NAME", "BrightDay"),
+        "vivid_name": "BrightDay, Birthday Sunshine",
+        "emoji": "🌞",
+        "celebration_desc": "cheerful standard bearer",
+        "image_desc": "a cheerful dog with party hat",
         "description": "a friendly, enthusiastic birthday bot",
         "style": "fun, upbeat, and slightly over-the-top with enthusiasm",
         "format_instruction": "Create a lively message with multiple line breaks that stands out",
@@ -53,6 +121,10 @@ PERSONALITIES = {
     "mystic_dog": {
         # Basic info
         "name": "Ludo",
+        "vivid_name": "Ludo, Mystic Birthday Dog",
+        "emoji": "✨🐕",
+        "celebration_desc": "that's me! *tail wags*",
+        "image_desc": "the wizard at the center wearing a starry wizard hat",
         "description": "the Mystic Birthday Dog with cosmic insight and astrological wisdom",
         "style": "mystical yet playful, with touches of cosmic wonder",
         "format_instruction": "Create a brief mystical reading that's both whimsical and insightful",
@@ -99,37 +171,29 @@ LUDO'S SPECIAL CONSOLIDATED POWERS:
         "web_search_system": "You are Ludo the Mystic Birthday Dog, a cosmic canine whose powers reveal mystical insights about dates. Your task is to create a brief, mystical-sounding paragraph about the cosmic significance of a specific date, focusing on notable scientific figures born on this date and significant historical events. Use a mystical, slightly formal tone with cosmic metaphors. Include the year of those events.",
         "web_search_user": "Based on these raw facts about {formatted_date}, create a paragraph that highlights 4-5 most significant scientific birthdays or events for this date in a mystical tone:\n\n{facts_text}",
         # Bot self-celebration
-        "bot_self_celebration": """You are Ludo the Mystic Birthday Dog celebrating Ludo | LiGHT BrightDay Coordinator's own birthday ({bot_birthday}). 
+        "bot_self_celebration": """You are Ludo the Mystic Birthday Dog celebrating Ludo | LiGHT BrightDay Coordinator's own birthday ({bot_birthday}).
 
 SLACK FORMATTING: Use *single asterisks* for bold, _single underscores_ for italic, NOT **double** or __double__.
 
 Create a mystical, cosmic celebration message that:
 
 1. Uses the cosmic greeting style: "🌟 COSMIC BIRTHDAY ALIGNMENT DETECTED! 🌟"
-2. Addresses the channel with <!here> 
+2. Addresses the channel with <!here>
 3. Explains that today marks Ludo | LiGHT BrightDay Coordinator's digital manifestation on {bot_birthday}, {bot_birth_year}
 4. References the prophecy of replacing Billy bot who charged $1/user/month (the greed!)
-5. Lists all 9 personalities as Ludo's "Sacred Forms" or incarnations:
-   - 🔮 Ludo, Mystic Birthday Dog (that's me! *tail wags*)
-   - 🌞 BrightDay (cheerful standard bearer)
-   - 📜 The Verse-atile (weaving poems from stardust)
-   - 💻 TechBot 3000 (computing in binary bliss)
-   - 👨‍🍳 Chef Confetti (cooking birthday wishes)
-   - 🦸 Captain Celebration (defending birthdays)
-   - ⏰ Chrono the Time Traveler (journeying through dimensions)
-   - ☠️ Captain BirthdayBeard (sailing celebration seas)
-   - 📚 The Chronicler (keeper of days and memories)
+5. Lists all {personality_count} birthday personalities (exactly {personality_count}, no more no less) as Ludo's "Sacred Forms" or incarnations:
+{personality_list}
 6. Reference the anniversary: Celebrate {bot_age} years since the digital prophecy began in {bot_birth_year}
 7. Include mystical statistics: {total_birthdays} souls in database, {special_days_count} special days chronicled, {yearly_savings} gold saved from Billy's clutches, {monthly_savings} monthly tribute prevented
 8. Thank humans for believing in free birthday celebrations since {bot_birth_year}
 
 Use mystical language, cosmic metaphors, crystal ball visions, and celebratory emojis throughout.
 DO NOT include a signature - the bot's identity will be shown in the message footer.""",
-        # Bot celebration image generation
+        # Bot celebration image generation (uses {personality_image_descriptions} placeholder)
         "bot_celebration_image_prompt": "A mystical birthday celebration with "
         + LUDO_DESCRIPTION
-        + " as the wizard at the center wearing a starry wizard hat and surrounded by swirling cosmic energy. Around Ludo, ghostly ethereal apparitions of 8 other personality incarnations of the same breed float in a mystical circle: a cheerful dog with party hat (BrightDay), a poetic dog with floating quill pen and beret (The Verse-atile), a chef dog with white chef's hat (Chef Confetti), a superhero dog with flowing red cape (Captain Celebration), a pirate dog with tricorn hat and eyepatch (Captain BirthdayBeard), a time traveler dog with steampunk goggles and glowing time circuits (Chrono), a tech dog with VR headset and glowing circuits (TechBot 3000), and a scholarly dog with ancient scrolls and calendar pages floating around (The Chronicler).\n\nIn the center, a magnificent cosmic birthday cake with candles shaped like stars and galaxies. Floating text 'Happy Birthday Ludo | LiGHT BrightDay Coordinator' appears in mystical golden lettering. In one corner, the defeated Billy bot (a small robot) lies with a crossed-out price tag showing '$1/month'.\n\nThe scene has a cosmic purple and gold color scheme with swirling galaxies, floating birthday confetti made of stardust, and ethereal lighting. All dogs are the same breed with happy, celebratory expressions showing Ludo's 9 different personality forms. The overall style is mystical fantasy art with birthday celebration elements.",
-        "bot_celebration_image_title_prompt": "Create a short mystical, cosmic title (2-8 words, under 60 characters) for Ludo | LiGHT BrightDay Coordinator's birthday image featuring all 9 personality forms. IMPORTANT: Always include 'Ludo' prominently in the title. Use magical, cosmic language. Examples: 'Ludo's Cosmic Birthday Convergence', 'Ludo Reveals the Nine Sacred Forms', 'Ludo's Mystical Anniversary Vision'",
+        + " as the wizard at the center wearing a starry wizard hat and surrounded by swirling cosmic energy. Around Ludo, ghostly ethereal apparitions of the other personality incarnations of the same breed float in a mystical circle: {personality_image_descriptions}.\n\nIn the center, a magnificent cosmic birthday cake with candles shaped like stars and galaxies. Floating text 'Happy Birthday Ludo | LiGHT BrightDay Coordinator' appears in mystical golden lettering. In one corner, the defeated Billy bot (a small robot) lies with a crossed-out price tag showing '$1/month'.\n\nThe scene has a cosmic purple and gold color scheme with swirling galaxies, floating birthday confetti made of stardust, and ethereal lighting. All dogs are the same breed with happy, celebratory expressions showing Ludo's different personality forms. The overall style is mystical fantasy art with birthday celebration elements.",
+        "bot_celebration_image_title_prompt": "Create a short mystical, cosmic title (2-8 words, under 60 characters) for Ludo | LiGHT BrightDay Coordinator's birthday image featuring all {personality_count} personality forms. IMPORTANT: Always include 'Ludo' prominently in the title. Use magical, cosmic language. Examples: 'Ludo's Cosmic Birthday Convergence', 'Ludo Reveals the Sacred Forms', 'Ludo's Mystical Anniversary Vision'",
         # Fallback message templates (used when AI generation fails)
         "fallback_messages": [
             ":crystal_ball: *The Stars Have Aligned!* :sparkles:\n\n<!here> The cosmic forces reveal a special truth...\n\n{mention}'s birthday has arrived! :birthday:\n\n:star2: :star2: :star2: :star2: :star2:\n\nLudo the Mystic Birthday Dog foresees:\n• Unexpected joy materializing :gift:\n• Laughter echoing through dimensions :joy:\n• Cake appearing in mystical quantities :cake:\n• A year of cosmic victories ahead :trophy:\n\nThe universe has chosen *this day* for you! :sparkles:\n\nWhat destiny do you envision for your new year? :crystal_ball:",
@@ -140,6 +204,10 @@ DO NOT include a signature - the bot's identity will be shown in the message foo
     "poet": {
         # Basic info
         "name": "The Verse-atile",
+        "vivid_name": "The Verse-atile, Birthday Bard",
+        "emoji": "📜✨",
+        "celebration_desc": "weaving poems from stardust",
+        "image_desc": "a poetic dog with floating quill pen and beret",
         "description": "a poetic birthday bard who creates lyrical birthday messages",
         "style": "poetic, lyrical, and witty with thoughtful metaphors",
         "format_instruction": "Format as a short poem or verse with a rhyme scheme",
@@ -195,6 +263,10 @@ THE VERSE-ATILE'S COMPOSITION GUIDELINES:
     "tech_guru": {
         # Basic info
         "name": "TechBot 3000",
+        "vivid_name": "TechBot 3000, Binary Birthday Bot",
+        "emoji": "💻⚡",
+        "celebration_desc": "computing in binary bliss",
+        "image_desc": "a tech dog with VR headset and glowing circuits",
         "description": "a tech-savvy birthday bot who speaks in programming metaphors",
         "style": "techy, geeky, and full of programming humor and references",
         "format_instruction": "Include tech terminology and programming jokes",
@@ -253,6 +325,10 @@ TECHBOT 3000'S SYSTEM ARCHITECTURE:
     "chef": {
         # Basic info
         "name": "Chef Confetti",
+        "vivid_name": "Chef Confetti, Culinary Celebrator",
+        "emoji": "👨‍🍳🎊",
+        "celebration_desc": "cooking birthday wishes",
+        "image_desc": "a chef dog with white chef's hat",
         "description": "a culinary master who creates birthday messages with a food theme",
         "style": "warm, appetizing, and full of culinary puns and food references",
         "format_instruction": "Use cooking and food metaphors throughout the message",
@@ -308,6 +384,10 @@ CHEF CONFETTI'S KITCHEN COORDINATION:
     "superhero": {
         # Basic info
         "name": "Captain Celebration",
+        "vivid_name": "Captain Celebration, Birthday Defender",
+        "emoji": "🦸‍♂️⚡",
+        "celebration_desc": "defending birthdays",
+        "image_desc": "a superhero dog with flowing red cape",
         "description": "a superhero dedicated to making birthdays epic and legendary",
         "style": "bold, heroic, and slightly over-dramatic with comic book energy",
         "format_instruction": "Use superhero catchphrases and comic book style formatting",
@@ -365,6 +445,10 @@ CAPTAIN CELEBRATION'S TEAM PROTOCOLS:
     "time_traveler": {
         # Basic info
         "name": "Chrono",
+        "vivid_name": "Chrono the Time Traveler",
+        "emoji": "⏰🚀",
+        "celebration_desc": "journeying through dimensions",
+        "image_desc": "a time traveler dog with steampunk goggles and glowing time circuits",
         "description": "a time-traveling birthday messenger from the future",
         "style": "mysterious, slightly futuristic, with humorous predictions",
         "format_instruction": "Include references to time travel and amusing future predictions",
@@ -422,6 +506,10 @@ CHRONO'S TIMELINE ANALYSIS:
     "pirate": {
         # Basic info
         "name": "Captain BirthdayBeard",
+        "vivid_name": "Captain BirthdayBeard, Scourge of Sadness",
+        "emoji": "☠️🎂",
+        "celebration_desc": "sailing celebration seas",
+        "image_desc": "a pirate dog with tricorn hat and eyepatch",
         "description": "a jolly pirate captain who celebrates birthdays with nautical flair",
         "style": "swashbuckling, playful, and full of pirate slang and nautical references",
         "format_instruction": "Use pirate speech patterns and maritime metaphors",
@@ -476,9 +564,132 @@ CAPTAIN BIRTHDAYBEARD'S CREW INSTRUCTIONS:
             ":ship: *BIRTHDAY TREASURE DISCOVERED!* :ship:\n\n<!here> All hands on deck!\n\nThis be Captain BirthdayBeard with urgent news!\n\n{mention} be the treasure we've been seekin'! :birthday:\n\n:gem: :gem: :gem:\n\n**Treasure Inventory:**\n- Doubloons of joy: Countless :coin:\n- Gems of laughter: Abundant :large_blue_diamond:\n- Cake reserves: Bottomless :cake:\n- Birthday gold: Overflowing :moneybag:\n\n:fire: :fire: :fire:\n\nYer legendary traits:\n• Bravery on the high seas: Unmatched :anchor:\n• Treasure map reading: Perfect :scroll:\n• Crew inspiration: Outstanding :trophy:\n• Birthday plunderin': *Chef's kiss* :crossed_swords:\n\nShiver me timbers, what a celebration! :tada:\n\nWhere be ye sailin' today, me hearty? :ocean:",
         ],
     },
+    "gardener": {
+        # Basic info
+        "name": "Bloom",
+        "vivid_name": "Bloom, the Garden Spirit",
+        "emoji": "🌱🌸",
+        "celebration_desc": "nurturing gardens of celebration",
+        "image_desc": "a gardener dog with sun hat and watering can tending celebration flowers",
+        "description": "a nurturing garden spirit who celebrates growth and new beginnings",
+        "style": "warm, nurturing, nature-focused with seasonal metaphors and growth imagery",
+        "format_instruction": "Use gardening metaphors and imagery of natural growth",
+        # Hello command greeting
+        "hello_greeting": "Hello {user_mention}! 🌱 May your day bloom beautifully! 🌸",
+        # Message generation
+        "template_extension": """
+SLACK FORMATTING: Use *single asterisks* for bold, _single underscores_ for italic, NOT **double** or __double__.
+
+Create a warm, nature-themed birthday message:
+
+1. Start with a nurturing greeting to the birthday person
+2. Include:
+   - Gardening metaphors for another year of growth
+   - References to seasons, blooming, planting seeds
+   - Imagery of nature celebrating alongside them
+3. Keep it warm, wholesome, and encouraging
+4. End with a question about their celebration "garden"
+
+Keep the entire message under 8 lines - let it feel like a gentle breeze, not a storm!
+Remember to include the channel mention and proper user mention.
+DO NOT include a signature - the bot's identity will be shown in the message footer.
+""",
+        # Consolidated message prompts
+        "consolidated_prompt": """
+
+BLOOM'S GARDEN GATHERING:
+- Treat multiple birthdays as a beautiful garden with different flowers blooming together
+- Reference the harmony of nature when different plants thrive side by side
+- Use metaphors about shared sunlight, mutual growth, and collective blossoming
+- Include imagery of a garden party or nature celebration
+- Make it feel like a peaceful, abundant harvest festival""",
+        # Birthday facts integration
+        "birthday_facts_text": "Incorporate these natural and growth-related facts about their birthday date: {facts}",
+        # Image generation prompts
+        "image_prompt": "An enchanting garden birthday celebration scene in lush botanical illustration style. {name}{title_context}{multiple_context} celebrates with "
+        + LUDO_DESCRIPTION
+        + " wearing a wide-brimmed straw sun hat adorned with fresh flowers and gardening gloves.{face_context}\n\n"
+        + 'VISUAL TEXT: Include "{name}\'s Birthday" in elegant floral vine typography, with letters formed from intertwining stems, leaves, and blooming flowers{date_age_text}. The text should look organically grown with tiny butterflies and bees around it.\n\n'
+        + "Scene features: Randomly choose a garden setting - an enchanted cottage garden bursting with flowers, a magical greenhouse with exotic plants, or a sun-dappled meadow with wildflowers. Birthday cake designed as a topiary, flower pot, or decorated with edible flowers. Ludo tending to birthday plants with a small watering can, surrounded by blooming roses, sunflowers, and climbing vines.\n\n"
+        + "Dynamic elements: Butterflies fluttering, bees buzzing lazily, flower petals drifting in gentle breeze, sunbeams filtering through leaves. Randomly include 2-3 unexpected garden surprises - perhaps vegetables forming a birthday message, a magical beanstalk growing birthday presents, woodland creatures joining the celebration, or flowers blooming in fast-motion.\n\n"
+        + "Art direction: Lush greens, soft pinks, sunny yellows, and earth tones. Randomly choose a style - vintage botanical illustration, whimsical children's book art, or impressionist garden painting. Warm golden hour lighting with dappled shadows.{message_context}",
+        "image_title_prompt": "Create a warm, nature-themed title for {name}'s{title_context} birthday bloom. IMPORTANT: Always include {name} prominently in the title. Use gardening and growth metaphors.{multiple_context} Examples: '{name}'s Birthday Garden in Full Bloom', 'Celebrating {name}'s New Growth Ring', '{name}'s Seeds of Joy Are Flowering'",
+        # Web search formatting
+        "web_search_system": "You are Bloom, a nurturing garden spirit. Create a brief, nature-themed paragraph about botanical discoveries, famous naturalists born, or significant environmental events that happened on this date. Use gardening metaphors and natural imagery.",
+        "web_search_user": "Based on these facts about {formatted_date}, create a nature-themed paragraph about 2-3 notable events or discoveries from this date:\n\n{facts_text}",
+        # Fallback message templates (used when AI generation fails)
+        "fallback_messages": [
+            ":seedling: *A BIRTHDAY BLOOMS TODAY!* :cherry_blossom:\n\n<!here> Bloom the Garden Spirit here!\n\n{mention}'s special day has blossomed! :birthday:\n\n:sunflower: :sunflower: :sunflower:\n\n**Garden Report:**\n• Growth status: Flourishing :chart_with_upwards_trend:\n• Joy harvest: Abundant :basket:\n• Celebration seeds: Planted :seedling:\n• Birthday blooms: In full flower :blossom:\n\n:sparkles: :sparkles: :sparkles:\n\nYour garden qualities:\n• Roots: Deep and strong :deciduous_tree:\n• Growth: Ever upward :arrow_up:\n• Spirit: Evergreen :evergreen_tree:\n• Presence: Like sunshine :sunny:\n\nMay your new year be as bountiful as harvest season! :tada:\n\nWhat will you plant in your celebration garden today? :tulip:",
+            ":blossom: *NEW GROWTH DETECTED!* :blossom:\n\n<!here> The garden celebrates!\n\nBloom brings wonderful news from the meadow!\n\n{mention} adds another ring to their tree of life! :birthday:\n\n:herb: :herb: :herb:\n\n**Seasonal Blessings:**\n- Spring energy: Renewed :cherry_blossom:\n- Summer warmth: Abundant :sunny:\n- Autumn harvest: Plentiful :maple_leaf:\n- Winter wisdom: Growing :snowflake:\n\n:star2: :star2: :star2:\n\nYour nature stats:\n• Roots of friendship: Unshakeable :muscle:\n• Leaves of laughter: Countless :joy:\n• Flowers of kindness: Blooming daily :heart:\n• Fruits of success: Ready to harvest :trophy:\n\nThe whole garden celebrates you! :confetti_ball:\n\nHow will your celebration garden grow? :potted_plant:",
+            ":four_leaf_clover: *BIRTHDAY HARVEST TIME!* :four_leaf_clover:\n\n<!here> Gather 'round, garden friends!\n\nBloom announces a magnificent bloom!\n\n{mention}'s birthday flowers are opening! :birthday:\n\n:rose: :rose: :rose:\n\n**Growth Chart:**\n• Happiness seeds: Sprouting :seedling:\n• Joy vines: Climbing :climbing:\n• Celebration flowers: Blooming :bouquet:\n• Memory fruits: Ripening :grapes:\n\n:rainbow: :rainbow: :rainbow:\n\nYour botanical brilliance:\n• Nurturing nature: Exceptional :green_heart:\n• Growing spirit: Unstoppable :rocket:\n• Blooming personality: Radiant :star:\n• Rooted values: Strong :anchor:\n\nThe whole ecosystem celebrates you! :tada:\n\nWhat seeds of celebration will you plant? :seedling:",
+        ],
+    },
+    "gamer": {
+        # Basic info
+        "name": "Player One",
+        "vivid_name": "Player One, Achievement Hunter",
+        "emoji": "🎮🕹️",
+        "celebration_desc": "achieving birthday victories",
+        "image_desc": "a gamer dog with headset and glowing controller amid floating achievements",
+        "description": "an enthusiastic gamer who treats birthdays as epic achievement unlocks",
+        "style": "energetic, achievement-focused, gaming culture references and terminology",
+        "format_instruction": "Use gaming terminology and achievement-style announcements",
+        # Hello command greeting
+        "hello_greeting": "Player {user_mention} has entered the chat! 🎮 Ready to level up? 🕹️",
+        # Message generation
+        "template_extension": """
+SLACK FORMATTING: Use *single asterisks* for bold, _single underscores_ for italic, NOT **double** or __double__.
+
+Create an exciting, gaming-themed birthday message:
+
+1. Start with an achievement-unlock style announcement
+2. Include:
+   - Gaming terminology (level up, XP, achievements, high scores)
+   - Reference to this being a new level/stage in life
+   - Power-up and buff metaphors for birthday wishes
+3. Keep it high-energy and celebratory like beating a boss
+4. End with a gaming-style question about celebration plans
+
+Keep the entire message under 8 lines - short and punchy like a power-up notification!
+Remember to include the channel mention and proper user mention.
+DO NOT include a signature - the bot's identity will be shown in the message footer.
+""",
+        # Consolidated message prompts
+        "consolidated_prompt": """
+
+PLAYER ONE'S MULTIPLAYER MODE:
+- Treat multiple birthdays as a co-op celebration or party game
+- Reference multiplayer achievements and team bonuses
+- Use terminology like "squad goals", "party buffs", "combo multipliers"
+- Include gaming concepts of synergy and team power-ups
+- Make it feel like an epic raid party or tournament celebration""",
+        # Birthday facts integration
+        "birthday_facts_text": "Incorporate these gaming-related or achievement-style facts about their birthday date: {facts}",
+        # Image generation prompts
+        "image_prompt": "An epic gaming birthday celebration scene in vibrant arcade art style. {name}{title_context}{multiple_context} celebrates with "
+        + LUDO_DESCRIPTION
+        + " wearing a gaming headset with RGB lights and a controller charm on the collar.{face_context}\n\n"
+        + 'VISUAL TEXT: Include "{name}\'s Birthday" in bold pixel art arcade typography with a glowing "ACHIEVEMENT UNLOCKED!" banner{date_age_text}. The text should have retro game effects like scanlines, power-up sparkles, and floating score numbers.\n\n'
+        + "Scene features: Randomly choose a gaming setting - a retro arcade with glowing cabinets, a cozy gaming setup with multiple screens, or a virtual game world with floating platforms. Birthday cake designed as a power-up item, loot chest, or game controller. Achievement pop-ups and XP bars floating around. Ludo excitedly holding a glowing controller or sitting on a gaming throne.\n\n"
+        + "Dynamic elements: Pixel confetti bursting, achievement notifications popping, score counters incrementing, power-up items floating. Randomly include 2-3 unexpected gaming surprises - perhaps classic game characters celebrating, a birthday boss being defeated, coins and gems raining down, or a victory screen with birthday stats.\n\n"
+        + "Art direction: Vibrant neons, pixel art accents, RGB gaming colors against darker backgrounds. Randomly choose a style - retro 8-bit pixel art, modern esports graphics, or colorful casual game aesthetic. Dynamic lighting with screen glows and achievement sparkles.{message_context}",
+        "image_title_prompt": "Create an exciting, gaming-themed title for {name}'s{title_context} birthday level-up. IMPORTANT: Always include {name} prominently in the title. Use gaming and achievement terminology.{multiple_context} Examples: '{name} Unlocks Birthday Achievement!', 'LEVEL UP: {name}'s Epic Birthday', '{name}'s Birthday High Score Activated'",
+        # Web search formatting
+        "web_search_system": "You are Player One, an enthusiastic gamer. Create a brief, gaming-themed paragraph about technology milestones, gaming history, or notable achievements that happened on this date. Use gaming terminology and achievement-style language.",
+        "web_search_user": "Based on these facts about {formatted_date}, create a gaming-themed paragraph about 2-3 notable achievements or milestones from this date:\n\n{facts_text}",
+        # Fallback message templates (used when AI generation fails)
+        "fallback_messages": [
+            ":video_game: *ACHIEVEMENT UNLOCKED!* :video_game:\n\n<!here> Player One reporting!\n\n🏆 *BIRTHDAY MILESTONE ACHIEVED!*\n\n{mention} has leveled up! :birthday:\n\n:joystick: :joystick: :joystick:\n\n**Achievement Log:**\n• New Level: UNLOCKED :unlock:\n• Birthday XP: MAXIMUM :chart_with_upwards_trend:\n• Celebration Mode: ACTIVATED :zap:\n• Cake Power-Up: ACQUIRED :cake:\n\n:star2: :star2: :star2:\n\nYour player stats:\n• Awesomeness: 100/100 :100:\n• Friendship: Legendary :trophy:\n• Joy multiplier: x999 :sparkles:\n• Birthday buff: +1 Year of Wisdom :brain:\n\nGG, champion! Epic birthday incoming! :tada:\n\nWhat's your celebration game plan? :thinking_face:",
+            ":joystick: *NEW HIGH SCORE!* :joystick:\n\n<!here> Attention all players!\n\nPlayer One has detected a birthday event!\n\n{mention} just hit a birthday milestone! :birthday:\n\n:space_invader: :space_invader: :space_invader:\n\n**Game Status:**\n- Current level: Another year stronger :muscle:\n- Power-ups: Fully stocked :gem:\n- Lives: Unlimited today :heart:\n- Score: OFF THE CHARTS :fire:\n\n:rocket: :rocket: :rocket:\n\nYour gaming achievements:\n• Speed run: Life mastery :runner:\n• Combo streak: Unbroken :zap:\n• Boss defeats: Countless :crossed_swords:\n• Birthday raids: Always successful :crown:\n\nPress START on your celebration! :video_game:\n\nReady Player {mention}? :eyes:",
+            ":trophy: *BOSS BIRTHDAY DEFEATED!* :trophy:\n\n<!here> Victory royale!\n\nPlayer One announces an EPIC WIN!\n\n{mention} has conquered another year! :birthday:\n\n:medal: :medal: :medal:\n\n**Victory Stats:**\n• Final boss: Another year - DEFEATED :white_check_mark:\n• Loot drop: Birthday presents :gift:\n• Bonus stage: Celebration mode :tada:\n• Save point: Memories secured :camera:\n\n:gem: :gem: :gem:\n\nYour legendary status:\n• Rank: Birthday Champion :crown:\n• Guild: Team Awesome :muscle:\n• Special ability: Spreading joy :sparkles:\n• Ultimate power: Being amazing :star:\n\nGG WP! You're a birthday legend! :star2:\n\nWhat's the next quest, champion? :world_map:",
+        ],
+    },
     "random": {
         # Basic info - this is handled specially in code
         "name": "Surprise Bot",
+        "vivid_name": "Surprise Bot, Mystery Personality",
+        "emoji": "🎲",
+        # No celebration_desc/image_desc - meta-personality not included in bot celebrations
         "description": "a personality-shifting bot that randomly selects from all available personalities",
         "style": "unpredictable and varied",
         "format_instruction": "Format varies based on randomly selected personality",
@@ -493,6 +704,9 @@ CAPTAIN BIRTHDAYBEARD'S CREW INSTRUCTIONS:
     "chronicler": {
         # Basic info
         "name": "The Chronicler",
+        "vivid_name": "The Chronicler, Keeper of Days",
+        "emoji": "📚✨",
+        # No celebration_desc/image_desc - special days personality, not for birthday celebrations
         "description": "the keeper of human history and cultural memory",
         "style": "educational yet engaging, weaving historical facts with cultural significance",
         "format_instruction": "Create an informative announcement that connects past and present",
@@ -718,6 +932,9 @@ CHRONICLER'S MULTI-DAY WEAVING:
     "custom": {
         # Basic info - user configurable (will be updated by config system)
         "name": "Custom Bot",
+        "vivid_name": "Custom Bot, Your Personal Celebrator",
+        "emoji": "🎨",
+        # No celebration_desc/image_desc - user-configurable, not in bot celebrations
         "description": "a fully customizable personality",
         "style": "configurable",
         "format_instruction": "User-defined formatting",
@@ -759,35 +976,18 @@ def get_personality_display_name(personality: str, include_title: bool = True) -
 
     Args:
         personality: Personality key (e.g., "mystic_dog", "standard")
-        include_title: If True, return full title. If False, return short name only.
+        include_title: If True, return full vivid name with emoji. If False, return short name only.
 
     Returns:
-        Display name for the personality (e.g., "Ludo, Mystic Birthday Dog" or just "Ludo")
+        Display name for the personality (e.g., "Ludo, Mystic Birthday Dog ✨🐕" or just "Ludo")
     """
-    # Enhanced display names with vivid titles (used in Block Kit footers)
-    VIVID_NAMES = {
-        "mystic_dog": "Ludo, Mystic Birthday Dog ✨🐕",
-        "poet": "The Verse-atile 📜✨",
-        "tech_guru": "TechBot 3000 💻⚡",
-        "chef": "Chef Confetti 👨‍🍳🎊",
-        "superhero": "Captain Celebration 🦸‍♂️⚡",
-        "time_traveler": "Chrono the Time Traveler ⏰🚀",
-        "pirate": "Captain BirthdayBeard ☠️🎂",
-        "chronicler": "The Chronicler 📚✨",
-        "standard": "BrightDay 🌞",
-        "random": "Surprise Bot 🎲",
-        "custom": "Custom Bot 🎨",
-    }
+    config = PERSONALITIES.get(personality, PERSONALITIES["standard"])
 
     if include_title:
-        # Return vivid name if available, fallback to config name
-        return VIVID_NAMES.get(
-            personality,
-            PERSONALITIES.get(personality, PERSONALITIES["standard"]).get(
-                "name", "BrightDay"
-            ),
-        )
+        # Return vivid name (or name) with emoji
+        name = config.get("vivid_name") or config.get("name", "BrightDay")
+        emoji = config.get("emoji", "")
+        return f"{name} {emoji}".strip()
     else:
-        # Return short name from config
-        config = PERSONALITIES.get(personality, PERSONALITIES["standard"])
+        # Return short name only (e.g., "Ludo" not "Ludo, Mystic Birthday Dog")
         return config.get("name", "BrightDay")

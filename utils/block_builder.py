@@ -667,7 +667,7 @@ def build_bot_celebration_blocks(
             {
                 "type": "image",
                 "slack_file": {"id": file_id},  # Use file ID after processing wait
-                "alt_text": "Ludo's birthday celebration with all 9 personality incarnations",
+                "alt_text": "Ludo's birthday celebration with all personality incarnations",
                 "title": {"type": "plain_text", "text": display_title},
             }
         )
