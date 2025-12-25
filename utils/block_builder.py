@@ -10,7 +10,12 @@ organization, and professional polish.
 
 import warnings
 from typing import List, Dict, Any, Optional
-from config import DEFAULT_IMAGE_PERSONALITY, BOT_BIRTHDAY
+from config import (
+    DEFAULT_IMAGE_PERSONALITY,
+    BOT_BIRTHDAY,
+    UPCOMING_DAYS_DEFAULT,
+    UPCOMING_DAYS_EXTENDED,
+)
 from personality_config import (
     get_personality_display_name,
     get_celebration_personality_count,
@@ -1529,9 +1534,9 @@ _(All announcements require confirmation)_"""
             }
         )
 
-        special_commands = """• `special` - Show today's special observances
-• `special week` - Show next 7 days
-• `special month` - Show next 30 days
+        special_commands = f"""• `special` - Show today's special observances
+• `special week` - Show next {UPCOMING_DAYS_DEFAULT} days
+• `special month` - Show next {UPCOMING_DAYS_EXTENDED} days
 • `special list [category]` - List all special days
 • `special stats` - View statistics"""
 
@@ -1624,8 +1629,8 @@ def build_special_days_list_blocks(
     if not special_days:
         no_results_msg = {
             "today": "No special days observed today.",
-            "week": "No special days in the next 7 days.",
-            "month": "No special days in the next 30 days.",
+            "week": f"No special days in the next {UPCOMING_DAYS_DEFAULT} days.",
+            "month": f"No special days in the next {UPCOMING_DAYS_EXTENDED} days.",
             "search": "No special days found matching your search.",
             "list": f"No special days found{f' for category {category_filter}' if category_filter else ''}.",
         }
@@ -2308,8 +2313,8 @@ def build_slash_help_blocks(
                     "type": "mrkdwn",
                     "text": "*Available options:*\n\n"
                     + "- `/special-day` or `/special-day today` - Today's observances\n"
-                    + "- `/special-day week` - Next 7 days\n"
-                    + "- `/special-day month` - Next 30 days",
+                    + f"- `/special-day week` - Next {UPCOMING_DAYS_DEFAULT} days\n"
+                    + f"- `/special-day month` - Next {UPCOMING_DAYS_EXTENDED} days",
                 },
             },
         ]

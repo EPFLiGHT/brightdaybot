@@ -23,6 +23,7 @@ from config import (
     SPECIAL_DAYS_PERSONALITY,
     DEFAULT_ANNOUNCEMENT_TIME,
     DATE_FORMAT,
+    UPCOMING_DAYS_DEFAULT,
     UPCOMING_DAYS_EXTENDED,
     CALENDARIFIC_PREFETCH_DAYS,
 )
@@ -122,11 +123,11 @@ def handle_special_command(args, user_id, say, app):
 
     else:
         # Help message
-        help_text = """*Special Days Commands:*
+        help_text = f"""*Special Days Commands:*
 
 • `special` or `special today` - Show today's special days
-• `special week` - Show special days for the next 7 days
-• `special month` - Show special days for the next 30 days
+• `special week` - Show special days for the next {UPCOMING_DAYS_DEFAULT} days
+• `special month` - Show special days for the next {UPCOMING_DAYS_EXTENDED} days
 • `special list [category]` - List all special days (optionally by category)
 • `special stats` - Show special days statistics
 

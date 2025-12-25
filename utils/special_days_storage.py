@@ -26,9 +26,11 @@ from config import (
     DATE_FORMAT,
     TIMEOUTS,
     UN_OBSERVANCES_ENABLED,
+    UN_OBSERVANCES_CACHE_FILE,
     CALENDARIFIC_ENABLED,
     CALENDARIFIC_API_KEY,
     UPCOMING_DAYS_DEFAULT,
+    UPCOMING_DAYS_EXTENDED,
 )
 from utils.logging_config import get_logger
 
@@ -138,12 +140,11 @@ def load_all_special_days() -> List[SpecialDay]:
 
     # 2. Load UN observances from cache
     try:
-        from utils.un_observances import UN_CACHE_FILE
         import json
         import os
 
-        if os.path.exists(UN_CACHE_FILE):
-            with open(UN_CACHE_FILE, "r") as f:
+        if os.path.exists(UN_OBSERVANCES_CACHE_FILE):
+            with open(UN_OBSERVANCES_CACHE_FILE, "r") as f:
                 un_data = json.load(f)
                 for obs in un_data.get("observances", []):
                     all_days.append(
@@ -849,8 +850,8 @@ def get_special_day_statistics() -> dict:
         "by_category": {},
         "by_source": by_source,
         "csv_entries": len(csv_days),
-        "next_7_days": len(get_upcoming_special_days(7)),
-        "next_30_days": len(get_upcoming_special_days(30)),
+        "next_7_days": len(get_upcoming_special_days(UPCOMING_DAYS_DEFAULT)),
+        "next_30_days": len(get_upcoming_special_days(UPCOMING_DAYS_EXTENDED)),
         "feature_enabled": config.get("enabled", False),
         "current_personality": config.get("personality", "chronicler"),
     }
