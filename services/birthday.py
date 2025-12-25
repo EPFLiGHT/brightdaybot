@@ -49,6 +49,7 @@ from config import (
     IMAGE_GENERATION_PARAMS,
     TIMEZONE_CELEBRATION_TIME,
     DAILY_CHECK_TIME,
+    TRACKING_DIR,
 )
 from services.celebration import (
     generate_bot_celebration_message,
@@ -78,8 +79,8 @@ def celebrate_bot_birthday(app, moment):
         return False
 
     # Check if we already celebrated today to prevent duplicates
-    celebration_tracking_file = (
-        f"data/tracking/bot_birthday_{moment.strftime('%Y-%m-%d')}.txt"
+    celebration_tracking_file = os.path.join(
+        TRACKING_DIR, f"bot_birthday_{moment.strftime('%Y-%m-%d')}.txt"
     )
     if os.path.exists(celebration_tracking_file):
         logger.debug("BOT_BIRTHDAY: Already celebrated today, skipping")
@@ -302,7 +303,7 @@ def celebrate_bot_birthday(app, moment):
             )
 
         # Mark as celebrated today to prevent duplicates
-        os.makedirs("data/tracking", exist_ok=True)
+        os.makedirs(TRACKING_DIR, exist_ok=True)
         with open(celebration_tracking_file, "w") as f:
             f.write(
                 f"BrightDayBot birthday celebrated on {moment.strftime('%Y-%m-%d')}"

@@ -24,6 +24,7 @@ from config import (
     DEFAULT_ANNOUNCEMENT_TIME,
     DATE_FORMAT,
     UPCOMING_DAYS_EXTENDED,
+    CALENDARIFIC_PREFETCH_DAYS,
 )
 from utils.slack_utils import get_username, send_message
 
@@ -651,7 +652,7 @@ def handle_admin_special_command(args, user_id, say, app):
 
             # Check if force refresh
             force = len(args) > 1 and args[1].lower() == "force"
-            days = 7  # Default
+            days = CALENDARIFIC_PREFETCH_DAYS  # Default from config
 
             if len(args) > 1 and args[1].isdigit():
                 days = min(int(args[1]), 14)  # Max 14 days to limit API calls

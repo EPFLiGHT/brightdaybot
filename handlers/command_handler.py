@@ -41,7 +41,11 @@ from config import (
     get_logger,
     get_current_personality_name,
     EXTERNAL_BACKUP_ENABLED,
+    TIMEOUTS,
 )
+
+# Confirmation timeout from centralized config
+CONFIRMATION_TIMEOUT_MINUTES = TIMEOUTS.get("confirmation_minutes", 5)
 
 # Import from split handler modules
 from handlers.birthday_commands import (
@@ -89,7 +93,6 @@ logger = get_logger("commands")
 # Confirmation state management for mass notification commands
 # Stores pending confirmations: {user_id: {"action": "announce", "data": {...}, "timestamp": datetime}}
 PENDING_CONFIRMATIONS = {}
-CONFIRMATION_TIMEOUT_MINUTES = 5
 
 
 def clear_expired_confirmations():

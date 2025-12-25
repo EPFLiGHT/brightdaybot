@@ -7,7 +7,8 @@ Source: https://www.un.org/en/observances/list-days-weeks
 Uses crawl4ai for intelligent web scraping with LLM-friendly output.
 
 Features:
-- Weekly cache refresh from official UN source
+- Monthly scheduled cache refresh (1st of each month via scheduler)
+- On-demand refresh if cache exceeds TTL (UN_OBSERVANCES_CACHE_TTL_DAYS)
 - Intelligent scraping with crawl4ai
 - Category mapping based on keywords (Global Health, Tech, Culture)
 - Graceful fallback to stale cache on scrape failure
@@ -21,7 +22,9 @@ from datetime import datetime, timedelta
 from typing import List, Optional, Dict
 
 from config import (
-    CACHE_DIR,
+    UN_OBSERVANCES_CACHE_TTL_DAYS,
+    UN_OBSERVANCES_CACHE_DIR,
+    UN_OBSERVANCES_CACHE_FILE,
 )
 from utils.logging_config import get_logger
 
@@ -29,9 +32,10 @@ logger = get_logger("special_days")
 
 # UN Official Observances page
 UN_OBSERVANCES_URL = "https://www.un.org/en/observances/list-days-weeks"
-UN_CACHE_DIR = os.path.join(CACHE_DIR, "un_observances")
-UN_CACHE_FILE = os.path.join(UN_CACHE_DIR, "un_days.json")
-UN_CACHE_TTL_DAYS = 7  # Refresh weekly
+
+# Aliases for backward compatibility (used by special_days_storage.py)
+UN_CACHE_DIR = UN_OBSERVANCES_CACHE_DIR
+UN_CACHE_FILE = UN_OBSERVANCES_CACHE_FILE
 
 # Keywords for category mapping
 HEALTH_KEYWORDS = [
@@ -281,12 +285,13 @@ class UNObservancesClient:
 
         prompt = (
             """Extract ALL UN International Days from this markdown. Return JSON array:
-[{"day": 7, "month": "April", "name": "World Health Day"}, ...]
+[{"day": 7, "month": "April", "name": "World Health Day", "url": "https://www.un.org/en/observances/health-day"}, ...]
 
 Rules:
 - Include ALL observances (there should be 200+)
 - Extract the exact day number and full month name
 - Extract the observance name WITHOUT [WHO], [UNESCO] suffixes
+- Extract the URL from the markdown link (format: [Name](url))
 - Skip week/decade entries, only include specific days
 
 Markdown content:
@@ -347,6 +352,7 @@ Markdown content:
                 day = int(obs.get("day", 0))
                 month_name = obs.get("month", "").lower()
                 name = obs.get("name", "").strip()
+                url = obs.get("url", "").strip()
 
                 month_num = months.get(month_name)
                 if not month_num or not (1 <= day <= 31) or not name:
@@ -360,6 +366,9 @@ Markdown content:
                 date_str = f"{day:02d}/{month_num:02d}"
                 category = self._map_category(name)
 
+                # Use specific observance URL if available, fallback to list page
+                observance_url = url if url.startswith("http") else UN_OBSERVANCES_URL
+
                 observances.append(
                     {
                         "date": date_str,
@@ -368,7 +377,7 @@ Markdown content:
                         "description": "",
                         "emoji": self._get_emoji_for_category(category),
                         "source": "UN",
-                        "url": UN_OBSERVANCES_URL,
+                        "url": observance_url,
                     }
                 )
             except (ValueError, TypeError):
@@ -411,19 +420,20 @@ Markdown content:
         # Pattern: [Name](url)...\nDD Mon
         # Names may contain nested brackets like [World Health Day [WHO]]
         # So we use a more permissive pattern that captures everything up to ](
-        pattern = r"\[([^\]]*(?:\[[^\]]*\][^\]]*)*)\]\(https?://[^)]+\)[^\n]*\n(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)"
+        # Now also captures the URL for linking to specific observance pages
+        pattern = r"\[([^\]]*(?:\[[^\]]*\][^\]]*)*)\]\((https?://[^)]+)\)[^\n]*\n(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)"
 
         raw_matches = re.findall(pattern, markdown_content, re.IGNORECASE)
 
         # Filter out resolution references (e.g., A/RES/..., WHA/..., S/RES/...)
         matches = []
-        for name, day, month in raw_matches:
+        for name, url, day, month in raw_matches:
             # Skip resolution references
             if re.match(r"^[A-Z]/RES/|^WHA/|^S/RES/|^A/C\.", name):
                 continue
-            matches.append((name, day, month))
+            matches.append((name, url, day, month))
 
-        for name, day, month in matches:
+        for name, url, day, month in matches:
             # Clean name - remove [WHO], [UNESCO], [FAO] etc. suffixes
             name = re.sub(r"\s*\[[A-Z]+\]\s*$", "", name).strip()
 
@@ -451,7 +461,7 @@ Markdown content:
                                 self._map_category(name)
                             ),
                             "source": "UN",
-                            "url": UN_OBSERVANCES_URL,
+                            "url": url,  # Use the specific observance URL
                         }
                     )
             except ValueError:
@@ -504,7 +514,7 @@ Markdown content:
                 data = json.load(f)
                 last_updated = datetime.fromisoformat(data.get("last_updated", ""))
                 age = datetime.now() - last_updated
-                return age.days < UN_CACHE_TTL_DAYS
+                return age.days < UN_OBSERVANCES_CACHE_TTL_DAYS
         except (json.JSONDecodeError, ValueError, KeyError):
             return False
 

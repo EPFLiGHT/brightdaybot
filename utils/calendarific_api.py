@@ -29,6 +29,7 @@ from config import (
     CALENDARIFIC_PREFETCH_DAYS,
     CALENDARIFIC_RATE_LIMIT_MONTHLY,
     CALENDARIFIC_RATE_WARNING_THRESHOLD,
+    CACHE_RETENTION_DAYS,
     TIMEOUTS,
 )
 from utils.logging_config import get_logger
@@ -521,7 +522,7 @@ class CalendarificClient:
             logger.warning(f"CALENDARIFIC: Failed to save cache {cache_path}: {e}")
 
     def _is_cache_fresh(self, date: datetime) -> bool:
-        """Check if cache for date is within TTL (7 days)."""
+        """Check if cache for date is within TTL (CALENDARIFIC_CACHE_TTL_DAYS)."""
         cache_path = self._get_cache_path(date)
 
         if not os.path.exists(cache_path):
@@ -603,14 +604,14 @@ class CalendarificClient:
             return None
 
     def needs_prefetch(self) -> bool:
-        """Check if weekly prefetch is needed."""
+        """Check if weekly prefetch is needed (based on cache TTL)."""
         last = self.get_last_prefetch()
 
         if last is None:
             return True
 
         days_since = (datetime.now() - last).days
-        return days_since >= 7
+        return days_since >= self.cache_ttl_days
 
     def clear_cache(self, date: datetime = None):
         """Clear cache for a specific date or all cache."""
@@ -648,8 +649,10 @@ class CalendarificClient:
             "needs_prefetch": self.needs_prefetch(),
         }
 
-    def cleanup_old_cache(self, max_age_days: int = 30):
-        """Remove cache files older than specified days."""
+    def cleanup_old_cache(self, max_age_days: int = None):
+        """Remove cache files older than specified days (default from CACHE_RETENTION_DAYS)."""
+        if max_age_days is None:
+            max_age_days = CACHE_RETENTION_DAYS.get("calendarific", 30)
         cutoff = datetime.now() - timedelta(days=max_age_days)
         removed = 0
 

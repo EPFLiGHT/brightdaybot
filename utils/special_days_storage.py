@@ -28,6 +28,7 @@ from config import (
     UN_OBSERVANCES_ENABLED,
     CALENDARIFIC_ENABLED,
     CALENDARIFIC_API_KEY,
+    UPCOMING_DAYS_DEFAULT,
 )
 from utils.logging_config import get_logger
 
@@ -627,7 +628,9 @@ def get_special_days_for_date(date: datetime) -> List[SpecialDay]:
     return unique_days
 
 
-def get_upcoming_special_days(days_ahead: int = 7) -> Dict[str, List[SpecialDay]]:
+def get_upcoming_special_days(
+    days_ahead: int = UPCOMING_DAYS_DEFAULT,
+) -> Dict[str, List[SpecialDay]]:
     """
     Get special days for the next N days.
 

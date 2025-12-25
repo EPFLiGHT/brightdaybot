@@ -153,6 +153,7 @@ DATE_WITH_YEAR_FORMAT = "%d/%m/%Y"
 
 # Scheduling configuration
 DAILY_CHECK_TIME = time(10, 0)  # Time to run daily birthday checks (SERVER LOCAL TIME)
+CACHE_REFRESH_TIME = time(3, 0)  # Time to run cache refreshes (early morning)
 # NOTE: This uses the server's local timezone, NOT UTC
 # If you need UTC scheduling, modify services/scheduler.py
 
@@ -254,6 +255,7 @@ RETRY_LIMITS = {
 TIMEOUTS = {
     "http_request": 30,  # HTTP request timeout
     "file_lock": 10,  # File lock acquisition timeout
+    "confirmation_minutes": 5,  # Admin command confirmation timeout
 }
 
 # Scheduler timing constants
@@ -269,6 +271,7 @@ CACHE_RETENTION_DAYS = {
     "images_default": 30,  # Default image cache cleanup
     "images_generated": 365,  # AI-generated birthday images (keep longer)
     "profile_photos": 7,  # Temporary profile photos (clean more aggressively)
+    "calendarific": 30,  # Calendarific holiday cache cleanup
 }
 
 # Emoji generation parameters for AI messages
@@ -344,7 +347,11 @@ CALENDARIFIC_RATE_WARNING_THRESHOLD = 400  # Warn when approaching limit
 # Source: https://www.un.org/en/observances/list-days-weeks
 # Uses crawl4ai for intelligent scraping (pip install crawl4ai && crawl4ai-setup)
 UN_OBSERVANCES_ENABLED = os.getenv("UN_OBSERVANCES_ENABLED", "true").lower() == "true"
-UN_OBSERVANCES_CACHE_TTL_DAYS = 7  # Refresh weekly
+UN_OBSERVANCES_CACHE_TTL_DAYS = (
+    7  # On-demand cache freshness check (scheduled refresh is monthly)
+)
+UN_OBSERVANCES_CACHE_DIR = os.path.join(CACHE_DIR, "un_observances")
+UN_OBSERVANCES_CACHE_FILE = os.path.join(UN_OBSERVANCES_CACHE_DIR, "un_days.json")
 
 # ----- DEFAULT VALUES -----
 

@@ -1,10 +1,15 @@
 """
-Background scheduling system for automatic birthday celebrations.
+Background scheduling system for automatic birthday celebrations and cache maintenance.
 
 Manages timezone-aware hourly checks and simple daily announcements in a
 separate daemon thread. Supports startup recovery and dynamic reconfiguration.
 
-Key functions: setup_scheduler(), run_now(), hourly_task(), daily_task().
+Key functions:
+- setup_scheduler(), run_now(): Scheduler initialization and manual triggers
+- hourly_task(), daily_task(): Birthday check tasks
+- weekly_calendarific_refresh_task(): Weekly Calendarific cache refresh (Sundays)
+- monthly_un_refresh_task(): Monthly UN observances cache refresh (1st of month)
+
 Uses schedule library and threading for non-blocking execution.
 """
 
@@ -15,6 +20,7 @@ from datetime import datetime, timezone
 
 from config import (
     DAILY_CHECK_TIME,
+    CACHE_REFRESH_TIME,
     SCHEDULER_CHECK_INTERVAL_SECONDS,
     HEARTBEAT_STALE_THRESHOLD_SECONDS,
     get_logger,
@@ -69,6 +75,50 @@ def daily_task():
         _simple_daily_callback(_app_instance, current_time)
     else:
         logger.error("SCHEDULER: No simple daily callback or app instance registered")
+
+
+def weekly_calendarific_refresh_task():
+    """
+    Weekly task - refreshes Calendarific cache for upcoming holidays.
+    Runs every Sunday at CACHE_REFRESH_TIME.
+    """
+    from config import CALENDARIFIC_ENABLED
+
+    logger.info("SCHEDULER: Running weekly Calendarific cache refresh")
+
+    if CALENDARIFIC_ENABLED:
+        try:
+            from utils.calendarific_api import get_calendarific_client
+
+            client = get_calendarific_client()
+            stats = client.weekly_prefetch(force=True)
+            logger.info(f"SCHEDULER: Calendarific prefetch complete: {stats}")
+        except Exception as e:
+            logger.error(f"SCHEDULER: Failed to refresh Calendarific cache: {e}")
+    else:
+        logger.debug("SCHEDULER: Calendarific not enabled, skipping refresh")
+
+
+def monthly_un_refresh_task():
+    """
+    Monthly task - refreshes UN observances cache.
+    Runs on the 1st of each month at CACHE_REFRESH_TIME.
+    UN data rarely changes, so monthly refresh is sufficient.
+    """
+    from config import UN_OBSERVANCES_ENABLED
+
+    logger.info("SCHEDULER: Running monthly UN observances cache refresh")
+
+    if UN_OBSERVANCES_ENABLED:
+        try:
+            from utils.un_observances import refresh_un_cache
+
+            stats = refresh_un_cache(force=True)
+            logger.info(f"SCHEDULER: UN observances refresh complete: {stats}")
+        except Exception as e:
+            logger.error(f"SCHEDULER: Failed to refresh UN observances cache: {e}")
+    else:
+        logger.debug("SCHEDULER: UN observances not enabled, skipping refresh")
 
 
 def run_scheduler():
@@ -140,6 +190,24 @@ def setup_scheduler(app, timezone_aware_check, simple_daily_check):
         logger.info(
             f"SCHEDULER: Daily primary check scheduled for {DAILY_CHECK_TIME.strftime('%H:%M')} local time ({local_timezone})"
         )
+
+    # Schedule weekly Calendarific cache refresh (every Sunday)
+    cache_time_str = CACHE_REFRESH_TIME.strftime("%H:%M")
+    schedule.every().sunday.at(cache_time_str).do(weekly_calendarific_refresh_task)
+    logger.info(
+        f"SCHEDULER: Weekly Calendarific refresh scheduled for Sunday {cache_time_str}"
+    )
+
+    # Schedule monthly UN observances cache refresh (1st of each month)
+    # Using day 1 check - runs daily but only executes on the 1st
+    def monthly_un_check():
+        if datetime.now().day == 1:
+            monthly_un_refresh_task()
+
+    schedule.every().day.at(cache_time_str).do(monthly_un_check)
+    logger.info(
+        f"SCHEDULER: Monthly UN observances refresh scheduled for 1st of each month at {cache_time_str}"
+    )
 
     # Start the scheduler in a separate thread
     _scheduler_thread = threading.Thread(target=run_scheduler)

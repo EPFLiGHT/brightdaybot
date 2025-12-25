@@ -25,6 +25,7 @@ from config import (
     BOT_BIRTH_YEAR,
     BOT_BIRTHDAY,
     DATA_DIR,
+    BACKUP_DIR,
     EXTERNAL_BACKUP_ENABLED,
     BACKUP_TO_ADMINS,
     BACKUP_ON_EVERY_CHANGE,
@@ -791,8 +792,7 @@ def handle_test_external_backup_command(user_id, say, app):
         return
 
     # Find the latest backup file
-    backup_dir = "data/backups"
-    backup_files = glob.glob(os.path.join(backup_dir, "birthdays_*.txt"))
+    backup_files = glob.glob(os.path.join(BACKUP_DIR, "birthdays_*.txt"))
 
     if not backup_files:
         say(
