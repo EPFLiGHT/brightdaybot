@@ -440,7 +440,9 @@ def send_message_with_image(
                             f"IMAGE_ERROR: Failed to open DM channel: {dm_response.get('error')}"
                         )
                         # Fallback to text-only message
-                        return send_message(app, channel, text, blocks, context)
+                        return send_message(app, channel, text, blocks, context)[
+                            "success"
+                        ]
 
                 # Check for pre-generated custom title first, then generate AI title
                 custom_title = image_data.get("custom_title")
@@ -488,8 +490,8 @@ def send_message_with_image(
                 if blocks:
                     logger.info(f"IMAGE: Sending structured Block Kit message first")
                     # Send the Block Kit message first
-                    message_sent = send_message(app, channel, text, blocks, context)
-                    if not message_sent:
+                    message_result = send_message(app, channel, text, blocks, context)
+                    if not message_result["success"]:
                         logger.warning(
                             f"IMAGE: Block Kit message failed, continuing with image upload"
                         )
@@ -522,30 +524,30 @@ def send_message_with_image(
                         f"IMAGE_ERROR: Failed to upload file: {upload_response.get('error')}"
                     )
                     # Fallback to text-only message if upload fails
-                    return send_message(app, channel, text, blocks, context)
+                    return send_message(app, channel, text, blocks, context)["success"]
 
             except SlackApiError as e:
                 logger.error(f"IMAGE_ERROR: Error during upload process: {e}")
                 # Fallback for older slack client versions or other issues
-                return send_message(app, channel, text, blocks, context)
+                return send_message(app, channel, text, blocks, context)["success"]
             except Exception as upload_error:
                 logger.error(
                     f"IMAGE_ERROR: Unexpected error during upload process: {upload_error}"
                 )
-                return send_message(app, channel, text, blocks, context)
+                return send_message(app, channel, text, blocks, context)["success"]
 
         else:
             # No image, send regular message
-            return send_message(app, channel, text, blocks, context)
+            return send_message(app, channel, text, blocks, context)["success"]
 
     except SlackApiError as e:
         logger.error(f"API_ERROR: Failed to send message with image to {channel}: {e}")
         # Fall back to text-only message
-        return send_message(app, channel, text, blocks, context)
+        return send_message(app, channel, text, blocks, context)["success"]
     except Exception as e:
         logger.error(f"ERROR: Unexpected error sending message with image: {e}")
         # Fall back to text-only message
-        return send_message(app, channel, text, blocks, context)
+        return send_message(app, channel, text, blocks, context)["success"]
 
 
 def send_message_with_multiple_images(
@@ -574,10 +576,10 @@ def send_message_with_multiple_images(
 
     try:
         # First send the main message
-        message_success = send_message(app, channel, text, blocks, context)
-        results["message_sent"] = message_success
+        message_result = send_message(app, channel, text, blocks, context)
+        results["message_sent"] = message_result["success"]
 
-        if not message_success:
+        if not message_result["success"]:
             logger.warning(
                 f"MULTI_IMAGE: Failed to send main message, continuing with images anyway"
             )
@@ -930,9 +932,9 @@ def send_message_with_multiple_attachments(
     try:
         # Handle case where no images are provided
         if not image_list:
-            success = send_message(app, channel, text, blocks, context)
-            results["success"] = success
-            results["message_sent"] = success
+            result = send_message(app, channel, text, blocks, context)
+            results["success"] = result["success"]
+            results["message_sent"] = result["success"]
             return results
 
         # Prepare file uploads list for files_upload_v2
@@ -1021,9 +1023,9 @@ def send_message_with_multiple_attachments(
             logger.warning(
                 "MULTI_ATTACH: No valid attachments prepared, sending message only"
             )
-            success = send_message(app, channel, text, blocks, context)
-            results["success"] = success
-            results["message_sent"] = success
+            result = send_message(app, channel, text, blocks, context)
+            results["success"] = result["success"]
+            results["message_sent"] = result["success"]
             return results
 
         # Get target channel (handle DMs)
@@ -1052,8 +1054,8 @@ def send_message_with_multiple_attachments(
         if blocks:
             logger.info(f"MULTI_ATTACH: Sending structured Block Kit message first")
             # Send the Block Kit message first
-            message_sent = send_message(app, channel, text, blocks, context)
-            if not message_sent:
+            message_result = send_message(app, channel, text, blocks, context)
+            if not message_result["success"]:
                 logger.warning(
                     f"MULTI_ATTACH: Block Kit message failed, continuing with file upload"
                 )
@@ -1212,7 +1214,7 @@ def send_message(app, channel: str, text: str, blocks=None, context: dict = None
         context: Optional context for archiving (message_type, personality, etc.)
 
     Returns:
-        True if successful, False otherwise
+        dict: {"success": bool, "ts": str or None} - ts is message timestamp for threading
     """
     try:
         # Send the message
@@ -1223,17 +1225,20 @@ def send_message(app, channel: str, text: str, blocks=None, context: dict = None
         else:
             response = app.client.chat_postMessage(channel=channel, text=text)
 
+        # Extract message timestamp for thread tracking
+        message_ts = response.get("ts") if response.get("ok") else None
+
         if channel.startswith("U"):
             username = get_username(app, channel)
             logger.info(f"MESSAGE: Sent DM to {username} ({channel})")
         else:
             logger.info(f"MESSAGE: Sent message to channel {channel}")
 
-        return True
+        return {"success": True, "ts": message_ts}
 
     except SlackApiError as e:
         logger.error(f"API_ERROR: Failed to send message to {channel}: {e}")
-        return False
+        return {"success": False, "ts": None}
 
 
 def send_message_with_file(

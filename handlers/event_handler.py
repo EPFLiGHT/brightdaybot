@@ -20,6 +20,105 @@ from config import BIRTHDAY_CHANNEL, get_logger
 events_logger = get_logger("events")
 
 
+def _try_nlp_date_parsing(text_lower: str, original_text: str):
+    """
+    Try NLP-based date parsing when regex fails.
+
+    Args:
+        text_lower: Lowercased text
+        original_text: Original text (preserves case)
+
+    Returns:
+        Parsing result dict or None if NLP is disabled
+    """
+    try:
+        from config import NLP_DATE_PARSING_ENABLED
+
+        if not NLP_DATE_PARSING_ENABLED:
+            return None
+
+        from utils.nlp_date_parser import parse_date_with_nlp
+
+        # Use original text for better parsing (preserves month names, etc.)
+        result = parse_date_with_nlp(original_text)
+
+        if result["status"] in ["success", "ambiguous"]:
+            events_logger.info(
+                f"NLP_DATE: Parsed date from '{original_text[:50]}...' - {result}"
+            )
+            return result
+
+        return None
+
+    except ImportError:
+        return None
+    except Exception as e:
+        events_logger.warning(f"NLP_DATE: Error parsing date: {e}")
+        return None
+
+
+def _handle_thread_reply(app, event, channel, thread_ts):
+    """
+    Handle thread replies in tracked birthday threads.
+
+    Args:
+        app: Slack app instance
+        event: The message event
+        channel: Channel ID
+        thread_ts: Thread parent timestamp
+    """
+    try:
+        from config import (
+            THREAD_ENGAGEMENT_ENABLED,
+            THREAD_MAX_REACTIONS,
+            THREAD_THANK_YOU_ENABLED,
+            THREAD_MAX_THANK_YOUS,
+        )
+
+        if not THREAD_ENGAGEMENT_ENABLED:
+            return
+
+        from utils.thread_tracker import get_thread_tracker
+
+        # Check if this thread is tracked
+        tracker = get_thread_tracker()
+        if not tracker.is_tracked_thread(channel, thread_ts):
+            return
+
+        # Get message details
+        user_id = event.get("user")
+        message_ts = event.get("ts")
+        text = event.get("text", "")
+
+        if not user_id or not message_ts:
+            return
+
+        # Route to thread handler
+        from handlers.thread_handler import handle_thread_reply
+
+        result = handle_thread_reply(
+            app=app,
+            channel=channel,
+            thread_ts=thread_ts,
+            message_ts=message_ts,
+            user_id=user_id,
+            text=text,
+            thread_engagement_enabled=THREAD_ENGAGEMENT_ENABLED,
+            thread_max_reactions=THREAD_MAX_REACTIONS,
+            thread_thank_you_enabled=THREAD_THANK_YOU_ENABLED,
+            thread_max_thank_yous=THREAD_MAX_THANK_YOUS,
+        )
+
+        if result.get("reaction_added"):
+            events_logger.debug(f"THREAD_REPLY: Added reaction to reply in {thread_ts}")
+
+    except ImportError:
+        # Config not available yet - skip silently
+        pass
+    except Exception as e:
+        events_logger.warning(f"THREAD_REPLY: Error handling thread reply: {e}")
+
+
 def register_event_handlers(app):
     events_logger.info(
         "EVENT_HANDLER: Registering event handlers including button actions"
@@ -173,9 +272,23 @@ def register_event_handlers(app):
 
     @app.event("message")
     def handle_message(event, say, client, logger):
-        """Handle direct message events"""
-        # Only respond to direct messages that aren't from bots
-        if event.get("channel_type") != "im" or event.get("bot_id"):
+        """Handle direct message events and thread replies"""
+        # Skip bot messages
+        if event.get("bot_id"):
+            return
+
+        # Check if this is a thread reply in a channel (not a DM)
+        thread_ts = event.get("thread_ts")
+        channel = event.get("channel")
+        channel_type = event.get("channel_type")
+
+        if thread_ts and channel_type != "im":
+            # This is a thread reply in a channel - check if it's a tracked birthday thread
+            _handle_thread_reply(app, event, channel, thread_ts)
+            return
+
+        # Only respond to direct messages for command/date processing
+        if channel_type != "im":
             return
 
         text = event.get("text", "").lower()
@@ -215,6 +328,27 @@ def register_event_handlers(app):
             if result["status"] == "success":
                 handle_dm_date(say, user, result, app)
             else:
+                # Try NLP parsing if enabled
+                nlp_result = _try_nlp_date_parsing(text, event.get("text", ""))
+                if nlp_result and nlp_result.get("status") == "success":
+                    # Convert NLP result to format expected by handle_dm_date
+                    from utils.nlp_date_parser import format_parsed_date
+
+                    formatted_date = format_parsed_date(nlp_result)
+                    if formatted_date:
+                        result = {"status": "success", "date": formatted_date}
+                        handle_dm_date(say, user, result, app)
+                        return
+                elif nlp_result and nlp_result.get("status") == "ambiguous":
+                    # Ask for clarification on ambiguous dates
+                    options = nlp_result.get("options", [])
+                    say(
+                        f":thinking_face: I found a date but it's ambiguous. "
+                        f"Did you mean {' or '.join(options)}? "
+                        f"Please try again with a clearer format like `14/07` (day/month)."
+                    )
+                    return
+
                 # If no valid date found, provide help
                 from utils.block_builder import build_unrecognized_input_blocks
 

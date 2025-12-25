@@ -1676,9 +1676,8 @@ def handle_test_bot_celebration_command(
                         # Step 3: Send unified Block Kit message (image already embedded in blocks)
                         from utils.slack_utils import send_message
 
-                        image_success = send_message(
-                            app, user_id, fallback_text, blocks
-                        )
+                        image_result = send_message(app, user_id, fallback_text, blocks)
+                        image_success = image_result["success"]
 
                     except Exception as upload_error:
                         logger.error(

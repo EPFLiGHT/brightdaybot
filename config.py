@@ -217,6 +217,10 @@ TOKEN_LIMITS = {
     "image_title_generation": 200,  # AI-generated image titles
     "special_day_details": 600,  # Single special day details (10-14 lines, View Details button - 1950 char Slack limit)
     "special_day_details_consolidated": 1000,  # Multiple special day details (12-18 lines covering multiple observances)
+    # Interactive features
+    "thread_thank_you": 50,  # Short thank-you messages in birthday threads
+    "mention_response": 300,  # Responses to @-mentions
+    "date_parsing": 100,  # NLP date extraction from natural language
 }
 
 # Temperature settings for creativity control
@@ -352,6 +356,41 @@ UN_OBSERVANCES_CACHE_TTL_DAYS = (
 )
 UN_OBSERVANCES_CACHE_DIR = os.path.join(CACHE_DIR, "un_observances")
 UN_OBSERVANCES_CACHE_FILE = os.path.join(UN_OBSERVANCES_CACHE_DIR, "un_days.json")
+
+# ----- THREAD ENGAGEMENT CONFIGURATION -----
+
+# Enable bot engagement with birthday thread replies (reactions, thank-yous)
+THREAD_ENGAGEMENT_ENABLED = (
+    os.getenv("THREAD_ENGAGEMENT_ENABLED", "true").lower() == "true"
+)
+
+# Maximum reactions the bot will add per birthday thread
+THREAD_MAX_REACTIONS = int(os.getenv("THREAD_MAX_REACTIONS", "20"))
+
+# Enable optional thank-you messages in threads (rate limited)
+THREAD_THANK_YOU_ENABLED = (
+    os.getenv("THREAD_THANK_YOU_ENABLED", "false").lower() == "true"
+)
+
+# Maximum thank-you messages per thread
+THREAD_MAX_THANK_YOUS = int(os.getenv("THREAD_MAX_THANK_YOUS", "3"))
+
+# ----- @-MENTION Q&A CONFIGURATION -----
+
+# Enable bot responses to @-mentions
+MENTION_QA_ENABLED = os.getenv("MENTION_QA_ENABLED", "true").lower() == "true"
+
+# Rate limiting for @-mentions (per user)
+MENTION_RATE_LIMIT_WINDOW = int(os.getenv("MENTION_RATE_LIMIT_WINDOW", "60"))  # seconds
+MENTION_RATE_LIMIT_MAX = int(os.getenv("MENTION_RATE_LIMIT_MAX", "5"))  # requests
+
+# ----- NLP DATE PARSING CONFIGURATION -----
+
+# Enable LLM-based date parsing for natural language birthday input
+# Falls back to regex parsing first, uses LLM only when regex fails
+NLP_DATE_PARSING_ENABLED = (
+    os.getenv("NLP_DATE_PARSING_ENABLED", "false").lower() == "true"
+)
 
 # ----- DEFAULT VALUES -----
 

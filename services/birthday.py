@@ -429,7 +429,7 @@ def check_and_announce_special_days(app, moment):
                     # Send this individual announcement
                     result = send_message(app, channel, fallback_text, blocks)
 
-                    if result:
+                    if result["success"]:
                         announcements_sent += 1
                         logger.info(
                             f"SPECIAL_DAYS_SPLIT: Successfully sent announcement {announcements_sent}/{len(special_days)}: {special_day.name}"
@@ -506,7 +506,7 @@ def check_and_announce_special_days(app, moment):
             # Send the message with blocks
             result = send_message(app, channel, fallback_text, blocks)
 
-        if result:
+        if result["success"]:
             logger.info(f"SPECIAL_DAYS: Successfully sent announcement to {channel}")
 
             # Optionally generate and send image
@@ -683,8 +683,8 @@ def send_reminder_to_users(app, users, custom_message=None, reminder_type="new")
                 message = custom_message
 
         # Send the message
-        sent = send_message(app, user_id, message)
-        if sent:
+        result = send_message(app, user_id, message)
+        if result["success"]:
             results["successful"] += 1
             results["users"].append(user_id)
             logger.info(f"REMINDER: Sent to {username} ({user_id})")
@@ -750,9 +750,9 @@ def send_channel_announcement(app, announcement_type="general", custom_message=N
             return False
 
         # Send to birthday channel
-        success = send_message(app, BIRTHDAY_CHANNEL, message)
+        result = send_message(app, BIRTHDAY_CHANNEL, message)
 
-        if success:
+        if result["success"]:
             logger.info(
                 f"ANNOUNCEMENT: Sent {announcement_type} announcement to birthday channel"
             )
@@ -761,7 +761,7 @@ def send_channel_announcement(app, announcement_type="general", custom_message=N
                 f"ANNOUNCEMENT_ERROR: Failed to send {announcement_type} announcement"
             )
 
-        return success
+        return result["success"]
 
     except Exception as e:
         logger.error(f"ANNOUNCEMENT_ERROR: Failed to send channel announcement: {e}")

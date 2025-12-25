@@ -13,6 +13,9 @@ A Slack bot that celebrates birthdays with AI-generated personalized messages an
 - **Slash Commands**: `/birthday` and `/special-day` with modal forms
 - **App Home**: Dashboard with birthday status and upcoming birthdays
 - **Block Kit UI**: Professional Slack message layouts
+- **Thread Engagement**: Reacts to birthday thread replies with contextual emojis
+- **@-Mention Q&A**: Ask the bot about special days, birthdays, and capabilities
+- **NLP Date Parsing**: Set birthday with natural language ("July 14th")
 
 ## Quick Start
 
@@ -109,11 +112,26 @@ python app.py
 ### Optional Environment Variables
 
 ```env
+# AI & Core Settings
 OPENAI_MODEL="gpt-4.1"              # AI model (default: gpt-4.1)
 AI_IMAGE_GENERATION_ENABLED="true"  # Enable AI images
 EXTERNAL_BACKUP_ENABLED="true"      # Backup to admin DMs
 CALENDARIFIC_API_KEY="..."          # For national/local holidays
 CALENDARIFIC_ENABLED="true"         # Enable Calendarific integration
+
+# Thread Engagement - React to birthday thread replies
+THREAD_ENGAGEMENT_ENABLED="true"    # Enable reactions (default: true)
+THREAD_MAX_REACTIONS="20"           # Max reactions per thread
+THREAD_THANK_YOU_ENABLED="false"    # Send thank-you messages (default: false)
+THREAD_MAX_THANK_YOUS="3"           # Max thank-yous per thread
+
+# @-Mention Q&A - Answer questions when mentioned
+MENTION_QA_ENABLED="true"           # Enable mention responses (default: true)
+MENTION_RATE_LIMIT_WINDOW="60"      # Rate limit window in seconds
+MENTION_RATE_LIMIT_MAX="5"          # Max requests per window
+
+# NLP Date Parsing - Natural language birthday input
+NLP_DATE_PARSING_ENABLED="false"    # Enable NLP parsing (default: false)
 ```
 
 ### Special Days Setup (Optional)

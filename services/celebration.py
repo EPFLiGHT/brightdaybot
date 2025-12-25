@@ -200,10 +200,17 @@ class BirthdayCelebrationPipeline:
                 actual_personality,  # Pass actual personality used for proper attribution
             )
 
-            # Step 7: Mark validated people as celebrated
+            # Step 7: Track thread for engagement (if enabled and successful)
+            message_ts = post_result.get("ts")
+            if post_result["message_sent"] and message_ts:
+                self._track_thread_for_engagement(
+                    message_ts, valid_people, actual_personality
+                )
+
+            # Step 8: Mark validated people as celebrated
             self._mark_as_celebrated(valid_people)
 
-            # Step 8: Log final results
+            # Step 9: Log final results
             valid_names = [p["username"] for p in valid_people]
             logger.info(
                 f"{self.mode}: Successfully celebrated validated birthdays: {', '.join(valid_names)}"
@@ -215,6 +222,7 @@ class BirthdayCelebrationPipeline:
                 "filtered_people": invalid_people,
                 "message_sent": post_result["message_sent"],
                 "images_sent": post_result["images_sent"],
+                "ts": message_ts,
                 "error": None,
             }
 
@@ -343,7 +351,7 @@ class BirthdayCelebrationPipeline:
             actual_personality: The actual personality used (important for "random" personality)
 
         Returns:
-            dict: {"message_sent": bool, "images_sent": int}
+            dict: {"message_sent": bool, "images_sent": int, "ts": str or None}
         """
         validation_note = (
             f" [validated: {len(valid_people)}/{validation_summary['total']} people]"
@@ -422,13 +430,15 @@ class BirthdayCelebrationPipeline:
         # Step 3: Send unified Block Kit message (images already embedded in blocks)
         if images and include_images:
             # Images are now embedded in blocks - just send the Block Kit message
-            success = send_message(
+            send_result = send_message(
                 self.app,
                 self.birthday_channel,
                 fallback_text,
                 blocks=blocks,
                 context={"message_type": "birthday", "personality": actual_personality},
             )
+            success = send_result["success"]
+            message_ts = send_result.get("ts")
 
             send_results = {
                 "success": success,
@@ -448,19 +458,71 @@ class BirthdayCelebrationPipeline:
                 return {
                     "message_sent": True,
                     "images_sent": send_results["attachments_sent"],
+                    "ts": message_ts,
                 }
             else:
                 logger.warning(f"{self.mode}: Failed to send unified birthday message")
-                return {"message_sent": False, "images_sent": 0}
+                return {"message_sent": False, "images_sent": 0, "ts": None}
         else:
             # No images or images disabled - send message only with blocks
-            success = send_message(
+            send_result = send_message(
                 self.app, self.birthday_channel, fallback_text, blocks
             )
+            success = send_result["success"]
+            message_ts = send_result.get("ts")
             logger.info(
                 f"{self.mode}: Successfully sent consolidated birthday message with Block Kit formatting{validation_note}"
             )
-            return {"message_sent": success, "images_sent": 0}
+            return {"message_sent": success, "images_sent": 0, "ts": message_ts}
+
+    def _track_thread_for_engagement(self, message_ts, birthday_people, personality):
+        """
+        Track a birthday thread for engagement features.
+
+        Args:
+            message_ts: Message timestamp of the birthday announcement
+            birthday_people: List of birthday person dicts
+            personality: Personality used for the celebration
+        """
+        try:
+            from config import THREAD_ENGAGEMENT_ENABLED
+
+            if not THREAD_ENGAGEMENT_ENABLED:
+                logger.debug(
+                    f"{self.mode}: Thread engagement disabled, skipping tracking"
+                )
+                return
+
+            from utils.thread_tracker import get_thread_tracker
+
+            # Extract user IDs from birthday people
+            user_ids = [p.get("user_id") for p in birthday_people if p.get("user_id")]
+
+            if not user_ids:
+                logger.debug(f"{self.mode}: No user IDs to track for thread engagement")
+                return
+
+            # Track the thread
+            tracker = get_thread_tracker()
+            tracker.track_thread(
+                channel=self.birthday_channel,
+                thread_ts=message_ts,
+                birthday_people=user_ids,
+                personality=personality,
+            )
+
+            logger.info(
+                f"{self.mode}: Tracking birthday thread {message_ts} for {len(user_ids)} people"
+            )
+
+        except ImportError:
+            # THREAD_ENGAGEMENT_ENABLED not yet added to config - skip silently
+            logger.debug(
+                f"{self.mode}: Thread engagement config not available, skipping"
+            )
+        except Exception as e:
+            # Don't let tracking failures affect the celebration
+            logger.warning(f"{self.mode}: Failed to track thread for engagement: {e}")
 
     def _mark_as_celebrated(self, people):
         """

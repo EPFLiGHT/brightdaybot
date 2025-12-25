@@ -159,7 +159,8 @@ class TestSendMessage:
         mock_slack_app.client.chat_postMessage.assert_called_once_with(
             channel="C123456", text="Hello world"
         )
-        assert result is True
+        assert result["success"] is True
+        assert "ts" in result
 
     def test_includes_blocks_when_provided(self, mock_slack_app):
         """Message includes blocks when provided."""
@@ -172,10 +173,10 @@ class TestSendMessage:
         mock_slack_app.client.chat_postMessage.assert_called_once_with(
             channel="C123456", text="Hello world", blocks=blocks
         )
-        assert result is True
+        assert result["success"] is True
 
     def test_returns_false_on_api_error(self, mock_slack_app, slack_api_error):
-        """Returns False when SlackApiError occurs."""
+        """Returns dict with success=False when SlackApiError occurs."""
         from utils.slack_utils import send_message
 
         mock_slack_app.client.chat_postMessage.side_effect = slack_api_error(
@@ -184,7 +185,8 @@ class TestSendMessage:
 
         result = send_message(mock_slack_app, "C999999", "Hello")
 
-        assert result is False
+        assert result["success"] is False
+        assert result["ts"] is None
 
 
 class TestSlackApiErrorHandling:
@@ -215,7 +217,7 @@ class TestSlackApiErrorHandling:
         with patch("utils.slack_utils.logger") as mock_logger:
             result = send_message(mock_slack_app, "C999999", "Hello")
 
-            assert result is False
+            assert result["success"] is False
             mock_logger.error.assert_called()
 
     def test_graceful_degradation_on_partial_failure(self, mock_slack_app):
