@@ -220,6 +220,7 @@ TOKEN_LIMITS = {
     # Interactive features
     "thread_thank_you": 50,  # Short thank-you messages in birthday threads
     "mention_response": 300,  # Responses to @-mentions
+    "special_day_thread_response": 400,  # Responses to special day thread replies
     "date_parsing": 100,  # NLP date extraction from natural language
 }
 
@@ -396,6 +397,18 @@ THREAD_THANK_YOU_ENABLED = (
 
 # Maximum thank-you messages per thread
 THREAD_MAX_THANK_YOUS = int(os.getenv("THREAD_MAX_THANK_YOUS", "3"))
+
+# ----- SPECIAL DAY THREAD ENGAGEMENT -----
+
+# Enable intelligent responses to special day thread replies
+SPECIAL_DAY_THREAD_ENABLED = (
+    os.getenv("SPECIAL_DAY_THREAD_ENABLED", "true").lower() == "true"
+)
+
+# Maximum responses per special day thread (prevent spam)
+SPECIAL_DAY_THREAD_MAX_RESPONSES = int(
+    os.getenv("SPECIAL_DAY_THREAD_MAX_RESPONSES", "5")
+)
 
 # ----- @-MENTION Q&A CONFIGURATION -----
 

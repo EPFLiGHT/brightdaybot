@@ -1,11 +1,12 @@
 """
 Thread Handler for BrightDayBot
 
-Handles engagement with birthday thread replies:
-- Adds content-aware reactions to replies
+Handles engagement with birthday and special day thread replies:
+- Adds content-aware reactions to birthday thread replies
 - Optionally sends personality-aware thank-you messages
+- Responds intelligently to special day thread questions
 
-Uses the ThreadTracker to identify active birthday threads.
+Uses the ThreadTracker to identify active threads.
 """
 
 import random
@@ -111,7 +112,8 @@ def handle_thread_reply(
         return result
 
     # Don't react to birthday person's own messages (let others celebrate them)
-    if user_id in tracked.birthday_people:
+    # Only applies to birthday threads
+    if tracked.is_birthday_thread() and user_id in tracked.birthday_people:
         logger.debug(f"THREAD_HANDLER: Ignoring message from birthday person {user_id}")
         return result
 
@@ -251,4 +253,257 @@ Respond with just the thank-you message, no quotes or explanation. Use 1-2 emoji
 
     except Exception as e:
         logger.error(f"THREAD_HANDLER: Failed to generate thank-you: {e}")
+        return None
+
+
+# =============================================================================
+# SPECIAL DAY THREAD HANDLING
+# =============================================================================
+
+
+def handle_special_day_thread_reply(
+    app,
+    channel: str,
+    thread_ts: str,
+    message_ts: str,
+    user_id: str,
+    text: str,
+    tracked_thread,
+) -> dict:
+    """
+    Handle a reply in a tracked special day thread.
+
+    Generates intelligent responses to questions about the special day,
+    using the special day context stored in the tracked thread.
+
+    Args:
+        app: Slack app instance
+        channel: Channel ID where reply was posted
+        thread_ts: Parent message timestamp (thread root)
+        message_ts: This reply's timestamp
+        user_id: User who posted the reply
+        text: Reply message text
+        tracked_thread: TrackedThread object with special day info
+
+    Returns:
+        Dict with results: {"response_sent": bool, "error": str or None}
+    """
+    from utils.thread_tracking import get_thread_tracker
+    from config import SPECIAL_DAY_THREAD_ENABLED, SPECIAL_DAY_THREAD_MAX_RESPONSES
+
+    result = {"response_sent": False, "error": None}
+
+    # Check if feature is enabled
+    if not SPECIAL_DAY_THREAD_ENABLED:
+        logger.debug("SPECIAL_DAY_THREAD: Thread engagement is disabled")
+        return result
+
+    # Check response limit
+    if tracked_thread.responses_sent >= SPECIAL_DAY_THREAD_MAX_RESPONSES:
+        logger.info(
+            f"SPECIAL_DAY_THREAD: Thread {thread_ts} reached max responses ({SPECIAL_DAY_THREAD_MAX_RESPONSES})"
+        )
+        return result
+
+    # Check if this looks like a question or engagement
+    if not _is_engaging_message(text):
+        logger.debug(f"SPECIAL_DAY_THREAD: Message doesn't appear to need response")
+        return result
+
+    try:
+        # Generate response using special day context
+        response = _generate_special_day_response(
+            text=text,
+            user_id=user_id,
+            special_day_info=tracked_thread.special_day_info,
+            personality=tracked_thread.personality,
+        )
+
+        if not response:
+            logger.warning("SPECIAL_DAY_THREAD: Failed to generate response")
+            return result
+
+        # Send as threaded reply
+        send_result = app.client.chat_postMessage(
+            channel=channel,
+            thread_ts=thread_ts,
+            text=response,
+        )
+
+        if send_result.get("ok"):
+            # Increment response count
+            tracker = get_thread_tracker()
+            tracker.increment_responses(channel, thread_ts)
+            result["response_sent"] = True
+            logger.info(
+                f"SPECIAL_DAY_THREAD: Sent response in thread {thread_ts} "
+                f"({tracked_thread.responses_sent + 1}/{SPECIAL_DAY_THREAD_MAX_RESPONSES})"
+            )
+        else:
+            result["error"] = "Failed to send message"
+            logger.warning(
+                f"SPECIAL_DAY_THREAD: Failed to send response: {send_result}"
+            )
+
+    except SlackApiError as e:
+        result["error"] = str(e)
+        logger.error(f"SPECIAL_DAY_THREAD: API error: {e}")
+    except Exception as e:
+        result["error"] = str(e)
+        logger.error(f"SPECIAL_DAY_THREAD: Error: {e}")
+
+    return result
+
+
+def _is_engaging_message(text: str) -> bool:
+    """
+    Check if a message appears to be engaging/asking for more info.
+
+    Args:
+        text: Message text
+
+    Returns:
+        True if message seems to warrant a response
+    """
+    text_lower = text.lower().strip()
+
+    # Question indicators
+    question_words = [
+        "what",
+        "why",
+        "how",
+        "when",
+        "where",
+        "who",
+        "can",
+        "could",
+        "tell",
+        "explain",
+    ]
+    question_marks = "?" in text
+
+    # Engagement keywords
+    engagement_keywords = [
+        "more",
+        "detail",
+        "explain",
+        "tell me",
+        "info",
+        "about",
+        "interesting",
+        "cool",
+        "wow",
+        "amazing",
+        "learn",
+        "celebrate",
+        "observ",
+        "history",
+        "origin",
+        "meaning",
+    ]
+
+    # Check for question
+    if question_marks:
+        return True
+
+    # Check for question words at start
+    for word in question_words:
+        if text_lower.startswith(word):
+            return True
+
+    # Check for engagement keywords
+    for keyword in engagement_keywords:
+        if keyword in text_lower:
+            return True
+
+    # Short messages are usually not engagement (just reactions like "nice!")
+    if len(text_lower) < 15:
+        return False
+
+    return False
+
+
+def _generate_special_day_response(
+    text: str,
+    user_id: str,
+    special_day_info: dict,
+    personality: str,
+) -> Optional[str]:
+    """
+    Generate an intelligent response about the special day.
+
+    Args:
+        text: User's message/question
+        user_id: User who asked
+        special_day_info: Dict with special day details
+        personality: Personality to use for response
+
+    Returns:
+        Response text or None on failure
+    """
+    try:
+        from integrations.openai import complete
+        from config import TOKEN_LIMITS, TEMPERATURE_SETTINGS
+        from personality_config import PERSONALITIES
+
+        # Defensive check for special_day_info
+        if not special_day_info or not isinstance(special_day_info, dict):
+            logger.warning("SPECIAL_DAY_THREAD: No special_day_info available")
+            return None
+
+        # Get personality info
+        personality_config = PERSONALITIES.get(
+            personality, PERSONALITIES.get("chronicler", {})
+        )
+        personality_name = personality_config.get(
+            "vivid_name", personality_config.get("name", "The Chronicler")
+        )
+
+        # Build special day context
+        days = special_day_info.get("days", [])
+        if not days:
+            logger.warning("SPECIAL_DAY_THREAD: No days in special_day_info")
+            return None
+
+        day_context = ""
+        for day in days:
+            day_context += f"\n- Name: {day.get('name', 'Unknown')}"
+            if day.get("description"):
+                day_context += f"\n  Description: {day['description'][:500]}"
+            if day.get("category"):
+                day_context += f"\n  Category: {day['category']}"
+            if day.get("source"):
+                day_context += f"\n  Source: {day['source']}"
+
+        prompt = f"""You are {personality_name}, a knowledgeable bot that shares information about special days and observances.
+
+Today's special day(s):{day_context}
+
+A user asked in the thread about this special day:
+"{text[:300]}"
+
+Generate a helpful, informative response (2-4 sentences) that:
+1. Directly addresses their question or comment
+2. Provides interesting and accurate information about the observance
+3. Uses a warm, engaging tone with 1-2 relevant emojis
+4. Encourages appreciation for the day's significance
+
+Keep your response concise and focused. Do not repeat information that was already in the announcement.
+
+Response:"""
+
+        response = complete(
+            input_text=prompt,
+            max_tokens=TOKEN_LIMITS.get("special_day_thread_response", 400),
+            temperature=TEMPERATURE_SETTINGS.get("default", 0.7),
+            context="SPECIAL_DAY_THREAD_RESPONSE",
+        )
+
+        if response and response.strip():
+            return response.strip()
+
+        return None
+
+    except Exception as e:
+        logger.error(f"SPECIAL_DAY_THREAD: Failed to generate response: {e}")
         return None

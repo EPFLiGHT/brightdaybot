@@ -59,7 +59,7 @@ def _try_nlp_date_parsing(text_lower: str, original_text: str):
 
 def _handle_thread_reply(app, event, channel, thread_ts):
     """
-    Handle thread replies in tracked birthday threads.
+    Handle thread replies in tracked birthday and special day threads.
 
     Args:
         app: Slack app instance
@@ -82,7 +82,9 @@ def _handle_thread_reply(app, event, channel, thread_ts):
 
         # Check if this thread is tracked
         tracker = get_thread_tracker()
-        if not tracker.is_tracked_thread(channel, thread_ts):
+        tracked_thread = tracker.get_thread(channel, thread_ts)
+
+        if not tracked_thread:
             return
 
         # Get message details
@@ -93,24 +95,47 @@ def _handle_thread_reply(app, event, channel, thread_ts):
         if not user_id or not message_ts:
             return
 
-        # Route to thread handler
-        from handlers.thread_handler import handle_thread_reply
+        # Route based on thread type
+        if tracked_thread.is_birthday_thread():
+            # Handle birthday thread replies (reactions, thank-yous)
+            from handlers.thread_handler import handle_thread_reply
 
-        result = handle_thread_reply(
-            app=app,
-            channel=channel,
-            thread_ts=thread_ts,
-            message_ts=message_ts,
-            user_id=user_id,
-            text=text,
-            thread_engagement_enabled=THREAD_ENGAGEMENT_ENABLED,
-            thread_max_reactions=THREAD_MAX_REACTIONS,
-            thread_thank_you_enabled=THREAD_THANK_YOU_ENABLED,
-            thread_max_thank_yous=THREAD_MAX_THANK_YOUS,
-        )
+            result = handle_thread_reply(
+                app=app,
+                channel=channel,
+                thread_ts=thread_ts,
+                message_ts=message_ts,
+                user_id=user_id,
+                text=text,
+                thread_engagement_enabled=THREAD_ENGAGEMENT_ENABLED,
+                thread_max_reactions=THREAD_MAX_REACTIONS,
+                thread_thank_you_enabled=THREAD_THANK_YOU_ENABLED,
+                thread_max_thank_yous=THREAD_MAX_THANK_YOUS,
+            )
 
-        if result.get("reaction_added"):
-            events_logger.debug(f"THREAD_REPLY: Added reaction to reply in {thread_ts}")
+            if result.get("reaction_added"):
+                events_logger.debug(
+                    f"THREAD_REPLY: Added reaction to birthday thread reply in {thread_ts}"
+                )
+
+        elif tracked_thread.is_special_day_thread():
+            # Handle special day thread replies (intelligent responses)
+            from handlers.thread_handler import handle_special_day_thread_reply
+
+            result = handle_special_day_thread_reply(
+                app=app,
+                channel=channel,
+                thread_ts=thread_ts,
+                message_ts=message_ts,
+                user_id=user_id,
+                text=text,
+                tracked_thread=tracked_thread,
+            )
+
+            if result.get("response_sent"):
+                events_logger.debug(
+                    f"THREAD_REPLY: Sent response to special day thread reply in {thread_ts}"
+                )
 
     except ImportError:
         # Config not available yet - skip silently
@@ -294,7 +319,9 @@ def register_event_handlers(app):
         # Ignore thread replies in DMs - don't process them as commands
         # This prevents "I Didn't Understand That" errors when users reply to bot messages
         if thread_ts:
-            events_logger.debug(f"DM_THREAD: Ignoring thread reply from user {event.get('user')}")
+            events_logger.debug(
+                f"DM_THREAD: Ignoring thread reply from user {event.get('user')}"
+            )
             return
 
         text = event.get("text", "").lower()

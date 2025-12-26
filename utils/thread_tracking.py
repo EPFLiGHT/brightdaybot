@@ -1,10 +1,11 @@
 """
 Thread Tracker for BrightDayBot
 
-Tracks birthday announcement threads for engagement features.
+Tracks birthday and special day announcement threads for engagement features.
 Threads are tracked for 24 hours after posting, allowing the bot to:
 - Add reactions to thread replies
 - Optionally send thank-you messages
+- Respond intelligently to questions about the announcement
 
 Uses in-memory storage with TTL-based cleanup.
 """
@@ -21,15 +22,20 @@ logger = get_logger("events")
 
 @dataclass
 class TrackedThread:
-    """Represents a tracked birthday thread."""
+    """Represents a tracked thread (birthday or special day)."""
 
     channel: str
     thread_ts: str
-    birthday_people: List[str]  # List of user IDs being celebrated
+    thread_type: str  # "birthday" or "special_day"
     personality: str
     created_at: datetime = field(default_factory=datetime.now)
     reactions_count: int = 0
     thank_yous_sent: int = 0
+    responses_sent: int = 0
+    # Birthday-specific fields
+    birthday_people: List[str] = field(default_factory=list)
+    # Special day-specific fields
+    special_day_info: Optional[Dict[str, Any]] = None
 
     def is_expired(self, ttl_hours: int = 24) -> bool:
         """Check if thread tracking has expired."""
@@ -38,6 +44,14 @@ class TrackedThread:
     def get_key(self) -> str:
         """Generate unique key for this thread."""
         return f"{self.channel}_{self.thread_ts}"
+
+    def is_birthday_thread(self) -> bool:
+        """Check if this is a birthday thread."""
+        return self.thread_type == "birthday"
+
+    def is_special_day_thread(self) -> bool:
+        """Check if this is a special day thread."""
+        return self.thread_type == "special_day"
 
 
 class ThreadTracker:
@@ -93,6 +107,7 @@ class ThreadTracker:
         thread = TrackedThread(
             channel=channel,
             thread_ts=thread_ts,
+            thread_type="birthday",
             birthday_people=birthday_people,
             personality=personality,
         )
@@ -102,11 +117,93 @@ class ThreadTracker:
         with self._threads_lock:
             self._threads[key] = thread
             logger.info(
-                f"THREAD_TRACKER: Tracking new thread {thread_ts} in {channel} "
+                f"THREAD_TRACKER: Tracking birthday thread {thread_ts} in {channel} "
                 f"for {len(birthday_people)} birthday people"
             )
 
         return thread
+
+    def track_special_day_thread(
+        self,
+        channel: str,
+        thread_ts: str,
+        special_days: List[Dict[str, Any]],
+        personality: str = "chronicler",
+    ) -> TrackedThread:
+        """
+        Start tracking a special day announcement thread for engagement.
+
+        Args:
+            channel: Slack channel ID
+            thread_ts: Message timestamp (thread parent)
+            special_days: List of special day dicts with name, description, etc.
+            personality: Personality used for the announcement
+
+        Returns:
+            TrackedThread object for the new thread
+        """
+        # Store special day info for context in responses
+        special_day_info = {
+            "days": [
+                {
+                    "name": sd.get(
+                        "name", sd.name if hasattr(sd, "name") else "Unknown"
+                    ),
+                    "description": sd.get(
+                        "description",
+                        sd.description if hasattr(sd, "description") else "",
+                    ),
+                    "category": sd.get(
+                        "category", sd.category if hasattr(sd, "category") else ""
+                    ),
+                    "source": sd.get(
+                        "source", sd.source if hasattr(sd, "source") else ""
+                    ),
+                }
+                for sd in special_days
+            ],
+            "count": len(special_days),
+        }
+
+        thread = TrackedThread(
+            channel=channel,
+            thread_ts=thread_ts,
+            thread_type="special_day",
+            personality=personality,
+            special_day_info=special_day_info,
+        )
+
+        key = thread.get_key()
+
+        with self._threads_lock:
+            self._threads[key] = thread
+            day_names = [d["name"] for d in special_day_info["days"][:3]]
+            logger.info(
+                f"THREAD_TRACKER: Tracking special day thread {thread_ts} in {channel} "
+                f"for {len(special_days)} special days: {', '.join(day_names)}"
+            )
+
+        return thread
+
+    def increment_responses(self, channel: str, thread_ts: str) -> bool:
+        """
+        Increment response count for a thread.
+
+        Args:
+            channel: Slack channel ID
+            thread_ts: Message timestamp
+
+        Returns:
+            True if incremented, False if thread not found
+        """
+        key = f"{channel}_{thread_ts}"
+
+        with self._threads_lock:
+            thread = self._threads.get(key)
+            if thread and not thread.is_expired(self._ttl_hours):
+                thread.responses_sent += 1
+                return True
+            return False
 
     def get_thread(self, channel: str, thread_ts: str) -> Optional[TrackedThread]:
         """
@@ -192,16 +289,25 @@ class ThreadTracker:
         if not thread:
             return None
 
-        return {
+        stats = {
             "channel": thread.channel,
             "thread_ts": thread.thread_ts,
-            "birthday_people": thread.birthday_people,
+            "thread_type": thread.thread_type,
             "personality": thread.personality,
             "created_at": thread.created_at.isoformat(),
             "reactions_count": thread.reactions_count,
             "thank_yous_sent": thread.thank_yous_sent,
+            "responses_sent": thread.responses_sent,
             "age_minutes": (datetime.now() - thread.created_at).total_seconds() / 60,
         }
+
+        # Add type-specific fields
+        if thread.is_birthday_thread():
+            stats["birthday_people"] = thread.birthday_people
+        elif thread.is_special_day_thread():
+            stats["special_day_info"] = thread.special_day_info
+
+        return stats
 
     def cleanup_expired(self) -> int:
         """
