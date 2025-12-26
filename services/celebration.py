@@ -1203,4 +1203,4 @@ def get_bot_celebration_image_title():
     except Exception as e:
         logger.error(f"BOT_CELEBRATION: Failed to generate AI title: {e}")
         # Fallback to a cosmic but static title
-        return "🌟 Ludo's Cosmic Birthday Vision: The Nine Sacred Forms! 🎂✨"
+        return f"🌟 Ludo's Cosmic Birthday Vision: The {get_celebration_personality_count()} Sacred Forms! 🎂✨"
