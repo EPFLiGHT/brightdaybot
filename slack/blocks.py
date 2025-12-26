@@ -1586,6 +1586,7 @@ def build_special_days_list_blocks(
     view_mode: str = "list",
     category_filter: Optional[str] = None,
     date_filter: Optional[str] = None,
+    admin_view: bool = False,
 ) -> tuple[List[Dict[str, Any]], str]:
     """
     Build Block Kit structure for special days list display
@@ -1595,6 +1596,7 @@ def build_special_days_list_blocks(
         view_mode: Display mode ("list", "today", "week", "month", "search")
         category_filter: Optional category filter for list view
         date_filter: Optional date string for today/week/month views
+        admin_view: If True, show additional admin details (source, URL, status)
 
     Returns:
         Tuple of (blocks list, fallback_text string)
@@ -1609,9 +1611,11 @@ def build_special_days_list_blocks(
     elif view_mode == "month":
         header_text = "📅 Special Days - Next 30 Days"
     elif view_mode == "search":
-        header_text = f"📅 Special Days Search Results"
+        header_text = "📅 Special Days Search Results"
     else:  # list
-        if category_filter:
+        if admin_view:
+            header_text = f"📅 Admin Special Days View{f' ({category_filter})' if category_filter else ''}"
+        elif category_filter:
             header_text = f"📅 All Special Days ({category_filter})"
         else:
             header_text = "📅 All Special Days"
@@ -1747,15 +1751,43 @@ def build_special_days_list_blocks(
 
                 months_dict[month].sort(key=get_day_sort_key)
 
-                # Build month entries
+                # Build month entries (split into chunks to avoid 3000 char limit)
                 month_text = ""
                 for day in months_dict[month]:
                     emoji = f"{day.emoji} " if day.emoji else ""
-                    month_text += f"  {emoji}{day.date} - {day.name}\n"
 
-                blocks.append(
-                    {"type": "section", "text": {"type": "mrkdwn", "text": month_text}}
-                )
+                    if admin_view:
+                        # Admin view: show status, source, and URL
+                        status = "✅" if day.enabled else "❌"
+                        source = f"[{day.source}]" if day.source else "[Custom]"
+                        entry = f"  {status} {day.date}: {emoji}*{day.name}* ({day.category}) {source}\n"
+                        if day.url:
+                            entry += f"        🔗 <{day.url}|View source>\n"
+                    else:
+                        # User view: simple format
+                        entry = f"  {emoji}{day.date} - {day.name}\n"
+
+                    # Check if adding this entry would exceed limit (2800 to be safe)
+                    if len(month_text) + len(entry) > 2800:
+                        # Flush current text and start new block
+                        blocks.append(
+                            {
+                                "type": "section",
+                                "text": {"type": "mrkdwn", "text": month_text},
+                            }
+                        )
+                        month_text = entry
+                    else:
+                        month_text += entry
+
+                # Add remaining text
+                if month_text:
+                    blocks.append(
+                        {
+                            "type": "section",
+                            "text": {"type": "mrkdwn", "text": month_text},
+                        }
+                    )
 
     # Add context footer
     total_count = (
@@ -1775,6 +1807,20 @@ def build_special_days_list_blocks(
             "elements": [{"type": "mrkdwn", "text": context_text}],
         }
     )
+
+    # Add admin action hints
+    if admin_view and view_mode == "list":
+        blocks.append(
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": "_Actions: `admin special remove DD/MM` | `admin special test DD/MM` | `admin special add ...`_",
+                    }
+                ],
+            }
+        )
 
     # Fallback text
     fallback_text = f"{header_text}: {total_count} special days"

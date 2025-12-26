@@ -101,7 +101,7 @@ def handle_special_command(args, user_id, say, app):
         say(blocks=blocks, text=fallback)
 
     elif subcommand == "list":
-        # List all special days by category using Block Kit (all sources)
+        # List upcoming special days by category using Block Kit (user-friendly view)
         category_filter = args[1] if len(args) > 1 else None
         all_days = load_all_special_days()
 
@@ -315,7 +315,9 @@ def handle_admin_special_command(args, user_id, say, app):
             say(f"❌ No special day found for {date_str}")
 
     elif subcommand == "list":
-        # List all special days or by category (all sources)
+        # List all special days with admin details using Block Kit
+        from slack.blocks import build_special_days_list_blocks
+
         category_filter = args[1] if len(args) > 1 else None
         all_days = load_all_special_days()
 
@@ -324,42 +326,10 @@ def handle_admin_special_command(args, user_id, say, app):
                 d for d in all_days if d.category.lower() == category_filter.lower()
             ]
 
-        if all_days:
-            message = f"📅 *All Special Days{f' ({category_filter})' if category_filter else ''}:*\n\n"
-
-            # Group by month using datetime parsing
-            by_month = defaultdict(list)
-            for day in all_days:
-                try:
-                    date_obj = datetime.strptime(day.date, DATE_FORMAT)
-                    by_month[date_obj.month].append(day)
-                except ValueError:
-                    logger.warning(f"Skipping invalid date format: {day.date}")
-                    continue
-
-            def get_day_number(d):
-                """Safely extract day number for sorting using datetime."""
-                try:
-                    return datetime.strptime(d.date, DATE_FORMAT).day
-                except ValueError:
-                    return 0
-
-            for month in sorted(by_month.keys()):
-                message += f"*{month_name[month]}:*\n"
-                for day in sorted(
-                    by_month[month],
-                    key=get_day_number,
-                ):
-                    emoji = f"{day.emoji} " if day.emoji else ""
-                    status = "✅" if day.enabled else "❌"
-                    message += (
-                        f"  {status} {day.date}: {emoji}{day.name} ({day.category})\n"
-                    )
-                message += "\n"
-        else:
-            message = f"No special days found{f' for category {category_filter}' if category_filter else ''}."
-
-        say(message)
+        blocks, fallback = build_special_days_list_blocks(
+            all_days, view_mode="list", category_filter=category_filter, admin_view=True
+        )
+        say(blocks=blocks, text=fallback)
 
     elif subcommand == "categories":
         # Manage category settings

@@ -162,43 +162,36 @@ def load_all_special_days() -> List[SpecialDay]:
     except Exception as e:
         logger.warning(f"Failed to load UN observances cache: {e}")
 
-    # 3. Load Calendarific from cache
-    try:
-        from config import CALENDARIFIC_ENABLED, CALENDARIFIC_CACHE_DIR
-        import os
-        import json
+    # 3. Load Calendarific from cache using proper conversion
+    # Uses the same _dict_to_special_day() method as get_holidays_for_date()
+    if CALENDARIFIC_ENABLED and CALENDARIFIC_API_KEY:
+        try:
+            from integrations.calendarific import get_calendarific_client
+            from config import CALENDARIFIC_CACHE_DIR
 
-        if CALENDARIFIC_ENABLED and os.path.exists(CALENDARIFIC_CACHE_DIR):
-            for filename in os.listdir(CALENDARIFIC_CACHE_DIR):
-                if filename.endswith(".json") and filename != "rate_counter.json":
+            client = get_calendarific_client()
+
+            if os.path.exists(CALENDARIFIC_CACHE_DIR):
+                for filename in os.listdir(CALENDARIFIC_CACHE_DIR):
+                    # Skip non-date files (rate counter, prefetch timestamp)
+                    if not filename.endswith(".json") or not filename[0].isdigit():
+                        continue
+
                     filepath = os.path.join(CALENDARIFIC_CACHE_DIR, filename)
                     try:
                         with open(filepath, "r") as f:
                             holidays = json.load(f)
+                            # Use client's conversion method for proper field mapping
                             for h in holidays:
-                                # Convert to DD/MM format
-                                iso_date = h.get("date", {}).get("iso", "")
-                                if iso_date:
-                                    from datetime import datetime
-
-                                    dt = datetime.fromisoformat(iso_date[:10])
-                                    date_str = dt.strftime("%d/%m")
-                                    all_days.append(
-                                        SpecialDay(
-                                            date=date_str,
-                                            name=h.get("name", ""),
-                                            category=h.get("category", "Culture"),
-                                            description=h.get("description", ""),
-                                            emoji=h.get("emoji", ""),
-                                            enabled=True,
-                                            source=h.get("source", "Calendarific"),
-                                            url=h.get("url", ""),
-                                        )
-                                    )
-                    except (json.JSONDecodeError, IOError):
+                                special_day = client._dict_to_special_day(h)
+                                if special_day.date:  # Only add if date is valid
+                                    all_days.append(special_day)
+                    except (json.JSONDecodeError, IOError) as e:
+                        logger.debug(f"Failed to read cache file {filename}: {e}")
                         continue
-    except Exception as e:
-        logger.warning(f"Failed to load Calendarific cache: {e}")
+
+        except Exception as e:
+            logger.warning(f"Failed to load Calendarific cache: {e}")
 
     # Deduplicate
     unique_days = _deduplicate_special_days(all_days)
@@ -423,17 +416,22 @@ def _normalize_name(name: str) -> str:
         "global ",
         "national ",
     ]
+    prefix_stripped = False
     for prefix in prefixes:
         if name.startswith(prefix):
             name = name[len(prefix) :]
+            prefix_stripped = True
             break
 
-    # Remove common suffixes
-    suffixes = [" day", " week", " month", " year"]
-    for suffix in suffixes:
-        if name.endswith(suffix):
-            name = name[: -len(suffix)]
-            break
+    # Only remove common suffixes if we also stripped a prefix
+    # This prevents "Christmas Day" from matching "Christmas Eve"
+    # but allows "International Day of Peace" → "peace"
+    if prefix_stripped:
+        suffixes = [" day", " week", " month", " year"]
+        for suffix in suffixes:
+            if name.endswith(suffix):
+                name = name[: -len(suffix)]
+                break
 
     # Remove punctuation and extra whitespace
     name = re.sub(r"[^\w\s]", "", name)
@@ -485,10 +483,13 @@ def _names_match(name1: str, name2: str) -> bool:
     if len(common_words) >= 2:
         return True
 
-    # Single word match - only for single-word normalized names that are identical
-    # This prevents "health" from matching "mental health"
+    # Single word match - only when normalized names are also identical
+    # This prevents "christmas day" from matching "christmas eve"
+    # (both have single significant word "christmas" but different short words)
     if len(words1) == 1 and len(words2) == 1 and words1 == words2:
-        return True
+        # Additional check: require normalized names to be identical
+        if norm1 == norm2:
+            return True
 
     return False
 

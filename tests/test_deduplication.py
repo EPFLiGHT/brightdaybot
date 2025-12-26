@@ -20,9 +20,11 @@ class TestNormalizeName:
         assert _normalize_name("World Health Day") == "health"
         assert _normalize_name("Global Handwashing Day") == "handwashing"
 
-    def test_removes_day_suffix(self):
-        """Removes 'Day' suffix"""
-        assert _normalize_name("Earth Day") == "earth"
+    def test_keeps_day_suffix_without_prefix(self):
+        """Keeps 'Day' suffix when no common prefix (prevents 'Christmas Day' matching 'Christmas Eve')"""
+        assert _normalize_name("Earth Day") == "earth day"
+        assert _normalize_name("Christmas Day") == "christmas day"
+        assert _normalize_name("Christmas Eve") == "christmas eve"
 
     def test_case_insensitive(self):
         """Normalizes to lowercase"""
@@ -47,6 +49,10 @@ class TestNamesMatch:
     def test_completely_different_no_match(self):
         """Completely different events should not match"""
         assert _names_match("Christmas", "Easter") is False
+
+    def test_christmas_day_vs_eve_no_match(self):
+        """Christmas Day and Christmas Eve are different events"""
+        assert _names_match("Christmas Day", "Christmas Eve") is False
 
 
 class TestDeduplicateSpecialDays:
