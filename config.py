@@ -348,14 +348,36 @@ CALENDARIFIC_RATE_WARNING_THRESHOLD = 400  # Warn when approaching limit
 # ----- UN OBSERVANCES CONFIGURATION -----
 
 # UN International Days scraped from official UN website
-# Source: https://www.un.org/en/observances/list-days-weeks
 # Uses crawl4ai for intelligent scraping (pip install crawl4ai && crawl4ai-setup)
 UN_OBSERVANCES_ENABLED = os.getenv("UN_OBSERVANCES_ENABLED", "true").lower() == "true"
+UN_OBSERVANCES_URL = "https://www.un.org/en/observances/list-days-weeks"
 UN_OBSERVANCES_CACHE_TTL_DAYS = (
     7  # On-demand cache freshness check (scheduled refresh is monthly)
 )
 UN_OBSERVANCES_CACHE_DIR = os.path.join(CACHE_DIR, "un_observances")
 UN_OBSERVANCES_CACHE_FILE = os.path.join(UN_OBSERVANCES_CACHE_DIR, "un_days.json")
+
+# ----- UNESCO OBSERVANCES CONFIGURATION -----
+
+# UNESCO International Days scraped from official UNESCO website
+UNESCO_OBSERVANCES_ENABLED = (
+    os.getenv("UNESCO_OBSERVANCES_ENABLED", "true").lower() == "true"
+)
+UNESCO_OBSERVANCES_URL = "https://www.unesco.org/en/days/list"
+UNESCO_OBSERVANCES_CACHE_TTL_DAYS = 30  # Monthly refresh
+UNESCO_OBSERVANCES_CACHE_DIR = os.path.join(CACHE_DIR, "unesco_observances")
+UNESCO_OBSERVANCES_CACHE_FILE = os.path.join(
+    UNESCO_OBSERVANCES_CACHE_DIR, "unesco_days.json"
+)
+
+# ----- WHO OBSERVANCES CONFIGURATION -----
+
+# WHO Health Days scraped from official WHO website
+WHO_OBSERVANCES_ENABLED = os.getenv("WHO_OBSERVANCES_ENABLED", "true").lower() == "true"
+WHO_OBSERVANCES_URL = "https://www.who.int/campaigns"
+WHO_OBSERVANCES_CACHE_TTL_DAYS = 30  # Monthly refresh
+WHO_OBSERVANCES_CACHE_DIR = os.path.join(CACHE_DIR, "who_observances")
+WHO_OBSERVANCES_CACHE_FILE = os.path.join(WHO_OBSERVANCES_CACHE_DIR, "who_days.json")
 
 # ----- THREAD ENGAGEMENT CONFIGURATION -----
 

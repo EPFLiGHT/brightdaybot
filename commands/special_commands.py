@@ -649,6 +649,38 @@ def handle_admin_special_command(args, user_id, say, app):
             say(f"❌ Prefetch error: {e}")
             logger.error(f"ADMIN_SPECIAL: Calendarific refresh failed: {e}")
 
+    elif subcommand in ["observances-status", "observances", "sources"]:
+        # Combined status for all observance sources
+        try:
+            from integrations.un_observances import get_un_cache_status
+            from integrations.unesco_observances import get_unesco_cache_status
+            from integrations.who_observances import get_who_cache_status
+
+            un_status = get_un_cache_status()
+            unesco_status = get_unesco_cache_status()
+            who_status = get_who_cache_status()
+
+            def format_status(status, name):
+                fresh = "✅" if status["cache_fresh"] else "⚠️"
+                count = status["observance_count"]
+                return f"• {name}: {fresh} {count} days"
+
+            message = f"""📊 *Observance Sources Status*
+
+{format_status(un_status, "UN")}
+{format_status(unesco_status, "UNESCO")}
+{format_status(who_status, "WHO")}
+
+*Total unique days after deduplication:* ~284
+
+_Use `admin special [un|unesco|who]-status` for details._
+_Use `admin special [un|unesco|who]-refresh` to force update._"""
+            say(message)
+
+        except Exception as e:
+            say(f"❌ Failed to get observances status: {e}")
+            logger.error(f"ADMIN_SPECIAL: Failed to get observances status: {e}")
+
     elif subcommand in ["un-status", "un"]:
         # UN Observances: Show cache status
         try:
@@ -699,6 +731,108 @@ _Cache refreshes weekly. Use `admin special un-refresh` to force update._"""
         except Exception as e:
             say(f"❌ Refresh error: {e}")
             logger.error(f"ADMIN_SPECIAL: UN refresh failed: {e}")
+
+    elif subcommand in ["unesco-status", "unesco"]:
+        # UNESCO Observances: Show cache status
+        try:
+            from integrations.unesco_observances import get_unesco_cache_status
+
+            status = get_unesco_cache_status()
+
+            last_updated = status.get("last_updated")
+            if last_updated:
+                last_dt = datetime.fromisoformat(last_updated)
+                last_str = last_dt.strftime("%Y-%m-%d %H:%M")
+            else:
+                last_str = "Never"
+
+            message = f"""📊 *UNESCO Observances Cache Status*
+
+• Cache exists: {'✅ Yes' if status['cache_exists'] else '❌ No'}
+• Cache fresh: {'✅ Yes' if status['cache_fresh'] else '⚠️ Stale'}
+• Last updated: {last_str}
+• Observances cached: {status['observance_count']}
+
+*Source:* {status['source_url']}
+
+_Cache refreshes monthly. Use `admin special unesco-refresh` to force update._"""
+            say(message)
+
+        except Exception as e:
+            say(f"❌ Failed to get UNESCO cache status: {e}")
+            logger.error(f"ADMIN_SPECIAL: Failed to get UNESCO status: {e}")
+
+    elif subcommand == "unesco-refresh":
+        # UNESCO Observances: Force refresh
+        try:
+            from integrations.unesco_observances import refresh_unesco_cache
+
+            say("🔄 Refreshing UNESCO observances cache...")
+
+            stats = refresh_unesco_cache(force=True)
+
+            if stats.get("error"):
+                say(f"❌ Refresh failed: {stats['error']}")
+            else:
+                say(
+                    f"✅ UNESCO observances cache refreshed: {stats['fetched']} observances"
+                )
+                logger.info(f"ADMIN_SPECIAL: {username} refreshed UNESCO cache")
+
+        except Exception as e:
+            say(f"❌ Refresh error: {e}")
+            logger.error(f"ADMIN_SPECIAL: UNESCO refresh failed: {e}")
+
+    elif subcommand in ["who-status", "who"]:
+        # WHO Observances: Show cache status
+        try:
+            from integrations.who_observances import get_who_cache_status
+
+            status = get_who_cache_status()
+
+            last_updated = status.get("last_updated")
+            if last_updated:
+                last_dt = datetime.fromisoformat(last_updated)
+                last_str = last_dt.strftime("%Y-%m-%d %H:%M")
+            else:
+                last_str = "Never"
+
+            message = f"""📊 *WHO Observances Cache Status*
+
+• Cache exists: {'✅ Yes' if status['cache_exists'] else '❌ No'}
+• Cache fresh: {'✅ Yes' if status['cache_fresh'] else '⚠️ Stale'}
+• Last updated: {last_str}
+• Observances cached: {status['observance_count']}
+
+*Source:* {status['source_url']}
+
+_Cache refreshes monthly. Use `admin special who-refresh` to force update._"""
+            say(message)
+
+        except Exception as e:
+            say(f"❌ Failed to get WHO cache status: {e}")
+            logger.error(f"ADMIN_SPECIAL: Failed to get WHO status: {e}")
+
+    elif subcommand == "who-refresh":
+        # WHO Observances: Force refresh
+        try:
+            from integrations.who_observances import refresh_who_cache
+
+            say("🔄 Refreshing WHO observances cache...")
+
+            stats = refresh_who_cache(force=True)
+
+            if stats.get("error"):
+                say(f"❌ Refresh failed: {stats['error']}")
+            else:
+                say(
+                    f"✅ WHO observances cache refreshed: {stats['fetched']} observances"
+                )
+                logger.info(f"ADMIN_SPECIAL: {username} refreshed WHO cache")
+
+        except Exception as e:
+            say(f"❌ Refresh error: {e}")
+            logger.error(f"ADMIN_SPECIAL: WHO refresh failed: {e}")
 
     elif subcommand in ["api-status", "api", "calendarific"]:
         # Calendarific: Show API status
@@ -762,9 +896,14 @@ _Run `admin special refresh` to update cache_"""
 • `admin special config [setting value]` - View/update configuration
 • `admin special verify` - Verify CSV data accuracy
 
-*UN Observances (~230 days):*
-• `admin special un-status` - Show UN cache status
+*Observance Sources:*
+• `admin special observances` - Combined status for all sources
+• `admin special un-status` - UN cache status (~220 days, weekly)
 • `admin special un-refresh` - Force refresh UN cache
+• `admin special unesco-status` - UNESCO cache status (~75 days, monthly)
+• `admin special unesco-refresh` - Force refresh UNESCO cache
+• `admin special who-status` - WHO cache status (~26 days, monthly)
+• `admin special who-refresh` - Force refresh WHO cache
 
 *Calendarific API (national holidays):*
 • `admin special api-status` - Show Calendarific status

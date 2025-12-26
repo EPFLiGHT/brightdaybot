@@ -27,6 +27,10 @@ from config import (
     TIMEOUTS,
     UN_OBSERVANCES_ENABLED,
     UN_OBSERVANCES_CACHE_FILE,
+    UNESCO_OBSERVANCES_ENABLED,
+    UNESCO_OBSERVANCES_CACHE_FILE,
+    WHO_OBSERVANCES_ENABLED,
+    WHO_OBSERVANCES_CACHE_FILE,
     CALENDARIFIC_ENABLED,
     CALENDARIFIC_API_KEY,
     UPCOMING_DAYS_DEFAULT,
@@ -138,29 +142,33 @@ def load_all_special_days() -> List[SpecialDay]:
     csv_days = load_special_days()
     all_days.extend(csv_days)
 
-    # 2. Load UN observances from cache
-    try:
-        import json
-        import os
+    # 2. Load observances from all scraped caches (UN, UNESCO, WHO)
+    cache_sources = [
+        (UN_OBSERVANCES_CACHE_FILE, "UN"),
+        (UNESCO_OBSERVANCES_CACHE_FILE, "UNESCO"),
+        (WHO_OBSERVANCES_CACHE_FILE, "WHO"),
+    ]
 
-        if os.path.exists(UN_OBSERVANCES_CACHE_FILE):
-            with open(UN_OBSERVANCES_CACHE_FILE, "r") as f:
-                un_data = json.load(f)
-                for obs in un_data.get("observances", []):
-                    all_days.append(
-                        SpecialDay(
-                            date=obs["date"],
-                            name=obs["name"],
-                            category=obs.get("category", "Culture"),
-                            description=obs.get("description", ""),
-                            emoji=obs.get("emoji", ""),
-                            enabled=True,
-                            source=obs.get("source", "UN"),
-                            url=obs.get("url", ""),
+    for cache_file, source_name in cache_sources:
+        try:
+            if os.path.exists(cache_file):
+                with open(cache_file, "r") as f:
+                    cache_data = json.load(f)
+                    for obs in cache_data.get("observances", []):
+                        all_days.append(
+                            SpecialDay(
+                                date=obs["date"],
+                                name=obs["name"],
+                                category=obs.get("category", "Culture"),
+                                description=obs.get("description", ""),
+                                emoji=obs.get("emoji", ""),
+                                enabled=True,
+                                source=obs.get("source", source_name),
+                                url=obs.get("url", ""),
+                            )
                         )
-                    )
-    except Exception as e:
-        logger.warning(f"Failed to load UN observances cache: {e}")
+        except Exception as e:
+            logger.warning(f"Failed to load {source_name} observances cache: {e}")
 
     # 3. Load Calendarific from cache using proper conversion
     # Uses the same _dict_to_special_day() method as get_holidays_for_date()
@@ -581,7 +589,35 @@ def get_special_days_for_date(date: datetime) -> List[SpecialDay]:
         except Exception as e:
             logger.error(f"UN_OBSERVANCES: Failed to fetch for {date_str}: {e}")
 
-    # Source 2: Calendarific API (if enabled) - Swiss national holidays
+    # Source 2: UNESCO Observances (if enabled)
+    if UNESCO_OBSERVANCES_ENABLED:
+        try:
+            from integrations.unesco_observances import get_unesco_observances_for_date
+
+            unesco_days = get_unesco_observances_for_date(date)
+            special_days.extend(unesco_days)
+            if unesco_days:
+                logger.debug(
+                    f"UNESCO_OBSERVANCES: Found {len(unesco_days)} observance(s) for {date_str}"
+                )
+        except Exception as e:
+            logger.error(f"UNESCO_OBSERVANCES: Failed to fetch for {date_str}: {e}")
+
+    # Source 3: WHO Observances (if enabled)
+    if WHO_OBSERVANCES_ENABLED:
+        try:
+            from integrations.who_observances import get_who_observances_for_date
+
+            who_days = get_who_observances_for_date(date)
+            special_days.extend(who_days)
+            if who_days:
+                logger.debug(
+                    f"WHO_OBSERVANCES: Found {len(who_days)} observance(s) for {date_str}"
+                )
+        except Exception as e:
+            logger.error(f"WHO_OBSERVANCES: Failed to fetch for {date_str}: {e}")
+
+    # Source 4: Calendarific API (if enabled) - Swiss national holidays
     if CALENDARIFIC_ENABLED and CALENDARIFIC_API_KEY:
         try:
             from integrations.calendarific import get_calendarific_client
@@ -596,7 +632,7 @@ def get_special_days_for_date(date: datetime) -> List[SpecialDay]:
         except Exception as e:
             logger.error(f"CALENDARIFIC: Failed to fetch for {date_str}: {e}")
 
-    # Source 3: CSV for Company days (always load)
+    # Source 5: CSV for Company days (always load)
     csv_days = load_special_days()
     company_days = [
         d for d in csv_days if d.date == date_str and d.category == "Company"
@@ -604,8 +640,11 @@ def get_special_days_for_date(date: datetime) -> List[SpecialDay]:
     special_days.extend(company_days)
 
     # If no external sources provided data, fall back to full CSV
-    if not UN_OBSERVANCES_ENABLED and not (
-        CALENDARIFIC_ENABLED and CALENDARIFIC_API_KEY
+    if (
+        not UN_OBSERVANCES_ENABLED
+        and not UNESCO_OBSERVANCES_ENABLED
+        and not WHO_OBSERVANCES_ENABLED
+        and not (CALENDARIFIC_ENABLED and CALENDARIFIC_API_KEY)
     ):
         # Legacy mode: use CSV for everything
         all_csv_days = [d for d in csv_days if d.date == date_str]
@@ -1117,23 +1156,66 @@ def initialize_special_days_cache():
     Called from app.py at startup to ensure caches are populated.
     """
     # UN Observances
-    try:
-        from integrations.un_observances import get_un_client
+    if UN_OBSERVANCES_ENABLED:
+        try:
+            from integrations.un_observances import get_un_client
 
-        client = get_un_client()
-        if not client._is_cache_fresh():
-            logger.info("INIT: UN observances cache stale/missing, refreshing...")
-            stats = client.refresh_cache()
-            if stats.get("error"):
-                logger.warning(f"INIT: UN refresh failed: {stats['error']}")
+            client = get_un_client()
+            if not client._is_cache_fresh():
+                logger.info("INIT: UN observances cache stale/missing, refreshing...")
+                stats = client.refresh_cache()
+                if stats.get("error"):
+                    logger.warning(f"INIT: UN refresh failed: {stats['error']}")
+                else:
+                    logger.info(
+                        f"INIT: UN cache refreshed with {stats['fetched']} observances"
+                    )
             else:
+                logger.info("INIT: UN observances cache is fresh")
+        except Exception as e:
+            logger.warning(f"INIT: Failed to initialize UN cache: {e}")
+
+    # UNESCO Observances
+    if UNESCO_OBSERVANCES_ENABLED:
+        try:
+            from integrations.unesco_observances import get_unesco_client
+
+            client = get_unesco_client()
+            if not client._is_cache_fresh():
                 logger.info(
-                    f"INIT: UN cache refreshed with {stats['fetched']} observances"
+                    "INIT: UNESCO observances cache stale/missing, refreshing..."
                 )
-        else:
-            logger.info("INIT: UN observances cache is fresh")
-    except Exception as e:
-        logger.warning(f"INIT: Failed to initialize UN cache: {e}")
+                stats = client.refresh_cache()
+                if stats.get("error"):
+                    logger.warning(f"INIT: UNESCO refresh failed: {stats['error']}")
+                else:
+                    logger.info(
+                        f"INIT: UNESCO cache refreshed with {stats['fetched']} observances"
+                    )
+            else:
+                logger.info("INIT: UNESCO observances cache is fresh")
+        except Exception as e:
+            logger.warning(f"INIT: Failed to initialize UNESCO cache: {e}")
+
+    # WHO Observances
+    if WHO_OBSERVANCES_ENABLED:
+        try:
+            from integrations.who_observances import get_who_client
+
+            client = get_who_client()
+            if not client._is_cache_fresh():
+                logger.info("INIT: WHO observances cache stale/missing, refreshing...")
+                stats = client.refresh_cache()
+                if stats.get("error"):
+                    logger.warning(f"INIT: WHO refresh failed: {stats['error']}")
+                else:
+                    logger.info(
+                        f"INIT: WHO cache refreshed with {stats['fetched']} observances"
+                    )
+            else:
+                logger.info("INIT: WHO observances cache is fresh")
+        except Exception as e:
+            logger.warning(f"INIT: Failed to initialize WHO cache: {e}")
 
     # Calendarific
     if CALENDARIFIC_ENABLED:

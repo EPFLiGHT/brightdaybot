@@ -137,14 +137,24 @@ NLP_DATE_PARSING_ENABLED="false"    # Enable NLP parsing (default: false)
 ### Special Days Setup (Optional)
 
 ```bash
-# UN Observances (requires crawl4ai)
+# UN/UNESCO/WHO Observances (requires crawl4ai)
 pip install crawl4ai && crawl4ai-setup
 
 # Calendarific holidays (optional, 500 free calls/month)
 # Add to .env: CALENDARIFIC_API_KEY="..." CALENDARIFIC_ENABLED="true"
 ```
 
-Both sources auto-populate on first access. Duplicate events are automatically deduplicated with UN taking priority.
+**Data Sources:**
+
+| Source       | Content                 | Update Frequency |
+| ------------ | ----------------------- | ---------------- |
+| UN           | ~220 international days | Weekly           |
+| UNESCO       | ~75 international days  | Monthly          |
+| WHO          | ~26 health campaigns    | Monthly          |
+| Calendarific | National/local holidays | Weekly           |
+| CSV          | Company custom days     | Manual           |
+
+All sources auto-populate on first access. Duplicates are automatically deduplicated with UN/WHO/UNESCO taking priority over Calendarific.
 
 ### Timezone Modes
 
@@ -157,44 +167,49 @@ Toggle with `admin timezone enable/disable`.
 
 ```text
 brightdaybot/
-├── app.py                  # Entry point
-├── config.py               # Configuration
-├── personality_config.py   # Personality definitions
-├── commands/               # Command processors
+├── app.py                    # Entry point
+├── config.py                 # Configuration
+├── personality_config.py     # Personality definitions
+├── commands/                 # Command processors
 │   ├── birthday_commands.py
 │   ├── admin_commands.py
 │   └── special_commands.py
-├── handlers/               # Slack event handlers
-│   ├── slash_commands.py   # /birthday, /special-day
-│   ├── modal_handlers.py   # Birthday form modal
-│   ├── app_home.py         # App Home dashboard
-│   └── event_handler.py    # DM & channel events
-├── services/               # Business logic
-│   ├── birthday.py         # Celebrations
-│   ├── celebration.py      # Pipeline & validation
-│   ├── scheduler.py        # Background tasks
-│   ├── message.py          # AI message generation
-│   └── special_day.py      # Special day messages
-├── integrations/           # External API clients
-│   ├── openai.py           # OpenAI API
-│   ├── un_observances.py   # UN/WHO/UNESCO day scraper
-│   └── calendarific.py     # National holiday API
-├── slack/                  # Slack API layer
-│   ├── client.py           # API wrappers
-│   └── blocks.py           # Block Kit builders
-├── storage/                # Data persistence
-│   ├── birthdays.py        # Birthday storage
-│   └── special_days.py     # Special days storage
-├── image/                  # Image generation
-│   └── generator.py        # AI image generation
-├── utils/                  # Pure utilities
-│   ├── date.py             # Date parsing, star signs
-│   └── health.py           # System health
+├── handlers/                 # Slack event handlers
+│   ├── slash_commands.py     # /birthday, /special-day
+│   ├── modal_handlers.py     # Birthday form modal
+│   ├── app_home.py           # App Home dashboard
+│   └── event_handler.py      # DM & channel events
+├── services/                 # Business logic
+│   ├── birthday.py           # Celebrations
+│   ├── celebration.py        # Pipeline & validation
+│   ├── scheduler.py          # Background tasks
+│   ├── message.py            # AI message generation
+│   └── special_day.py        # Special day messages
+├── integrations/             # External API clients
+│   ├── openai.py             # OpenAI API
+│   ├── observances_base.py   # Base class for scrapers
+│   ├── un_observances.py     # UN international days
+│   ├── unesco_observances.py # UNESCO international days
+│   ├── who_observances.py    # WHO health campaigns
+│   ├── calendarific.py       # National holiday API
+│   └── web_search.py         # Historical facts
+├── slack/                    # Slack API layer
+│   ├── client.py             # API wrappers
+│   └── blocks.py             # Block Kit builders
+├── storage/                  # Data persistence
+│   ├── birthdays.py          # Birthday storage
+│   ├── special_days.py       # Special days (multi-source)
+│   └── settings.py           # Dynamic config
+├── image/                    # Image generation
+│   └── generator.py          # AI image generation
+├── utils/                    # Pure utilities
+│   ├── date.py               # Date parsing, star signs
+│   └── health.py             # System health
 └── data/
-    ├── storage/            # Birthday data, configs
-    ├── logs/               # 9 component logs
-    ├── backups/            # Auto backups
-    └── cache/              # Images, profiles, special days
+    ├── storage/              # Birthday data, configs
+    ├── logs/                 # 9 component logs
+    ├── backups/              # Auto backups
+    └── cache/                # Images, profiles, special days
 ```
 
 ## Production Deployment

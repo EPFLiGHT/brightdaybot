@@ -1,25 +1,19 @@
 date,name,category,description,emoji,enabled,source,url
-14/01,World Logic Day,Tech,Celebrating the intellectual history and practical implications of logic in science and society,🧠,true,UNESCO,https://www.unesco.org/en/days/world-logic
 28/01,Data Protection Day,Tech,Raising awareness about privacy and data protection best practices,🔒,true,Council of Europe,https://www.coe.int/en/web/data-protection/data-protection-day
-30/01,World Neglected Tropical Diseases Day,Global Health,Raising awareness of neglected tropical diseases affecting 1.7 billion people in marginalized communities,🦠,true,WHO,https://www.who.int/campaigns/world-ntd-day
 04/02,World Cancer Day,Global Health,Uniting the world in the fight against cancer,🎗️,true,UICC/WHO,https://www.worldcancerday.org/
-03/03,World Hearing Day,Global Health,Raising awareness about hearing loss prevention and promoting ear and hearing care worldwide,👂,true,WHO,https://www.who.int/campaigns/world-hearing-day
 04/03,World Engineering Day,Tech,Raising awareness of engineering's essential role in sustainable development and climate action,⚙️,true,UNESCO,https://www.unesco.org/en/days/engineering-sustainable-development
 14/03,Pi Day,Tech,Celebrating the mathematical constant π and mathematics in general,🥧,true,Larry Shaw/Exploratorium,https://www.piday.org/
-19/03,International Day for Digital Learning,Tech,Promoting digital learning to address educational challenges and foster inclusive development,💻,true,UNESCO,https://www.unesco.org/en/days/digital-learning
 20/03,World Oral Health Day,Global Health,Empowering people with knowledge and tools to secure good oral health,🦷,true,FDI,https://www.worldoralhealthday.org/
-24/03,World TB Day,Global Health,Raising awareness to end the global tuberculosis epidemic,🫁,true,WHO,https://www.who.int/campaigns/world-tb-day
 31/03,World Backup Day,Tech,Reminder to protect digital data through regular backups,💾,true,Ismail Jadun,https://www.worldbackupday.com/
+11/04,World Parkinson's Day,Global Health,Raising awareness about Parkinson's disease and supporting those affected worldwide,🧠,true,Parkinson's Europe,https://parkinsonseurope.org/
 18/04,International Day for Monuments and Sites,Culture,Promoting cultural heritage preservation and awareness,🏛️,true,UNESCO/ICOMOS,https://www.icomos.org/en/focus/18-april-international-day-for-monuments-and-sites
 19/04,World Liver Day,Global Health,Raising awareness about liver diseases and promoting liver health globally,🫀,true,EASL,https://worldliverday.org/
-25/04,World Malaria Day,Global Health,Highlighting efforts to control and eliminate malaria,🦟,true,WHO,https://www.who.int/campaigns/world-malaria-day
+25/04,World DNA Day,Tech,Commemorating the discovery of DNA's double helix and the completion of the Human Genome Project,🧬,true,NHGRI/ASHG,https://www.genome.gov/dna-day
 26/04,World Intellectual Property Day,Tech,"Celebrating creativity and innovation protected by patents, copyrights, and trademarks",💡,true,WIPO,https://www.wipo.int/en/web/ipday/
 04/05,Star Wars Day,Tech,Celebrating science fiction and space technology (May the Fourth),🌟,true,Fan-created,
-05/05,World Hand Hygiene Day,Global Health,Promoting hand hygiene in health care facilities,🧼,true,WHO,https://www.who.int/campaigns/world-hand-hygiene-day
 05/05,International Day of the Midwife,Global Health,Recognizing midwives' vital role in maternal and newborn health worldwide,🤱,true,ICM,https://www.internationalmidwives.org/what-we-do/policy-and-practice/international-day-of-the-midwife.html
 08/05,World Red Cross and Red Crescent Day,Global Health,Celebrating humanitarian work and founder Henry Dunant's birthday,⚕️,true,IFRC,https://www.ifrc.org/
 12/05,International Nurses Day,Global Health,Honoring nurses and their vital contributions to healthcare,👩‍⚕️,true,ICN,https://www.icn.ch/
-16/05,International Day of Light,Tech,"Celebrating the role of light in science, technology, and culture",:light:,true,UNESCO,https://www.unesco.org/en/days/light
 17/05,"International Day Against Homophobia, Biphobia, and Transphobia",Culture,Promoting LGBTQ+ rights and ending discrimination worldwide,🏳️‍🌈,true,UN OHCHR,https://www.ohchr.org/en/topic/lgbti-people
 17/05,World Hypertension Day,Global Health,Raising awareness about hypertension affecting 1.28 billion adults worldwide,❤️‍🩹,true,WHL,https://whleague.org/
 20/05,International Clinical Trials Day,Tech,Recognizing the importance of clinical research and honoring James Lind's first trial in 1747,🔬,true,ECRIN/ACRP,https://www.clinicaltrialsday.org/
@@ -27,19 +21,20 @@ date,name,category,description,emoji,enabled,source,url
 19/06,World Sickle Cell Day,Global Health,Increasing awareness of sickle cell disease affecting millions worldwide,🩸,true,UN,https://www.un.org/en/observances/sickle-cell-day
 23/06,International Women in Engineering Day,Tech,Promoting gender equality in STEM fields worldwide,👷‍♀️,true,UNESCO,https://www.unesco.org/en/days/women-in-engineering-day
 06/07,World Zoonoses Day,Global Health,Raising awareness of diseases transmitted between animals and humans,🦠,true,One Health,https://www.onehealthcommission.org/
+25/07,System Administrator Appreciation Day,Tech,Honoring sysadmins who keep IT infrastructure running (last Friday of July),🖥️,true,Ted Kekatos,https://sysadminday.com/
 31/08,International Overdose Awareness Day,Global Health,Remembering those lost to overdose and ending stigma,💜,true,Penington Institute,https://www.overdoseday.com/
-10/09,World Suicide Prevention Day,Global Health,Raising awareness and preventing suicides worldwide,💛,true,WHO,https://www.who.int/campaigns/world-suicide-prevention-day
 13/09,Programmers' Day,Tech,Celebrating programmers and their contributions (256th day of year),💻,true,Russia,
 13/09,World Sepsis Day,Global Health,Raising awareness of sepsis which affects 50 million people and causes 11 million deaths annually,🩺,true,Global Sepsis Alliance,https://www.worldsepsisday.org/
+21/09,World Alzheimer's Day,Global Health,Raising awareness about Alzheimer's disease and dementia worldwide,🧠,true,Alzheimer's Disease International,https://www.alzint.org/
 26/09,World Contraception Day,Global Health,Improving awareness of contraception enabling informed reproductive health choices,💊,true,WCD Coalition,https://www.un.org/development/desa/pd/events/world-contraception-day
-28/09,World Rabies Day,Global Health,Raising awareness about rabies prevention and control,🐕,true,WHO,https://www.who.int/campaigns/world-rabies-day
 29/09,World Heart Day,Global Health,Informing people about cardiovascular diseases and prevention,❤️,true,WHO,https://www.world-heart-federation.org/world-heart-day
+07/10,IEEE Day,Tech,Celebrating the founding of IEEE and engineering innovation worldwide,⚡,true,IEEE,https://ieeeday.org/
 12/10,World Arthritis Day,Global Health,Raising awareness of rheumatic and musculoskeletal diseases affecting 350 million people,🦴,true,ARI/EULAR,https://www.arthritis.org/about-arthritis/world-arthritis-day
+14/10,Ada Lovelace Day,Tech,Celebrating women in STEM and honoring the first computer programmer,👩‍💻,true,Finding Ada,https://findingada.com/
 20/10,World Osteoporosis Day,Global Health,Promoting bone health awareness and prevention of osteoporosis and fractures,🦴,true,IOF,https://www.worldosteoporosisday.org/
 24/10,World Polio Day,Global Health,Commemorating Jonas Salk and highlighting global efforts to eradicate polio,💉,true,Rotary/GPEI,https://www.endpolio.org/world-polio-day
 29/10,World Stroke Day,Global Health,Raising awareness about stroke prevention and treatment worldwide,🧠,true,World Stroke Organization,https://www.world-stroke.org/world-stroke-day-campaign
 07/11,International Day of Medical Physics,Global Health,Recognizing the role of medical physics in patient care,⚛️,true,IOMP,https://www.iomp.org/
 08/11,International Day of Radiology,Tech,Celebrating the discovery of x-rays and the vital role of radiology in healthcare,☢️,true,ESR/RSNA,https://www.internationaldayofradiology.com/
 12/11,World Pneumonia Day,Global Health,Raising awareness about pneumonia as the leading infectious cause of child death,🫁,true,GCACP/WHO,https://stoppneumonia.org/latest/world-pneumonia-day/
-17/11,World Prematurity Day,Global Health,Raising awareness about preterm birth and supporting premature babies and their families,👶,true,WHO,https://www.who.int/campaigns/world-prematurity-day
 30/11,Computer Security Day,Tech,Promoting computer and data security awareness,🔐,true,,

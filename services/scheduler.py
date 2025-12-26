@@ -8,7 +8,8 @@ Key functions:
 - setup_scheduler(), run_now(): Scheduler initialization and manual triggers
 - hourly_task(), daily_task(): Birthday check tasks
 - weekly_calendarific_refresh_task(): Weekly Calendarific cache refresh (Sundays)
-- monthly_un_refresh_task(): Monthly UN observances cache refresh (1st of month)
+- monthly_observances_refresh_task(): Monthly observances cache refresh (1st of month)
+  Refreshes UN, UNESCO, and WHO caches.
 
 Uses schedule library and threading for non-blocking execution.
 """
@@ -99,16 +100,21 @@ def weekly_calendarific_refresh_task():
         logger.debug("SCHEDULER: Calendarific not enabled, skipping refresh")
 
 
-def monthly_un_refresh_task():
+def monthly_observances_refresh_task():
     """
-    Monthly task - refreshes UN observances cache.
+    Monthly task - refreshes all observances caches (UN, UNESCO, WHO).
     Runs on the 1st of each month at CACHE_REFRESH_TIME.
-    UN data rarely changes, so monthly refresh is sufficient.
+    Observances data rarely changes, so monthly refresh is sufficient.
     """
-    from config import UN_OBSERVANCES_ENABLED
+    from config import (
+        UN_OBSERVANCES_ENABLED,
+        UNESCO_OBSERVANCES_ENABLED,
+        WHO_OBSERVANCES_ENABLED,
+    )
 
-    logger.info("SCHEDULER: Running monthly UN observances cache refresh")
+    logger.info("SCHEDULER: Running monthly observances cache refresh")
 
+    # Refresh UN observances
     if UN_OBSERVANCES_ENABLED:
         try:
             from integrations.un_observances import refresh_un_cache
@@ -119,6 +125,30 @@ def monthly_un_refresh_task():
             logger.error(f"SCHEDULER: Failed to refresh UN observances cache: {e}")
     else:
         logger.debug("SCHEDULER: UN observances not enabled, skipping refresh")
+
+    # Refresh UNESCO observances
+    if UNESCO_OBSERVANCES_ENABLED:
+        try:
+            from integrations.unesco_observances import refresh_unesco_cache
+
+            stats = refresh_unesco_cache(force=True)
+            logger.info(f"SCHEDULER: UNESCO observances refresh complete: {stats}")
+        except Exception as e:
+            logger.error(f"SCHEDULER: Failed to refresh UNESCO observances cache: {e}")
+    else:
+        logger.debug("SCHEDULER: UNESCO observances not enabled, skipping refresh")
+
+    # Refresh WHO observances
+    if WHO_OBSERVANCES_ENABLED:
+        try:
+            from integrations.who_observances import refresh_who_cache
+
+            stats = refresh_who_cache(force=True)
+            logger.info(f"SCHEDULER: WHO observances refresh complete: {stats}")
+        except Exception as e:
+            logger.error(f"SCHEDULER: Failed to refresh WHO observances cache: {e}")
+    else:
+        logger.debug("SCHEDULER: WHO observances not enabled, skipping refresh")
 
 
 def run_scheduler():
@@ -198,15 +228,16 @@ def setup_scheduler(app, timezone_aware_check, simple_daily_check):
         f"SCHEDULER: Weekly Calendarific refresh scheduled for Sunday {cache_time_str}"
     )
 
-    # Schedule monthly UN observances cache refresh (1st of each month)
+    # Schedule monthly observances cache refresh (1st of each month)
+    # Refreshes UN, UNESCO, and WHO observances caches
     # Using day 1 check - runs daily but only executes on the 1st
-    def monthly_un_check():
+    def monthly_observances_check():
         if datetime.now().day == 1:
-            monthly_un_refresh_task()
+            monthly_observances_refresh_task()
 
-    schedule.every().day.at(cache_time_str).do(monthly_un_check)
+    schedule.every().day.at(cache_time_str).do(monthly_observances_check)
     logger.info(
-        f"SCHEDULER: Monthly UN observances refresh scheduled for 1st of each month at {cache_time_str}"
+        f"SCHEDULER: Monthly observances refresh (UN/UNESCO/WHO) scheduled for 1st of each month at {cache_time_str}"
     )
 
     # Start the scheduler in a separate thread
