@@ -17,6 +17,7 @@ from config import (
     DATE_FORMAT,
     DATE_WITH_YEAR_FORMAT,
     TIMEZONE_CELEBRATION_TIME,
+    MIN_BIRTH_YEAR,
     get_logger,
 )
 
@@ -40,11 +41,11 @@ def extract_date(message: str) -> dict:
         try:
             date_obj = datetime.strptime(date_with_year, DATE_WITH_YEAR_FORMAT)
 
-            # Validate reasonable year range (1900-2024)
+            # Validate reasonable year range
             current_year = datetime.now().year
-            if date_obj.year < 1900 or date_obj.year > current_year:
+            if date_obj.year < MIN_BIRTH_YEAR or date_obj.year > current_year:
                 logger.error(
-                    f"DATE_ERROR: Year out of valid range (1900-{current_year}): {date_obj.year}"
+                    f"DATE_ERROR: Year out of valid range ({MIN_BIRTH_YEAR}-{current_year}): {date_obj.year}"
                 )
                 return {"status": "invalid_date", "date": None, "year": None}
 

@@ -406,6 +406,9 @@ DEFAULT_TIMEZONE = "UTC"
 # Default announcement time format (string version for display/config)
 DEFAULT_ANNOUNCEMENT_TIME = "09:00"
 
+# Minimum valid birth year for birthday validation
+MIN_BIRTH_YEAR = 1900
+
 # ----- PERSONALITY CONFIGURATION -----
 
 # Import centralized personality configurations

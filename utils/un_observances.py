@@ -18,6 +18,7 @@ import os
 import re
 import json
 import asyncio
+import calendar
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict
 
@@ -26,9 +27,21 @@ from config import (
     UN_OBSERVANCES_CACHE_DIR,
     UN_OBSERVANCES_CACHE_FILE,
 )
+from utils.special_days_storage import SpecialDay
 from utils.logging_config import get_logger
+from utils.category_keywords import HEALTH_KEYWORDS, TECH_KEYWORDS, CULTURE_KEYWORDS
 
 logger = get_logger("special_days")
+
+# Month name to number mappings using calendar module
+# Full names: {"january": 1, "february": 2, ...}
+MONTH_FULL_TO_NUM = {
+    name.lower(): num for num, name in enumerate(calendar.month_name) if num
+}
+# Abbreviated: {"jan": 1, "feb": 2, ...}
+MONTH_ABBR_TO_NUM = {
+    name.lower(): num for num, name in enumerate(calendar.month_abbr) if num
+}
 
 # UN Official Observances page
 UN_OBSERVANCES_URL = "https://www.un.org/en/observances/list-days-weeks"
@@ -36,62 +49,6 @@ UN_OBSERVANCES_URL = "https://www.un.org/en/observances/list-days-weeks"
 # Aliases for backward compatibility (used by special_days_storage.py)
 UN_CACHE_DIR = UN_OBSERVANCES_CACHE_DIR
 UN_CACHE_FILE = UN_OBSERVANCES_CACHE_FILE
-
-# Keywords for category mapping
-HEALTH_KEYWORDS = [
-    "health",
-    "disease",
-    "cancer",
-    "diabetes",
-    "tuberculosis",
-    "malaria",
-    "hiv",
-    "aids",
-    "hepatitis",
-    "mental",
-    "suicide",
-    "drug",
-    "tobacco",
-    "immunization",
-    "vaccine",
-    "patient",
-    "safety",
-    "antimicrobial",
-    "chagas",
-    "leprosy",
-    "epilepsy",
-    "rare disease",
-    "blood",
-    "donor",
-    "hygiene",
-    "sanitation",
-    "drowning",
-    "snakebite",
-    "disability",
-    "autism",
-    "down syndrome",
-    "albinism",
-    "hearing",
-    "sight",
-    "blindness",
-]
-
-TECH_KEYWORDS = [
-    "internet",
-    "technology",
-    "science",
-    "digital",
-    "telecommunication",
-    "information",
-    "innovation",
-    "engineering",
-    "space",
-    "asteroid",
-    "mathematics",
-    "logic",
-    "artificial intelligence",
-    "ai",
-]
 
 
 class UNObservancesClient:
@@ -135,7 +92,6 @@ class UNObservancesClient:
         Returns:
             List of SpecialDay objects for that date
         """
-        from utils.special_days_storage import SpecialDay
 
         date_str = date.strftime("%d/%m")
         observances = []
@@ -285,7 +241,7 @@ class UNObservancesClient:
 
         prompt = (
             """Extract ALL UN International Days from this markdown. Return JSON array:
-[{"day": 7, "month": "April", "name": "World Health Day", "url": "https://www.un.org/en/observances/health-day"}, ...]
+[{"day": 7, "month": "April", "name": "World Health Day", "url": "https://www.un.org/en/observances/health-day", "emoji": "🏥"}, ...]
 
 Rules:
 - Include ALL observances (there should be 200+)
@@ -293,6 +249,7 @@ Rules:
 - Extract the observance name WITHOUT [WHO], [UNESCO] suffixes
 - Extract the URL from the markdown link (format: [Name](url))
 - Skip week/decade entries, only include specific days
+- Pick 1 relevant emoji that visually represents each observance's theme
 
 Markdown content:
 """
@@ -329,21 +286,6 @@ Markdown content:
 
     def _process_llm_output(self, raw_observances: List[Dict]) -> List[Dict]:
         """Process LLM-extracted observances into our format."""
-        months = {
-            "january": 1,
-            "february": 2,
-            "march": 3,
-            "april": 4,
-            "may": 5,
-            "june": 6,
-            "july": 7,
-            "august": 8,
-            "september": 9,
-            "october": 10,
-            "november": 11,
-            "december": 12,
-        }
-
         observances = []
         seen_names = set()
 
@@ -353,8 +295,9 @@ Markdown content:
                 month_name = obs.get("month", "").lower()
                 name = obs.get("name", "").strip()
                 url = obs.get("url", "").strip()
+                emoji = obs.get("emoji", "").strip()
 
-                month_num = months.get(month_name)
+                month_num = MONTH_FULL_TO_NUM.get(month_name)
                 if not month_num or not (1 <= day <= 31) or not name:
                     continue
 
@@ -369,13 +312,16 @@ Markdown content:
                 # Use specific observance URL if available, fallback to list page
                 observance_url = url if url.startswith("http") else UN_OBSERVANCES_URL
 
+                # Use LLM-generated emoji if available, fallback to category-based
+                final_emoji = emoji if emoji else self._get_emoji_for_category(category)
+
                 observances.append(
                     {
                         "date": date_str,
                         "name": name,
                         "category": category,
                         "description": "",
-                        "emoji": self._get_emoji_for_category(category),
+                        "emoji": final_emoji,
                         "source": "UN",
                         "url": observance_url,
                     }
@@ -400,22 +346,6 @@ Markdown content:
             List of observance dicts
         """
         observances = []
-
-        # Month abbreviation to number mapping
-        months = {
-            "jan": 1,
-            "feb": 2,
-            "mar": 3,
-            "apr": 4,
-            "may": 5,
-            "jun": 6,
-            "jul": 7,
-            "aug": 8,
-            "sep": 9,
-            "oct": 10,
-            "nov": 11,
-            "dec": 12,
-        }
 
         # Pattern: [Name](url)...\nDD Mon
         # Names may contain nested brackets like [World Health Day [WHO]]
@@ -447,7 +377,7 @@ Markdown content:
 
             try:
                 day_num = int(day)
-                month_num = months.get(month.lower()[:3])
+                month_num = MONTH_ABBR_TO_NUM.get(month.lower()[:3])
                 if month_num and 1 <= day_num <= 31:
                     date_str = f"{day_num:02d}/{month_num:02d}"
 

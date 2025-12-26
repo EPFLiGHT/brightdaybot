@@ -8,7 +8,7 @@ and validation.
 from datetime import datetime
 from calendar import month_name
 
-from config import get_logger, DATE_FORMAT
+from config import get_logger, DATE_FORMAT, MIN_BIRTH_YEAR
 from utils.storage import save_birthday
 from utils.date_utils import check_if_birthday_today
 from utils.slack_utils import get_username
@@ -74,13 +74,13 @@ def register_modal_handlers(app):
             if year_value and year_value.strip():
                 year_int = int(year_value.strip())
                 current_year = datetime.now().year
-                if 1900 <= year_int <= current_year:
+                if MIN_BIRTH_YEAR <= year_int <= current_year:
                     birth_year = year_int
                 else:
                     _send_modal_error(
                         client,
                         user_id,
-                        f"Invalid year. Please enter a year between 1900 and {current_year}.",
+                        f"Invalid year. Please enter a year between {MIN_BIRTH_YEAR} and {current_year}.",
                     )
                     return
 

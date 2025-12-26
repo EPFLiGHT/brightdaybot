@@ -15,6 +15,7 @@ from config import (
     BOT_BIRTHDAY,
     UPCOMING_DAYS_DEFAULT,
     UPCOMING_DAYS_EXTENDED,
+    MIN_BIRTH_YEAR,
 )
 from personality_config import (
     get_personality_display_name,
@@ -1919,7 +1920,7 @@ def build_birthday_error_blocks(
         },
         "invalid_year": {
             "title": "Invalid Year",
-            "message": "Please provide a year between 1900 and the current year.",
+            "message": f"Please provide a year between {MIN_BIRTH_YEAR} and the current year.",
         },
         "no_date": {
             "title": "No Date Found",

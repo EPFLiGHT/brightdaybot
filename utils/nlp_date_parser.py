@@ -14,7 +14,7 @@ import json
 from typing import Optional, Dict, Any
 from datetime import datetime
 
-from config import get_logger
+from config import get_logger, MIN_BIRTH_YEAR
 
 logger = get_logger("ai")
 
@@ -232,7 +232,7 @@ def _parse_llm_response(response: str) -> Dict[str, Any]:
                 "error": "Invalid date values",
             }
 
-        if year and not (1900 <= year <= datetime.now().year):
+        if year and not (MIN_BIRTH_YEAR <= year <= datetime.now().year):
             year = None  # Ignore invalid years
 
         return {

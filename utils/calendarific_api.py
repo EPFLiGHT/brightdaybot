@@ -33,6 +33,7 @@ from config import (
     TIMEOUTS,
 )
 from utils.logging_config import get_logger
+from utils.category_keywords import HEALTH_KEYWORDS, TECH_KEYWORDS, CULTURE_KEYWORDS
 
 logger = get_logger("calendarific")
 
@@ -59,115 +60,6 @@ class CalendarificClient:
     """
 
     BASE_URL = "https://calendarific.com/api/v2/holidays"
-
-    # Keywords for category mapping
-    HEALTH_KEYWORDS = [
-        "health",
-        "disease",
-        "cancer",
-        "aids",
-        "hiv",
-        "tuberculosis",
-        "tb",
-        "malaria",
-        "mental",
-        "autism",
-        "diabetes",
-        "hepatitis",
-        "vaccine",
-        "vaccination",
-        "medical",
-        "medicine",
-        "patient",
-        "nurse",
-        "nursing",
-        "hospital",
-        "epidemic",
-        "pandemic",
-        "obesity",
-        "heart",
-        "stroke",
-        "blood",
-        "donor",
-        "organ",
-        "transplant",
-        "kidney",
-        "liver",
-        "lung",
-        "brain",
-        "alzheimer",
-        "parkinson",
-        "epilepsy",
-        "rare disease",
-        "antimicrobial",
-        "antibiotic",
-        "hygiene",
-        "sanitation",
-        "nutrition",
-        "breastfeeding",
-        "maternal",
-        "child health",
-        "immunization",
-        "polio",
-        "measles",
-        "cholera",
-        "ebola",
-        "yellow fever",
-        "rabies",
-        "world health",
-        "who ",
-        "world health organization",
-    ]
-
-    TECH_KEYWORDS = [
-        "internet",
-        "telecommunication",
-        "computer",
-        "science",
-        "scientific",
-        "engineering",
-        "data",
-        "digital",
-        "technology",
-        "space",
-        "astronaut",
-        "innovation",
-        "mathematics",
-        "math",
-        "pi day",
-        "programming",
-        "software",
-        "hardware",
-        "artificial intelligence",
-        "ai ",
-        "robot",
-        "cyber",
-        "information",
-        "web",
-        "online",
-        "telecommunication",
-        "radio",
-        "television",
-        "satellite",
-        "nasa",
-        "astronomy",
-        "physics",
-        "chemistry",
-        "biology",
-        "genetics",
-        "stem ",
-        "women in science",
-        "girls in ict",
-        "telecommunication",
-        "world science",
-    ]
-
-    # Emoji mapping based on category
-    CATEGORY_EMOJIS = {
-        "Global Health": ["🏥", "💊", "🩺", "❤️", "🩸", "🧬"],
-        "Tech": ["💻", "🔬", "🚀", "🤖", "📡", "⚛️"],
-        "Culture": ["🌍", "🎭", "📚", "🎨", "🕊️", "🌐"],
-    }
 
     def __init__(self, api_key: str = None, country: str = None, state: str = None):
         """
@@ -437,42 +329,21 @@ class CalendarificClient:
         description = holiday.get("description", "").lower()
         combined = f"{name} {description}"
 
-        for keyword in self.HEALTH_KEYWORDS:
+        for keyword in HEALTH_KEYWORDS:
             if keyword in combined:
                 return "Global Health"
 
-        for keyword in self.TECH_KEYWORDS:
+        for keyword in TECH_KEYWORDS:
             if keyword in combined:
                 return "Tech"
 
         return "Culture"
 
     def _select_emoji(self, category: str, name: str, description: str) -> str:
-        """Select an appropriate emoji based on category and content."""
-        import random
-
-        emojis = self.CATEGORY_EMOJIS.get(category, ["🌍"])
-        combined = f"{name} {description}".lower()
-
-        if category == "Global Health":
-            if "heart" in combined or "cardiovascular" in combined:
-                return "❤️"
-            if "blood" in combined or "donor" in combined:
-                return "🩸"
-            if "mental" in combined or "brain" in combined:
-                return "🧠"
-            if "cancer" in combined:
-                return "🎗️"
-
-        if category == "Tech":
-            if "space" in combined or "astronaut" in combined:
-                return "🚀"
-            if "internet" in combined or "web" in combined:
-                return "🌐"
-            if "robot" in combined or "ai" in combined:
-                return "🤖"
-
-        return random.choice(emojis)
+        """Select emoji for Calendarific entries - uses calendar emoji for all."""
+        # Simple approach: calendar emoji for all Calendarific sources
+        # since they're calendar-based holidays/observances
+        return "📅"
 
     def _extract_source(self, description: str) -> str:
         """Extract source organization from description."""
