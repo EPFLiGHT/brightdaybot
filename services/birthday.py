@@ -105,11 +105,11 @@ def celebrate_bot_birthday(app, moment):
         # Calculate estimated savings vs Billy bot
         yearly_savings = channel_members_count * 12  # $1 per user per month
 
-        # Get special days count for celebration
+        # Get special days count for celebration (all sources: UN, UNESCO, WHO, CSV)
         try:
-            from storage.special_days import load_special_days
+            from storage.special_days import load_all_special_days
 
-            special_days_count = len(load_special_days())
+            special_days_count = len(load_all_special_days())
         except (FileNotFoundError, ValueError, KeyError) as e:
             logger.debug(f"BOT_BIRTHDAY: Could not load special days count: {e}")
             special_days_count = 0

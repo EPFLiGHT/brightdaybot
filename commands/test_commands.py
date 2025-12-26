@@ -1494,11 +1494,11 @@ def handle_test_bot_celebration_command(
         # Calculate estimated savings vs Billy bot
         yearly_savings = channel_members_count * 12  # $1 per user per month
 
-        # Get special days count
+        # Get special days count (all sources: UN, UNESCO, WHO, CSV)
         try:
-            from storage.special_days import load_special_days
+            from storage.special_days import load_all_special_days
 
-            special_days_count = len(load_special_days())
+            special_days_count = len(load_all_special_days())
         except (FileNotFoundError, ValueError, KeyError) as e:
             logger.debug(f"TEST_BOT_CELEBRATION: Could not load special days: {e}")
             special_days_count = 0
