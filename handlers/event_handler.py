@@ -277,7 +277,7 @@ def register_event_handlers(app):
         if event.get("bot_id"):
             return
 
-        # Check if this is a thread reply in a channel (not a DM)
+        # Check if this is a thread reply
         thread_ts = event.get("thread_ts")
         channel = event.get("channel")
         channel_type = event.get("channel_type")
@@ -289,6 +289,12 @@ def register_event_handlers(app):
 
         # Only respond to direct messages for command/date processing
         if channel_type != "im":
+            return
+
+        # Ignore thread replies in DMs - don't process them as commands
+        # This prevents "I Didn't Understand That" errors when users reply to bot messages
+        if thread_ts:
+            events_logger.debug(f"DM_THREAD: Ignoring thread reply from user {event.get('user')}")
             return
 
         text = event.get("text", "").lower()
