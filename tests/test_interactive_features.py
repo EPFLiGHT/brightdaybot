@@ -16,7 +16,7 @@ from handlers.thread_handler import (
     DEFAULT_REACTIONS,
 )
 from handlers.mention_handler import classify_question, RateLimiter
-from utils.nlp_date_parser import _parse_llm_response, format_parsed_date
+from utils.date_nlp import _parse_llm_response, format_parsed_date
 
 
 class TestGetReactionForMessage:

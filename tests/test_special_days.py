@@ -6,7 +6,7 @@ Tests observance analysis functions:
 - group_observances_by_category(): Groups observances by category
 """
 
-from utils.special_days_storage import (
+from storage.special_days import (
     should_split_observances,
     group_observances_by_category,
     SpecialDay,

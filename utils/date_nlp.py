@@ -79,7 +79,7 @@ def _try_regex_parse(text: str) -> Dict[str, Any]:
     Returns:
         Dict with parsing result
     """
-    from utils.date_utils import extract_date
+    from utils.date import extract_date
 
     result = extract_date(text)
 
@@ -114,7 +114,7 @@ def _parse_with_llm(text: str) -> Dict[str, Any]:
         Dict with parsing result
     """
     try:
-        from utils.openai_api import complete
+        from integrations.openai import complete
         from config import TOKEN_LIMITS, TEMPERATURE_SETTINGS
 
         prompt = f"""Extract the birthday date from this text. Return ONLY a JSON object with day, month, and year (if provided).

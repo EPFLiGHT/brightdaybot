@@ -14,19 +14,19 @@ from datetime import datetime, timezone
 
 from slack_sdk.errors import SlackApiError
 
-from utils.date_utils import (
+from utils.date import (
     check_if_birthday_today,
     date_to_words,
     check_if_birthday_today_in_user_timezone,
 )
-from utils.storage import (
+from storage.birthdays import (
     load_birthdays,
     mark_timezone_birthday_announced,
     cleanup_timezone_announcement_files,
     is_user_celebrated_today,
     mark_birthday_announced,
 )
-from utils.slack_utils import (
+from slack.client import (
     send_message,
     send_message_with_image,
     send_message_with_multiple_attachments,
@@ -34,11 +34,11 @@ from utils.slack_utils import (
     get_user_status_and_info,
     get_channel_members,
 )
-from utils.slack_utils import get_user_mention, get_channel_mention
-from utils.message_generator import (
+from slack.client import get_user_mention, get_channel_mention
+from services.message import (
     create_consolidated_birthday_announcement,
 )
-from utils.date_utils import is_celebration_time_for_user
+from utils.date import is_celebration_time_for_user
 from services.celebration import BirthdayCelebrationPipeline
 from config import (
     BIRTHDAY_CHANNEL,
@@ -55,7 +55,7 @@ from services.celebration import (
     generate_bot_celebration_message,
     get_bot_celebration_image_title,
 )
-from utils.image_generator import generate_birthday_image
+from image.generator import generate_birthday_image
 
 logger = get_logger("birthday")
 
@@ -73,7 +73,7 @@ def celebrate_bot_birthday(app, moment):
         bool: True if bot birthday was celebrated, False otherwise
     """
     # Check if today is the bot's birthday using BOT_BIRTHDAY config
-    from utils.date_utils import check_if_birthday_today, date_to_words
+    from utils.date import check_if_birthday_today, date_to_words
 
     if not check_if_birthday_today(BOT_BIRTHDAY, moment):
         return False
@@ -107,7 +107,7 @@ def celebrate_bot_birthday(app, moment):
 
         # Get special days count for celebration
         try:
-            from utils.special_days_storage import load_special_days
+            from storage.special_days import load_special_days
 
             special_days_count = len(load_special_days())
         except (FileNotFoundError, ValueError, KeyError) as e:
@@ -155,7 +155,7 @@ def celebrate_bot_birthday(app, moment):
                     # NEW FLOW: Upload image → Get file ID → Build blocks with embedded image → Send unified message
                     try:
                         # Step 1: Upload image to get file ID
-                        from utils.slack_utils import upload_birthday_images_for_blocks
+                        from slack.client import upload_birthday_images_for_blocks
 
                         logger.info(
                             "BOT_BIRTHDAY: Uploading celebration image to get file ID for Block Kit embedding"
@@ -194,7 +194,7 @@ def celebrate_bot_birthday(app, moment):
 
                         # Step 2: Build Block Kit blocks with embedded image (using file ID tuple)
                         try:
-                            from utils.block_builder import build_bot_celebration_blocks
+                            from slack.blocks import build_bot_celebration_blocks
 
                             blocks, fallback_text = build_bot_celebration_blocks(
                                 celebration_message,
@@ -230,7 +230,7 @@ def celebrate_bot_birthday(app, moment):
                         )
                         # Fallback to message only with blocks (no image)
                         try:
-                            from utils.block_builder import build_bot_celebration_blocks
+                            from slack.blocks import build_bot_celebration_blocks
 
                             blocks, fallback_text = build_bot_celebration_blocks(
                                 celebration_message, bot_age, personality="mystic_dog"
@@ -249,7 +249,7 @@ def celebrate_bot_birthday(app, moment):
                 else:
                     # Fallback to message only with blocks
                     try:
-                        from utils.block_builder import build_bot_celebration_blocks
+                        from slack.blocks import build_bot_celebration_blocks
 
                         blocks, fallback_text = build_bot_celebration_blocks(
                             celebration_message, bot_age, personality="mystic_dog"
@@ -270,7 +270,7 @@ def celebrate_bot_birthday(app, moment):
                 logger.warning(f"BOT_BIRTHDAY: Image generation failed: {image_error}")
                 # Fallback to message only with blocks
                 try:
-                    from utils.block_builder import build_bot_celebration_blocks
+                    from slack.blocks import build_bot_celebration_blocks
 
                     blocks, fallback_text = build_bot_celebration_blocks(
                         celebration_message, bot_age, personality="mystic_dog"
@@ -287,7 +287,7 @@ def celebrate_bot_birthday(app, moment):
         else:
             # Images disabled - send message only with blocks
             try:
-                from utils.block_builder import build_bot_celebration_blocks
+                from slack.blocks import build_bot_celebration_blocks
 
                 blocks, fallback_text = build_bot_celebration_blocks(
                     celebration_message, bot_age, personality="mystic_dog"
@@ -335,16 +335,16 @@ def check_and_announce_special_days(app, moment):
         SPECIAL_DAYS_CHANNEL,
         SPECIAL_DAYS_CHECK_TIME,
     )
-    from utils.special_days_storage import (
+    from storage.special_days import (
         get_special_days_for_date,
         has_announced_special_day_today,
         mark_special_day_announced,
     )
-    from utils.special_day_generator import (
+    from services.special_day import (
         generate_special_day_message,
         generate_special_day_image,
     )
-    from utils.slack_utils import send_message, send_message_with_image
+    from slack.client import send_message, send_message_with_image
 
     # Check if feature is enabled
     if not SPECIAL_DAYS_ENABLED:
@@ -384,7 +384,7 @@ def check_and_announce_special_days(app, moment):
             return False
 
         # NEW: Check if observances should be split into separate announcements
-        from utils.special_days_storage import should_split_observances
+        from storage.special_days import should_split_observances
 
         should_split = should_split_observances(special_days)
 
@@ -409,14 +409,14 @@ def check_and_announce_special_days(app, moment):
                         continue
 
                     # Generate detailed content for this observance
-                    from utils.special_day_generator import generate_special_day_details
+                    from services.special_day import generate_special_day_details
 
                     detailed_content = generate_special_day_details(
                         [special_day], app=app
                     )
 
                     # Build blocks for this individual observance (unified function with list)
-                    from utils.block_builder import build_special_day_blocks
+                    from slack.blocks import build_special_day_blocks
                     from config import SPECIAL_DAYS_PERSONALITY
 
                     blocks, fallback_text = build_special_day_blocks(
@@ -471,7 +471,7 @@ def check_and_announce_special_days(app, moment):
                 return False
 
             # Generate DETAILED content for "View Details" button (NEW)
-            from utils.special_day_generator import generate_special_day_details
+            from services.special_day import generate_special_day_details
 
             detailed_content = generate_special_day_details(special_days, app=app)
 
@@ -483,7 +483,7 @@ def check_and_announce_special_days(app, moment):
             # Build Block Kit blocks for special day announcement
             # Unified function handles both single and multiple special days
             try:
-                from utils.block_builder import build_special_day_blocks
+                from slack.blocks import build_special_day_blocks
                 from config import SPECIAL_DAYS_PERSONALITY
 
                 blocks, fallback_text = build_special_day_blocks(
@@ -907,7 +907,7 @@ def timezone_aware_check(app, moment):
             ):
                 trigger_people.append(birthday_person)
                 # Get actual current time in user's timezone for accurate logging
-                from utils.date_utils import get_user_current_time
+                from utils.date import get_user_current_time
 
                 user_current_time = get_user_current_time(user_timezone)
                 logger.info(

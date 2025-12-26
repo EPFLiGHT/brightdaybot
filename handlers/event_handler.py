@@ -11,10 +11,10 @@ events, and app mentions with comprehensive error handling.
 import re
 from slack_sdk.errors import SlackApiError
 
-from utils.date_utils import extract_date
-from utils.slack_utils import get_username, send_message
-from utils.slack_utils import get_user_mention, get_channel_mention
-from handlers.command_handler import handle_command, handle_dm_date
+from utils.date import extract_date
+from slack.client import get_username, send_message
+from slack.client import get_user_mention, get_channel_mention
+from services.dispatcher import handle_command, handle_dm_date
 from config import BIRTHDAY_CHANNEL, get_logger
 
 events_logger = get_logger("events")
@@ -37,7 +37,7 @@ def _try_nlp_date_parsing(text_lower: str, original_text: str):
         if not NLP_DATE_PARSING_ENABLED:
             return None
 
-        from utils.nlp_date_parser import parse_date_with_nlp
+        from utils.date_nlp import parse_date_with_nlp
 
         # Use original text for better parsing (preserves month names, etc.)
         result = parse_date_with_nlp(original_text)
@@ -78,7 +78,7 @@ def _handle_thread_reply(app, event, channel, thread_ts):
         if not THREAD_ENGAGEMENT_ENABLED:
             return
 
-        from utils.thread_tracker import get_thread_tracker
+        from utils.thread_tracking import get_thread_tracker
 
         # Check if this thread is tracked
         tracker = get_thread_tracker()
@@ -332,7 +332,7 @@ def register_event_handlers(app):
                 nlp_result = _try_nlp_date_parsing(text, event.get("text", ""))
                 if nlp_result and nlp_result.get("status") == "success":
                     # Convert NLP result to format expected by handle_dm_date
-                    from utils.nlp_date_parser import format_parsed_date
+                    from utils.date_nlp import format_parsed_date
 
                     formatted_date = format_parsed_date(nlp_result)
                     if formatted_date:
@@ -350,7 +350,7 @@ def register_event_handlers(app):
                     return
 
                 # If no valid date found, provide help
-                from utils.block_builder import build_unrecognized_input_blocks
+                from slack.blocks import build_unrecognized_input_blocks
 
                 blocks, fallback = build_unrecognized_input_blocks()
                 say(blocks=blocks, text=fallback)
@@ -378,7 +378,7 @@ def register_event_handlers(app):
                 username = get_username(app, user)
 
                 # Build Block Kit welcome message
-                from utils.block_builder import build_welcome_blocks
+                from slack.blocks import build_welcome_blocks
 
                 blocks, fallback = build_welcome_blocks(
                     user_mention=get_user_mention(user),

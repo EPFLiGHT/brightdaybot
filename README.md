@@ -160,7 +160,11 @@ brightdaybot/
 ├── app.py                  # Entry point
 ├── config.py               # Configuration
 ├── personality_config.py   # Personality definitions
-├── handlers/               # Command & event handlers
+├── commands/               # Command processors
+│   ├── birthday_commands.py
+│   ├── admin_commands.py
+│   └── special_commands.py
+├── handlers/               # Slack event handlers
 │   ├── slash_commands.py   # /birthday, /special-day
 │   ├── modal_handlers.py   # Birthday form modal
 │   ├── app_home.py         # App Home dashboard
@@ -168,20 +172,29 @@ brightdaybot/
 ├── services/               # Business logic
 │   ├── birthday.py         # Celebrations
 │   ├── celebration.py      # Pipeline & validation
-│   └── scheduler.py        # Background tasks
-├── utils/                  # Utilities
-│   ├── message_generator.py
-│   ├── image_generator.py
-│   ├── block_builder.py
+│   ├── scheduler.py        # Background tasks
+│   ├── message.py          # AI message generation
+│   └── special_day.py      # Special day messages
+├── integrations/           # External API clients
+│   ├── openai.py           # OpenAI API
 │   ├── un_observances.py   # UN/WHO/UNESCO day scraper
-│   └── calendarific_api.py # National holiday API
+│   └── calendarific.py     # National holiday API
+├── slack/                  # Slack API layer
+│   ├── client.py           # API wrappers
+│   └── blocks.py           # Block Kit builders
+├── storage/                # Data persistence
+│   ├── birthdays.py        # Birthday storage
+│   └── special_days.py     # Special days storage
+├── image/                  # Image generation
+│   └── generator.py        # AI image generation
+├── utils/                  # Pure utilities
+│   ├── date.py             # Date parsing, star signs
+│   └── health.py           # System health
 └── data/
     ├── storage/            # Birthday data, configs
     ├── logs/               # 9 component logs
     ├── backups/            # Auto backups
     └── cache/              # Images, profiles, special days
-        ├── un_observances/ # UN days (weekly refresh)
-        └── calendarific/   # Holidays (weekly refresh)
 ```
 
 ## Production Deployment

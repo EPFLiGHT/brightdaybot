@@ -32,8 +32,8 @@ from config import (
     CACHE_RETENTION_DAYS,
     TIMEOUTS,
 )
-from utils.logging_config import get_logger
-from utils.category_keywords import HEALTH_KEYWORDS, TECH_KEYWORDS, CULTURE_KEYWORDS
+from utils.log_setup import get_logger
+from utils.keywords import HEALTH_KEYWORDS, TECH_KEYWORDS, CULTURE_KEYWORDS
 
 logger = get_logger("calendarific")
 
@@ -94,7 +94,7 @@ class CalendarificClient:
         Returns:
             List of SpecialDay objects
         """
-        from utils.special_days_storage import SpecialDay
+        from storage.special_days import SpecialDay
 
         # Check cache first
         cached = self._load_from_cache(date)
@@ -288,7 +288,7 @@ class CalendarificClient:
 
     def _dict_to_special_day(self, holiday: Dict) -> "SpecialDay":
         """Convert Calendarific API holiday to SpecialDay object."""
-        from utils.special_days_storage import SpecialDay
+        from storage.special_days import SpecialDay
 
         name = holiday.get("name", "Unknown Observance")
         description = holiday.get("description", "")

@@ -15,7 +15,7 @@ import os
 from datetime import datetime
 from openai import OpenAI, APIError, APIConnectionError, RateLimitError, APITimeoutError
 from config import get_logger
-from utils.app_config import get_configured_openai_model
+from storage.settings import get_configured_openai_model
 
 logger = get_logger("ai")
 

@@ -21,16 +21,16 @@ from config import get_logger, USE_CUSTOM_EMOJIS, DATE_FORMAT, RETRY_LIMITS
 from config import (
     BOT_PERSONALITIES,
     TEAM_NAME,
-    get_current_personality_name,
     TOKEN_LIMITS,
     TEMPERATURE_SETTINGS,
 )
+from storage.settings import get_current_personality_name
 
-from utils.date_utils import get_star_sign
+from utils.date import get_star_sign
 from config import SAFE_SLACK_EMOJIS
-from utils.slack_utils import get_user_mention, fix_slack_formatting
-from utils.web_search import get_birthday_facts
-from utils.openai_api import complete
+from slack.client import get_user_mention, fix_slack_formatting
+from integrations.web_search import get_birthday_facts
+from integrations.openai import complete
 
 logger = get_logger("llm")
 
@@ -42,7 +42,7 @@ _MAX_RECENT_PERSONALITIES = 3  # With 10 personalities, this leaves 7 choices (7
 
 
 # Import centralized model configuration function
-from utils.app_config import get_configured_openai_model as get_configured_model
+from storage.settings import get_configured_openai_model as get_configured_model
 
 
 # Birthday announcement formats
@@ -120,7 +120,7 @@ def build_template(override_personality=None):
     else:
         persona = global_personality
     # Get the complete template including base + extension for the chosen personality
-    from config import get_full_template_for_personality
+    from storage.settings import get_full_template_for_personality
 
     template_text = get_full_template_for_personality(persona)
     personality = BOT_PERSONALITIES.get(persona, BOT_PERSONALITIES["standard"])
@@ -485,7 +485,7 @@ def _generate_birthday_message(
             logger.error(f"AI_ERROR: Failed to get birthday facts: {e}")
 
     # === SHARED: Get emoji context ===
-    from utils.slack_utils import get_emoji_context_for_ai
+    from slack.client import get_emoji_context_for_ai
 
     emoji_ctx = get_emoji_context_for_ai(app)
 
@@ -600,7 +600,7 @@ def _generate_birthday_message(
     generated_images = []
     if include_image and message:
         try:
-            from utils.image_generator import (
+            from image.generator import (
                 generate_birthday_image,
                 create_profile_photo_birthday_image,
             )
@@ -747,7 +747,7 @@ def _build_single_birthday_prompt(
     # Date inclusion requirement
     date_inclusion_req = ""
     if birth_date:
-        from utils.date_utils import format_date_european_short
+        from utils.date import format_date_european_short
 
         date_obj = datetime.strptime(birth_date, DATE_FORMAT)
         date_formatted = format_date_european_short(date_obj)
@@ -872,7 +872,7 @@ def _build_consolidated_birthday_prompt(
 
     # Format shared birthday date
     shared_birthday_date = birthday_people[0]["date"]
-    from utils.date_utils import format_date_european_short
+    from utils.date import format_date_european_short
 
     date_obj = datetime.strptime(shared_birthday_date, DATE_FORMAT)
     shared_date_formatted = format_date_european_short(date_obj)
@@ -1674,7 +1674,7 @@ def test_consolidated_announcement():
         print(f"\n{'='*20} TESTING {personality.upper()} PERSONALITY {'='*20}")
 
         # Set personality for testing
-        from config import set_current_personality
+        from storage.settings import set_current_personality
 
         set_current_personality(personality)
 

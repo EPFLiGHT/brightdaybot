@@ -14,23 +14,23 @@ Main function: handle_command(). Routes to:
 
 from datetime import datetime, timezone
 
-from utils.date_utils import (
+from utils.date import (
     extract_date,
     date_to_words,
     calculate_age,
     check_if_birthday_today,
 )
-from utils.storage import (
+from storage.birthdays import (
     save_birthday,
     remove_birthday,
     mark_birthday_announced,
 )
-from utils.slack_utils import (
+from slack.client import (
     get_username,
     is_admin,
 )
-from utils.slack_utils import get_user_mention
-from utils.message_generator import (
+from slack.client import get_user_mention
+from services.message import (
     get_current_personality,
     get_random_personality_name,
 )
@@ -39,22 +39,22 @@ from services.birthday import send_reminder_to_users
 from config import (
     BIRTHDAY_CHANNEL,
     get_logger,
-    get_current_personality_name,
     EXTERNAL_BACKUP_ENABLED,
     TIMEOUTS,
 )
+from storage.settings import get_current_personality_name
 
 # Confirmation timeout from centralized config
 CONFIRMATION_TIMEOUT_MINUTES = TIMEOUTS.get("confirmation_minutes", 5)
 
 # Import from split handler modules
-from handlers.birthday_commands import (
+from commands.birthday_commands import (
     send_immediate_birthday_announcement,
     handle_list_command,
     handle_check_command,
     handle_remind_command,
 )
-from handlers.admin_commands import (
+from commands.admin_commands import (
     handle_stats_command,
     handle_config_command,
     handle_announce_command,
@@ -69,7 +69,7 @@ from handlers.admin_commands import (
     handle_admin_add_command,
     handle_admin_remove_command,
 )
-from handlers.test_commands import (
+from commands.test_commands import (
     parse_test_command_args,
     handle_test_command,
     handle_test_block_command,
@@ -82,7 +82,7 @@ from handlers.test_commands import (
     handle_test_birthday_command,
     handle_test_bot_celebration_command,
 )
-from handlers.special_commands import (
+from commands.special_commands import (
     handle_special_command,
     handle_admin_special_command_with_quotes,
     handle_admin_special_command,
@@ -203,7 +203,7 @@ def handle_confirm_command(user_id, say, app):
 
             success = send_channel_announcement(app, announcement_type, custom_message)
 
-            from utils.block_builder import build_announce_result_blocks
+            from slack.blocks import build_announce_result_blocks
 
             blocks, fallback = build_announce_result_blocks(success)
             say(blocks=blocks, text=fallback)
@@ -231,7 +231,7 @@ def handle_confirm_command(user_id, say, app):
             skipped_bots = results["skipped_bots"]
             skipped_inactive = results.get("skipped_inactive", 0)
 
-            from utils.block_builder import build_remind_result_blocks
+            from slack.blocks import build_remind_result_blocks
 
             blocks, fallback = build_remind_result_blocks(
                 successful=successful,
@@ -271,7 +271,7 @@ def handle_dm_help(say):
     Args:
         say: Slack say function for sending messages
     """
-    from utils.block_builder import build_help_blocks
+    from slack.blocks import build_help_blocks
 
     blocks, fallback = build_help_blocks(is_admin=False)
     say(blocks=blocks, text=fallback)
@@ -291,13 +291,13 @@ def handle_dm_admin_help(say, user_id, app):
         app: Slack app instance for permission checking
     """
     if not is_admin(app, user_id):
-        from utils.block_builder import build_permission_error_blocks
+        from slack.blocks import build_permission_error_blocks
 
         blocks, fallback = build_permission_error_blocks("admin help", "admin")
         say(blocks=blocks, text=fallback)
         return
 
-    from utils.block_builder import build_help_blocks
+    from slack.blocks import build_help_blocks
 
     blocks, fallback = build_help_blocks(is_admin=True)
     say(blocks=blocks, text=fallback)
@@ -340,7 +340,7 @@ def handle_dm_date(say, user, result, app):
     else:
         # Enhanced confirmation messages with Block Kit
         try:
-            from utils.block_builder import build_confirmation_blocks
+            from slack.blocks import build_confirmation_blocks
 
             if updated:
                 blocks, fallback = build_confirmation_blocks(
@@ -415,7 +415,7 @@ def _send_external_backup_if_enabled(updated, username, app, change_type=None):
         change_type: Optional override for change type ("add", "update", "remove")
     """
     try:
-        from utils.storage import send_external_backup
+        from storage.birthdays import send_external_backup
         from config import BACKUP_ON_EVERY_CHANGE, BACKUP_DIR
         import os
 
@@ -456,7 +456,7 @@ def handle_command(text, user_id, say, app):
             return
 
         if not is_admin(app, user_id):
-            from utils.block_builder import build_permission_error_blocks
+            from slack.blocks import build_permission_error_blocks
 
             blocks, fallback = build_permission_error_blocks("admin commands", "admin")
             say(blocks=blocks, text=fallback)
@@ -553,14 +553,14 @@ def _handle_add_command(parts, user_id, username, say, app):
     result = extract_date(date_text)
 
     if result["status"] == "no_date":
-        from utils.block_builder import build_birthday_error_blocks
+        from slack.blocks import build_birthday_error_blocks
 
         blocks, fallback = build_birthday_error_blocks("no_date")
         say(blocks=blocks, text=fallback)
         return
 
     if result["status"] == "invalid_date":
-        from utils.block_builder import build_birthday_error_blocks
+        from slack.blocks import build_birthday_error_blocks
 
         blocks, fallback = build_birthday_error_blocks("invalid_date")
         say(blocks=blocks, text=fallback)
@@ -587,7 +587,7 @@ def _handle_add_command(parts, user_id, username, say, app):
     else:
         # Enhanced confirmation messages with Block Kit
         try:
-            from utils.block_builder import build_confirmation_blocks
+            from slack.blocks import build_confirmation_blocks
 
             if updated:
                 blocks, fallback = build_confirmation_blocks(
@@ -662,7 +662,7 @@ def _handle_remove_command(user_id, username, say, app):
     removed = remove_birthday(user_id, username)
 
     try:
-        from utils.block_builder import build_confirmation_blocks
+        from slack.blocks import build_confirmation_blocks
 
         if removed:
             blocks, fallback = build_confirmation_blocks(
@@ -733,7 +733,7 @@ def _handle_hello_command(user_id, say):
     greeting = greeting_template.format(user_mention=get_user_mention(user_id))
 
     # Build Block Kit hello message
-    from utils.block_builder import build_hello_blocks
+    from slack.blocks import build_hello_blocks
 
     personality_display_name = personality_config.get("name", "BrightDay")
     blocks, fallback = build_hello_blocks(greeting, personality_display_name)

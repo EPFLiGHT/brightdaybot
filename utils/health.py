@@ -22,7 +22,7 @@ from config import (
     SPECIAL_DAYS_FILE,
     SPECIAL_DAYS_ENABLED,
 )
-from utils.logging_config import LOG_FILES
+from utils.log_setup import LOG_FILES
 from config import ADMINS_FILE, PERSONALITY_FILE
 
 logger = get_logger("system")

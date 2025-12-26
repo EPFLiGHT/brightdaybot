@@ -88,7 +88,7 @@ def weekly_calendarific_refresh_task():
 
     if CALENDARIFIC_ENABLED:
         try:
-            from utils.calendarific_api import get_calendarific_client
+            from integrations.calendarific import get_calendarific_client
 
             client = get_calendarific_client()
             stats = client.weekly_prefetch(force=True)
@@ -111,7 +111,7 @@ def monthly_un_refresh_task():
 
     if UN_OBSERVANCES_ENABLED:
         try:
-            from utils.un_observances import refresh_un_cache
+            from integrations.un_observances import refresh_un_cache
 
             stats = refresh_un_cache(force=True)
             logger.info(f"SCHEDULER: UN observances refresh complete: {stats}")
@@ -164,7 +164,7 @@ def setup_scheduler(app, timezone_aware_check, simple_daily_check):
     _app_instance = app
 
     # Load timezone settings
-    from utils.app_config import load_timezone_settings
+    from storage.settings import load_timezone_settings
 
     _timezone_enabled, _check_interval = load_timezone_settings()
 

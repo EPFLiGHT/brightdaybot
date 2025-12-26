@@ -30,26 +30,45 @@ LOG_FILES = LOG_FILE_NAMES  # Will be updated with full paths when LOGS_DIR is a
 
 # Component to log file mapping
 COMPONENT_LOG_MAPPING = {
+    # Core
     "main": "main",
     "config": "main",
     "app": "main",
+    # Commands (commands/)
     "commands": "commands",
-    "command_handler": "commands",
+    "dispatcher": "commands",
+    # Events (handlers/)
     "events": "events",
     "event_handler": "events",
+    "mention_handler": "events",
+    "thread_handler": "events",
+    # Birthday (services/)
     "birthday": "birthday",
-    "llm": "ai",
-    "message_generator": "ai",
+    "celebration": "birthday",
+    # AI (services/, integrations/, image/)
+    "ai": "ai",
+    "message": "ai",
+    "special_day": "ai",
     "image_generator": "ai",
     "web_search": "ai",
+    "openai": "ai",
+    # Slack (slack/)
     "slack": "slack",
-    "slack_utils": "slack",
+    "slack_client": "slack",
+    "blocks": "slack",
+    # Storage (storage/)
     "storage": "storage",
-    "config_storage": "storage",
-    "health_check": "system",
+    "birthdays": "storage",
+    "special_days": "storage",
+    "settings": "storage",
+    # Integrations (integrations/)
+    "calendarific": "special_days",
+    "un_observances": "special_days",
+    # System (utils/)
+    "health": "system",
     "date": "system",
-    "date_utils": "system",
-    "timezone_utils": "system",
+    "date_nlp": "system",
+    # Scheduler (services/)
     "scheduler": "scheduler",
 }
 

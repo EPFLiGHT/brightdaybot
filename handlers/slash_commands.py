@@ -62,7 +62,7 @@ def register_slash_commands(app):
         args = text.split() if text else []
 
         # Reuse existing special command handler
-        from handlers.special_commands import handle_special_command
+        from commands.special_commands import handle_special_command
 
         handle_special_command(args, user_id, respond, app)
 
@@ -71,7 +71,7 @@ def register_slash_commands(app):
 
 def _open_birthday_modal(client, trigger_id, user_id):
     """Open the birthday input modal."""
-    from utils.block_builder import build_birthday_modal
+    from slack.blocks import build_birthday_modal
 
     modal = build_birthday_modal(user_id)
 
@@ -95,10 +95,10 @@ def _handle_slash_check(text, user_id, respond, app):
         respond: Slack respond function for ephemeral messages
         app: Slack app instance
     """
-    from utils.storage import load_birthdays
-    from utils.slack_utils import get_username
-    from utils.date_utils import date_to_words, calculate_age, get_star_sign
-    from utils.block_builder import build_birthday_check_blocks
+    from storage.birthdays import load_birthdays
+    from slack.client import get_username
+    from utils.date import date_to_words, calculate_age, get_star_sign
+    from slack.blocks import build_birthday_check_blocks
 
     parts = text.split()
 
@@ -154,10 +154,10 @@ def _handle_slash_list(respond, app):
         app: Slack app instance for username lookups
     """
     from datetime import datetime, timezone
-    from utils.storage import load_birthdays
-    from utils.slack_utils import get_username
-    from utils.date_utils import calculate_days_until_birthday
-    from utils.block_builder import build_upcoming_birthdays_blocks
+    from storage.birthdays import load_birthdays
+    from slack.client import get_username
+    from utils.date import calculate_days_until_birthday
+    from slack.blocks import build_upcoming_birthdays_blocks
 
     birthdays = load_birthdays()
     reference_date = datetime.now(timezone.utc)
@@ -196,7 +196,7 @@ def _send_birthday_help(respond):
     Args:
         respond: Slack respond function for ephemeral messages
     """
-    from utils.block_builder import build_slash_help_blocks
+    from slack.blocks import build_slash_help_blocks
 
     blocks, fallback = build_slash_help_blocks("birthday")
     respond(blocks=blocks, text=fallback)

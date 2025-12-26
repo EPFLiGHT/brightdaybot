@@ -30,22 +30,22 @@ from personality_config import (
     get_celebration_personality_list,
     get_celebration_image_descriptions,
 )
-from utils.message_generator import create_consolidated_birthday_announcement
-from utils.slack_utils import (
+from services.message import create_consolidated_birthday_announcement
+from slack.client import (
     send_message,
     fix_slack_formatting,
     get_user_status_and_info,
     get_channel_members,
 )
-from utils.storage import (
+from storage.birthdays import (
     mark_timezone_birthday_announced,
     mark_birthday_announced,
     load_birthdays,
     is_user_celebrated_today,
 )
-from utils.block_builder import build_birthday_blocks
-from utils.date_utils import check_if_birthday_today, date_to_words
-from utils.openai_api import complete
+from slack.blocks import build_birthday_blocks
+from utils.date import check_if_birthday_today, date_to_words
+from integrations.openai import complete
 
 logger = get_logger("birthday")
 
@@ -364,7 +364,7 @@ class BirthdayCelebrationPipeline:
         # Step 1: Upload images to get file IDs (if images provided)
         file_ids = []
         if images and include_images:
-            from utils.slack_utils import upload_birthday_images_for_blocks
+            from slack.client import upload_birthday_images_for_blocks
 
             logger.info(
                 f"{self.mode}: Uploading {len(images)} images to get file IDs for Block Kit embedding"
@@ -493,7 +493,7 @@ class BirthdayCelebrationPipeline:
                 )
                 return
 
-            from utils.thread_tracker import get_thread_tracker
+            from utils.thread_tracking import get_thread_tracker
 
             # Extract user IDs from birthday people
             user_ids = [p.get("user_id") for p in birthday_people if p.get("user_id")]

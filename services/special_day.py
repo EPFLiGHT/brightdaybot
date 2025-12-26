@@ -20,10 +20,10 @@ from config import (
     TEAM_NAME,
 )
 from personality_config import get_personality_config
-from utils.logging_config import get_logger
-from utils.web_search import get_birthday_facts
-from utils.image_generator import generate_birthday_image
-from utils.openai_api import complete
+from utils.log_setup import get_logger
+from integrations.web_search import get_birthday_facts
+from image.generator import generate_birthday_image
+from integrations.openai import complete
 
 # Get dedicated logger
 logger = get_logger("special_days")
@@ -70,7 +70,7 @@ def generate_special_day_message(
         personality_config = get_personality_config(personality)
 
     # Get emoji context for AI message generation (uses config default: 50)
-    from utils.slack_utils import get_emoji_context_for_ai
+    from slack.client import get_emoji_context_for_ai
 
     emoji_ctx = get_emoji_context_for_ai(app)
     emoji_examples = emoji_ctx["emoji_examples"]
@@ -78,7 +78,7 @@ def generate_special_day_message(
     try:
         # Get current date in European format for organic inclusion
         # Use test_date if provided (for testing specific dates), otherwise use today
-        from utils.date_utils import format_date_european
+        from utils.date import format_date_european
 
         today = test_date if test_date else datetime.now()
         today_formatted = format_date_european(today)  # e.g., "15 April 2025"
@@ -303,7 +303,7 @@ def generate_special_day_details(
         personality_config = get_personality_config(personality)
 
     # Get emoji context for AI message generation
-    from utils.slack_utils import get_emoji_context_for_ai
+    from slack.client import get_emoji_context_for_ai
 
     emoji_ctx = get_emoji_context_for_ai(app)
     emoji_examples = emoji_ctx["emoji_examples"]
@@ -634,7 +634,7 @@ async def send_special_day_announcement(
     Returns:
         True if successful, False otherwise
     """
-    from utils.slack_utils import send_message, send_message_with_image
+    from slack.client import send_message, send_message_with_image
 
     try:
         # Generate the message
@@ -685,7 +685,7 @@ async def send_special_day_announcement(
 # Test function
 if __name__ == "__main__":
     import asyncio
-    from utils.special_days_storage import get_todays_special_days
+    from storage.special_days import get_todays_special_days
 
     print("Testing Special Day Message Generator...")
 
@@ -706,7 +706,7 @@ if __name__ == "__main__":
         print("\nNo special days found for today")
 
         # Create a test special day
-        from utils.special_days_storage import SpecialDay
+        from storage.special_days import SpecialDay
 
         test_day = SpecialDay(
             date="03/14",

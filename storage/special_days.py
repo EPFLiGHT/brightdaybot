@@ -32,7 +32,7 @@ from config import (
     UPCOMING_DAYS_DEFAULT,
     UPCOMING_DAYS_EXTENDED,
 )
-from utils.logging_config import get_logger
+from utils.log_setup import get_logger
 
 # Get dedicated logger for special days
 logger = get_logger("special_days")
@@ -285,7 +285,7 @@ def save_special_day(special_day: SpecialDay, app=None, username=None) -> bool:
         backup_path = create_special_days_backup()
         if backup_path and app:
             from config import EXTERNAL_BACKUP_ENABLED
-            from utils.storage import send_external_backup
+            from storage.birthdays import send_external_backup
 
             if EXTERNAL_BACKUP_ENABLED:
                 change_type = "update" if updated else "add"
@@ -370,7 +370,7 @@ def remove_special_day(
         backup_path = create_special_days_backup()
         if backup_path and app:
             from config import EXTERNAL_BACKUP_ENABLED
-            from utils.storage import send_external_backup
+            from storage.birthdays import send_external_backup
 
             if EXTERNAL_BACKUP_ENABLED:
                 send_external_backup(backup_path, "remove", username, app)
@@ -569,7 +569,7 @@ def get_special_days_for_date(date: datetime) -> List[SpecialDay]:
     # Source 1: UN Observances (if enabled)
     if UN_OBSERVANCES_ENABLED:
         try:
-            from utils.un_observances import get_un_observances_for_date
+            from integrations.un_observances import get_un_observances_for_date
 
             un_days = get_un_observances_for_date(date)
             special_days.extend(un_days)
@@ -583,7 +583,7 @@ def get_special_days_for_date(date: datetime) -> List[SpecialDay]:
     # Source 2: Calendarific API (if enabled) - Swiss national holidays
     if CALENDARIFIC_ENABLED and CALENDARIFIC_API_KEY:
         try:
-            from utils.calendarific_api import get_calendarific_client
+            from integrations.calendarific import get_calendarific_client
 
             client = get_calendarific_client()
             api_days = client.get_holidays_for_date(date)
@@ -1117,7 +1117,7 @@ def initialize_special_days_cache():
     """
     # UN Observances
     try:
-        from utils.un_observances import get_un_client
+        from integrations.un_observances import get_un_client
 
         client = get_un_client()
         if not client._is_cache_fresh():
@@ -1137,7 +1137,7 @@ def initialize_special_days_cache():
     # Calendarific
     if CALENDARIFIC_ENABLED:
         try:
-            from utils.calendarific_api import get_calendarific_client
+            from integrations.calendarific import get_calendarific_client
 
             client = get_calendarific_client()
             if client.needs_prefetch():

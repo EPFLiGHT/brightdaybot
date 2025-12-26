@@ -8,9 +8,9 @@ when users open the app's Home tab.
 from datetime import datetime, timezone
 
 from config import get_logger
-from utils.storage import load_birthdays
-from utils.date_utils import calculate_days_until_birthday
-from utils.slack_utils import get_username
+from storage.birthdays import load_birthdays
+from utils.date import calculate_days_until_birthday
+from slack.client import get_username
 
 logger = get_logger("events")
 
@@ -49,7 +49,7 @@ def register_app_home_handlers(app):
 
 def _build_home_view(user_id, app):
     """Build the App Home view blocks."""
-    from utils.date_utils import date_to_words, calculate_age, get_star_sign
+    from utils.date import date_to_words, calculate_age, get_star_sign
 
     # Get user's birthday status
     birthdays = load_birthdays()

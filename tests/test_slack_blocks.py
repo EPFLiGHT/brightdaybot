@@ -1,5 +1,5 @@
 """
-Tests for Block Kit builder functions in utils/block_builder.py
+Tests for Block Kit builder functions in slack/blocks.py
 
 Tests structural validity of Slack Block Kit output:
 - All functions return (blocks, fallback_text) tuples
@@ -7,7 +7,7 @@ Tests structural validity of Slack Block Kit output:
 - Error types produce valid structures
 """
 
-from utils.block_builder import (
+from slack.blocks import (
     build_birthday_blocks,
     build_birthday_error_blocks,
     build_permission_error_blocks,

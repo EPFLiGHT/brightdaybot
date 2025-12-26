@@ -27,7 +27,7 @@ from config import (
     PERMISSIONS_FILE,
     USE_CUSTOM_EMOJIS,
 )
-from utils.logging_config import get_logger
+from utils.log_setup import get_logger
 
 logger = get_logger("config")
 
@@ -250,9 +250,7 @@ def get_configured_openai_model():
     import os
 
     try:
-        # Try to get from config system (preferred method)
-        from config import get_current_openai_model
-
+        # Use the function defined in this module
         configured_model = get_current_openai_model()
 
         if configured_model:
@@ -528,8 +526,6 @@ def save_openai_model_setting(model_name):
         bool: True if successful, False otherwise
     """
     try:
-        from config import is_valid_openai_model
-
         if not is_valid_openai_model(model_name):
             logger.warning(f"CONFIG: Unknown model '{model_name}', saving anyway")
 
@@ -614,8 +610,6 @@ def get_openai_model_info():
         if not info["model"]:
             info["model"] = DEFAULT_OPENAI_MODEL
             info["source"] = "default"
-
-        from config import is_valid_openai_model
 
         info["valid"] = is_valid_openai_model(info["model"])
 

@@ -94,7 +94,7 @@ def handle_thread_reply(
     Returns:
         Dict with results: {"reaction_added": bool, "thank_you_sent": bool}
     """
-    from utils.thread_tracker import get_thread_tracker
+    from utils.thread_tracking import get_thread_tracker
 
     result = {"reaction_added": False, "thank_you_sent": False, "error": None}
 
@@ -220,7 +220,7 @@ def _generate_thank_you(
         Thank-you message or None on failure
     """
     try:
-        from utils.openai_api import complete
+        from integrations.openai import complete
         from config import TOKEN_LIMITS, TEMPERATURE_SETTINGS, BOT_PERSONALITIES
 
         # Get personality info

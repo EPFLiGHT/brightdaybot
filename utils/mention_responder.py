@@ -91,7 +91,7 @@ def _get_bot_info() -> Dict[str, str]:
 def _get_special_days_context() -> List[Dict[str, str]]:
     """Get today's special days for context."""
     try:
-        from utils.special_days_storage import get_todays_special_days
+        from storage.special_days import get_todays_special_days
 
         special_days = get_todays_special_days()
 
@@ -112,9 +112,9 @@ def _get_special_days_context() -> List[Dict[str, str]]:
 def _get_birthday_context(app: Any) -> List[Dict[str, str]]:
     """Get upcoming birthdays for context."""
     try:
-        from utils.storage import load_birthdays
-        from utils.date_utils import check_if_birthday_today
-        from utils.slack_utils import get_username
+        from storage.birthdays import load_birthdays
+        from utils.date import check_if_birthday_today
+        from slack.client import get_username
         from config import UPCOMING_DAYS_DEFAULT
 
         birthdays = load_birthdays()
@@ -172,7 +172,7 @@ def _generate_llm_response(
         Response text or None on failure
     """
     try:
-        from utils.openai_api import complete
+        from integrations.openai import complete
         from config import TOKEN_LIMITS, TEMPERATURE_SETTINGS, BOT_NAME
 
         # Build the prompt

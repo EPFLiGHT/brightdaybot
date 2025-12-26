@@ -12,9 +12,11 @@ class TestUNObservancesClient:
     @pytest.fixture
     def client(self):
         """Create a UNObservancesClient for testing"""
-        with patch("utils.un_observances.UN_CACHE_DIR", "/tmp"):
-            with patch("utils.un_observances.UN_CACHE_FILE", "/tmp/un_days.json"):
-                from utils.un_observances import UNObservancesClient
+        with patch("integrations.un_observances.UN_CACHE_DIR", "/tmp"):
+            with patch(
+                "integrations.un_observances.UN_CACHE_FILE", "/tmp/un_days.json"
+            ):
+                from integrations.un_observances import UNObservancesClient
 
                 return UNObservancesClient()
 
@@ -37,9 +39,11 @@ class TestUNRegexParsing:
     @pytest.fixture
     def client(self):
         """Create a UNObservancesClient for testing"""
-        with patch("utils.un_observances.UN_CACHE_DIR", "/tmp"):
-            with patch("utils.un_observances.UN_CACHE_FILE", "/tmp/un_days.json"):
-                from utils.un_observances import UNObservancesClient
+        with patch("integrations.un_observances.UN_CACHE_DIR", "/tmp"):
+            with patch(
+                "integrations.un_observances.UN_CACHE_FILE", "/tmp/un_days.json"
+            ):
+                from integrations.un_observances import UNObservancesClient
 
                 return UNObservancesClient()
 

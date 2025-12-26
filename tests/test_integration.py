@@ -23,14 +23,14 @@ class TestOpenAIConnection:
 
     def test_client_connects(self):
         """Verify OpenAI client can be created"""
-        from utils.openai_api import get_openai_client
+        from integrations.openai import get_openai_client
 
         client = get_openai_client()
         assert client is not None
 
     def test_minimal_completion(self):
         """Test minimal completion with instructions/input_text format"""
-        from utils.openai_api import complete
+        from integrations.openai import complete
 
         response = complete(
             instructions="Reply with exactly one word: OK",
@@ -45,7 +45,7 @@ class TestOpenAIConnection:
 
     def test_completion_with_messages_format(self):
         """Test completion with messages list format (used by web_search, special_day_generator)"""
-        from utils.openai_api import complete
+        from integrations.openai import complete
 
         response = complete(
             messages=[
@@ -69,7 +69,7 @@ class TestMessageGeneration:
 
     def test_birthday_message_generation(self):
         """Test actual birthday message generation with personality"""
-        from utils.openai_api import complete
+        from integrations.openai import complete
         from personality_config import get_personality_config
 
         personality = get_personality_config("standard")
@@ -90,7 +90,7 @@ class TestMessageGeneration:
 
     def test_special_day_teaser_generation(self):
         """Test special day teaser message generation"""
-        from utils.openai_api import complete
+        from integrations.openai import complete
         from personality_config import get_personality_config
 
         personality = get_personality_config("chronicler")
@@ -123,7 +123,7 @@ class TestMultiplePersonalities:
 
     def test_mystic_dog_personality(self):
         """Test mystic_dog (Ludo) personality generates mystical content"""
-        from utils.openai_api import complete
+        from integrations.openai import complete
         from personality_config import get_personality_config
 
         personality = get_personality_config("mystic_dog")
@@ -141,7 +141,7 @@ class TestMultiplePersonalities:
 
     def test_pirate_personality(self):
         """Test pirate personality generates nautical content"""
-        from utils.openai_api import complete
+        from integrations.openai import complete
         from personality_config import get_personality_config
 
         personality = get_personality_config("pirate")

@@ -8,8 +8,8 @@ cache management, status checks, backup/restore, personality, and timezone setti
 from datetime import datetime
 from calendar import month_name
 from slack_sdk.errors import SlackApiError
-from utils.storage import load_birthdays, create_backup, restore_latest_backup
-from utils.slack_utils import (
+from storage.birthdays import load_birthdays, create_backup, restore_latest_backup
+from slack.client import (
     get_username,
     check_command_permission,
     get_channel_members,
@@ -17,7 +17,7 @@ from utils.slack_utils import (
     get_user_mention,
     get_channel_mention,
 )
-from utils.message_generator import get_current_personality
+from services.message import get_current_personality
 from personality_config import get_personality_descriptions
 from config import (
     BIRTHDAY_CHANNEL,
@@ -33,13 +33,15 @@ from config import (
     TIMEZONE_CELEBRATION_TIME,
     EXTERNAL_BACKUP_ENABLED,
     get_logger,
+)
+from storage.settings import (
+    save_admins_to_file,
     get_current_personality_name,
     set_current_personality,
     get_current_openai_model,
     set_current_openai_model,
 )
-from utils.app_config import save_admins_to_file
-from utils.web_search import clear_cache
+from integrations.web_search import clear_cache
 
 logger = get_logger("commands")
 
@@ -57,7 +59,7 @@ def handle_stats_command(user_id, say, app):
         app: Slack app instance for API calls
     """
     if not check_command_permission(app, user_id, "stats"):
-        from utils.block_builder import build_permission_error_blocks
+        from slack.blocks import build_permission_error_blocks
 
         blocks, fallback = build_permission_error_blocks(
             "stats", "configured permission"
@@ -197,7 +199,7 @@ def handle_config_command(parts, user_id, say, app):
     new_setting = setting_str == "true"
 
     # Import the set_command_permission function
-    from utils.app_config import set_command_permission
+    from storage.settings import set_command_permission
 
     # Update and save the setting
     if set_command_permission(cmd, new_setting):
@@ -314,7 +316,7 @@ def handle_model_command(args, user_id, say, _app, username):
         _app: Slack app instance (unused)
         username: Display name of requesting user for logging
     """
-    from utils.app_config import get_openai_model_info
+    from storage.settings import get_openai_model_info
 
     if not args:
         # Show current model information
@@ -338,7 +340,7 @@ def handle_model_command(args, user_id, say, _app, username):
 
     if subcommand == "list":
         # Show available models using centralized list
-        from config import get_supported_openai_models
+        from storage.settings import get_supported_openai_models
 
         valid_models = get_supported_openai_models()
         current_model = get_current_openai_model()
@@ -362,7 +364,7 @@ def handle_model_command(args, user_id, say, _app, username):
             return
 
         # Validate model name using centralized list
-        from config import is_valid_openai_model
+        from storage.settings import is_valid_openai_model
 
         if not is_valid_openai_model(new_model):
             say(
@@ -482,8 +484,8 @@ def handle_status_command(parts, user_id, say, app):
         say: Slack say function for sending messages
         app: Slack app instance for API calls
     """
-    from utils.health_check import get_system_status
-    from utils.block_builder import build_health_status_blocks
+    from utils.health import get_system_status
+    from slack.blocks import build_health_status_blocks
     from services.scheduler import get_scheduler_summary
 
     username = get_username(app, user_id)
@@ -556,8 +558,8 @@ def handle_timezone_command(args, user_id, say, app, username):
         app: Slack app instance for timezone data
         username: Display name of requesting user for logging
     """
-    from utils.app_config import save_timezone_settings, load_timezone_settings
-    from utils.date_utils import format_timezone_schedule
+    from storage.settings import save_timezone_settings, load_timezone_settings
+    from utils.date import format_timezone_schedule
 
     # Get current settings
     current_enabled, current_interval = load_timezone_settings()
@@ -748,7 +750,7 @@ def handle_admin_list_command(_args, _user_id, say, app, _username):
         app: Slack app instance for username lookups
         _username: Display name (unused)
     """
-    from utils.app_config import get_current_admins
+    from storage.settings import get_current_admins
 
     current_admins = get_current_admins()
     logger.info(
@@ -804,7 +806,7 @@ def handle_admin_add_command(args, user_id, say, app, username):
         return
 
     # Get the current list from the file
-    from utils.app_config import load_admins_from_file
+    from storage.settings import load_admins_from_file
 
     # Get the updated list from file to ensure we have the latest
     current_admins = load_admins_from_file()
@@ -854,7 +856,7 @@ def handle_admin_remove_command(args, user_id, say, app, username):
     admin_to_remove = args[0].strip("<@>").upper()
 
     # Get the current list from the file
-    from utils.app_config import load_admins_from_file
+    from storage.settings import load_admins_from_file
 
     current_admins = load_admins_from_file()
 

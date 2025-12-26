@@ -31,7 +31,7 @@ from config import (
     BACKUP_ON_EVERY_CHANGE,
     BACKUP_CHANNEL_ID,
 )
-from utils.slack_utils import (
+from slack.client import (
     get_username,
     get_user_profile,
     send_message,
@@ -130,9 +130,9 @@ def handle_test_command(
         text_only: Skip image generation if True
     """
     from services.celebration import BirthdayCelebrationPipeline
-    from utils.storage import load_birthdays
-    from utils.slack_utils import get_username, get_user_profile
-    from utils.date_utils import date_to_words
+    from storage.birthdays import load_birthdays
+    from slack.client import get_username, get_user_profile
+    from utils.date import date_to_words
     from datetime import datetime
     from config import AI_IMAGE_GENERATION_ENABLED
 
@@ -249,13 +249,13 @@ def handle_test_block_command(user_id, args, say, app):
         say: Slack say function for sending messages
         app: Slack app instance for API calls
     """
-    from utils.block_builder import (
+    from slack.blocks import (
         build_birthday_blocks,
         build_special_day_blocks,
         build_bot_celebration_blocks,
     )
-    from utils.slack_utils import send_message, get_username, get_user_profile
-    from utils.app_config import get_current_personality_name
+    from slack.client import send_message, get_username, get_user_profile
+    from storage.settings import get_current_personality_name
     from datetime import datetime
 
     username = get_username(app, user_id)
@@ -497,7 +497,7 @@ def handle_test_upload_multi_command(user_id, say, app):
         say: Slack say function for sending messages
         app: Slack app instance for file uploads
     """
-    from utils.slack_utils import send_message_with_multiple_attachments, get_username
+    from slack.client import send_message_with_multiple_attachments, get_username
 
     username = get_username(app, user_id)
     say(
@@ -635,7 +635,7 @@ def handle_test_file_upload_command(user_id, say, app):
     import tempfile
     import os
     from datetime import datetime
-    from utils.slack_utils import send_message_with_file, get_username
+    from slack.client import send_message_with_file, get_username
 
     username = get_username(app, user_id)
     say("📄 Creating and uploading a test text file to you via DM...")
@@ -746,8 +746,8 @@ def handle_test_external_backup_command(user_id, say, app):
         say: Slack say function for sending messages
         app: Slack app instance for backup delivery
     """
-    from utils.slack_utils import get_username
-    from utils.storage import send_external_backup
+    from slack.client import get_username
+    from storage.birthdays import send_external_backup
     from datetime import datetime
     import os
     import glob
@@ -775,7 +775,7 @@ def handle_test_external_backup_command(user_id, say, app):
     logger.info(f"TEST_EXTERNAL_BACKUP: Configuration check by {username} ({user_id})")
 
     # Check admin configuration
-    from utils.app_config import get_current_admins
+    from storage.settings import get_current_admins
 
     current_admins = get_current_admins()
 
@@ -844,7 +844,7 @@ def handle_test_blockkit_command(user_id, args, say, app):
     - simple: Simplest possible block structure
     - all: Run all modes sequentially
     """
-    from utils.slack_utils import get_username
+    from slack.client import get_username
     from PIL import Image, ImageDraw
     import io
 
@@ -1260,7 +1260,7 @@ def handle_test_join_command(args, user_id, say, app):
         say: Slack say function for sending messages
         app: Slack app instance for API calls
     """
-    from utils.slack_utils import get_username
+    from slack.client import get_username
     from config import BIRTHDAY_CHANNEL
 
     username = get_username(app, user_id)
@@ -1452,7 +1452,7 @@ def handle_test_bot_celebration_command(
         image_size: Optional image size (auto/1024x1024/etc.)
         text_only: Skip image generation if True
     """
-    from utils.slack_utils import (
+    from slack.client import (
         get_username,
         get_channel_members,
         send_message_with_image,
@@ -1461,9 +1461,9 @@ def handle_test_bot_celebration_command(
         generate_bot_celebration_message,
         get_bot_celebration_image_title,
     )
-    from utils.image_generator import generate_birthday_image
-    from utils.storage import load_birthdays
-    from utils.date_utils import date_to_words
+    from image.generator import generate_birthday_image
+    from storage.birthdays import load_birthdays
+    from utils.date import date_to_words
     from config import (
         BOT_BIRTH_YEAR,
         BOT_BIRTHDAY,
@@ -1496,7 +1496,7 @@ def handle_test_bot_celebration_command(
 
         # Get special days count
         try:
-            from utils.special_days_storage import load_special_days
+            from storage.special_days import load_special_days
 
             special_days_count = len(load_special_days())
         except (FileNotFoundError, ValueError, KeyError) as e:
@@ -1610,7 +1610,7 @@ def handle_test_bot_celebration_command(
                     # NEW FLOW: Upload image → Get file ID → Build blocks with embedded image → Send unified message
                     try:
                         # Step 1: Upload image to get file ID
-                        from utils.slack_utils import upload_birthday_images_for_blocks
+                        from slack.client import upload_birthday_images_for_blocks
 
                         logger.info(
                             "TEST_BOT_CELEBRATION: Uploading test celebration image to get file ID for Block Kit embedding"
@@ -1649,7 +1649,7 @@ def handle_test_bot_celebration_command(
 
                         # Step 2: Build Block Kit blocks with embedded image (using file ID tuple)
                         try:
-                            from utils.block_builder import build_bot_celebration_blocks
+                            from slack.blocks import build_bot_celebration_blocks
 
                             blocks, fallback_text = build_bot_celebration_blocks(
                                 celebration_message,
@@ -1674,7 +1674,7 @@ def handle_test_bot_celebration_command(
                             fallback_text = celebration_message
 
                         # Step 3: Send unified Block Kit message (image already embedded in blocks)
-                        from utils.slack_utils import send_message
+                        from slack.client import send_message
 
                         image_result = send_message(app, user_id, fallback_text, blocks)
                         image_success = image_result["success"]
@@ -1701,7 +1701,7 @@ def handle_test_bot_celebration_command(
                         )
                     else:
                         # Fallback to message only if image upload fails - but with blocks
-                        from utils.block_builder import build_bot_celebration_blocks
+                        from slack.blocks import build_bot_celebration_blocks
 
                         try:
                             blocks, fallback_text = build_bot_celebration_blocks(
@@ -1731,7 +1731,7 @@ def handle_test_bot_celebration_command(
                         )
                 else:
                     # Send message only if image failed - but with blocks
-                    from utils.block_builder import build_bot_celebration_blocks
+                    from slack.blocks import build_bot_celebration_blocks
 
                     try:
                         blocks, fallback_text = build_bot_celebration_blocks(
@@ -1765,7 +1765,7 @@ def handle_test_bot_celebration_command(
                     f"TEST_BOT_CELEBRATION: Image generation exception for {username}: {image_error}"
                 )
                 # Fallback to message only - but with blocks
-                from utils.block_builder import build_bot_celebration_blocks
+                from slack.blocks import build_bot_celebration_blocks
 
                 try:
                     blocks, fallback_text = build_bot_celebration_blocks(
@@ -1792,7 +1792,7 @@ def handle_test_bot_celebration_command(
                 )
         else:
             # Images disabled - send message only but with blocks
-            from utils.block_builder import build_bot_celebration_blocks
+            from slack.blocks import build_bot_celebration_blocks
 
             try:
                 blocks, fallback_text = build_bot_celebration_blocks(

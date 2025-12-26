@@ -15,8 +15,8 @@ class TestCalendarificClient:
     def client(self):
         """Create a CalendarificClient with temp cache dir"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch("utils.calendarific_api.CALENDARIFIC_CACHE_DIR", tmpdir):
-                from utils.calendarific_api import CalendarificClient
+            with patch("integrations.calendarific.CALENDARIFIC_CACHE_DIR", tmpdir):
+                from integrations.calendarific import CalendarificClient
 
                 return CalendarificClient(api_key="test_key", country="CH", state="VD")
 

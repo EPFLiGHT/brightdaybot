@@ -23,7 +23,7 @@ from config import (
 import argparse
 import sys
 from openai import APIError, APIConnectionError, RateLimitError, APITimeoutError
-from utils.openai_api import complete, get_openai_client, log_web_search_usage
+from integrations.openai import complete, get_openai_client, log_web_search_usage
 
 logger = get_logger("web_search")
 
@@ -157,7 +157,7 @@ def get_birthday_facts(date_str, personality=DEFAULT_IMAGE_PERSONALITY):
         # Use any year for search formatting - year doesn't matter for historical events
         search_date = datetime(2025, date_obj.month, date_obj.day)
         # Format in European style: DD Month
-        from utils.date_utils import format_date_european_short
+        from utils.date import format_date_european_short
 
         formatted_date = format_date_european_short(search_date)  # e.g. "15 April"
 
@@ -406,7 +406,7 @@ def main():
         # Use any year for formatting - year doesn't matter for historical facts
         formatted_date_obj = datetime(2025, date_obj.month, date_obj.day)
         # Format in European style: DD Month
-        from utils.date_utils import format_date_european_short
+        from utils.date import format_date_european_short
 
         formatted_date = format_date_european_short(
             formatted_date_obj

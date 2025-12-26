@@ -1,5 +1,5 @@
 """
-Tests for Slack utility functions in utils/slack_utils.py
+Tests for Slack client functions in slack/client.py
 
 Tests pure formatting functions (no API calls):
 - get_user_mention(): Format user ID as Slack mention
@@ -7,7 +7,7 @@ Tests pure formatting functions (no API calls):
 - fix_slack_formatting(): Convert markdown to Slack format
 """
 
-from utils.slack_utils import (
+from slack.client import (
     get_user_mention,
     get_channel_mention,
     fix_slack_formatting,

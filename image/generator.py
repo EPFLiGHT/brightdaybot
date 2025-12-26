@@ -23,7 +23,7 @@ from config import (
     TIMEOUTS,
     CACHE_RETENTION_DAYS,
 )
-from utils.openai_api import log_image_generation_usage, get_openai_client
+from integrations.openai import log_image_generation_usage, get_openai_client
 import base64
 from PIL import Image
 import io
@@ -371,7 +371,7 @@ def create_image_prompt(
 
     if date_str:
         try:
-            from utils.date_utils import format_date_european_short
+            from utils.date import format_date_european_short
 
             date_obj = datetime.strptime(date_str, "%d/%m")
             date_display = format_date_european_short(date_obj)  # e.g., "25 December"

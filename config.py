@@ -4,7 +4,7 @@ BrightDayBot Configuration - Core Settings and Constants
 Centralized configuration including environment variables, file paths, feature flags,
 and application constants. Functions moved to separate utility modules.
 
-Key modules: utils/app_config.py, utils/logging_config.py
+Key modules: storage/settings.py, utils/log_setup.py
 """
 
 import os
@@ -420,12 +420,12 @@ BOT_PERSONALITIES = PERSONALITIES
 # ----- INITIALIZATION -----
 
 # Initialize logging system
-from utils.logging_config import setup_logging
+from utils.log_setup import setup_logging
 
 setup_logging(LOGS_DIR)
 
 # Get the main logger
-from utils.logging_config import get_logger
+from utils.log_setup import get_logger
 
 logger = get_logger("main")
 
@@ -447,24 +447,3 @@ for directory in [
 # Log any configuration issues
 if not BIRTHDAY_CHANNEL:
     logger.error("CONFIG_ERROR: BIRTHDAY_CHANNEL_ID not found in .env file")
-
-# ----- BACKWARD COMPATIBILITY IMPORTS -----
-
-# Re-export functions from new modules for backward compatibility
-from utils.app_config import (
-    get_current_personality_name,
-    set_current_personality,
-    get_current_openai_model,
-    set_current_openai_model,
-    is_valid_openai_model,
-    get_supported_openai_models,
-    set_custom_personality_setting,
-    initialize_config,
-)
-
-from utils.app_config import (
-    get_emoji_instructions,
-    get_base_template,
-    get_full_template_for_personality,
-    BASE_TEMPLATE,
-)

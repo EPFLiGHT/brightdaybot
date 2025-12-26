@@ -22,7 +22,7 @@ from personality_config import (
     get_celebration_personality_count,
     get_personality_descriptions,
 )
-from utils.date_utils import date_to_words
+from utils.date import date_to_words
 
 
 def build_birthday_blocks(
@@ -395,7 +395,7 @@ def build_special_day_blocks(
     date_str = get_attr(special_days[0], "date")
     if date_str:
         from datetime import datetime
-        from utils.date_utils import format_date_european_short
+        from utils.date import format_date_european_short
 
         try:
             date_obj = datetime.strptime(date_str, "%d/%m")
@@ -1037,7 +1037,7 @@ def build_health_status_blocks(
     Returns:
         Tuple of (blocks list, fallback_text string)
     """
-    from utils.health_check import STATUS_OK
+    from utils.health import STATUS_OK
 
     blocks = []
     components = status_data.get("components", {})

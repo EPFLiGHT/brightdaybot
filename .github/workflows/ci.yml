@@ -26,8 +26,13 @@ jobs:
       - name: Syntax check
         run: |
           python -m py_compile app.py config.py personality_config.py
+          python -m py_compile commands/*.py
           python -m py_compile handlers/*.py
           python -m py_compile services/*.py
+          python -m py_compile integrations/*.py
+          python -m py_compile slack/*.py
+          python -m py_compile storage/*.py
+          python -m py_compile image/*.py
           python -m py_compile utils/*.py
 
       - name: Import check
@@ -39,22 +44,40 @@ jobs:
           echo "Testing core imports..."
           python -c "from config import *"
           python -c "from personality_config import *"
+          echo "Testing commands..."
+          python -c "import commands.admin_commands"
+          python -c "import commands.birthday_commands"
+          python -c "import commands.special_commands"
+          python -c "import commands.test_commands"
           echo "Testing handlers..."
-          python -c "import handlers.command_handler"
           python -c "import handlers.event_handler"
-          python -c "import handlers.admin_commands"
-          python -c "import handlers.birthday_commands"
-          python -c "import handlers.test_commands"
-          python -c "import handlers.special_commands"
+          python -c "import handlers.slash_commands"
+          python -c "import handlers.modal_handlers"
+          python -c "import handlers.app_home"
           echo "Testing services..."
+          python -c "import services.dispatcher"
           python -c "import services.birthday"
           python -c "import services.scheduler"
           python -c "import services.celebration"
+          python -c "import services.message"
+          python -c "import services.special_day"
+          echo "Testing integrations..."
+          python -c "import integrations.openai"
+          python -c "import integrations.calendarific"
+          python -c "import integrations.web_search"
+          echo "Testing slack..."
+          python -c "import slack.client"
+          python -c "import slack.blocks"
+          echo "Testing storage..."
+          python -c "import storage.birthdays"
+          python -c "import storage.settings"
+          python -c "import storage.special_days"
+          echo "Testing image..."
+          python -c "import image.generator"
           echo "Testing utils..."
-          python -c "import utils.date_utils"
-          python -c "import utils.block_builder"
-          python -c "import utils.storage"
-          python -c "import utils.message_generator"
+          python -c "import utils.date"
+          python -c "import utils.health"
+          python -c "import utils.log_setup"
           echo "All imports successful!"
 
       - name: Run unit tests

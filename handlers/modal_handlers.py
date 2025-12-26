@@ -9,9 +9,9 @@ from datetime import datetime
 from calendar import month_name
 
 from config import get_logger, DATE_FORMAT, MIN_BIRTH_YEAR
-from utils.storage import save_birthday
-from utils.date_utils import check_if_birthday_today
-from utils.slack_utils import get_username
+from storage.birthdays import save_birthday
+from utils.date import check_if_birthday_today
+from slack.client import get_username
 
 logger = get_logger("commands")
 
@@ -113,7 +113,7 @@ def register_modal_handlers(app):
         user_id = body["user"]["id"]
         trigger_id = body["trigger_id"]
 
-        from utils.block_builder import build_birthday_modal
+        from slack.blocks import build_birthday_modal
 
         modal = build_birthday_modal(user_id)
 
@@ -128,7 +128,7 @@ def register_modal_handlers(app):
 
 def _send_modal_confirmation(client, user_id, date_ddmm, birth_year, updated):
     """Send confirmation after modal submission."""
-    from utils.date_utils import date_to_words, calculate_age, get_star_sign
+    from utils.date import date_to_words, calculate_age, get_star_sign
 
     date_words = date_to_words(date_ddmm, birth_year)
     star_sign = get_star_sign(date_ddmm)
@@ -179,7 +179,7 @@ def _send_birthday_today_message(
     client, user_id, username, date_ddmm, birth_year, updated, app
 ):
     """Send special message when birthday is today."""
-    from utils.date_utils import date_to_words
+    from utils.date import date_to_words
 
     date_words = date_to_words(date_ddmm, birth_year)
     action = "updated" if updated else "saved"

@@ -27,7 +27,7 @@ from config import (
     RETRY_LIMITS,
     get_logger,
 )
-from utils.app_config import get_current_admins
+from storage.settings import get_current_admins
 
 logger = get_logger("slack")
 
@@ -452,7 +452,7 @@ def send_message_with_image(
                 else:
                     # Generate AI-powered title for the image
                     try:
-                        from utils.message_generator import (
+                        from services.message import (
                             generate_birthday_image_title,
                         )
 
@@ -606,7 +606,7 @@ def send_message_with_multiple_images(
 
                 # Use AI to generate personalized title
                 try:
-                    from utils.message_generator import generate_birthday_image_title
+                    from services.message import generate_birthday_image_title
 
                     ai_title = generate_birthday_image_title(
                         person_name,
@@ -740,7 +740,7 @@ def upload_birthday_images_for_blocks(
 
                 # Generate AI title for this image
                 try:
-                    from utils.message_generator import generate_birthday_image_title
+                    from services.message import generate_birthday_image_title
 
                     ai_title = generate_birthday_image_title(
                         person_name,
@@ -974,7 +974,7 @@ def send_message_with_multiple_attachments(
 
                 # Generate AI title for this image
                 try:
-                    from utils.message_generator import generate_birthday_image_title
+                    from services.message import generate_birthday_image_title
 
                     ai_title = generate_birthday_image_title(
                         person_name,

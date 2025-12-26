@@ -1,5 +1,5 @@
 """
-Tests for parallel image generation in message_generator.py
+Tests for parallel image generation in services/message.py
 
 Verifies ThreadPoolExecutor integration for generating multiple birthday
 images concurrently when people share the same birthday.
@@ -13,11 +13,11 @@ class TestParallelImageGeneration:
     """Tests for parallel image generation functionality"""
 
     def test_threadpoolexecutor_import_available(self):
-        """Verify ThreadPoolExecutor is imported in message_generator"""
-        from utils import message_generator
+        """Verify ThreadPoolExecutor is imported in message service"""
+        from services import message
 
-        assert hasattr(message_generator, "ThreadPoolExecutor")
-        assert hasattr(message_generator, "as_completed")
+        assert hasattr(message, "ThreadPoolExecutor")
+        assert hasattr(message, "as_completed")
 
     def test_threadpoolexecutor_functionality(self):
         """Verify ThreadPoolExecutor works correctly for parallel tasks"""
@@ -36,14 +36,14 @@ class TestParallelImageGeneration:
 
     def test_generate_birthday_message_exists(self):
         """Verify _generate_birthday_message function exists"""
-        from utils.message_generator import _generate_birthday_message
+        from services.message import _generate_birthday_message
 
         assert callable(_generate_birthday_message)
 
     def test_generate_birthday_message_signature(self):
         """Verify _generate_birthday_message has expected parameters"""
         import inspect
-        from utils.message_generator import _generate_birthday_message
+        from services.message import _generate_birthday_message
 
         sig = inspect.signature(_generate_birthday_message)
         params = list(sig.parameters.keys())
@@ -58,7 +58,7 @@ class TestParallelImageGeneration:
     def test_parallel_config_max_workers(self):
         """Verify the parallel config uses 3 workers as documented"""
         # Read the source to verify max_workers=3 is used
-        import utils.message_generator as mg
+        import services.message as mg
         import inspect
 
         source = inspect.getsource(mg._generate_birthday_message)
@@ -71,7 +71,7 @@ class TestParallelImageGeneration:
     def test_single_person_optimization_exists(self):
         """Verify single person case skips ThreadPoolExecutor"""
         import inspect
-        from utils.message_generator import _generate_birthday_message
+        from services.message import _generate_birthday_message
 
         source = inspect.getsource(_generate_birthday_message)
 

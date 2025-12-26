@@ -1,5 +1,5 @@
 """
-Tests for date utility functions in utils/date_utils.py
+Tests for date utility functions in utils/date.py
 
 Tests pure functions with complex logic:
 - extract_date(): 5 regex patterns, user-facing input parsing
@@ -12,7 +12,7 @@ Tests pure functions with complex logic:
 import pytest
 from datetime import datetime, timezone
 
-from utils.date_utils import (
+from utils.date import (
     extract_date,
     date_to_words,
     get_star_sign,

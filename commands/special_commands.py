@@ -27,20 +27,20 @@ from config import (
     UPCOMING_DAYS_EXTENDED,
     CALENDARIFIC_PREFETCH_DAYS,
 )
-from utils.slack_utils import get_username, send_message
+from slack.client import get_username, send_message
 
 logger = get_logger("commands")
 
 
 def handle_special_command(args, user_id, say, app):
     """Handle user special days commands using Block Kit"""
-    from utils.special_days_storage import (
+    from storage.special_days import (
         get_todays_special_days,
         get_upcoming_special_days,
         get_special_day_statistics,
         load_all_special_days,
     )
-    from utils.block_builder import (
+    from slack.blocks import (
         build_special_days_list_blocks,
         build_special_day_stats_blocks,
     )
@@ -54,7 +54,7 @@ def handle_special_command(args, user_id, say, app):
     if subcommand == "today":
         # Show today's special days using Block Kit
         special_days = get_todays_special_days()
-        from utils.date_utils import format_date_european_short
+        from utils.date import format_date_european_short
 
         today_str = format_date_european_short(datetime.now())
         blocks, fallback = build_special_days_list_blocks(
@@ -178,7 +178,7 @@ def parse_quoted_args(command_text):
 
 def handle_admin_special_command_with_quotes(command_text, user_id, say, app):
     """Handle admin special days commands with quoted string parsing"""
-    from utils.special_days_storage import (
+    from storage.special_days import (
         SpecialDay,
         save_special_day,
         remove_special_day,
@@ -190,7 +190,7 @@ def handle_admin_special_command_with_quotes(command_text, user_id, say, app):
         get_special_days_for_date,
         mark_special_day_announced,
     )
-    from utils.special_day_generator import generate_special_day_message
+    from services.special_day import generate_special_day_message
 
     username = get_username(app, user_id)
 
@@ -279,7 +279,7 @@ def handle_admin_special_command_with_quotes(command_text, user_id, say, app):
 
 def handle_admin_special_command(args, user_id, say, app):
     """Handle admin special days commands (non-add commands only)"""
-    from utils.special_days_storage import (
+    from storage.special_days import (
         remove_special_day,
         load_special_days,
         load_all_special_days,
@@ -290,7 +290,7 @@ def handle_admin_special_command(args, user_id, say, app):
         get_special_days_for_date,
         mark_special_day_announced,
     )
-    from utils.special_day_generator import generate_special_day_message
+    from services.special_day import generate_special_day_message
 
     username = get_username(app, user_id)
 
@@ -408,13 +408,13 @@ def handle_admin_special_command(args, user_id, say, app):
         special_days = get_special_days_for_date(test_date)
 
         if special_days:
-            from utils.date_utils import format_date_european_short
+            from utils.date import format_date_european_short
 
             test_date_str = format_date_european_short(test_date)
             say(f"🧪 Testing special day announcement for {test_date_str}...")
 
             # NEW: Check if observances should be split
-            from utils.special_days_storage import should_split_observances
+            from storage.special_days import should_split_observances
 
             should_split = should_split_observances(special_days)
 
@@ -440,7 +440,7 @@ def handle_admin_special_command(args, user_id, say, app):
                         )
 
                         # Generate detailed content
-                        from utils.special_day_generator import (
+                        from services.special_day import (
                             generate_special_day_details,
                         )
 
@@ -450,7 +450,7 @@ def handle_admin_special_command(args, user_id, say, app):
 
                         if message:
                             # Build blocks for individual observance (unified function with list)
-                            from utils.block_builder import build_special_day_blocks
+                            from slack.blocks import build_special_day_blocks
                             from config import SPECIAL_DAYS_PERSONALITY
 
                             blocks, fallback_text = build_special_day_blocks(
@@ -461,7 +461,7 @@ def handle_admin_special_command(args, user_id, say, app):
                             )
 
                             # Send individual announcement to admin DM
-                            from utils.slack_utils import send_message
+                            from slack.client import send_message
 
                             send_message(app, user_id, fallback_text, blocks)
 
@@ -492,7 +492,7 @@ def handle_admin_special_command(args, user_id, say, app):
 
                 # Generate DETAILED content for "View Details" button (NEW)
                 # Pass test_date so web search uses the correct date
-                from utils.special_day_generator import generate_special_day_details
+                from services.special_day import generate_special_day_details
 
                 detailed_content = generate_special_day_details(
                     special_days, app=app, test_date=test_date
@@ -502,7 +502,7 @@ def handle_admin_special_command(args, user_id, say, app):
                     # Build Block Kit blocks exactly like formal announcements
                     # Unified function handles both single and multiple special days
                     try:
-                        from utils.block_builder import build_special_day_blocks
+                        from slack.blocks import build_special_day_blocks
                         from config import SPECIAL_DAYS_PERSONALITY
 
                         blocks, fallback_text = build_special_day_blocks(
@@ -517,7 +517,7 @@ def handle_admin_special_command(args, user_id, say, app):
                         )
 
                         # Send with Block Kit blocks to admin DM
-                        from utils.slack_utils import send_message
+                        from slack.client import send_message
 
                         send_message(app, user_id, fallback_text, blocks)
 
@@ -529,7 +529,7 @@ def handle_admin_special_command(args, user_id, say, app):
                 else:
                     say("❌ Failed to generate message")
         else:
-            from utils.date_utils import format_date_european_short
+            from utils.date import format_date_european_short
 
             test_date_str = format_date_european_short(test_date)
             say(f"No special days found for {test_date_str}")
@@ -579,7 +579,7 @@ def handle_admin_special_command(args, user_id, say, app):
 
     elif subcommand == "verify":
         # Verify special days data
-        from utils.special_days_storage import verify_special_days
+        from storage.special_days import verify_special_days
 
         results = verify_special_days()
 
@@ -647,7 +647,7 @@ def handle_admin_special_command(args, user_id, say, app):
             return
 
         try:
-            from utils.calendarific_api import get_calendarific_client
+            from integrations.calendarific import get_calendarific_client
 
             client = get_calendarific_client()
 
@@ -682,7 +682,7 @@ def handle_admin_special_command(args, user_id, say, app):
     elif subcommand in ["un-status", "un"]:
         # UN Observances: Show cache status
         try:
-            from utils.un_observances import get_un_cache_status
+            from integrations.un_observances import get_un_cache_status
 
             status = get_un_cache_status()
 
@@ -712,7 +712,7 @@ _Cache refreshes weekly. Use `admin special un-refresh` to force update._"""
     elif subcommand == "un-refresh":
         # UN Observances: Force refresh
         try:
-            from utils.un_observances import refresh_un_cache
+            from integrations.un_observances import refresh_un_cache
 
             say("🔄 Refreshing UN observances cache...")
 
@@ -745,7 +745,7 @@ _Cache refreshes weekly. Use `admin special un-refresh` to force update._"""
             return
 
         try:
-            from utils.calendarific_api import get_calendarific_client
+            from integrations.calendarific import get_calendarific_client
 
             client = get_calendarific_client()
             status = client.get_api_status()

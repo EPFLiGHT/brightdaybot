@@ -7,15 +7,15 @@ Handles birthday list, check, remind commands, and immediate celebration logic.
 from datetime import datetime, timezone
 from calendar import month_name
 
-from utils.date_utils import (
+from utils.date import (
     date_to_words,
     calculate_age,
     calculate_days_until_birthday,
     calculate_next_birthday_age,
     get_star_sign,
 )
-from utils.storage import load_birthdays, mark_birthday_announced
-from utils.slack_utils import (
+from storage.birthdays import load_birthdays, mark_birthday_announced
+from slack.client import (
     get_username,
     get_user_profile,
     check_command_permission,
@@ -23,7 +23,7 @@ from utils.slack_utils import (
     send_message,
     get_user_mention,
 )
-from utils.message_generator import create_birthday_announcement
+from services.message import create_birthday_announcement
 from services.celebration import (
     should_celebrate_immediately,
     create_birthday_update_notification,
@@ -170,7 +170,7 @@ def handle_list_command(parts, user_id, say, app):
 
     # List upcoming birthdays
     if not check_command_permission(app, user_id, "list"):
-        from utils.block_builder import build_permission_error_blocks
+        from slack.blocks import build_permission_error_blocks
 
         blocks, fallback = build_permission_error_blocks(
             "list birthdays", "configured permission"
@@ -326,7 +326,7 @@ def handle_list_command(parts, user_id, say, app):
         birthday_list = precise_candidates[:10]
 
     # Format birthday data for Block Kit
-    from utils.block_builder import build_birthday_list_blocks
+    from slack.blocks import build_birthday_list_blocks
 
     formatted_birthdays = []
 
@@ -415,7 +415,7 @@ def handle_check_command(parts, user_id, say, app):
             age = None
             star_sign = get_star_sign(date)
 
-        from utils.block_builder import build_birthday_check_blocks
+        from slack.blocks import build_birthday_check_blocks
 
         target_username = get_username(app, target_user)
         is_self = target_user == user_id
@@ -429,7 +429,7 @@ def handle_check_command(parts, user_id, say, app):
         )
         say(blocks=blocks, text=fallback)
     else:
-        from utils.block_builder import build_birthday_not_found_blocks
+        from slack.blocks import build_birthday_not_found_blocks
 
         target_username = get_username(app, target_user)
         is_self = target_user == user_id

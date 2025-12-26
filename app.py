@@ -13,12 +13,13 @@ from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 
 # Import configuration
-from config import logger, initialize_config
+from config import logger
+from storage.settings import initialize_config
 
 # Import services
 from services.scheduler import setup_scheduler, run_now
 from services.birthday import timezone_aware_check, simple_daily_check
-from utils.special_days_storage import initialize_special_days_cache
+from storage.special_days import initialize_special_days_cache
 
 # Import event handlers
 from handlers.event_handler import register_event_handlers

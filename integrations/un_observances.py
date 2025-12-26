@@ -27,9 +27,9 @@ from config import (
     UN_OBSERVANCES_CACHE_DIR,
     UN_OBSERVANCES_CACHE_FILE,
 )
-from utils.special_days_storage import SpecialDay
-from utils.logging_config import get_logger
-from utils.category_keywords import HEALTH_KEYWORDS, TECH_KEYWORDS, CULTURE_KEYWORDS
+from storage.special_days import SpecialDay
+from utils.log_setup import get_logger
+from utils.keywords import HEALTH_KEYWORDS, TECH_KEYWORDS, CULTURE_KEYWORDS
 
 logger = get_logger("special_days")
 
@@ -228,7 +228,7 @@ class UNObservancesClient:
         import os
         import json
         import httpx
-        from config import get_current_openai_model
+        from storage.settings import get_current_openai_model
 
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
