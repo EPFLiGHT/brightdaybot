@@ -796,7 +796,8 @@ THE SAGE'S SYMPOSIUM:
         "name": "The Chronicler",
         "vivid_name": "The Chronicler, Keeper of Days",
         "emoji": "📚✨",
-        # No celebration_desc/image_desc - special days personality, not for birthday celebrations
+        "celebration_desc": "chronicling all days of significance",
+        "image_desc": "a historian dog with ancient scrolls and calendar pages floating around",
         "description": "the keeper of human history and cultural memory",
         "style": "educational yet engaging, weaving historical facts with cultural significance",
         "format_instruction": "Create an informative announcement that connects past and present",

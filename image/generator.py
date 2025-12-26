@@ -454,8 +454,10 @@ def create_image_prompt(
     else:
         # Check if bot celebration should use special prompt
         if is_bot_celebration and personality == "mystic_dog":
-            # Use the special bot celebration image prompt instead of regular mystic_dog prompt
-            prompt_template = personality_config.get("bot_celebration_image_prompt", "")
+            # Use the pre-formatted bot celebration image prompt (includes personality descriptions)
+            from services.celebration import get_bot_celebration_image_prompt
+
+            prompt_template = get_bot_celebration_image_prompt()
             if prompt_template:
                 logger.info(
                     f"IMAGE_PROMPT: Using special bot_celebration_image_prompt for {name}"
