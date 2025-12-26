@@ -26,11 +26,13 @@ class TestUNObservancesClient:
         assert client._map_category("World Telecommunication Day") == "Tech"
         assert client._map_category("International Day of Peace") == "Culture"
 
-    def test_emoji_for_category(self, client):
-        """Categories get correct emojis"""
-        assert client._get_emoji_for_category("Global Health") == ":hospital:"
-        assert client._get_emoji_for_category("Tech") == ":computer:"
-        assert client._get_emoji_for_category("Culture") == ":earth_americas:"
+    def test_emoji_for_name(self, client):
+        """Observance names get keyword-based emojis"""
+        assert client._get_emoji_for_name("World Health Day") == "🏥"
+        assert client._get_emoji_for_name("World Water Day") == "💧"
+        assert client._get_emoji_for_name("International Day of Peace") == "☮️"
+        assert client._get_emoji_for_name("International Day of Education") == "🎓"
+        assert client._get_emoji_for_name("Some Random Day") == "🌐"  # fallback
 
 
 class TestUNRegexParsing:

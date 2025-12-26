@@ -240,8 +240,12 @@ class UNObservancesClient:
             markdown = markdown[start_idx:]
 
         prompt = (
-            """Extract ALL UN International Days from this markdown. Return JSON array:
-[{"day": 7, "month": "April", "name": "World Health Day", "url": "https://www.un.org/en/observances/health-day", "emoji": "🏥"}, ...]
+            """Extract ALL UN International Days from this markdown.
+
+CRITICAL: Return ONLY a valid JSON array. No markdown, no code fences, no explanations, no notes.
+Start with [ and end with ] - nothing else.
+
+Format: [{"day": 7, "month": "April", "name": "World Health Day", "url": "https://www.un.org/en/observances/health-day", "emoji": "🏥"}, ...]
 
 Rules:
 - Include ALL observances (there should be 200+)
@@ -274,6 +278,19 @@ Markdown content:
             data = response.json()
 
         content = data["choices"][0]["message"]["content"]
+
+        # Strip markdown code fences if present (LLM often wraps in ```json...```)
+        # This must be done BEFORE finding JSON bounds, as notes after ``` may contain []
+        if "```" in content:
+            # Find content between first ``` and next ```
+            parts = content.split("```")
+            if len(parts) >= 3:
+                # parts[0] is before first ```, parts[1] is the code block, parts[2+] is after
+                code_block = parts[1]
+                # Remove language hint (e.g., "json\n")
+                if code_block.startswith("json"):
+                    code_block = code_block[4:].lstrip()
+                content = code_block
 
         # Extract JSON from response
         json_start = content.find("[")
@@ -312,8 +329,8 @@ Markdown content:
                 # Use specific observance URL if available, fallback to list page
                 observance_url = url if url.startswith("http") else UN_OBSERVANCES_URL
 
-                # Use LLM-generated emoji if available, fallback to category-based
-                final_emoji = emoji if emoji else self._get_emoji_for_category(category)
+                # Use LLM-generated emoji if available, fallback to keyword-based
+                final_emoji = emoji if emoji else self._get_emoji_for_name(name)
 
                 observances.append(
                     {
@@ -387,9 +404,7 @@ Markdown content:
                             "name": name,
                             "category": self._map_category(name),
                             "description": "",
-                            "emoji": self._get_emoji_for_category(
-                                self._map_category(name)
-                            ),
+                            "emoji": self._get_emoji_for_name(name),
                             "source": "UN",
                             "url": url,  # Use the specific observance URL
                         }
@@ -425,14 +440,87 @@ Markdown content:
         # Default to Culture
         return "Culture"
 
-    def _get_emoji_for_category(self, category: str) -> str:
-        """Get default emoji for category."""
-        emoji_map = {
-            "Global Health": ":hospital:",
-            "Tech": ":computer:",
-            "Culture": ":earth_americas:",
+    def _get_emoji_for_name(self, name: str) -> str:
+        """Get emoji based on keywords in observance name."""
+        name_lower = name.lower()
+
+        # Keyword to emoji mapping (order matters - first match wins)
+        keyword_emojis = [
+            # Nature & Environment
+            (["water", "ocean", "sea", "marine"], "💧"),
+            (["forest", "tree"], "🌲"),
+            (["earth", "environment", "climate", "ozone"], "🌍"),
+            (["wetland", "wildlife", "biodiversity"], "🦆"),
+            (["bee", "pollinator"], "🐝"),
+            (["bird", "migratory"], "🕊️"),
+            (["mountain"], "⛰️"),
+            (["desert", "desertification"], "🏜️"),
+            (["soil"], "🌱"),
+            # Peace & Rights
+            (["peace"], "☮️"),
+            (["human rights", "rights"], "⚖️"),
+            (["democracy", "vote"], "🗳️"),
+            (["freedom", "press"], "📰"),
+            (["refugee"], "🏠"),
+            (["slavery", "trafficking"], "⛓️"),
+            (["genocide", "holocaust", "victims"], "🕯️"),
+            (["violence", "torture"], "🚫"),
+            # Health
+            (["cancer"], "🎗️"),
+            (["aids", "hiv"], "🎀"),
+            (["mental health"], "🧠"),
+            (["health", "disease", "epidemic"], "🏥"),
+            (["drug", "substance"], "💊"),
+            (["tobacco"], "🚭"),
+            (["disability", "braille", "blind", "deaf"], "♿"),
+            (["autism"], "🧩"),
+            # People & Society
+            (["women", "girl", "mother"], "👩"),
+            (["child", "youth", "boy"], "👶"),
+            (["family"], "👨‍👩‍👧"),
+            (["elderly", "older person"], "👴"),
+            (["indigenous"], "🪶"),
+            (["african"], "🌍"),
+            # Education & Culture
+            (["education", "literacy", "teacher"], "🎓"),
+            (["book", "reading", "library"], "📚"),
+            (["language", "mother tongue"], "🗣️"),
+            (["science", "scientist"], "🔬"),
+            (["space", "asteroid", "astronaut"], "🚀"),
+            (["art", "theatre", "creativity"], "🎨"),
+            (["music", "jazz"], "🎵"),
+            (["sport", "yoga", "olympic"], "🏅"),
+            (["heritage", "museum", "monument"], "🏛️"),
+            # Technology
+            (["internet", "cyber", "digital", "telecommunication"], "💻"),
+            (["radio", "television"], "📻"),
+            (["nuclear", "atomic"], "☢️"),
+            # Work & Economy
+            (["worker", "labour", "labor"], "👷"),
+            (["poverty", "hunger", "food"], "🍞"),
+            (["cooperat"], "🤝"),
+            # Other
+            (["happiness", "joy"], "😊"),
+            (["friendship"], "🤝"),
+            (["solidarity"], "🤲"),
+            (["tolerance"], "🤝"),
+            (["remembrance", "memory", "commemoration"], "🕯️"),
+            (["awareness"], "💡"),
+        ]
+
+        for keywords, emoji in keyword_emojis:
+            for keyword in keywords:
+                if keyword in name_lower:
+                    return emoji
+
+        # Fallback by category
+        category = self._map_category(name)
+        category_emojis = {
+            "Global Health": "🏥",
+            "Tech": "💻",
+            "Culture": "🌐",
         }
-        return emoji_map.get(category, ":calendar:")
+        return category_emojis.get(category, "📅")
 
     def _is_cache_fresh(self) -> bool:
         """Check if cache is still within TTL."""
