@@ -1,132 +1,45 @@
 date,name,category,description,emoji,enabled,source,url
-04/01,World Braille Day,Global Health,Celebrating Louis Braille and promoting accessibility for the visually impaired,👁️,true,UN,https://www.un.org/en/observances/braille-day
 14/01,World Logic Day,Tech,Celebrating the intellectual history and practical implications of logic in science and society,🧠,true,UNESCO,https://www.unesco.org/en/days/world-logic
-24/01,International Day of Education,Culture,Recognizing education as a human right and driver of sustainable development,📚,true,UN,https://www.un.org/en/observances/education-day
-26/01,International Day of Clean Energy,Global Health,Promoting renewable energy for health and environment worldwide,⚡,true,UN,https://www.un.org/en/observances/clean-energy-day
-27/01,International Holocaust Remembrance Day,Culture,Commemorating victims of the Holocaust and combating antisemitism,🕯️,true,UN,https://www.un.org/en/holocaustremembrance/
 28/01,Data Protection Day,Tech,Raising awareness about privacy and data protection best practices,🔒,true,Council of Europe,https://www.coe.int/en/web/data-protection/data-protection-day
 30/01,World Neglected Tropical Diseases Day,Global Health,Raising awareness of neglected tropical diseases affecting 1.7 billion people in marginalized communities,🦠,true,WHO,https://www.who.int/campaigns/world-ntd-day
 04/02,World Cancer Day,Global Health,Uniting the world in the fight against cancer,🎗️,true,UICC/WHO,https://www.worldcancerday.org/
-06/02,International Day of Zero Tolerance for FGM,Global Health,Raising awareness to end female genital mutilation worldwide,🚫,true,UN,https://www.un.org/en/observances/female-genital-mutilation-day
-11/02,International Day of Women and Girls in Science,Tech,Promoting full and equal access to science for women and girls,👩‍🔬,true,UN/UNESCO,https://www.un.org/en/observances/women-and-girls-in-science-day
-13/02,World Radio Day,Culture,Celebrating radio as a powerful medium for education and information,📻,true,UNESCO,https://www.unesco.org/en/days/world-radio
-20/02,World Day of Social Justice,Culture,Promoting social justice and equal opportunities for all,⚖️,true,UN,https://www.un.org/en/observances/social-justice-day
-21/02,International Mother Language Day,Culture,Promoting linguistic diversity and multilingual education,🗣️,true,UN/UNESCO,https://www.un.org/en/observances/mother-language-day
-03/03,World Wildlife Day,Culture,Celebrating and raising awareness of wild fauna and flora,🦁,true,UN,https://www.un.org/en/observances/world-wildlife-day
 03/03,World Hearing Day,Global Health,Raising awareness about hearing loss prevention and promoting ear and hearing care worldwide,👂,true,WHO,https://www.who.int/campaigns/world-hearing-day
 04/03,World Engineering Day,Tech,Raising awareness of engineering's essential role in sustainable development and climate action,⚙️,true,UNESCO,https://www.unesco.org/en/days/engineering-sustainable-development
-08/03,International Women's Day,Culture,Celebrating women's achievements and advocating for gender equality,♀️,true,UN,https://www.un.org/en/observances/womens-day
 14/03,Pi Day,Tech,Celebrating the mathematical constant π and mathematics in general,🥧,true,Larry Shaw/Exploratorium,https://www.piday.org/
 19/03,International Day for Digital Learning,Tech,Promoting digital learning to address educational challenges and foster inclusive development,💻,true,UNESCO,https://www.unesco.org/en/days/digital-learning
-20/03,International Day of Happiness,Culture,Recognizing happiness as a fundamental human goal,😊,true,UN,https://www.un.org/en/observances/happiness-day
 20/03,World Oral Health Day,Global Health,Empowering people with knowledge and tools to secure good oral health,🦷,true,FDI,https://www.worldoralhealthday.org/
-21/03,International Day for Elimination of Racial Discrimination,Culture,Promoting tolerance and ending racism worldwide,🤝,true,UN,https://www.un.org/en/observances/end-racism-day
-22/03,World Water Day,Global Health,Focusing on the importance of freshwater and sustainable water management,💧,true,UN,https://www.un.org/en/observances/water-day
 24/03,World TB Day,Global Health,Raising awareness to end the global tuberculosis epidemic,🫁,true,WHO,https://www.who.int/campaigns/world-tb-day
 31/03,World Backup Day,Tech,Reminder to protect digital data through regular backups,💾,true,Ismail Jadun,https://www.worldbackupday.com/
-02/04,World Autism Awareness Day,Global Health,Increasing understanding and acceptance of people with autism,🧩,true,UN,https://www.un.org/en/observances/autism-day
-04/04,Mine Awareness Day,Global Health,Promoting mine action work and assistance to mine victims,⚠️,true,UN,https://www.un.org/en/observances/mine-awareness-day
-07/04,World Health Day,Global Health,Commemorating WHO founding and highlighting global health priorities,🏥,true,WHO,https://www.who.int/campaigns/world-health-day
-12/04,International Day of Human Space Flight,Tech,Commemorating Yuri Gagarin's historic spaceflight and promoting space science for peaceful purposes,🚀,true,UN,https://www.un.org/en/observances/human-spaceflight-day
-14/04,World Chagas Disease Day,Global Health,Raising awareness of Chagas disease and healthcare access,💉,true,WHO,https://www.who.int/campaigns/world-chagas-disease-day
 18/04,International Day for Monuments and Sites,Culture,Promoting cultural heritage preservation and awareness,🏛️,true,UNESCO/ICOMOS,https://www.icomos.org/en/focus/18-april-international-day-for-monuments-and-sites
 19/04,World Liver Day,Global Health,Raising awareness about liver diseases and promoting liver health globally,🫀,true,EASL,https://worldliverday.org/
-21/04,World Creativity and Innovation Day,Tech,Promoting creative thinking and innovation for sustainable development,💡,true,UN,https://www.un.org/en/observances/creativity-and-innovation-day
-22/04,Earth Day,Culture,Demonstrating support for environmental protection worldwide,🌍,true,UN,https://www.un.org/en/observances/earth-day
 25/04,World Malaria Day,Global Health,Highlighting efforts to control and eliminate malaria,🦟,true,WHO,https://www.who.int/campaigns/world-malaria-day
-26/04,World Intellectual Property Day,Tech,Celebrating creativity and innovation protected by patents copyrights and trademarks,💡,true,WIPO,https://www.wipo.int/en/web/ipday/
-03/05,World Press Freedom Day,Culture,Celebrating fundamental principles of press freedom,📰,true,UNESCO,https://www.unesco.org/en/days/press-freedom
+26/04,World Intellectual Property Day,Tech,"Celebrating creativity and innovation protected by patents, copyrights, and trademarks",💡,true,WIPO,https://www.wipo.int/en/web/ipday/
 04/05,Star Wars Day,Tech,Celebrating science fiction and space technology (May the Fourth),🌟,true,Fan-created,
 05/05,World Hand Hygiene Day,Global Health,Promoting hand hygiene in health care facilities,🧼,true,WHO,https://www.who.int/campaigns/world-hand-hygiene-day
 05/05,International Day of the Midwife,Global Health,Recognizing midwives' vital role in maternal and newborn health worldwide,🤱,true,ICM,https://www.internationalmidwives.org/what-we-do/policy-and-practice/international-day-of-the-midwife.html
 08/05,World Red Cross and Red Crescent Day,Global Health,Celebrating humanitarian work and founder Henry Dunant's birthday,⚕️,true,IFRC,https://www.ifrc.org/
 12/05,International Nurses Day,Global Health,Honoring nurses and their vital contributions to healthcare,👩‍⚕️,true,ICN,https://www.icn.ch/
-15/05,International Day of Families,Culture,Promoting awareness of issues relating to families,👨‍👩‍👧‍👦,true,UN,https://www.un.org/en/observances/international-day-of-families
-16/05,International Day of Light,Tech,Celebrating the role of light in science technology and culture,:light:,true,UNESCO,https://www.unesco.org/en/days/light
-17/05,International Day Against Homophobia Biphobia and Transphobia,Culture,Promoting LGBTQ+ rights and ending discrimination worldwide,🏳️‍🌈,true,UN OHCHR,https://www.ohchr.org/en/topic/lgbti-people
-17/05,World Telecommunication Day,Tech,Raising awareness of ICT possibilities and bridging digital divide,📡,true,ITU,https://www.itu.int/en/wtisd/
+16/05,International Day of Light,Tech,"Celebrating the role of light in science, technology, and culture",:light:,true,UNESCO,https://www.unesco.org/en/days/light
+17/05,"International Day Against Homophobia, Biphobia, and Transphobia",Culture,Promoting LGBTQ+ rights and ending discrimination worldwide,🏳️‍🌈,true,UN OHCHR,https://www.ohchr.org/en/topic/lgbti-people
 17/05,World Hypertension Day,Global Health,Raising awareness about hypertension affecting 1.28 billion adults worldwide,❤️‍🩹,true,WHL,https://whleague.org/
 20/05,International Clinical Trials Day,Tech,Recognizing the importance of clinical research and honoring James Lind's first trial in 1747,🔬,true,ECRIN/ACRP,https://www.clinicaltrialsday.org/
-22/05,International Day for Biological Diversity,Culture,Celebrating biodiversity and environmental protection worldwide,🦋,true,UN,https://www.un.org/en/observances/biological-diversity-day
-23/05,End Obstetric Fistula Day,Global Health,Supporting treatment and prevention of obstetric fistula,🏥,true,UN,https://www.un.org/en/observances/end-fistula-day
 28/05,Menstrual Hygiene Day,Global Health,Breaking taboos and raising awareness about menstrual hygiene,🌸,true,WASH United,https://menstrualhygieneday.org/
-31/05,World No-Tobacco Day,Global Health,Highlighting health risks of tobacco and advocating for effective policies,🚭,true,WHO,https://www.who.int/campaigns/world-no-tobacco-day
-05/06,World Environment Day,Culture,Encouraging worldwide awareness and action for environmental protection,🌳,true,UN,https://www.un.org/en/observances/environment-day
-08/06,World Oceans Day,Culture,Reminding everyone of oceans' major role in everyday life,🌊,true,UN,https://www.un.org/en/observances/oceans-day
-12/06,World Day Against Child Labour,Global Health,Promoting worldwide movement against child labour,👶,true,ILO,https://www.un.org/en/observances/world-day-against-child-labour
-13/06,International Albinism Awareness Day,Global Health,Celebrating human rights of persons with albinism worldwide,🤍,true,UN,https://www.un.org/en/observances/albinism-day
-14/06,World Blood Donor Day,Global Health,Thanking blood donors and raising awareness about safe blood,🩸,true,WHO,https://www.who.int/campaigns/world-blood-donor-day
-19/06,Elimination of Sexual Violence in Conflict,Global Health,Supporting victims and ending sexual violence in conflict zones,🕊️,true,UN,https://www.un.org/en/observances/end-sexual-violence-in-conflict-day
 19/06,World Sickle Cell Day,Global Health,Increasing awareness of sickle cell disease affecting millions worldwide,🩸,true,UN,https://www.un.org/en/observances/sickle-cell-day
-20/06,World Refugee Day,Global Health,Honoring refugees and celebrating their strength and courage,🤝,true,UN,https://www.un.org/en/observances/refugee-day
-21/06,International Day of Yoga,Global Health,Promoting yoga for physical mental and spiritual well-being worldwide,🧘,true,UN,https://www.un.org/en/observances/yoga-day
 23/06,International Women in Engineering Day,Tech,Promoting gender equality in STEM fields worldwide,👷‍♀️,true,UNESCO,https://www.unesco.org/en/days/women-in-engineering-day
 06/07,World Zoonoses Day,Global Health,Raising awareness of diseases transmitted between animals and humans,🦠,true,One Health,https://www.onehealthcommission.org/
-11/07,World Population Day,Culture,Focusing on urgency and importance of population issues,👥,true,UN,https://www.un.org/en/observances/world-population-day
-15/07,World Youth Skills Day,Tech,Equipping young people with AI and digital skills for employment and sustainable development,🎓,true,UN/UNESCO,https://www.un.org/en/observances/world-youth-skills-day
-18/07,Nelson Mandela International Day,Culture,Celebrating Nelson Mandela's legacy and promoting community service,✊,true,UN,https://www.un.org/en/events/mandeladay/
-20/07,International Moon Day,Tech,Celebrating achievements in lunar exploration and promoting space science for peaceful purposes,🌙,true,UN,https://www.un.org/en/observances/moon-day
-25/07,World Drowning Prevention Day,Global Health,Highlighting the impact of drowning and promoting life-saving prevention solutions,🏊,true,UN/WHO,https://www.un.org/en/observances/drowning-prevention-day
-28/07,World Hepatitis Day,Global Health,Raising awareness about viral hepatitis and its prevention,🔬,true,WHO,https://www.who.int/campaigns/world-hepatitis-day
-30/07,International Day of Friendship,Culture,Promoting friendship between peoples and cultures,🤗,true,UN,https://www.un.org/en/observances/friendship-day
-30/07,World Day against Trafficking in Persons,Global Health,Raising awareness of human trafficking affecting millions and protecting victims worldwide,💙,true,UN,https://www.un.org/en/observances/end-human-trafficking-day
-09/08,International Day of the World's Indigenous Peoples,Culture,Honoring indigenous peoples and their cultures worldwide,🪶,true,UN,https://www.un.org/en/observances/indigenous-day
-12/08,International Youth Day,Culture,Celebrating young people and their contributions to society,🌟,true,UN,https://www.un.org/en/observances/youth-day
-19/08,World Humanitarian Day,Global Health,Honoring humanitarian workers and those who lost their lives helping others,❤️,true,UN,https://www.un.org/en/observances/humanitarian-day
-23/08,International Day for the Remembrance of the Slave Trade and its Abolition,Culture,Commemorating the transatlantic slave trade tragedy and honoring those who fought for freedom,⛓️,true,UNESCO,https://www.unesco.org/en/days/slave-trade-remembrance
-29/08,International Day against Nuclear Tests,Culture,Promoting global efforts to ban nuclear testing and achieve a nuclear-weapon-free world,☢️,true,UN,https://www.un.org/en/observances/end-nuclear-tests-day
-30/08,International Day of the Victims of Enforced Disappearances,Culture,Honoring victims of enforced disappearances and demanding truth and justice,🕯️,true,UN,https://www.un.org/en/observances/victims-enforced-disappearance
 31/08,International Overdose Awareness Day,Global Health,Remembering those lost to overdose and ending stigma,💜,true,Penington Institute,https://www.overdoseday.com/
-05/09,International Day of Charity,Culture,Commemorating Mother Teresa and promoting philanthropy worldwide,💝,true,UN,https://www.un.org/en/observances/charity-day
-07/09,International Day of Clean Air for Blue Skies,Global Health,Raising awareness of air pollution's impact on health causing 8 million premature deaths annually,🌬️,true,UN/UNEP,https://www.un.org/en/observances/clean-air-day
-08/09,International Literacy Day,Culture,Highlighting importance of literacy for individuals and societies,📖,true,UNESCO,https://www.unesco.org/en/days/literacy-day
-09/09,International Day to Protect Education from Attack,Global Health,Highlighting the plight of children affected by armed conflict,📚,true,UN,https://www.un.org/en/observances/protect-education-day
 10/09,World Suicide Prevention Day,Global Health,Raising awareness and preventing suicides worldwide,💛,true,WHO,https://www.who.int/campaigns/world-suicide-prevention-day
 13/09,Programmers' Day,Tech,Celebrating programmers and their contributions (256th day of year),💻,true,Russia,
 13/09,World Sepsis Day,Global Health,Raising awareness of sepsis which affects 50 million people and causes 11 million deaths annually,🩺,true,Global Sepsis Alliance,https://www.worldsepsisday.org/
-15/09,International Day of Democracy,Culture,Promoting democratic values and governance worldwide,🗳️,true,UN,https://www.un.org/en/observances/democracy-day
-16/09,International Day of Science Technology and Innovation for the South,Tech,Promoting science and technology transfer to developing nations,🔬,true,UN/UNCTAD,https://www.un.org/en/observances/international-day-science-technology-and-innovation-south
-17/09,World Patient Safety Day,Global Health,Ensuring safe care for every patient especially newborns and children,🏥,true,WHO,https://www.who.int/campaigns/world-patient-safety-day
-21/09,International Day of Peace,Culture,Strengthening ideals of peace within and among nations,☮️,true,UN,https://www.un.org/en/observances/international-day-peace
-23/09,International Day of Sign Languages,Culture,Promoting sign language rights for 70 million deaf people worldwide,🤟,true,UN,https://www.un.org/en/observances/sign-languages-day
 26/09,World Contraception Day,Global Health,Improving awareness of contraception enabling informed reproductive health choices,💊,true,WCD Coalition,https://www.un.org/development/desa/pd/events/world-contraception-day
-26/09,International Day for Total Elimination of Nuclear Weapons,Culture,Promoting nuclear disarmament and raising awareness of threats posed by nuclear weapons,☢️,true,UN,https://www.un.org/en/observances/nuclear-weapons-elimination-day
 28/09,World Rabies Day,Global Health,Raising awareness about rabies prevention and control,🐕,true,WHO,https://www.who.int/campaigns/world-rabies-day
-28/09,International Day for Universal Access to Information,Tech,Empowering people through access to information and promoting transparency,📊,true,UNESCO,https://www.unesco.org/en/days/universal-access-information
 29/09,World Heart Day,Global Health,Informing people about cardiovascular diseases and prevention,❤️,true,WHO,https://www.world-heart-federation.org/world-heart-day
-29/09,International Day of Awareness of Food Loss and Waste,Global Health,Promoting efforts to reduce food loss and waste for sustainable food systems,🍽️,true,FAO/UNEP,https://www.un.org/en/observances/end-food-waste-day
-01/10,International Day of Older Persons,Culture,Recognizing contributions of older persons to society,👵,true,UN,https://www.un.org/en/observances/older-persons-day
-05/10,World Teachers' Day,Culture,Celebrating teachers and their vital contribution to education,👩‍🏫,true,UNESCO,https://www.unesco.org/en/days/teachers
-10/10,World Mental Health Day,Global Health,Raising awareness of mental health issues worldwide,💚,true,WHO,https://www.who.int/campaigns/world-mental-health-day
 12/10,World Arthritis Day,Global Health,Raising awareness of rheumatic and musculoskeletal diseases affecting 350 million people,🦴,true,ARI/EULAR,https://www.arthritis.org/about-arthritis/world-arthritis-day
-13/10,Disaster Risk Reduction Day,Global Health,Promoting disaster risk reduction and resilience,🛡️,true,UNDRR,https://www.un.org/en/observances/disaster-reduction-day
-15/10,International Day of Rural Women,Global Health,Recognizing rural women's contributions to development worldwide,👩‍🌾,true,UN,https://www.un.org/en/observances/rural-women-day
-16/10,World Food Day,Global Health,Promoting awareness and action for those suffering from hunger,🍎,true,FAO,https://www.fao.org/world-food-day
-17/10,International Day for Eradication of Poverty,Culture,Promoting awareness of poverty eradication worldwide,🤲,true,UN,https://www.un.org/en/observances/day-for-eradicating-poverty
 20/10,World Osteoporosis Day,Global Health,Promoting bone health awareness and prevention of osteoporosis and fractures,🦴,true,IOF,https://www.worldosteoporosisday.org/
-24/10,United Nations Day,Culture,Marking the anniversary of the UN Charter coming into force,🇺🇳,true,UN,https://www.un.org/en/observances/un-day
 24/10,World Polio Day,Global Health,Commemorating Jonas Salk and highlighting global efforts to eradicate polio,💉,true,Rotary/GPEI,https://www.endpolio.org/world-polio-day
 29/10,World Stroke Day,Global Health,Raising awareness about stroke prevention and treatment worldwide,🧠,true,World Stroke Organization,https://www.world-stroke.org/world-stroke-day-campaign
-31/10,World Cities Day,Global Health,Promoting sustainable urbanization and resilient cities worldwide,🏙️,true,UN-Habitat,https://www.un.org/en/observances/world-cities-day
 07/11,International Day of Medical Physics,Global Health,Recognizing the role of medical physics in patient care,⚛️,true,IOMP,https://www.iomp.org/
 08/11,International Day of Radiology,Tech,Celebrating the discovery of x-rays and the vital role of radiology in healthcare,☢️,true,ESR/RSNA,https://www.internationaldayofradiology.com/
-10/11,World Science Day for Peace and Development,Tech,Highlighting the role of science in society and engaging the public in science debates,🔭,true,UNESCO,https://www.un.org/en/observances/world-science-day
 12/11,World Pneumonia Day,Global Health,Raising awareness about pneumonia as the leading infectious cause of child death,🫁,true,GCACP/WHO,https://stoppneumonia.org/latest/world-pneumonia-day/
-14/11,World Diabetes Day,Global Health,Raising awareness about diabetes and its prevention,💙,true,WHO,https://www.who.int/campaigns/world-diabetes-day
-16/11,International Day for Tolerance,Culture,Promoting tolerance respect and dignity worldwide,🤝,true,UNESCO,https://www.unesco.org/en/days/tolerance
 17/11,World Prematurity Day,Global Health,Raising awareness about preterm birth and supporting premature babies and their families,👶,true,WHO,https://www.who.int/campaigns/world-prematurity-day
-19/11,World Toilet Day,Global Health,Raising awareness about sanitation and hygiene for all,🚽,true,UN-Water,https://www.un.org/en/observances/toilet-day
-20/11,Africa Industrialization Day,Culture,Promoting industrialization and development in Africa,🏭,true,UN,https://www.un.org/en/observances/africa-industrialization-day
-20/11,World Children's Day,Culture,Promoting international togetherness and children's welfare,👧,true,UN,https://www.un.org/en/observances/world-childrens-day
-25/11,International Day for Elimination of Violence Against Women,Culture,Ending violence against women and girls worldwide,🧡,true,UN,https://www.un.org/en/observances/ending-violence-against-women-day
 30/11,Computer Security Day,Tech,Promoting computer and data security awareness,🔐,true,,
-01/12,World AIDS Day,Global Health,Raising awareness and supporting those affected by HIV/AIDS,🎗️,true,WHO/UN,https://www.who.int/campaigns/world-aids-day
-02/12,International Day for the Abolition of Slavery,Culture,Eradicating contemporary forms of slavery including human trafficking and forced labor,⛓️,true,UN,https://www.un.org/en/observances/slavery-abolition-day
-03/12,International Day of Persons with Disabilities,Global Health,Promoting rights and well-being of persons with disabilities,♿,true,UN,https://www.un.org/en/observances/day-of-persons-with-disabilities
-05/12,International Volunteer Day,Culture,Recognizing the one billion volunteers worldwide contributing to peace and sustainable development,🤝,true,UN,https://www.un.org/en/observances/volunteer-day
-09/12,International Anti-Corruption Day,Culture,Raising awareness about corruption and promoting transparency and accountability,⚖️,true,UN,https://www.un.org/en/observances/anti-corruption-day
-10/12,Human Rights Day,Culture,Commemorating adoption of Universal Declaration of Human Rights,✋,true,UN,https://www.un.org/en/observances/human-rights-day
-11/12,International Mountain Day,Global Health,Highlighting the importance of mountains for water food and climate affecting billions worldwide,🏔️,true,UN/FAO,https://www.un.org/en/observances/mountain-day
-12/12,Universal Health Coverage Day,Global Health,Promoting health for all and strong resilient health systems,🌍,true,UN,https://www.un.org/en/observances/universal-health-coverage-day
-18/12,International Migrants Day,Global Health,Recognizing contributions of 272 million migrants and protecting their human rights,🌍,true,UN/IOM,https://www.un.org/en/observances/migrants-day
-27/12,International Day of Epidemic Preparedness,Global Health,Promoting epidemic prevention preparedness and partnership,🦠,true,UN,https://www.un.org/en/observances/epidemic-preparedness-day
