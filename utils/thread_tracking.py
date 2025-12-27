@@ -127,7 +127,7 @@ class ThreadTracker:
         self,
         channel: str,
         thread_ts: str,
-        special_days: List[Dict[str, Any]],
+        special_days: List[Any],
         personality: str = "chronicler",
     ) -> TrackedThread:
         """
@@ -136,29 +136,21 @@ class ThreadTracker:
         Args:
             channel: Slack channel ID
             thread_ts: Message timestamp (thread parent)
-            special_days: List of special day dicts with name, description, etc.
+            special_days: List of SpecialDay objects (from storage.special_days)
             personality: Personality used for the announcement
 
         Returns:
             TrackedThread object for the new thread
         """
         # Store special day info for context in responses
+        # Use getattr() for safe attribute access on SpecialDay objects
         special_day_info = {
             "days": [
                 {
-                    "name": sd.get(
-                        "name", sd.name if hasattr(sd, "name") else "Unknown"
-                    ),
-                    "description": sd.get(
-                        "description",
-                        sd.description if hasattr(sd, "description") else "",
-                    ),
-                    "category": sd.get(
-                        "category", sd.category if hasattr(sd, "category") else ""
-                    ),
-                    "source": sd.get(
-                        "source", sd.source if hasattr(sd, "source") else ""
-                    ),
+                    "name": getattr(sd, "name", "Unknown"),
+                    "description": getattr(sd, "description", ""),
+                    "category": getattr(sd, "category", ""),
+                    "source": getattr(sd, "source", ""),
                 }
                 for sd in special_days
             ],
