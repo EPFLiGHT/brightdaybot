@@ -4,18 +4,19 @@ Thread Tracker for BrightDayBot
 Tracks birthday and special day announcement threads for engagement features.
 Threads are tracked for 24 hours after posting, allowing the bot to:
 - Add reactions to thread replies
-- Optionally send thank-you messages
 - Respond intelligently to questions about the announcement
 
-Uses in-memory storage with TTL-based cleanup.
+Uses in-memory storage with JSON persistence for restart survival.
 """
 
+import json
+import os
 import threading
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 
-from config import get_logger
+from config import get_logger, TRACKED_THREADS_FILE, THREAD_TRACKING_TTL_DAYS
 
 logger = get_logger("events")
 
@@ -52,13 +53,42 @@ class TrackedThread:
         """Check if this is a special day thread."""
         return self.thread_type == "special_day"
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "channel": self.channel,
+            "thread_ts": self.thread_ts,
+            "thread_type": self.thread_type,
+            "personality": self.personality,
+            "created_at": self.created_at.isoformat(),
+            "reactions_count": self.reactions_count,
+            "responses_sent": self.responses_sent,
+            "birthday_people": self.birthday_people,
+            "special_day_info": self.special_day_info,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "TrackedThread":
+        """Create TrackedThread from dictionary."""
+        return cls(
+            channel=data["channel"],
+            thread_ts=data["thread_ts"],
+            thread_type=data["thread_type"],
+            personality=data["personality"],
+            created_at=datetime.fromisoformat(data["created_at"]),
+            reactions_count=data.get("reactions_count", 0),
+            responses_sent=data.get("responses_sent", 0),
+            birthday_people=data.get("birthday_people", []),
+            special_day_info=data.get("special_day_info"),
+        )
+
 
 class ThreadTracker:
     """
     Manages tracking of birthday threads for engagement features.
 
     Thread-safe singleton that maintains active birthday threads
-    and handles TTL-based cleanup.
+    and handles TTL-based cleanup. Persists to JSON for restart survival.
     """
 
     _instance: Optional["ThreadTracker"] = None
@@ -80,9 +110,79 @@ class ThreadTracker:
 
         self._threads: Dict[str, TrackedThread] = {}
         self._threads_lock = threading.Lock()
-        self._ttl_hours = 24
+        self._ttl_hours = THREAD_TRACKING_TTL_DAYS * 24  # Convert days to hours
         self._initialized = True
+
+        # Load persisted threads from file
+        self._load_from_file()
+
         logger.info("THREAD_TRACKER: Initialized thread tracking system")
+
+    def _load_from_file(self) -> None:
+        """Load tracked threads from JSON file, filtering expired ones."""
+        if not os.path.exists(TRACKED_THREADS_FILE):
+            logger.debug("THREAD_TRACKER: No persistence file found, starting fresh")
+            return
+
+        try:
+            with open(TRACKED_THREADS_FILE, "r") as f:
+                data = json.load(f)
+
+            loaded_count = 0
+            expired_count = 0
+
+            for key, thread_data in data.get("threads", {}).items():
+                try:
+                    thread = TrackedThread.from_dict(thread_data)
+                    if not thread.is_expired(self._ttl_hours):
+                        self._threads[key] = thread
+                        loaded_count += 1
+                    else:
+                        expired_count += 1
+                except Exception as e:
+                    logger.warning(f"THREAD_TRACKER: Failed to load thread {key}: {e}")
+
+            if loaded_count > 0 or expired_count > 0:
+                logger.info(
+                    f"THREAD_TRACKER: Loaded {loaded_count} active threads from file "
+                    f"(skipped {expired_count} expired)"
+                )
+
+            # Save to clean up expired entries from file
+            if expired_count > 0:
+                self._save_to_file()
+
+        except json.JSONDecodeError as e:
+            logger.error(f"THREAD_TRACKER: Failed to parse persistence file: {e}")
+        except Exception as e:
+            logger.error(f"THREAD_TRACKER: Failed to load from file: {e}")
+
+    def _save_to_file(self) -> None:
+        """Save tracked threads to JSON file."""
+        try:
+            # Only save non-expired threads
+            threads_data = {
+                key: thread.to_dict()
+                for key, thread in self._threads.items()
+                if not thread.is_expired(self._ttl_hours)
+            }
+
+            data = {
+                "threads": threads_data,
+                "last_saved": datetime.now().isoformat(),
+                "ttl_hours": self._ttl_hours,
+            }
+
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(TRACKED_THREADS_FILE), exist_ok=True)
+
+            with open(TRACKED_THREADS_FILE, "w") as f:
+                json.dump(data, f, indent=2)
+
+            logger.debug(f"THREAD_TRACKER: Saved {len(threads_data)} threads to file")
+
+        except Exception as e:
+            logger.error(f"THREAD_TRACKER: Failed to save to file: {e}")
 
     def track_thread(
         self,
@@ -119,6 +219,7 @@ class ThreadTracker:
                 f"THREAD_TRACKER: Tracking birthday thread {thread_ts} in {channel} "
                 f"for {len(birthday_people)} birthday people"
             )
+            self._save_to_file()
 
         return thread
 
@@ -173,6 +274,7 @@ class ThreadTracker:
                 f"THREAD_TRACKER: Tracking special day thread {thread_ts} in {channel} "
                 f"for {len(special_days)} special days: {', '.join(day_names)}"
             )
+            self._save_to_file()
 
         return thread
 
@@ -193,6 +295,7 @@ class ThreadTracker:
             thread = self._threads.get(key)
             if thread and not thread.is_expired(self._ttl_hours):
                 thread.responses_sent += 1
+                self._save_to_file()
                 return True
             return False
 
@@ -218,6 +321,7 @@ class ThreadTracker:
             if thread.is_expired(self._ttl_hours):
                 # Clean up expired thread
                 del self._threads[key]
+                self._save_to_file()
                 logger.debug(f"THREAD_TRACKER: Thread {thread_ts} expired and removed")
                 return None
 
@@ -244,6 +348,7 @@ class ThreadTracker:
             thread = self._threads.get(key)
             if thread and not thread.is_expired(self._ttl_hours):
                 thread.reactions_count += 1
+                self._save_to_file()
                 return True
             return False
 
@@ -298,6 +403,9 @@ class ThreadTracker:
             for key in expired_keys:
                 del self._threads[key]
                 cleaned += 1
+
+            if cleaned > 0:
+                self._save_to_file()
 
         if cleaned > 0:
             logger.info(f"THREAD_TRACKER: Cleaned up {cleaned} expired threads")
