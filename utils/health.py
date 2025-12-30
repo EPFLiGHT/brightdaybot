@@ -229,7 +229,9 @@ def check_log_files():
         log_files = {}
         total_size = 0
 
-        for log_name, log_path in LOG_FILES.items():
+        for log_name, log_filename in LOG_FILES.items():
+            # LOG_FILES contains just filenames, construct full path
+            log_path = os.path.join(LOGS_DIR, log_filename)
             if os.path.exists(log_path):
                 size = os.path.getsize(log_path)
                 total_size += size

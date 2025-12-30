@@ -357,9 +357,11 @@ def get_scheduler_summary():
         if not health["thread_alive"]:
             issues.append("thread not running")
         if not health["heartbeat_fresh"]:
-            issues.append(
-                f"heartbeat stale ({health['heartbeat_age_seconds']:.0f}s ago)"
-            )
+            age = health["heartbeat_age_seconds"]
+            if age is not None:
+                issues.append(f"heartbeat stale ({age:.0f}s ago)")
+            else:
+                issues.append("no heartbeat recorded")
         if not health["scheduler_running"]:
             issues.append("not initialized")
 

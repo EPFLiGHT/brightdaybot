@@ -1232,6 +1232,138 @@ def build_health_status_blocks(
             }
         )
 
+        # System Paths
+        from config import DATA_DIR, STORAGE_DIR, BIRTHDAYS_FILE, CACHE_DIR
+
+        paths_text = f"*System Paths:*\n• Data Directory: `{DATA_DIR}`\n• Storage Directory: `{STORAGE_DIR}`\n• Birthdays File: `{BIRTHDAYS_FILE}`\n• Cache Directory: `{CACHE_DIR}`"
+        blocks.append(
+            {"type": "section", "text": {"type": "mrkdwn", "text": paths_text}}
+        )
+
+        # Scheduler Health
+        from services.scheduler import get_scheduler_summary
+
+        scheduler_summary = get_scheduler_summary()
+        blocks.append(
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*Scheduler:*\n• {scheduler_summary}",
+                },
+            }
+        )
+
+        # Special Days Sources
+        special_days = components.get("special_days", {})
+        if special_days.get("enabled"):
+            sd_text = f"*Special Days:*\n• CSV observances: {special_days.get('observance_count', 0)}"
+
+            # Check UN observances cache
+            from config import UN_OBSERVANCES_ENABLED, UN_OBSERVANCES_CACHE_FILE
+            import os
+
+            if UN_OBSERVANCES_ENABLED and os.path.exists(UN_OBSERVANCES_CACHE_FILE):
+                try:
+                    import json
+
+                    with open(UN_OBSERVANCES_CACHE_FILE, "r") as f:
+                        un_data = json.load(f)
+                    un_count = len(un_data.get("observances", []))
+                    un_refreshed = un_data.get("last_updated", "unknown")[:10]
+                    sd_text += (
+                        f"\n• UN observances: {un_count} (updated: {un_refreshed})"
+                    )
+                except Exception:
+                    sd_text += "\n• UN observances: cache error"
+
+            # Check UNESCO observances cache
+            from config import UNESCO_OBSERVANCES_ENABLED, UNESCO_OBSERVANCES_CACHE_FILE
+
+            if UNESCO_OBSERVANCES_ENABLED and os.path.exists(
+                UNESCO_OBSERVANCES_CACHE_FILE
+            ):
+                try:
+                    with open(UNESCO_OBSERVANCES_CACHE_FILE, "r") as f:
+                        unesco_data = json.load(f)
+                    unesco_count = len(unesco_data.get("observances", []))
+                    unesco_refreshed = unesco_data.get("last_updated", "unknown")[:10]
+                    sd_text += f"\n• UNESCO observances: {unesco_count} (updated: {unesco_refreshed})"
+                except Exception:
+                    sd_text += "\n• UNESCO observances: cache error"
+
+            # Check WHO observances cache
+            from config import WHO_OBSERVANCES_ENABLED, WHO_OBSERVANCES_CACHE_FILE
+
+            if WHO_OBSERVANCES_ENABLED and os.path.exists(WHO_OBSERVANCES_CACHE_FILE):
+                try:
+                    with open(WHO_OBSERVANCES_CACHE_FILE, "r") as f:
+                        who_data = json.load(f)
+                    who_count = len(who_data.get("observances", []))
+                    who_refreshed = who_data.get("last_updated", "unknown")[:10]
+                    sd_text += (
+                        f"\n• WHO observances: {who_count} (updated: {who_refreshed})"
+                    )
+                except Exception:
+                    sd_text += "\n• WHO observances: cache error"
+
+            # Check Calendarific cache (uses per-date files in a directory)
+            from config import CALENDARIFIC_ENABLED, CALENDARIFIC_CACHE_DIR
+
+            if CALENDARIFIC_ENABLED and os.path.exists(CALENDARIFIC_CACHE_DIR):
+                try:
+                    cache_files = [
+                        f
+                        for f in os.listdir(CALENDARIFIC_CACHE_DIR)
+                        if f.endswith(".json")
+                    ]
+                    sd_text += f"\n• Calendarific: {len(cache_files)} cached dates"
+                except Exception:
+                    sd_text += "\n• Calendarific: cache error"
+
+            blocks.append(
+                {"type": "section", "text": {"type": "mrkdwn", "text": sd_text}}
+            )
+
+        # Thread Tracker Stats
+        from utils.thread_tracking import get_thread_tracker
+
+        tracker = get_thread_tracker()
+        tracker_stats = tracker.get_all_stats()
+        tracker_text = f"*Thread Tracking:*\n• Active threads: {tracker_stats.get('active_threads', 0)}\n• Total reactions: {tracker_stats.get('total_reactions', 0)}"
+        blocks.append(
+            {"type": "section", "text": {"type": "mrkdwn", "text": tracker_text}}
+        )
+
+        # Interactive Features Status
+        from config import (
+            THREAD_ENGAGEMENT_ENABLED,
+            MENTION_QA_ENABLED,
+            NLP_DATE_PARSING_ENABLED,
+            AI_IMAGE_GENERATION_ENABLED,
+        )
+
+        features_text = "*Interactive Features:*"
+        features_text += f"\n• Thread engagement: {'✅ enabled' if THREAD_ENGAGEMENT_ENABLED else '❌ disabled'}"
+        features_text += f"\n• @-Mention Q&A: {'✅ enabled' if MENTION_QA_ENABLED else '❌ disabled'}"
+        features_text += f"\n• NLP date parsing: {'✅ enabled' if NLP_DATE_PARSING_ENABLED else '❌ disabled'}"
+        features_text += f"\n• AI image generation: {'✅ enabled' if AI_IMAGE_GENERATION_ENABLED else '❌ disabled'}"
+        blocks.append(
+            {"type": "section", "text": {"type": "mrkdwn", "text": features_text}}
+        )
+
+        # Log file details
+        logs_detail = components.get("logs", {})
+        if logs_detail.get("files"):
+            log_text = "*Log Files:*"
+            for log_name, log_info in logs_detail.get("files", {}).items():
+                if log_info.get("exists"):
+                    size_kb = log_info.get("size_kb", 0)
+                    log_text += f"\n• {log_name}: {size_kb} KB"
+            blocks.append(
+                {"type": "section", "text": {"type": "mrkdwn", "text": log_text}}
+            )
+
     fallback_text = f"🤖 System Health Check ({timestamp})\nBirthdays: {birthday_count} | Admins: {admin_count} | Model: {model_name}"
 
     return blocks, fallback_text
