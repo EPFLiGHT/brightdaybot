@@ -223,18 +223,6 @@ class TestBuildSpecialDayBlocks:
         header = blocks[0]
         assert "World Health Day" in header["text"]["text"]
 
-    def test_multiple_days_header(self):
-        """Multiple special days get count in header"""
-        blocks, _ = build_special_day_blocks(
-            [
-                {"name": "World Health Day", "date": "07/04", "source": "WHO"},
-                {"name": "World Book Day", "date": "07/04", "source": "UNESCO"},
-            ],
-            "Today we celebrate!",
-        )
-        header = blocks[0]
-        assert "2 Special Days" in header["text"]["text"]
-
     def test_fallback_text_not_empty(self):
         """Fallback text is non-empty string"""
         _, fallback = build_special_day_blocks(

@@ -247,8 +247,6 @@ def build_special_day_blocks(
     if not special_days:
         return [], ""
 
-    count = len(special_days)
-
     # Helper to get attribute from object or dict
     def get_attr(obj, attr, default=None):
         if hasattr(obj, attr):
@@ -257,15 +255,11 @@ def build_special_day_blocks(
             return obj.get(attr, default)
         return default
 
-    # Determine header title based on count
-    if count == 1:
-        header_text = f"🌍 {get_attr(special_days[0], 'name', 'Special Day')}"
-    elif count == 2:
-        header_text = "🌍 2 Special Days Today"
-    elif count == 3:
-        header_text = "🌍 3 Special Observances Today"
-    else:
-        header_text = f"🌍 {count} Special Observances Today"
+    # Build header with specific emoji for the observance
+    # Note: Always single day since we send separate announcements
+    special_day = special_days[0]
+    emoji = get_attr(special_day, "emoji", "🌍") or "🌍"
+    header_text = f"{emoji} {get_attr(special_day, 'name', 'Special Day')}"
 
     blocks = [
         {
@@ -275,29 +269,11 @@ def build_special_day_blocks(
         {"type": "section", "text": {"type": "mrkdwn", "text": message}},
     ]
 
-    # For multiple special days, add fields layout showing each observance
-    if count > 1:
-        fields = []
-        for special_day in special_days:
-            emoji = get_attr(special_day, "emoji", "🌍") or "🌍"
-            name = get_attr(special_day, "name", "Special Day")
-            category = get_attr(special_day, "category")
-            category_text = f" • {category}" if category else ""
-
-            fields.append(
-                {
-                    "type": "mrkdwn",
-                    "text": f"{emoji} *{name}*{category_text}",
-                }
-            )
-
-        blocks.append({"type": "section", "fields": fields})
-
-    # Add context block for metadata (date, source(s), and personality)
+    # Add context block for metadata (date, source, and personality)
     context_elements = []
 
-    # Get date (all special days on same date)
-    date_str = get_attr(special_days[0], "date")
+    # Get date
+    date_str = get_attr(special_day, "date")
     if date_str:
         from datetime import datetime
         from utils.date import format_date_european_short
@@ -310,23 +286,10 @@ def build_special_day_blocks(
 
         context_elements.append({"type": "mrkdwn", "text": f"📅 *Date:* {formatted_date}"})
 
-    # Collect and display sources
-    sources = [get_attr(day, "source") for day in special_days if get_attr(day, "source")]
-    if sources:
-        unique_sources = list(set(sources))
-        if len(unique_sources) == 1:
-            source_display = unique_sources[0]
-            source_label = "Source"
-        elif len(unique_sources) <= 3:
-            source_display = ", ".join(unique_sources)
-            source_label = "Sources"
-        else:
-            source_display = f"{len(unique_sources)} sources"
-            source_label = "Sources"
-
-        context_elements.append(
-            {"type": "mrkdwn", "text": f"📋 *{source_label}:* {source_display}"}
-        )
+    # Display source
+    source = get_attr(special_day, "source")
+    if source:
+        context_elements.append({"type": "mrkdwn", "text": f"📋 *Source:* {source}"})
 
     # Add personality attribution
     personality_name = get_personality_display_name(personality)
@@ -337,16 +300,16 @@ def build_special_day_blocks(
     if context_elements:
         blocks.append({"type": "context", "elements": context_elements})
 
-    # Add interactive buttons if detailed content or URLs available
-    has_urls = any(get_attr(sd, "url") for sd in special_days)
+    # Add interactive buttons if detailed content or URL available
+    url = get_attr(special_day, "url")
 
-    if detailed_content or has_urls:
+    if detailed_content or url:
         actions = []
 
         # "View Details" button for detailed content
         if detailed_content:
-            # Slack limit: 2000 chars for single, 3000 for consolidated
-            char_limit = 1950 if count == 1 else 3000
+            # Slack limit: 2000 chars
+            char_limit = 1950
             truncated_details = detailed_content[:char_limit]
             if len(detailed_content) > char_limit:
                 truncated_details += "...\n\nSee official source for complete information."
@@ -361,44 +324,22 @@ def build_special_day_blocks(
                 }
             )
 
-        # URL buttons (link buttons still need action_id for Slack tracking)
-        if count == 1:
-            # Single: one "Official Source" button
-            url = get_attr(special_days[0], "url")
-            if url:
-                actions.append(
-                    {
-                        "type": "button",
-                        "text": {"type": "plain_text", "text": "🔗 Official Source"},
-                        "action_id": f"link_official_source_{date_str.replace('/', '_') if date_str else 'unknown'}",
-                        "url": url,
-                    }
-                )
-        else:
-            # Multiple: individual buttons for each URL
-            for idx, special_day in enumerate(special_days):
-                url = get_attr(special_day, "url")
-                if url:
-                    name = get_attr(special_day, "name", "Source")
-                    button_name = name[:30] + "..." if len(name) > 30 else name
-                    actions.append(
-                        {
-                            "type": "button",
-                            "text": {"type": "plain_text", "text": f"🔗 {button_name}"},
-                            "action_id": f"link_source_{idx}_{date_str.replace('/', '_') if date_str else 'unknown'}",
-                            "url": url,
-                        }
-                    )
+        # "Official Source" button
+        if url:
+            actions.append(
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "🔗 Official Source"},
+                    "action_id": f"link_official_source_{date_str.replace('/', '_') if date_str else 'unknown'}",
+                    "url": url,
+                }
+            )
 
         if actions:
             blocks.append({"type": "actions", "elements": actions})
 
     # Generate fallback text
-    if count == 1:
-        fallback_text = f"🌍 {get_attr(special_days[0], 'name', 'Special Day')}"
-    else:
-        names = ", ".join([get_attr(day, "name", "Special Day") for day in special_days])
-        fallback_text = f"🌍 {count} Special Observances Today: {names}"
+    fallback_text = f"{emoji} {get_attr(special_day, 'name', 'Special Day')}"
 
     return blocks, fallback_text
 

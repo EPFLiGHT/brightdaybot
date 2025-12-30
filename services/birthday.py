@@ -373,16 +373,9 @@ def check_and_announce_special_days(app, moment):
             logger.error("SPECIAL_DAYS: No channel configured for announcements")
             return False
 
-        # NEW: Check if observances should be split into separate announcements
-        from storage.special_days import should_split_observances
-
-        should_split = should_split_observances(special_days)
-
-        if should_split and len(special_days) > 1:
-            # SPLIT APPROACH: Send individual announcements for each observance
-            logger.info(
-                f"SPECIAL_DAYS_SPLIT: Sending {len(special_days)} separate announcements for different categories"
-            )
+        # Always send separate announcements for each observance
+        if len(special_days) >= 1:
+            logger.info(f"SPECIAL_DAYS: Sending {len(special_days)} separate announcement(s)")
 
             announcements_sent = 0
             for special_day in special_days:
@@ -392,7 +385,7 @@ def check_and_announce_special_days(app, moment):
 
                     if not message:
                         logger.error(
-                            f"SPECIAL_DAYS_SPLIT: Failed to generate message for {special_day.name}"
+                            f"SPECIAL_DAYS: Failed to generate message for {special_day.name}"
                         )
                         continue
 
@@ -418,7 +411,7 @@ def check_and_announce_special_days(app, moment):
                     if result["success"]:
                         announcements_sent += 1
                         logger.info(
-                            f"SPECIAL_DAYS_SPLIT: Successfully sent announcement {announcements_sent}/{len(special_days)}: {special_day.name}"
+                            f"SPECIAL_DAYS: Sent announcement {announcements_sent}/{len(special_days)}: {special_day.name}"
                         )
 
                         # Track thread for engagement (respond to replies)
@@ -436,127 +429,29 @@ def check_and_announce_special_days(app, moment):
                                 )
                             except Exception as track_error:
                                 logger.warning(
-                                    f"SPECIAL_DAYS_SPLIT: Failed to track thread: {track_error}"
+                                    f"SPECIAL_DAYS: Failed to track thread: {track_error}"
                                 )
                     else:
                         logger.error(
-                            f"SPECIAL_DAYS_SPLIT: Failed to send announcement for {special_day.name}"
+                            f"SPECIAL_DAYS: Failed to send announcement for {special_day.name}"
                         )
 
                 except Exception as e:
-                    logger.error(f"SPECIAL_DAYS_SPLIT: Error announcing {special_day.name}: {e}")
+                    logger.error(f"SPECIAL_DAYS: Error announcing {special_day.name}: {e}")
 
             if announcements_sent > 0:
                 # Mark as announced if at least one announcement succeeded
                 mark_special_day_announced(moment)
                 logger.info(
-                    f"SPECIAL_DAYS_SPLIT: Successfully sent {announcements_sent}/{len(special_days)} announcements"
+                    f"SPECIAL_DAYS: Successfully sent {announcements_sent}/{len(special_days)} announcement(s)"
                 )
                 return True
             else:
-                logger.error("SPECIAL_DAYS_SPLIT: Failed to send any announcements")
+                logger.error("SPECIAL_DAYS: Failed to send any announcements")
                 return False
 
-        else:
-            # COMBINED APPROACH: Send single announcement (original behavior)
-            logger.info(
-                f"SPECIAL_DAYS_COMBINED: Sending combined announcement for {len(special_days)} observance(s)"
-            )
-
-            # Generate the SHORT teaser announcement message (NEW: use_teaser=True)
-            message = generate_special_day_message(special_days, app=app, use_teaser=True)
-
-            if not message:
-                logger.error("SPECIAL_DAYS: Failed to generate message")
-                return False
-
-            # Generate DETAILED content for "View Details" button (NEW)
-            from services.special_day import generate_special_day_details
-
-            detailed_content = generate_special_day_details(special_days, app=app)
-
-            if not detailed_content:
-                logger.warning(
-                    "SPECIAL_DAYS: Failed to generate detailed content, button will not be available"
-                )
-
-            # Build Block Kit blocks for special day announcement
-            # Unified function handles both single and multiple special days
-            try:
-                from slack.blocks import build_special_day_blocks
-                from config import SPECIAL_DAYS_PERSONALITY
-
-                blocks, fallback_text = build_special_day_blocks(
-                    special_days,
-                    message,
-                    personality=SPECIAL_DAYS_PERSONALITY,
-                    detailed_content=detailed_content,
-                )
-
-                logger.info(
-                    f"SPECIAL_DAYS: Built Block Kit structure for {len(special_days)} observance(s) with {len(blocks)} blocks"
-                )
-            except Exception as block_error:
-                logger.warning(
-                    f"SPECIAL_DAYS: Failed to build Block Kit blocks: {block_error}. Using plain text."
-                )
-                blocks = None
-                fallback_text = message
-
-            # Send the message with blocks
-            result = send_message(app, channel, fallback_text, blocks)
-
-        if result["success"]:
-            logger.info(f"SPECIAL_DAYS: Successfully sent announcement to {channel}")
-
-            # Track thread for engagement (respond to replies)
-            message_ts = result.get("ts")
-            if message_ts:
-                try:
-                    from utils.thread_tracking import get_thread_tracker
-                    from config import SPECIAL_DAYS_PERSONALITY
-
-                    tracker = get_thread_tracker()
-                    tracker.track_special_day_thread(
-                        channel=channel,
-                        thread_ts=message_ts,
-                        special_days=special_days,
-                        personality=SPECIAL_DAYS_PERSONALITY,
-                    )
-                except Exception as track_error:
-                    logger.warning(f"SPECIAL_DAYS: Failed to track thread: {track_error}")
-
-            # Optionally generate and send image
-            from config import SPECIAL_DAYS_IMAGE_ENABLED
-
-            if SPECIAL_DAYS_IMAGE_ENABLED:
-                try:
-                    image_data = generate_special_day_image(special_days)
-                    if image_data:
-                        # Send image as a reply in thread
-                        thread_ts = result.get("ts")
-                        title = f"Today's Special Observance{'s' if len(special_days) > 1 else ''}"
-
-                        send_message_with_image(
-                            app,
-                            channel,
-                            title,  # Use title as the message text
-                            image_data=image_data,
-                            context={
-                                "message_type": "special_day_image",
-                                "thread_ts": thread_ts,
-                            },
-                        )
-                        logger.info("SPECIAL_DAYS: Sent special day image")
-                except Exception as e:
-                    logger.warning(f"SPECIAL_DAYS: Failed to generate/send image: {e}")
-
-            # Mark as announced
-            mark_special_day_announced(moment)
-            return True
-        else:
-            logger.error("SPECIAL_DAYS: Failed to send message")
-            return False
+        # No special days to announce
+        return False
 
     except Exception as e:
         logger.error(f"SPECIAL_DAYS_ERROR: Failed to announce special days: {e}")

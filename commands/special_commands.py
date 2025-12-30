@@ -369,16 +369,9 @@ def handle_admin_special_command(args, user_id, say, app):
             test_date_str = format_date_european_short(test_date)
             say(f"🧪 Testing special day announcement for {test_date_str}...")
 
-            # NEW: Check if observances should be split
-            from storage.special_days import should_split_observances
-
-            should_split = should_split_observances(special_days)
-
-            if should_split and len(special_days) > 1:
-                # SPLIT APPROACH: Send individual test announcements
-                say(
-                    f"📋 Splitting {len(special_days)} observances into separate announcements (different categories)"
-                )
+            # Always send separate announcements for each observance
+            if len(special_days) >= 1:
+                say(f"📋 Sending {len(special_days)} separate test announcement(s)")
 
                 for idx, special_day in enumerate(special_days, 1):
                     try:
@@ -427,63 +420,7 @@ def handle_admin_special_command(args, user_id, say, app):
                     except Exception as e:
                         say(f"❌ Error testing {special_day.name}: {e}")
 
-                say(f"\n✅ Sent {len(special_days)} separate announcements to your DM")
-
-            else:
-                # COMBINED APPROACH: Original behavior for same category or single observance
-                if len(special_days) > 1:
-                    say(
-                        f"📋 Combining {len(special_days)} observances into single announcement (same category)"
-                    )
-
-                # Generate SHORT teaser message (NEW: use_teaser=True by default)
-                # Pass test_date so web search uses the correct date
-                message = generate_special_day_message(
-                    special_days,
-                    test_mode=True,
-                    app=app,
-                    use_teaser=True,
-                    test_date=test_date,
-                )
-
-                # Generate DETAILED content for "View Details" button (NEW)
-                # Pass test_date so web search uses the correct date
-                from services.special_day import generate_special_day_details
-
-                detailed_content = generate_special_day_details(
-                    special_days, app=app, test_date=test_date
-                )
-
-                if message:
-                    # Build Block Kit blocks exactly like formal announcements
-                    # Unified function handles both single and multiple special days
-                    try:
-                        from slack.blocks import build_special_day_blocks
-                        from config import SPECIAL_DAYS_PERSONALITY
-
-                        blocks, fallback_text = build_special_day_blocks(
-                            special_days,
-                            message,
-                            personality=SPECIAL_DAYS_PERSONALITY,
-                            detailed_content=detailed_content,
-                        )
-
-                        logger.info(
-                            f"ADMIN_SPECIAL_TEST: Built Block Kit structure for {len(special_days)} observance(s) with {len(blocks)} blocks"
-                        )
-
-                        # Send with Block Kit blocks to admin DM
-                        from slack.client import send_message
-
-                        send_message(app, user_id, fallback_text, blocks)
-
-                    except Exception as block_error:
-                        logger.warning(
-                            f"ADMIN_SPECIAL_TEST: Failed to build blocks: {block_error}. Using plain text."
-                        )
-                        say(f"*Generated Message:*\n\n{message}")
-                else:
-                    say("❌ Failed to generate message")
+                say(f"\n✅ Sent {len(special_days)} separate announcement(s) to your DM")
         else:
             from utils.date import format_date_european_short
 

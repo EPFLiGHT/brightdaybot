@@ -1,13 +1,11 @@
 """
-Tests for special days storage functions in utils/special_days_storage.py
+Tests for special days storage functions in storage/special_days.py
 
 Tests observance analysis functions:
-- should_split_observances(): Determines if observances need separate announcements
 - group_observances_by_category(): Groups observances by category
 """
 
 from storage.special_days import (
-    should_split_observances,
     group_observances_by_category,
     SpecialDay,
 )
@@ -21,53 +19,6 @@ def make_day(category: str, name: str = "Test Day") -> SpecialDay:
         category=category,
         description="Test description",
     )
-
-
-class TestShouldSplitObservances:
-    """Tests for should_split_observances() decision logic"""
-
-    def test_empty_list_returns_false(self):
-        """Empty list returns False (nothing to split)"""
-        assert should_split_observances([]) is False
-
-    def test_single_observance_returns_false(self):
-        """Single observance returns False"""
-        days = [make_day("Culture")]
-        assert should_split_observances(days) is False
-
-    def test_same_category_returns_false(self):
-        """Multiple observances with same category should combine"""
-        days = [
-            make_day("Culture", "Day 1"),
-            make_day("Culture", "Day 2"),
-        ]
-        assert should_split_observances(days) is False
-
-    def test_different_categories_returns_true(self):
-        """Different categories should split"""
-        days = [
-            make_day("Culture", "Cultural Day"),
-            make_day("Tech", "Tech Day"),
-        ]
-        assert should_split_observances(days) is True
-
-    def test_three_different_categories_returns_true(self):
-        """Three different categories should split"""
-        days = [
-            make_day("Culture", "Cultural Day"),
-            make_day("Tech", "Tech Day"),
-            make_day("Global Health", "Health Day"),
-        ]
-        assert should_split_observances(days) is True
-
-    def test_mixed_categories_returns_true(self):
-        """Mix of same and different categories should split"""
-        days = [
-            make_day("Culture", "Cultural Day 1"),
-            make_day("Culture", "Cultural Day 2"),
-            make_day("Tech", "Tech Day"),
-        ]
-        assert should_split_observances(days) is True
 
 
 class TestGroupObservancesByCategory:

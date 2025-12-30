@@ -1081,51 +1081,6 @@ def restore_latest_special_days_backup() -> bool:
 # ----- OBSERVANCE RELATIONSHIP ANALYSIS -----
 
 
-def should_split_observances(special_days: list) -> bool:
-    """
-    Determine if multiple observances should be split into separate announcements
-    based on their thematic relationship.
-
-    Strategy:
-    - Always split if observances are from DIFFERENT categories (Culture vs Tech vs Global Health)
-    - Combine only if observances share the SAME category (e.g., Culture + Culture)
-
-    This ensures each observance gets proper attention and avoids forced connections
-    between fundamentally different topics (e.g., LGBTQ+ rights + telecommunications).
-
-    Args:
-        special_days: List of SpecialDay objects for today
-
-    Returns:
-        bool: True if observances should be split, False if they should be combined
-    """
-    if not special_days or len(special_days) <= 1:
-        return False  # Nothing to split
-
-    # Extract categories
-    categories = [day.category for day in special_days if hasattr(day, "category")]
-
-    if not categories:
-        logger.warning("No categories found for observances, defaulting to split")
-        return True
-
-    # Check if all categories are the same
-    unique_categories = set(categories)
-
-    if len(unique_categories) == 1:
-        # All observances share the same category - can be combined
-        logger.info(
-            f"OBSERVANCE_ANALYSIS: {len(special_days)} observances share category '{categories[0]}' - will combine"
-        )
-        return False
-    else:
-        # Multiple different categories - should split
-        logger.info(
-            f"OBSERVANCE_ANALYSIS: {len(special_days)} observances have different categories {unique_categories} - will split"
-        )
-        return True
-
-
 def group_observances_by_category(special_days: list) -> dict:
     """
     Group observances by their category for potential combined announcements.
