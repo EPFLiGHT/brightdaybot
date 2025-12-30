@@ -1672,12 +1672,12 @@ def build_special_days_list_blocks(
                         # Admin view: show status, source, and URL
                         status = "✅" if day.enabled else "❌"
                         source = f"[{day.source}]" if day.source else "[Custom]"
-                        entry = f"  {status} {day.date}: {emoji}*{day.name}* ({day.category}) {source}\n"
+                        entry = f"• {status} {day.date}: {emoji}*{day.name}* ({day.category}) {source}\n"
                         if day.url:
-                            entry += f"        🔗 <{day.url}|View source>\n"
+                            entry += f"  🔗 <{day.url}|View source>\n"
                     else:
-                        # User view: simple format
-                        entry = f"  {emoji}{day.date} - {day.name}\n"
+                        # User view: simple format with bullet points
+                        entry = f"• {emoji}{day.date} - {day.name}\n"
 
                     # Check if adding this entry would exceed limit (2800 to be safe)
                     if len(month_text) + len(entry) > 2800:
@@ -1803,7 +1803,7 @@ def build_special_day_stats_blocks(
             cat_status = "✅" if cat_stats.get("category_enabled") else "❌"
             enabled_count = cat_stats.get("enabled", 0)
             total_count = cat_stats.get("total", 0)
-            category_text += f"  {cat_status} *{category}:* {enabled_count}/{total_count} days\n"
+            category_text += f"• {cat_status} *{category}:* {enabled_count}/{total_count} days\n"
 
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": category_text}})
 
@@ -1819,7 +1819,7 @@ def build_special_day_stats_blocks(
 
         source_text = ""
         for source, count in sorted(by_source.items(), key=lambda x: -x[1]):
-            source_text += f"  • *{source}:* {count}\n"
+            source_text += f"• *{source}:* {count}\n"
 
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": source_text}})
 
