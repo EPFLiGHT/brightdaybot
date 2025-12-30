@@ -68,12 +68,7 @@ def _handle_thread_reply(app, event, channel, thread_ts):
         thread_ts: Thread parent timestamp
     """
     try:
-        from config import (
-            THREAD_ENGAGEMENT_ENABLED,
-            THREAD_MAX_REACTIONS,
-            THREAD_THANK_YOU_ENABLED,
-            THREAD_MAX_THANK_YOUS,
-        )
+        from config import THREAD_ENGAGEMENT_ENABLED
 
         if not THREAD_ENGAGEMENT_ENABLED:
             return
@@ -108,9 +103,6 @@ def _handle_thread_reply(app, event, channel, thread_ts):
                 user_id=user_id,
                 text=text,
                 thread_engagement_enabled=THREAD_ENGAGEMENT_ENABLED,
-                thread_max_reactions=THREAD_MAX_REACTIONS,
-                thread_thank_you_enabled=THREAD_THANK_YOU_ENABLED,
-                thread_max_thank_yous=THREAD_MAX_THANK_YOUS,
             )
 
             if result.get("reaction_added"):

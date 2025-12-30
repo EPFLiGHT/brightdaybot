@@ -30,8 +30,7 @@ class TrackedThread:
     personality: str
     created_at: datetime = field(default_factory=datetime.now)
     reactions_count: int = 0
-    thank_yous_sent: int = 0
-    responses_sent: int = 0
+    responses_sent: int = 0  # For special day thread responses
     # Birthday-specific fields
     birthday_people: List[str] = field(default_factory=list)
     # Special day-specific fields
@@ -248,26 +247,6 @@ class ThreadTracker:
                 return True
             return False
 
-    def increment_thank_yous(self, channel: str, thread_ts: str) -> bool:
-        """
-        Increment thank-you count for a thread.
-
-        Args:
-            channel: Slack channel ID
-            thread_ts: Message timestamp
-
-        Returns:
-            True if incremented, False if thread not found
-        """
-        key = f"{channel}_{thread_ts}"
-
-        with self._threads_lock:
-            thread = self._threads.get(key)
-            if thread and not thread.is_expired(self._ttl_hours):
-                thread.thank_yous_sent += 1
-                return True
-            return False
-
     def get_thread_stats(
         self, channel: str, thread_ts: str
     ) -> Optional[Dict[str, Any]]:
@@ -288,7 +267,6 @@ class ThreadTracker:
             "personality": thread.personality,
             "created_at": thread.created_at.isoformat(),
             "reactions_count": thread.reactions_count,
-            "thank_yous_sent": thread.thank_yous_sent,
             "responses_sent": thread.responses_sent,
             "age_minutes": (datetime.now() - thread.created_at).total_seconds() / 60,
         }
@@ -343,13 +321,11 @@ class ThreadTracker:
             ]
 
             total_reactions = sum(t.reactions_count for t in active)
-            total_thank_yous = sum(t.thank_yous_sent for t in active)
 
             return {
                 "active_threads": len(active),
                 "total_tracked": len(self._threads),
                 "total_reactions": total_reactions,
-                "total_thank_yous": total_thank_yous,
             }
 
 

@@ -24,7 +24,14 @@ A Slack bot that celebrates birthdays with AI-generated personalized messages an
 1. Go to [api.slack.com/apps](https://api.slack.com/apps) → Create New App
 2. Enable **Socket Mode** with `connections:write` scope
 3. Add **Bot Events**: `app_mention`, `member_joined_channel`, `message.channels`, `message.im`, `app_home_opened`
-4. Add **Bot Scopes**: `chat:write`, `chat:write.public`, `users:read`, `users.profile:read`, `files:write`, `channels:read`, `im:write`, `im:read`, `emoji:read`, `commands`
+4. Add **Bot Scopes**:
+   - Core: `chat:write`, `chat:write.public`, `chat:write.customize`
+   - Users: `users:read`, `users.profile:read`
+   - Channels: `channels:read`, `channels:history`, `groups:read`, `mpim:read`
+   - DMs: `im:write`, `im:read`, `im:history`
+   - Files: `files:read`, `files:write`
+   - Reactions: `reactions:read`, `reactions:write`
+   - Other: `emoji:read`, `app_mentions:read`, `commands`
 5. Add **Slash Commands**: `/birthday`, `/special-day`
 6. Enable **Interactivity & Shortcuts** (for modal forms)
 7. Enable **App Home** → Home Tab
@@ -121,9 +128,6 @@ CALENDARIFIC_ENABLED="true"         # Enable Calendarific integration
 
 # Thread Engagement - React to birthday thread replies
 THREAD_ENGAGEMENT_ENABLED="true"    # Enable reactions (default: true)
-THREAD_MAX_REACTIONS="20"           # Max reactions per thread
-THREAD_THANK_YOU_ENABLED="false"    # Send thank-you messages (default: false)
-THREAD_MAX_THANK_YOUS="3"           # Max thank-yous per thread
 
 # @-Mention Q&A - Answer questions when mentioned
 MENTION_QA_ENABLED="true"           # Enable mention responses (default: true)

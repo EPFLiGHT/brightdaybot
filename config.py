@@ -218,7 +218,6 @@ TOKEN_LIMITS = {
     "special_day_details": 600,  # Single special day details (10-14 lines, View Details button - 1950 char Slack limit)
     "special_day_details_consolidated": 1000,  # Multiple special day details (12-18 lines covering multiple observances)
     # Interactive features
-    "thread_thank_you": 50,  # Short thank-you messages in birthday threads
     "mention_response": 300,  # Responses to @-mentions
     "special_day_thread_response": 400,  # Responses to special day thread replies
     "date_parsing": 100,  # NLP date extraction from natural language
@@ -382,21 +381,10 @@ WHO_OBSERVANCES_CACHE_FILE = os.path.join(WHO_OBSERVANCES_CACHE_DIR, "who_days.j
 
 # ----- THREAD ENGAGEMENT CONFIGURATION -----
 
-# Enable bot engagement with birthday thread replies (reactions, thank-yous)
+# Enable bot reactions to birthday thread replies
 THREAD_ENGAGEMENT_ENABLED = (
     os.getenv("THREAD_ENGAGEMENT_ENABLED", "true").lower() == "true"
 )
-
-# Maximum reactions the bot will add per birthday thread
-THREAD_MAX_REACTIONS = int(os.getenv("THREAD_MAX_REACTIONS", "20"))
-
-# Enable optional thank-you messages in threads (rate limited)
-THREAD_THANK_YOU_ENABLED = (
-    os.getenv("THREAD_THANK_YOU_ENABLED", "false").lower() == "true"
-)
-
-# Maximum thank-you messages per thread
-THREAD_MAX_THANK_YOUS = int(os.getenv("THREAD_MAX_THANK_YOUS", "3"))
 
 # ----- SPECIAL DAY THREAD ENGAGEMENT -----
 

@@ -3,7 +3,6 @@ Thread Handler for BrightDayBot
 
 Handles engagement with birthday and special day thread replies:
 - Adds content-aware reactions to birthday thread replies
-- Optionally sends personality-aware thank-you messages
 - Responds intelligently to special day thread questions
 
 Uses the ThreadTracker to identify active threads.
@@ -73,9 +72,6 @@ def handle_thread_reply(
     user_id: str,
     text: str,
     thread_engagement_enabled: bool = True,
-    thread_max_reactions: int = 20,
-    thread_thank_you_enabled: bool = False,
-    thread_max_thank_yous: int = 3,
 ) -> dict:
     """
     Handle a reply in a tracked birthday thread.
@@ -88,16 +84,13 @@ def handle_thread_reply(
         user_id: User who posted the reply
         text: Reply message text
         thread_engagement_enabled: Whether thread engagement is enabled
-        thread_max_reactions: Maximum reactions per thread
-        thread_thank_you_enabled: Whether to send thank-you messages
-        thread_max_thank_yous: Maximum thank-yous per thread
 
     Returns:
-        Dict with results: {"reaction_added": bool, "thank_you_sent": bool}
+        Dict with results: {"reaction_added": bool, "error": str or None}
     """
     from utils.thread_tracking import get_thread_tracker
 
-    result = {"reaction_added": False, "thank_you_sent": False, "error": None}
+    result = {"reaction_added": False, "error": None}
 
     if not thread_engagement_enabled:
         logger.debug("THREAD_HANDLER: Thread engagement is disabled")
@@ -117,143 +110,28 @@ def handle_thread_reply(
         logger.debug(f"THREAD_HANDLER: Ignoring message from birthday person {user_id}")
         return result
 
-    # Check reaction limit
-    if tracked.reactions_count >= thread_max_reactions:
+    # Add reaction to the reply
+    reaction = get_reaction_for_message(text)
+    try:
+        app.client.reactions_add(
+            channel=channel,
+            timestamp=message_ts,
+            name=reaction,
+        )
+        tracker.increment_reactions(channel, thread_ts)
+        result["reaction_added"] = True
         logger.info(
-            f"THREAD_HANDLER: Thread {thread_ts} reached max reactions ({thread_max_reactions})"
+            f"THREAD_HANDLER: Added :{reaction}: to reply in thread {thread_ts}"
         )
-    else:
-        # Add reaction to the reply
-        reaction = get_reaction_for_message(text)
-        try:
-            app.client.reactions_add(
-                channel=channel,
-                timestamp=message_ts,
-                name=reaction,
-            )
-            tracker.increment_reactions(channel, thread_ts)
-            result["reaction_added"] = True
-            logger.info(
-                f"THREAD_HANDLER: Added :{reaction}: to reply in thread {thread_ts}"
-            )
-        except SlackApiError as e:
-            # Ignore "already_reacted" errors
-            if "already_reacted" in str(e):
-                logger.debug(f"THREAD_HANDLER: Already reacted to {message_ts}")
-            else:
-                logger.error(f"THREAD_HANDLER: Failed to add reaction: {e}")
-                result["error"] = str(e)
-
-    # Optionally send thank-you message
-    if thread_thank_you_enabled and tracked.thank_yous_sent < thread_max_thank_yous:
-        thank_you_result = _send_thank_you(
-            app, channel, thread_ts, user_id, text, tracked.personality
-        )
-        if thank_you_result:
-            tracker.increment_thank_yous(channel, thread_ts)
-            result["thank_you_sent"] = True
+    except SlackApiError as e:
+        # Ignore "already_reacted" errors
+        if "already_reacted" in str(e):
+            logger.debug(f"THREAD_HANDLER: Already reacted to {message_ts}")
+        else:
+            logger.error(f"THREAD_HANDLER: Failed to add reaction: {e}")
+            result["error"] = str(e)
 
     return result
-
-
-def _send_thank_you(
-    app,
-    channel: str,
-    thread_ts: str,
-    user_id: str,
-    text: str,
-    personality: str,
-) -> bool:
-    """
-    Send a short thank-you message in the thread.
-
-    Args:
-        app: Slack app instance
-        channel: Channel ID
-        thread_ts: Thread parent timestamp
-        user_id: User to thank
-        text: Original message (for context)
-        personality: Personality to use for response
-
-    Returns:
-        True if thank-you was sent successfully
-    """
-    try:
-        # Generate short thank-you using LLM
-        thank_you = _generate_thank_you(user_id, text, personality)
-
-        if not thank_you:
-            return False
-
-        # Send as threaded reply
-        response = app.client.chat_postMessage(
-            channel=channel,
-            thread_ts=thread_ts,
-            text=thank_you,
-        )
-
-        if response.get("ok"):
-            logger.info(f"THREAD_HANDLER: Sent thank-you in thread {thread_ts}")
-            return True
-        else:
-            logger.warning(f"THREAD_HANDLER: Failed to send thank-you: {response}")
-            return False
-
-    except SlackApiError as e:
-        logger.error(f"THREAD_HANDLER: API error sending thank-you: {e}")
-        return False
-    except Exception as e:
-        logger.error(f"THREAD_HANDLER: Error sending thank-you: {e}")
-        return False
-
-
-def _generate_thank_you(
-    user_id: str, original_text: str, personality: str
-) -> Optional[str]:
-    """
-    Generate a short personality-aware thank-you message.
-
-    Args:
-        user_id: User to thank
-        original_text: Their message for context
-        personality: Personality to use
-
-    Returns:
-        Thank-you message or None on failure
-    """
-    try:
-        from integrations.openai import complete
-        from config import TOKEN_LIMITS, TEMPERATURE_SETTINGS, BOT_PERSONALITIES
-
-        # Get personality info
-        personality_info = BOT_PERSONALITIES.get(
-            personality, BOT_PERSONALITIES.get("standard", {})
-        )
-        personality_name = personality_info.get("name", "BrightDay")
-
-        prompt = f"""You are {personality_name}, a friendly birthday celebration bot.
-Someone just posted a kind message in a birthday thread. Generate a very brief (10-20 words max)
-thank-you response that matches your personality. Be warm but concise.
-
-Their message: "{original_text[:100]}"
-
-Respond with just the thank-you message, no quotes or explanation. Use 1-2 emojis max."""
-
-        response = complete(
-            input_text=prompt,
-            max_tokens=TOKEN_LIMITS.get("thread_thank_you", 50),
-            temperature=TEMPERATURE_SETTINGS.get("default", 0.7),
-            context="THREAD_THANK_YOU",
-        )
-
-        if response and response.strip():
-            return response.strip()
-
-        return None
-
-    except Exception as e:
-        logger.error(f"THREAD_HANDLER: Failed to generate thank-you: {e}")
-        return None
 
 
 # =============================================================================
