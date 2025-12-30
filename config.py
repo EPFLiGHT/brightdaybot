@@ -25,9 +25,9 @@ LOGS_DIR = os.path.join(DATA_DIR, "logs")
 STORAGE_DIR = os.path.join(DATA_DIR, "storage")
 TRACKING_DIR = os.path.join(DATA_DIR, "tracking")
 TRACKED_THREADS_FILE = os.path.join(STORAGE_DIR, "tracked_threads.json")
-THREAD_TRACKING_TTL_DAYS = 7  # How long to track threads for engagement (7 days)
+THREAD_TRACKING_TTL_DAYS = int(os.getenv("THREAD_TRACKING_TTL_DAYS", "7"))
 BACKUP_DIR = os.path.join(DATA_DIR, "backups")
-MAX_BACKUPS = 10  # Keep last 10 backups
+MAX_BACKUPS = int(os.getenv("MAX_BACKUPS", "10"))
 CACHE_DIR = os.path.join(DATA_DIR, "cache")
 MESSAGES_CACHE_DIR = os.path.join(CACHE_DIR, "messages")
 
@@ -269,8 +269,8 @@ SCHEDULER_CHECK_INTERVAL_SECONDS = 60  # How often scheduler checks for birthday
 HEARTBEAT_STALE_THRESHOLD_SECONDS = 120  # When to consider scheduler unhealthy (2 min)
 
 # Lookahead windows for upcoming events
-UPCOMING_DAYS_DEFAULT = 7  # Default lookahead for upcoming birthdays/special days
-UPCOMING_DAYS_EXTENDED = 30  # Extended lookahead for calendar/list views
+UPCOMING_DAYS_DEFAULT = int(os.getenv("UPCOMING_DAYS_DEFAULT", "7"))
+UPCOMING_DAYS_EXTENDED = int(os.getenv("UPCOMING_DAYS_EXTENDED", "30"))
 
 # Cache retention policies (in days)
 CACHE_RETENTION_DAYS = {
@@ -342,8 +342,8 @@ CALENDARIFIC_ENABLED = os.getenv("CALENDARIFIC_ENABLED", "false").lower() == "tr
 CALENDARIFIC_COUNTRY = os.getenv("CALENDARIFIC_COUNTRY", "CH")  # Switzerland
 CALENDARIFIC_STATE = os.getenv("CALENDARIFIC_STATE", "VD")  # Vaud canton
 CALENDARIFIC_CACHE_DIR = os.path.join(CACHE_DIR, "calendarific")
-CALENDARIFIC_CACHE_TTL_DAYS = 7  # Cache valid for 7 days (weekly refresh)
-CALENDARIFIC_PREFETCH_DAYS = 7  # Prefetch next 7 days each week
+CALENDARIFIC_CACHE_TTL_DAYS = int(os.getenv("CALENDARIFIC_CACHE_TTL_DAYS", "7"))
+CALENDARIFIC_PREFETCH_DAYS = int(os.getenv("CALENDARIFIC_PREFETCH_DAYS", "7"))
 CALENDARIFIC_RATE_LIMIT_MONTHLY = 500  # Free tier: 500 calls/month
 CALENDARIFIC_RATE_WARNING_THRESHOLD = 400  # Warn when approaching limit
 
@@ -353,9 +353,7 @@ CALENDARIFIC_RATE_WARNING_THRESHOLD = 400  # Warn when approaching limit
 # Uses crawl4ai for intelligent scraping (pip install crawl4ai && crawl4ai-setup)
 UN_OBSERVANCES_ENABLED = os.getenv("UN_OBSERVANCES_ENABLED", "true").lower() == "true"
 UN_OBSERVANCES_URL = "https://www.un.org/en/observances/list-days-weeks"
-UN_OBSERVANCES_CACHE_TTL_DAYS = (
-    7  # On-demand cache freshness check (scheduled refresh is monthly)
-)
+UN_OBSERVANCES_CACHE_TTL_DAYS = int(os.getenv("UN_OBSERVANCES_CACHE_TTL_DAYS", "7"))
 UN_OBSERVANCES_CACHE_DIR = os.path.join(CACHE_DIR, "un_observances")
 UN_OBSERVANCES_CACHE_FILE = os.path.join(UN_OBSERVANCES_CACHE_DIR, "un_days.json")
 
@@ -366,7 +364,9 @@ UNESCO_OBSERVANCES_ENABLED = (
     os.getenv("UNESCO_OBSERVANCES_ENABLED", "true").lower() == "true"
 )
 UNESCO_OBSERVANCES_URL = "https://www.unesco.org/en/days/list"
-UNESCO_OBSERVANCES_CACHE_TTL_DAYS = 30  # Monthly refresh
+UNESCO_OBSERVANCES_CACHE_TTL_DAYS = int(
+    os.getenv("UNESCO_OBSERVANCES_CACHE_TTL_DAYS", "30")
+)
 UNESCO_OBSERVANCES_CACHE_DIR = os.path.join(CACHE_DIR, "unesco_observances")
 UNESCO_OBSERVANCES_CACHE_FILE = os.path.join(
     UNESCO_OBSERVANCES_CACHE_DIR, "unesco_days.json"
@@ -377,7 +377,7 @@ UNESCO_OBSERVANCES_CACHE_FILE = os.path.join(
 # WHO Health Days scraped from official WHO website
 WHO_OBSERVANCES_ENABLED = os.getenv("WHO_OBSERVANCES_ENABLED", "true").lower() == "true"
 WHO_OBSERVANCES_URL = "https://www.who.int/campaigns"
-WHO_OBSERVANCES_CACHE_TTL_DAYS = 30  # Monthly refresh
+WHO_OBSERVANCES_CACHE_TTL_DAYS = int(os.getenv("WHO_OBSERVANCES_CACHE_TTL_DAYS", "30"))
 WHO_OBSERVANCES_CACHE_DIR = os.path.join(CACHE_DIR, "who_observances")
 WHO_OBSERVANCES_CACHE_FILE = os.path.join(WHO_OBSERVANCES_CACHE_DIR, "who_days.json")
 

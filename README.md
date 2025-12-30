@@ -123,11 +123,20 @@ python app.py
 OPENAI_MODEL="gpt-4.1"              # AI model (default: gpt-4.1)
 AI_IMAGE_GENERATION_ENABLED="true"  # Enable AI images
 EXTERNAL_BACKUP_ENABLED="true"      # Backup to admin DMs
+MAX_BACKUPS="10"                    # Backup files to retain (default: 10)
+UPCOMING_DAYS_DEFAULT="7"           # Lookahead for upcoming birthdays (default: 7)
+
+# Special Days Sources
 CALENDARIFIC_API_KEY="..."          # For national/local holidays
 CALENDARIFIC_ENABLED="true"         # Enable Calendarific integration
+UN_OBSERVANCES_CACHE_TTL_DAYS="7"   # UN cache refresh (default: 7)
+UNESCO_OBSERVANCES_CACHE_TTL_DAYS="30"  # UNESCO cache refresh (default: 30)
+WHO_OBSERVANCES_CACHE_TTL_DAYS="30" # WHO cache refresh (default: 30)
+CALENDARIFIC_CACHE_TTL_DAYS="7"     # Calendarific cache refresh (default: 7)
 
 # Thread Engagement - React to birthday thread replies
 THREAD_ENGAGEMENT_ENABLED="true"    # Enable reactions (default: true)
+THREAD_TRACKING_TTL_DAYS="7"        # Days to track threads (default: 7)
 
 # @-Mention Q&A - Answer questions when mentioned
 MENTION_QA_ENABLED="true"           # Enable mention responses (default: true)
