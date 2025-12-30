@@ -113,9 +113,7 @@ def calculate_age(birth_year: int) -> int:
     return current_year - birth_year
 
 
-def calculate_next_birthday_age(
-    birth_year: int, month: int, day: int, reference_date=None
-) -> str:
+def calculate_next_birthday_age(birth_year: int, month: int, day: int, reference_date=None) -> str:
     """
     Calculate the age someone will turn on their next birthday.
 
@@ -135,9 +133,7 @@ def calculate_next_birthday_age(
 
     try:
         next_birthday_year = reference_date.year
-        birthday_this_year = datetime(
-            next_birthday_year, month, day, tzinfo=timezone.utc
-        )
+        birthday_this_year = datetime(next_birthday_year, month, day, tzinfo=timezone.utc)
 
         if birthday_this_year < reference_date:
             next_birthday_year += 1
@@ -169,14 +165,9 @@ def check_if_birthday_today(date_str, reference_date=None):
         date_obj = datetime.strptime(date_str, DATE_FORMAT)
 
         # Compare just the day and month
-        return (
-            date_obj.day == reference_date.day
-            and date_obj.month == reference_date.month
-        )
+        return date_obj.day == reference_date.day and date_obj.month == reference_date.month
     except ValueError as e:
-        logger.error(
-            f"Invalid date format in check_if_birthday_today: {date_str} - {e}"
-        )
+        logger.error(f"Invalid date format in check_if_birthday_today: {date_str} - {e}")
         return False
 
 
@@ -240,9 +231,7 @@ def calculate_days_until_birthday(date_str, reference_date=None):
         month = date_obj.month
         day = date_obj.day
     except ValueError as e:
-        logger.error(
-            f"Invalid date format in calculate_days_until_birthday: {date_str} - {e}"
-        )
+        logger.error(f"Invalid date format in calculate_days_until_birthday: {date_str} - {e}")
         return None
 
     # First try this year's birthday
@@ -252,9 +241,7 @@ def calculate_days_until_birthday(date_str, reference_date=None):
         # If birthday has already passed this year
         if birthday_date < reference_date:
             # Use next year's birthday
-            birthday_date = datetime(
-                reference_date.year + 1, month, day, tzinfo=timezone.utc
-            )
+            birthday_date = datetime(reference_date.year + 1, month, day, tzinfo=timezone.utc)
 
         days_until = (birthday_date - reference_date).days
         return days_until
@@ -262,9 +249,7 @@ def calculate_days_until_birthday(date_str, reference_date=None):
     except ValueError:
         # Handle invalid dates (like February 29 in non-leap years)
         # Default to next valid occurrence
-        logger.warning(
-            f"Invalid date {date_str} for current year, calculating next occurrence"
-        )
+        logger.warning(f"Invalid date {date_str} for current year, calculating next occurrence")
 
         # Try next year if this year doesn't work
         next_year = reference_date.year + 1
@@ -318,9 +303,7 @@ def get_star_sign(date_str):
 
         # Check each zodiac range
         for start_month, start_day, end_month, end_day, sign in ZODIAC_SIGNS:
-            if _is_date_in_zodiac_range(
-                month, day, start_month, start_day, end_month, end_day
-            ):
+            if _is_date_in_zodiac_range(month, day, start_month, start_day, end_month, end_day):
                 return sign
 
         # This should never happen given our complete zodiac coverage
@@ -565,9 +548,7 @@ def format_timezone_schedule(app=None):
                         second=0,
                         microsecond=0,
                     )
-                    next_celebration = next_celebration.replace(
-                        day=next_celebration.day + 1
-                    )
+                    next_celebration = next_celebration.replace(day=next_celebration.day + 1)
                 else:
                     # Today at celebration time
                     next_celebration = current_time.replace(
@@ -625,9 +606,7 @@ def format_timezone_schedule(app=None):
                 user_mentions = f"({', '.join(mentions)})"
 
         # More compact and readable format
-        lines.append(
-            f"• *{utc_time.strftime('%H:%M')} UTC* ({offset_display}) {user_mentions}"
-        )
+        lines.append(f"• *{utc_time.strftime('%H:%M')} UTC* ({offset_display}) {user_mentions}")
 
     lines.append(
         f"\n_Celebrations happen at {TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')} local time in each timezone_"

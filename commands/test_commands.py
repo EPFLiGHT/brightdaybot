@@ -314,9 +314,7 @@ def handle_test_block_command(user_id, args, say, app):
                 f"• Personality: {personality}\n"
                 f"Check the message above to see the Block Kit layout!"
             )
-            logger.info(
-                f"TEST_BLOCK: {username} tested birthday block for {target_username}"
-            )
+            logger.info(f"TEST_BLOCK: {username} tested birthday block for {target_username}")
 
         elif block_type == "multi":
             # Test multiple birthdays block
@@ -430,9 +428,7 @@ def handle_test_block_command(user_id, args, say, app):
 
     except Exception as e:
         logger.error(f"TEST_BLOCK: Failed to execute test-block command: {e}")
-        say(
-            f"❌ An error occurred during block testing: {e}\n\nCheck logs for details."
-        )
+        say(f"❌ An error occurred during block testing: {e}\n\nCheck logs for details.")
 
 
 def handle_test_upload_command(user_id, say, app):
@@ -474,9 +470,7 @@ def handle_test_upload_command(user_id, say, app):
         else:
             say("Test image upload failed. Check logs for details.")
     except ImportError:
-        logger.error(
-            "TEST_UPLOAD: Pillow library is not installed. Cannot create a test image."
-        )
+        logger.error("TEST_UPLOAD: Pillow library is not installed. Cannot create a test image.")
         say(
             "I can't create a test image because the `Pillow` library is not installed. Please install it (`pip install Pillow`) and try again."
         )
@@ -558,9 +552,7 @@ def handle_test_upload_multi_command(user_id, say, app):
             test_images.append(image_data)
 
         # Test the multiple attachment function
-        logger.info(
-            f"TEST_UPLOAD_MULTI: Created {len(test_images)} test images for {username}"
-        )
+        logger.info(f"TEST_UPLOAD_MULTI: Created {len(test_images)} test images for {username}")
 
         test_message = (
             f"🎂 *Multi-Attachment Test Results* 🎂\n\n"
@@ -572,9 +564,7 @@ def handle_test_upload_multi_command(user_id, say, app):
         )
 
         # Send using the new multiple attachment system
-        results = send_message_with_multiple_attachments(
-            app, user_id, test_message, test_images
-        )
+        results = send_message_with_multiple_attachments(app, user_id, test_message, test_images)
 
         # Report results
         if results["success"]:
@@ -615,9 +605,7 @@ def handle_test_upload_multi_command(user_id, say, app):
         )
     except Exception as e:
         logger.error(f"TEST_UPLOAD_MULTI: Failed to execute multi-upload test: {e}")
-        say(
-            f"❌ Multi-attachment test failed with error: {e}\nPlease check the logs for details."
-        )
+        say(f"❌ Multi-attachment test failed with error: {e}\nPlease check the logs for details.")
 
 
 def handle_test_file_upload_command(user_id, say, app):
@@ -680,9 +668,7 @@ End of test file
         ) as temp_file:
             temp_file_path = temp_file.name
             temp_file.write(test_content)
-            logger.info(
-                f"TEST_FILE_UPLOAD: Created temporary test file: {temp_file_path}"
-            )
+            logger.info(f"TEST_FILE_UPLOAD: Created temporary test file: {temp_file_path}")
 
         # Prepare upload message
         file_size = os.path.getsize(temp_file_path)
@@ -703,16 +689,12 @@ This test file contains sample birthday data in the same format used by the exte
             say(
                 "✅ *Test file uploaded successfully!*\nCheck your DMs for the test file. If you received it, the external backup system is working correctly."
             )
-            logger.info(
-                f"TEST_FILE_UPLOAD: Successfully sent test file to {username} ({user_id})"
-            )
+            logger.info(f"TEST_FILE_UPLOAD: Successfully sent test file to {username} ({user_id})")
         else:
             say(
                 "❌ *Test file upload failed.*\nCheck the logs for details. This may indicate issues with the external backup system."
             )
-            logger.error(
-                f"TEST_FILE_UPLOAD: Failed to send test file to {username} ({user_id})"
-            )
+            logger.error(f"TEST_FILE_UPLOAD: Failed to send test file to {username} ({user_id})")
 
     except Exception as e:
         logger.error(f"TEST_FILE_UPLOAD: Error creating or uploading test file: {e}")
@@ -725,9 +707,7 @@ This test file contains sample birthday data in the same format used by the exte
         if temp_file_path and os.path.exists(temp_file_path):
             try:
                 os.unlink(temp_file_path)
-                logger.debug(
-                    f"TEST_FILE_UPLOAD: Cleaned up temporary file: {temp_file_path}"
-                )
+                logger.debug(f"TEST_FILE_UPLOAD: Cleaned up temporary file: {temp_file_path}")
             except OSError as cleanup_error:
                 logger.warning(
                     f"TEST_FILE_UPLOAD: Failed to clean up temporary file {temp_file_path}: {cleanup_error}"
@@ -795,9 +775,7 @@ def handle_test_external_backup_command(user_id, say, app):
     backup_files = glob.glob(os.path.join(BACKUP_DIR, "birthdays_*.txt"))
 
     if not backup_files:
-        say(
-            "❌ *No backup files found!* Try creating a backup first with `admin backup`."
-        )
+        say("❌ *No backup files found!* Try creating a backup first with `admin backup`.")
         return
 
     # Sort by modification time (newest first)
@@ -828,9 +806,7 @@ def handle_test_external_backup_command(user_id, say, app):
 
     except Exception as e:
         say(f"❌ *External backup test failed:* {e}")
-        logger.error(
-            f"TEST_EXTERNAL_BACKUP: Test failed for {username} ({user_id}): {e}"
-        )
+        logger.error(f"TEST_EXTERNAL_BACKUP: Test failed for {username} ({user_id}): {e}")
 
 
 def handle_test_blockkit_command(user_id, args, say, app):
@@ -885,9 +861,7 @@ def handle_test_blockkit_command(user_id, args, say, app):
         return
 
     # Determine which modes to test
-    modes_to_test = (
-        [mode] if mode != "all" else ["with-channel", "private", "url-only", "simple"]
-    )
+    modes_to_test = [mode] if mode != "all" else ["with-channel", "private", "url-only", "simple"]
 
     # Test each mode
     for test_mode in modes_to_test:
@@ -938,9 +912,7 @@ def _test_blockkit_with_channel(app, user_id, username, image_bytes, say):
         }
     ]
 
-    upload_response = app.client.files_upload_v2(
-        channel=user_id, file_uploads=file_uploads
-    )
+    upload_response = app.client.files_upload_v2(channel=user_id, file_uploads=file_uploads)
 
     if not upload_response["ok"]:
         say(f"❌ Upload failed: {upload_response.get('error', 'Unknown error')}")
@@ -952,9 +924,7 @@ def _test_blockkit_with_channel(app, user_id, username, image_bytes, say):
     file_id = uploaded_file.get("id")
     file_url = uploaded_file.get("url_private")
 
-    logger.info(
-        f"TEST_BLOCKKIT_WITH_CHANNEL: Upload successful - ID: {file_id}, URL: {file_url}"
-    )
+    logger.info(f"TEST_BLOCKKIT_WITH_CHANNEL: Upload successful - ID: {file_id}, URL: {file_url}")
     say(f"✅ Upload successful\nFile ID: `{file_id}`\nURL: `{file_url}`")
 
     # Build Block Kit message with slack_file using URL
@@ -1026,9 +996,7 @@ def _test_blockkit_private(app, user_id, username, image_bytes, say):
         }
     ]
 
-    upload_response = app.client.files_upload_v2(
-        file_uploads=file_uploads  # NO channel parameter
-    )
+    upload_response = app.client.files_upload_v2(file_uploads=file_uploads)  # NO channel parameter
 
     if not upload_response["ok"]:
         say(f"❌ Upload failed: {upload_response.get('error', 'Unknown error')}")
@@ -1040,9 +1008,7 @@ def _test_blockkit_private(app, user_id, username, image_bytes, say):
     file_id = uploaded_file.get("id")
     file_url = uploaded_file.get("url_private")
 
-    logger.info(
-        f"TEST_BLOCKKIT_PRIVATE: Upload successful - ID: {file_id}, URL: {file_url}"
-    )
+    logger.info(f"TEST_BLOCKKIT_PRIVATE: Upload successful - ID: {file_id}, URL: {file_url}")
     say(f"✅ Upload successful\nFile ID: `{file_id}`\nURL: `{file_url}`")
 
     # Build Block Kit message with slack_file using URL
@@ -1111,9 +1077,7 @@ def _test_blockkit_url_only(app, user_id, username, image_bytes, say):
         }
     ]
 
-    upload_response = app.client.files_upload_v2(
-        channel=user_id, file_uploads=file_uploads
-    )
+    upload_response = app.client.files_upload_v2(channel=user_id, file_uploads=file_uploads)
 
     if not upload_response["ok"]:
         say(f"❌ Upload failed: {upload_response.get('error', 'Unknown error')}")
@@ -1125,9 +1089,7 @@ def _test_blockkit_url_only(app, user_id, username, image_bytes, say):
     file_id = uploaded_file.get("id")
     file_url = uploaded_file.get("url_private")
 
-    logger.info(
-        f"TEST_BLOCKKIT_URL_ONLY: Upload successful - ID: {file_id}, URL: {file_url}"
-    )
+    logger.info(f"TEST_BLOCKKIT_URL_ONLY: Upload successful - ID: {file_id}, URL: {file_url}")
     say(f"✅ Upload successful\nFile ID: `{file_id}`\nURL: `{file_url}`")
 
     # Build Block Kit message with image_url instead of slack_file
@@ -1196,9 +1158,7 @@ def _test_blockkit_simple(app, user_id, username, image_bytes, say):
         }
     ]
 
-    upload_response = app.client.files_upload_v2(
-        file_uploads=file_uploads  # Private upload
-    )
+    upload_response = app.client.files_upload_v2(file_uploads=file_uploads)  # Private upload
 
     if not upload_response["ok"]:
         say(f"❌ Upload failed: {upload_response.get('error', 'Unknown error')}")
@@ -1210,9 +1170,7 @@ def _test_blockkit_simple(app, user_id, username, image_bytes, say):
     file_id = uploaded_file.get("id")
     file_url = uploaded_file.get("url_private")
 
-    logger.info(
-        f"TEST_BLOCKKIT_SIMPLE: Upload successful - ID: {file_id}, URL: {file_url}"
-    )
+    logger.info(f"TEST_BLOCKKIT_SIMPLE: Upload successful - ID: {file_id}, URL: {file_url}")
     say(f"✅ Upload successful\nFile ID: `{file_id}`\nURL: `{file_url}`")
 
     # Build SIMPLEST Block Kit message - no title, minimal structure
@@ -1342,9 +1300,7 @@ No worries! If you'd prefer to opt out, simply leave {get_channel_mention(BIRTHD
                     f"TEST_BIRTHDAY_CHANNEL: Failed to send welcome message to {event_user}: {e}"
                 )
 
-        say(
-            "✅ *Birthday channel welcome simulated* - Check your DMs for the welcome message"
-        )
+        say("✅ *Birthday channel welcome simulated* - Check your DMs for the welcome message")
 
         say(
             f"🎉 *Birthday Channel Welcome Test Complete!*\n\n{test_username} should have received the birthday channel welcome message with instructions.\n\nCheck the logs for detailed event processing information."
@@ -1415,9 +1371,7 @@ def handle_test_birthday_command(args, user_id, say, app):
         return
 
     # Extract quality, image_size, and --text-only parameters from non-user arguments
-    quality, image_size, text_only, error_message = parse_test_command_args(
-        non_user_args
-    )
+    quality, image_size, text_only, error_message = parse_test_command_args(non_user_args)
 
     if error_message:
         say(error_message)
@@ -1513,20 +1467,14 @@ def handle_test_bot_celebration_command(
 
         # Log text_only flag if provided
         if text_only:
-            logger.info(
-                f"TEST_BOT_CELEBRATION: Using text-only mode (skipping image generation)"
-            )
+            logger.info(f"TEST_BOT_CELEBRATION: Using text-only mode (skipping image generation)")
 
         # Determine quality and size settings with smart defaults for display
         display_quality = (
-            quality
-            if quality is not None
-            else IMAGE_GENERATION_PARAMS["quality"]["test"]
+            quality if quality is not None else IMAGE_GENERATION_PARAMS["quality"]["test"]
         )
         display_image_size = (
-            image_size
-            if image_size is not None
-            else IMAGE_GENERATION_PARAMS["size"]["default"]
+            image_size if image_size is not None else IMAGE_GENERATION_PARAMS["size"]["default"]
         )
 
         # Show configuration and progress feedback
@@ -1542,9 +1490,7 @@ def handle_test_bot_celebration_command(
             f"• Images: {'enabled' if AI_IMAGE_GENERATION_ENABLED else 'disabled'}"
         )
 
-        say(
-            "Generating Ludo's mystical celebration message... this might take a moment."
-        )
+        say("Generating Ludo's mystical celebration message... this might take a moment.")
 
         # Generate Ludo's mystical celebration message
         celebration_message = generate_bot_celebration_message(
@@ -1573,9 +1519,7 @@ def handle_test_bot_celebration_command(
 
                 # Determine quality and size settings with smart defaults
                 final_quality = (
-                    quality
-                    if quality is not None
-                    else IMAGE_GENERATION_PARAMS["quality"]["test"]
+                    quality if quality is not None else IMAGE_GENERATION_PARAMS["quality"]["test"]
                 )
                 final_image_size = (
                     image_size
@@ -1658,11 +1602,7 @@ def handle_test_bot_celebration_command(
                                 image_file_id=file_id_tuple if file_id_tuple else None,
                             )
 
-                            image_note = (
-                                f" (with embedded image: {image_title})"
-                                if file_id
-                                else ""
-                            )
+                            image_note = f" (with embedded image: {image_title})" if file_id else ""
                             logger.info(
                                 f"TEST_BOT_CELEBRATION: Built Block Kit structure with {len(blocks)} blocks{image_note}"
                             )
@@ -1714,9 +1654,7 @@ def handle_test_bot_celebration_command(
                             blocks = None
                             fallback_text = celebration_message
 
-                        send_message_with_image(
-                            app, user_id, fallback_text, None, blocks=blocks
-                        )
+                        send_message_with_image(app, user_id, fallback_text, None, blocks=blocks)
                         say(
                             f"⚠️ *Bot Celebration Test - Image Upload Failed* ⚠️\n\n"
                             f"_Results:_\n"
@@ -1738,15 +1676,11 @@ def handle_test_bot_celebration_command(
                             celebration_message, bot_age, personality="mystic_dog"
                         )
                     except (TypeError, ValueError, KeyError) as block_err:
-                        logger.debug(
-                            f"TEST_BOT_CELEBRATION: Block building failed: {block_err}"
-                        )
+                        logger.debug(f"TEST_BOT_CELEBRATION: Block building failed: {block_err}")
                         blocks = None
                         fallback_text = celebration_message
 
-                    send_message_with_image(
-                        app, user_id, fallback_text, None, blocks=blocks
-                    )
+                    send_message_with_image(app, user_id, fallback_text, None, blocks=blocks)
                     say(
                         f"⚠️ *Bot Celebration Test - Partial Success* ⚠️\n\n"
                         f"_Results:_\n"
@@ -1772,15 +1706,11 @@ def handle_test_bot_celebration_command(
                         celebration_message, bot_age, personality="mystic_dog"
                     )
                 except (TypeError, ValueError, KeyError) as block_err:
-                    logger.debug(
-                        f"TEST_BOT_CELEBRATION: Block building failed: {block_err}"
-                    )
+                    logger.debug(f"TEST_BOT_CELEBRATION: Block building failed: {block_err}")
                     blocks = None
                     fallback_text = celebration_message
 
-                send_message_with_image(
-                    app, user_id, fallback_text, None, blocks=blocks
-                )
+                send_message_with_image(app, user_id, fallback_text, None, blocks=blocks)
                 say(
                     f"⚠️ *Bot Celebration Test - Image Error* ⚠️\n\n"
                     f"_Results:_\n"
@@ -1799,9 +1729,7 @@ def handle_test_bot_celebration_command(
                     celebration_message, bot_age, personality="mystic_dog"
                 )
             except (TypeError, ValueError, KeyError) as block_err:
-                logger.debug(
-                    f"TEST_BOT_CELEBRATION: Block building failed: {block_err}"
-                )
+                logger.debug(f"TEST_BOT_CELEBRATION: Block building failed: {block_err}")
                 blocks = None
                 fallback_text = celebration_message
 
@@ -1815,9 +1743,7 @@ def handle_test_bot_celebration_command(
                 f"• Processing: Complete - ready for {date_to_words(BOT_BIRTHDAY)} automatic celebration\n\n"
                 f"💡 _Note:_ Enable AI_IMAGE_GENERATION_ENABLED for full visual celebration."
             )
-            logger.info(
-                f"TEST_BOT_CELEBRATION: Completed in message-only mode for {username}"
-            )
+            logger.info(f"TEST_BOT_CELEBRATION: Completed in message-only mode for {username}")
 
     except Exception as e:
         say(
@@ -1828,6 +1754,4 @@ def handle_test_bot_celebration_command(
             f"• Admin user: {username}\n\n"
             f"🔧 _Admin tip:_ Check logs for detailed error information."
         )
-        logger.error(
-            f"TEST_BOT_CELEBRATION: Test failed by {username} ({user_id}): {e}"
-        )
+        logger.error(f"TEST_BOT_CELEBRATION: Test failed by {username} ({user_id}): {e}")

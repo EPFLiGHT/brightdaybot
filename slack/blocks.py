@@ -127,9 +127,7 @@ def build_birthday_blocks(
 
             # Use AI-generated title if available, otherwise use generic title
             if count == 1:
-                display_title = (
-                    ai_title if ai_title else f"🎂 {person_name}'s Birthday Celebration"
-                )
+                display_title = ai_title if ai_title else f"🎂 {person_name}'s Birthday Celebration"
             else:
                 display_title = ai_title if ai_title else f"🎂 {person_name}'s Birthday"
 
@@ -147,9 +145,7 @@ def build_birthday_blocks(
     for person in birthday_people:
         user_id = person.get("user_id", "unknown")
         star_sign = person.get("star_sign", "")
-        age_text = (
-            f" • {person.get('age')} years" if person.get("age") is not None else ""
-        )
+        age_text = f" • {person.get('age')} years" if person.get("age") is not None else ""
         fields.append(
             {
                 "type": "mrkdwn",
@@ -187,9 +183,7 @@ def build_birthday_blocks(
         age_text = f" ({person.get('age')} years old)" if person.get("age") else ""
         fallback_text = f"🎂 Happy Birthday {username}!{age_text} {star_sign}"
     else:
-        names = ", ".join(
-            [person.get("username", "Someone") for person in birthday_people]
-        )
+        names = ", ".join([person.get("username", "Someone") for person in birthday_people])
         fallback_text = f"🎂 Happy Birthday to {names}!"
 
     return blocks, fallback_text
@@ -314,14 +308,10 @@ def build_special_day_blocks(
         except ValueError:
             formatted_date = date_str
 
-        context_elements.append(
-            {"type": "mrkdwn", "text": f"📅 *Date:* {formatted_date}"}
-        )
+        context_elements.append({"type": "mrkdwn", "text": f"📅 *Date:* {formatted_date}"})
 
     # Collect and display sources
-    sources = [
-        get_attr(day, "source") for day in special_days if get_attr(day, "source")
-    ]
+    sources = [get_attr(day, "source") for day in special_days if get_attr(day, "source")]
     if sources:
         unique_sources = list(set(sources))
         if len(unique_sources) == 1:
@@ -359,9 +349,7 @@ def build_special_day_blocks(
             char_limit = 1950 if count == 1 else 3000
             truncated_details = detailed_content[:char_limit]
             if len(detailed_content) > char_limit:
-                truncated_details += (
-                    "...\n\nSee official source for complete information."
-                )
+                truncated_details += "...\n\nSee official source for complete information."
 
             actions.append(
                 {
@@ -409,9 +397,7 @@ def build_special_day_blocks(
     if count == 1:
         fallback_text = f"🌍 {get_attr(special_days[0], 'name', 'Special Day')}"
     else:
-        names = ", ".join(
-            [get_attr(day, "name", "Special Day") for day in special_days]
-        )
+        names = ", ".join([get_attr(day, "name", "Special Day") for day in special_days])
         fallback_text = f"🌍 {count} Special Observances Today: {names}"
 
     return blocks, fallback_text
@@ -559,9 +545,7 @@ def build_bot_celebration_blocks(
         # Use AI-generated title if available, otherwise use generic mystical title
         personality_count = get_celebration_personality_count()
         display_title = (
-            ai_title
-            if ai_title
-            else f"🎂✨ The {personality_count} Sacred Forms of Ludo ✨🎂"
+            ai_title if ai_title else f"🎂✨ The {personality_count} Sacred Forms of Ludo ✨🎂"
         )
 
         blocks.append(
@@ -669,9 +653,7 @@ def build_confirmation_blocks(
                 {
                     "type": "button",
                     "text": {"type": "plain_text", "text": action["text"]},
-                    "action_id": action.get(
-                        "action_id", f"action_{action['text'].lower()}"
-                    ),
+                    "action_id": action.get("action_id", f"action_{action['text'].lower()}"),
                     "value": action.get("value", ""),
                 }
             )
@@ -786,9 +768,7 @@ def build_hello_blocks(
         },
         {
             "type": "context",
-            "elements": [
-                {"type": "mrkdwn", "text": "🎂 Hope to celebrate with you soon!"}
-            ],
+            "elements": [{"type": "mrkdwn", "text": "🎂 Hope to celebrate with you soon!"}],
         },
     ]
 
@@ -838,9 +818,7 @@ def build_birthday_list_blocks(
         # For upcoming birthdays, show in a compact format
         birthday_text = ""
         for user_mention, date_words, age_text, days_text in birthdays:
-            birthday_text += (
-                f"• {user_mention} ({date_words}{age_text}): *{days_text}*\n"
-            )
+            birthday_text += f"• {user_mention} ({date_words}{age_text}): *{days_text}*\n"
 
         if birthday_text:
             blocks.append(
@@ -943,9 +921,7 @@ def build_health_status_blocks(
     blocks.append({"type": "divider"})
 
     # Core System Section
-    blocks.append(
-        {"type": "section", "text": {"type": "mrkdwn", "text": "*📁 Core System*"}}
-    )
+    blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "*📁 Core System*"}})
 
     core_fields = []
     # Storage comes from directories.storage
@@ -993,9 +969,7 @@ def build_health_status_blocks(
     blocks.append({"type": "divider"})
 
     # API & Services Section
-    blocks.append(
-        {"type": "section", "text": {"type": "mrkdwn", "text": "*🔌 APIs & Services*"}}
-    )
+    blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "*🔌 APIs & Services*"}})
 
     api_fields = []
     # Environment variables for API keys
@@ -1120,9 +1094,7 @@ def build_health_status_blocks(
         from config import DATA_DIR, STORAGE_DIR, BIRTHDAYS_FILE, CACHE_DIR
 
         paths_text = f"*System Paths:*\n• Data Directory: `{DATA_DIR}`\n• Storage Directory: `{STORAGE_DIR}`\n• Birthdays File: `{BIRTHDAYS_FILE}`\n• Cache Directory: `{CACHE_DIR}`"
-        blocks.append(
-            {"type": "section", "text": {"type": "mrkdwn", "text": paths_text}}
-        )
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": paths_text}})
 
         # Scheduler Health
         from services.scheduler import get_scheduler_summary
@@ -1141,7 +1113,9 @@ def build_health_status_blocks(
         # Special Days Sources
         special_days = components.get("special_days", {})
         if special_days.get("enabled"):
-            sd_text = f"*Special Days:*\n• CSV observances: {special_days.get('observance_count', 0)}"
+            sd_text = (
+                f"*Special Days:*\n• CSV observances: {special_days.get('observance_count', 0)}"
+            )
 
             # Check UN observances cache
             from config import UN_OBSERVANCES_ENABLED, UN_OBSERVANCES_CACHE_FILE
@@ -1155,24 +1129,22 @@ def build_health_status_blocks(
                         un_data = json.load(f)
                     un_count = len(un_data.get("observances", []))
                     un_refreshed = un_data.get("last_updated", "unknown")[:10]
-                    sd_text += (
-                        f"\n• UN observances: {un_count} (updated: {un_refreshed})"
-                    )
+                    sd_text += f"\n• UN observances: {un_count} (updated: {un_refreshed})"
                 except Exception:
                     sd_text += "\n• UN observances: cache error"
 
             # Check UNESCO observances cache
             from config import UNESCO_OBSERVANCES_ENABLED, UNESCO_OBSERVANCES_CACHE_FILE
 
-            if UNESCO_OBSERVANCES_ENABLED and os.path.exists(
-                UNESCO_OBSERVANCES_CACHE_FILE
-            ):
+            if UNESCO_OBSERVANCES_ENABLED and os.path.exists(UNESCO_OBSERVANCES_CACHE_FILE):
                 try:
                     with open(UNESCO_OBSERVANCES_CACHE_FILE, "r") as f:
                         unesco_data = json.load(f)
                     unesco_count = len(unesco_data.get("observances", []))
                     unesco_refreshed = unesco_data.get("last_updated", "unknown")[:10]
-                    sd_text += f"\n• UNESCO observances: {unesco_count} (updated: {unesco_refreshed})"
+                    sd_text += (
+                        f"\n• UNESCO observances: {unesco_count} (updated: {unesco_refreshed})"
+                    )
                 except Exception:
                     sd_text += "\n• UNESCO observances: cache error"
 
@@ -1185,9 +1157,7 @@ def build_health_status_blocks(
                         who_data = json.load(f)
                     who_count = len(who_data.get("observances", []))
                     who_refreshed = who_data.get("last_updated", "unknown")[:10]
-                    sd_text += (
-                        f"\n• WHO observances: {who_count} (updated: {who_refreshed})"
-                    )
+                    sd_text += f"\n• WHO observances: {who_count} (updated: {who_refreshed})"
                 except Exception:
                     sd_text += "\n• WHO observances: cache error"
 
@@ -1197,17 +1167,13 @@ def build_health_status_blocks(
             if CALENDARIFIC_ENABLED and os.path.exists(CALENDARIFIC_CACHE_DIR):
                 try:
                     cache_files = [
-                        f
-                        for f in os.listdir(CALENDARIFIC_CACHE_DIR)
-                        if f.endswith(".json")
+                        f for f in os.listdir(CALENDARIFIC_CACHE_DIR) if f.endswith(".json")
                     ]
                     sd_text += f"\n• Calendarific: {len(cache_files)} cached dates"
                 except Exception:
                     sd_text += "\n• Calendarific: cache error"
 
-            blocks.append(
-                {"type": "section", "text": {"type": "mrkdwn", "text": sd_text}}
-            )
+            blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": sd_text}})
 
         # Thread Tracker Stats
         from utils.thread_tracking import get_thread_tracker
@@ -1215,9 +1181,7 @@ def build_health_status_blocks(
         tracker = get_thread_tracker()
         tracker_stats = tracker.get_all_stats()
         tracker_text = f"*Thread Tracking:*\n• Active threads: {tracker_stats.get('active_threads', 0)}\n• Total reactions: {tracker_stats.get('total_reactions', 0)}"
-        blocks.append(
-            {"type": "section", "text": {"type": "mrkdwn", "text": tracker_text}}
-        )
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": tracker_text}})
 
         # Interactive Features Status
         from config import (
@@ -1228,13 +1192,17 @@ def build_health_status_blocks(
         )
 
         features_text = "*Interactive Features:*"
-        features_text += f"\n• Thread engagement: {'✅ enabled' if THREAD_ENGAGEMENT_ENABLED else '❌ disabled'}"
-        features_text += f"\n• @-Mention Q&A: {'✅ enabled' if MENTION_QA_ENABLED else '❌ disabled'}"
-        features_text += f"\n• NLP date parsing: {'✅ enabled' if NLP_DATE_PARSING_ENABLED else '❌ disabled'}"
-        features_text += f"\n• AI image generation: {'✅ enabled' if AI_IMAGE_GENERATION_ENABLED else '❌ disabled'}"
-        blocks.append(
-            {"type": "section", "text": {"type": "mrkdwn", "text": features_text}}
+        features_text += (
+            f"\n• Thread engagement: {'✅ enabled' if THREAD_ENGAGEMENT_ENABLED else '❌ disabled'}"
         )
+        features_text += (
+            f"\n• @-Mention Q&A: {'✅ enabled' if MENTION_QA_ENABLED else '❌ disabled'}"
+        )
+        features_text += (
+            f"\n• NLP date parsing: {'✅ enabled' if NLP_DATE_PARSING_ENABLED else '❌ disabled'}"
+        )
+        features_text += f"\n• AI image generation: {'✅ enabled' if AI_IMAGE_GENERATION_ENABLED else '❌ disabled'}"
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": features_text}})
 
         # Log file details
         logs_detail = components.get("logs", {})
@@ -1244,9 +1212,7 @@ def build_health_status_blocks(
                 if log_info.get("exists"):
                     size_kb = log_info.get("size_kb", 0)
                     log_text += f"\n• {log_name}: {size_kb} KB"
-            blocks.append(
-                {"type": "section", "text": {"type": "mrkdwn", "text": log_text}}
-            )
+            blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": log_text}})
 
     fallback_text = f"🤖 System Health Check ({timestamp})\nBirthdays: {birthday_count} | Admins: {admin_count} | Model: {model_name}"
 
@@ -1296,9 +1262,7 @@ def build_help_blocks(is_admin: bool = False) -> tuple[List[Dict[str, Any]], str
         admin_mgmt = """• `admin list` - List configured admin users
 • `admin add USER_ID` - Add a user as admin
 • `admin remove USER_ID` - Remove a user from admin list"""
-        blocks.append(
-            {"type": "section", "text": {"type": "mrkdwn", "text": admin_mgmt}}
-        )
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": admin_mgmt}})
 
         blocks.append({"type": "divider"})
 
@@ -1316,9 +1280,7 @@ def build_help_blocks(is_admin: bool = False) -> tuple[List[Dict[str, Any]], str
 • `remind update` - Send profile update reminders
 • `remind new [message]` - Custom reminder to new users
 • `remind update [message]` - Custom profile update reminder"""
-        blocks.append(
-            {"type": "section", "text": {"type": "mrkdwn", "text": birthday_mgmt}}
-        )
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": birthday_mgmt}})
 
         blocks.append({"type": "divider"})
 
@@ -1334,9 +1296,7 @@ def build_help_blocks(is_admin: bool = False) -> tuple[List[Dict[str, Any]], str
 • `admin timezone` - View birthday celebration schedule
 • `config` - View command permissions
 • `config COMMAND true/false` - Change command permissions"""
-        blocks.append(
-            {"type": "section", "text": {"type": "mrkdwn", "text": system_mgmt}}
-        )
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": system_mgmt}})
 
         blocks.append({"type": "divider"})
 
@@ -1369,9 +1329,7 @@ def build_help_blocks(is_admin: bool = False) -> tuple[List[Dict[str, Any]], str
         announcements = """• `admin announce image` - Announce AI image generation feature
 • `admin announce [message]` - Send custom announcement to birthday channel
 _(All announcements require confirmation)_"""
-        blocks.append(
-            {"type": "section", "text": {"type": "mrkdwn", "text": announcements}}
-        )
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": announcements}})
 
         blocks.append({"type": "divider"})
 
@@ -1387,9 +1345,7 @@ _(All announcements require confirmation)_"""
 • `admin cache clear` - Clear all web search cache
 • `admin cache clear DD/MM` - Clear web search cache for specific date
 • `admin test-external-backup` - Test external backup system"""
-        blocks.append(
-            {"type": "section", "text": {"type": "mrkdwn", "text": data_mgmt}}
-        )
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": data_mgmt}})
 
         blocks.append({"type": "divider"})
 
@@ -1420,9 +1376,7 @@ _(All announcements require confirmation)_"""
 • `admin model list` - List all supported OpenAI models
 • `admin model set <model>` - Change to specified model (e.g., gpt-4o)
 • `admin model reset` - Reset to default model (gpt-4.1)"""
-        blocks.append(
-            {"type": "section", "text": {"type": "mrkdwn", "text": ai_config}}
-        )
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": ai_config}})
 
         blocks.append({"type": "divider"})
 
@@ -1464,9 +1418,7 @@ _(All announcements require confirmation)_"""
 • `admin custom style [value]` - Set custom writing style
 • `admin custom format [value]` - Set custom format instruction
 • `admin custom template [value]` - Set custom template extension"""
-        blocks.append(
-            {"type": "section", "text": {"type": "mrkdwn", "text": personality}}
-        )
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": personality}})
 
         blocks.append({"type": "divider"})
 
@@ -1481,11 +1433,10 @@ _(All announcements require confirmation)_"""
 • `admin special list [category]` - List all observances (all sources)
 • `admin special add/remove` - Manage custom days
 • `admin special test [DD/MM]` - Test announcement
-• `admin special un-status` - UN cache status
+• `admin special observances` - Combined status for UN/UNESCO/WHO
+• `admin special [un|unesco|who]-status` - Individual cache status
 • `admin special api-status` - Calendarific status"""
-        blocks.append(
-            {"type": "section", "text": {"type": "mrkdwn", "text": special_days}}
-        )
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": special_days}})
 
         # Footer
         blocks.append(
@@ -1500,7 +1451,9 @@ _(All announcements require confirmation)_"""
             }
         )
 
-        fallback_text = "Admin Commands Reference - Complete list of admin commands organized by category"
+        fallback_text = (
+            "Admin Commands Reference - Complete list of admin commands organized by category"
+        )
 
     else:
         # User help - friendly and organized
@@ -1514,9 +1467,7 @@ _(All announcements require confirmation)_"""
         blocks.append({"type": "divider"})
 
         # Quick Start Section
-        blocks.append(
-            {"type": "section", "text": {"type": "mrkdwn", "text": "*📅 Quick Start*"}}
-        )
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "*📅 Quick Start*"}})
 
         blocks.append(
             {
@@ -1551,9 +1502,7 @@ _(All announcements require confirmation)_"""
 • `test [quality] [size] [--text-only]` - Test birthday message
   _Quality: low/medium/high/auto, Size: auto/1024x1024/etc_"""
 
-        blocks.append(
-            {"type": "section", "text": {"type": "mrkdwn", "text": birthday_commands}}
-        )
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": birthday_commands}})
 
         blocks.append({"type": "divider"})
 
@@ -1571,9 +1520,7 @@ _(All announcements require confirmation)_"""
 • `special list [category]` - List all special days
 • `special stats` - View statistics"""
 
-        blocks.append(
-            {"type": "section", "text": {"type": "mrkdwn", "text": special_commands}}
-        )
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": special_commands}})
 
         blocks.append({"type": "divider"})
 
@@ -1589,9 +1536,7 @@ _(All announcements require confirmation)_"""
 • `confirm` - Confirm pending commands
 • `admin help` - View admin commands _(if admin)_"""
 
-        blocks.append(
-            {"type": "section", "text": {"type": "mrkdwn", "text": other_commands}}
-        )
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": other_commands}})
 
         # Footer
         blocks.append(
@@ -1633,9 +1578,7 @@ def build_special_days_list_blocks(
     """
     # Build header based on view mode
     if view_mode == "today":
-        header_text = (
-            f"📅 Today's Special Days{f' ({date_filter})' if date_filter else ''}"
-        )
+        header_text = f"📅 Today's Special Days{f' ({date_filter})' if date_filter else ''}"
     elif view_mode == "week":
         header_text = "📅 Special Days - Next 7 Days"
     elif view_mode == "month":
@@ -1644,7 +1587,9 @@ def build_special_days_list_blocks(
         header_text = "📅 Special Days Search Results"
     else:  # list
         if admin_view:
-            header_text = f"📅 Admin Special Days View{f' ({category_filter})' if category_filter else ''}"
+            header_text = (
+                f"📅 Admin Special Days View{f' ({category_filter})' if category_filter else ''}"
+            )
         elif category_filter:
             header_text = f"📅 All Special Days ({category_filter})"
         else:
@@ -1693,9 +1638,7 @@ def build_special_days_list_blocks(
             if view_mode == "search":
                 day_text += f" ({day.date})"
 
-            blocks.append(
-                {"type": "section", "text": {"type": "mrkdwn", "text": day_text}}
-            )
+            blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": day_text}})
 
             # Add description as context if available
             if day.description:
@@ -1728,9 +1671,7 @@ def build_special_days_list_blocks(
                         # For week view, add category
                         date_text += f" ({day.category})\n"
 
-                blocks.append(
-                    {"type": "section", "text": {"type": "mrkdwn", "text": date_text}}
-                )
+                blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": date_text}})
         else:
             # Fallback if not a dict (shouldn't happen)
             blocks.append(
@@ -1825,9 +1766,7 @@ def build_special_days_list_blocks(
         if isinstance(special_days, list)
         else sum(len(days) for days in special_days.values())
     )
-    context_text = (
-        f"📊 Total: {total_count} special day{'s' if total_count != 1 else ''}"
-    )
+    context_text = f"📊 Total: {total_count} special day{'s' if total_count != 1 else ''}"
     if category_filter:
         context_text += f" in {category_filter}"
 
@@ -1923,13 +1862,9 @@ def build_special_day_stats_blocks(
             cat_status = "✅" if cat_stats.get("category_enabled") else "❌"
             enabled_count = cat_stats.get("enabled", 0)
             total_count = cat_stats.get("total", 0)
-            category_text += (
-                f"  {cat_status} *{category}:* {enabled_count}/{total_count} days\n"
-            )
+            category_text += f"  {cat_status} *{category}:* {enabled_count}/{total_count} days\n"
 
-        blocks.append(
-            {"type": "section", "text": {"type": "mrkdwn", "text": category_text}}
-        )
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": category_text}})
 
     # Source breakdown
     by_source = stats.get("by_source", {})
@@ -1945,9 +1880,7 @@ def build_special_day_stats_blocks(
         for source, count in sorted(by_source.items(), key=lambda x: -x[1]):
             source_text += f"  • *{source}:* {count}\n"
 
-        blocks.append(
-            {"type": "section", "text": {"type": "mrkdwn", "text": source_text}}
-        )
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": source_text}})
 
     # Context footer
     blocks.append(
@@ -1956,7 +1889,7 @@ def build_special_day_stats_blocks(
             "elements": [
                 {
                     "type": "mrkdwn",
-                    "text": "💡 Use `admin special` to manage special days | `admin special un-status` for UN cache",
+                    "text": "💡 Use `admin special` to manage special days | `admin special observances` for cache status",
                 }
             ],
         }
@@ -2115,9 +2048,7 @@ def build_birthday_check_blocks(
         if age is not None:
             optional_fields.append({"type": "mrkdwn", "text": f"*Age:*\n{age} years"})
         if star_sign:
-            optional_fields.append(
-                {"type": "mrkdwn", "text": f"*Star Sign:*\n{star_sign}"}
-            )
+            optional_fields.append({"type": "mrkdwn", "text": f"*Star Sign:*\n{star_sign}"})
 
         if optional_fields:
             blocks.append({"type": "section", "fields": optional_fields})
@@ -2223,8 +2154,7 @@ def build_birthday_modal(_user_id: str) -> Dict[str, Any]:
 
     # Day options (1-31)
     day_options = [
-        {"text": {"type": "plain_text", "text": str(d)}, "value": f"{d:02d}"}
-        for d in range(1, 32)
+        {"text": {"type": "plain_text", "text": str(d)}, "value": f"{d:02d}"} for d in range(1, 32)
     ]
 
     return {

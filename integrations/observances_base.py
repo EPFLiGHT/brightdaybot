@@ -5,8 +5,8 @@ Base class for web-scraped observance sources (UN, UNESCO, WHO).
 Provides shared functionality for scraping, caching, and parsing.
 
 Features:
-- crawl4ai integration for HTML -> Markdown conversion
-- LLM parsing with regex fallback
+- crawl4ai integration with LLMExtractionStrategy for structured extraction
+- Regex fallback when LLM extraction fails
 - JSON-based caching with TTL validation
 - Keyword-based category and emoji mapping
 """
@@ -19,19 +19,28 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import List, Optional, Dict
 
+from pydantic import BaseModel, Field
+
 from storage.special_days import SpecialDay
 from utils.log_setup import get_logger
 from utils.keywords import HEALTH_KEYWORDS, TECH_KEYWORDS
 
 logger = get_logger("special_days")
 
+
+class ObservanceItem(BaseModel):
+    """Schema for LLM extraction of observances."""
+
+    day: int = Field(description="Day of the month (1-31)")
+    month: str = Field(description="Full month name in English (e.g., 'January')")
+    name: str = Field(description="Name of the observance/international day")
+    url: str = Field(default="", description="URL to the observance page if available")
+    emoji: str = Field(default="", description="Single emoji representing this observance")
+
+
 # Month name to number mappings using calendar module
-MONTH_FULL_TO_NUM = {
-    name.lower(): num for num, name in enumerate(calendar.month_name) if num
-}
-MONTH_ABBR_TO_NUM = {
-    name.lower(): num for num, name in enumerate(calendar.month_abbr) if num
-}
+MONTH_FULL_TO_NUM = {name.lower(): num for num, name in enumerate(calendar.month_name) if num}
+MONTH_ABBR_TO_NUM = {name.lower(): num for num, name in enumerate(calendar.month_abbr) if num}
 
 
 class ObservanceScraperBase(ABC):
@@ -44,9 +53,8 @@ class ObservanceScraperBase(ABC):
     - CACHE_DIR: str - Cache directory path
     - CACHE_FILE: str - Cache file path
     - CACHE_TTL_DAYS: int - Cache freshness window
-    - _get_llm_prompt(markdown) -> str
+    - _get_llm_instruction() -> str
     - _parse_regex(markdown) -> List[Dict]
-    - _get_content_start_marker() -> str
     """
 
     # Class attributes (override in subclasses)
@@ -146,9 +154,7 @@ class ObservanceScraperBase(ABC):
 
         # Check if cache is still fresh
         if not force and self._is_cache_fresh():
-            logger.info(
-                f"{self.SOURCE_NAME}_OBSERVANCES: Cache is fresh, skipping refresh"
-            )
+            logger.info(f"{self.SOURCE_NAME}_OBSERVANCES: Cache is fresh, skipping refresh")
             stats["cached"] = True
             return stats
 
@@ -174,9 +180,7 @@ class ObservanceScraperBase(ABC):
             }
             self._save_cache(cache_data)
 
-            logger.info(
-                f"{self.SOURCE_NAME}_OBSERVANCES: Cached {len(observances)} observances"
-            )
+            logger.info(f"{self.SOURCE_NAME}_OBSERVANCES: Cached {len(observances)} observances")
             return stats
 
         except Exception as e:
@@ -186,21 +190,70 @@ class ObservanceScraperBase(ABC):
 
     async def _scrape_page(self) -> List[Dict]:
         """
-        Scrape the source page using crawl4ai.
+        Scrape the source page using crawl4ai with LLMExtractionStrategy.
 
         Strategy:
-        1. Get markdown from crawl4ai
-        2. Try LLM parsing (accurate)
-        3. Fall back to regex if LLM fails
+        1. Use crawl4ai's LLMExtractionStrategy for structured extraction
+        2. Fall back to regex if LLM extraction fails
 
         Returns:
             List of observance dicts
         """
-        from crawl4ai import AsyncWebCrawler
+        from crawl4ai import (
+            AsyncWebCrawler,
+            BrowserConfig,
+            CrawlerRunConfig,
+            LLMConfig,
+            LLMExtractionStrategy,
+        )
+        from storage.settings import get_current_openai_model
 
         observances = []
+        api_key = os.getenv("OPENAI_API_KEY")
 
-        async with AsyncWebCrawler(verbose=False) as crawler:
+        # Try LLM extraction first if API key is available
+        if api_key:
+            try:
+                model = get_current_openai_model()
+                llm_strategy = LLMExtractionStrategy(
+                    llm_config=LLMConfig(
+                        provider=f"openai/{model}",
+                        api_token=api_key,
+                    ),
+                    schema=ObservanceItem.model_json_schema(),
+                    extraction_type="schema",
+                    instruction=self._get_llm_instruction(),
+                    chunk_token_threshold=8000,
+                    apply_chunking=True,
+                    extra_args={"temperature": 0.1, "max_tokens": 16000},
+                )
+
+                config = CrawlerRunConfig(extraction_strategy=llm_strategy)
+
+                async with AsyncWebCrawler(
+                    config=BrowserConfig(headless=True, verbose=False)
+                ) as crawler:
+                    result = await crawler.arun(url=self.SOURCE_URL, config=config)
+
+                    if result.success and result.extracted_content:
+                        raw_data = json.loads(result.extracted_content)
+                        # Handle both list and dict with 'items' key
+                        items = (
+                            raw_data if isinstance(raw_data, list) else raw_data.get("items", [])
+                        )
+                        observances = self._process_llm_output(items)
+
+                        if observances:
+                            logger.info(
+                                f"{self.SOURCE_NAME}_OBSERVANCES: LLM extracted {len(observances)} observances"
+                            )
+                            return observances
+
+            except Exception as e:
+                logger.warning(f"{self.SOURCE_NAME}_OBSERVANCES: LLM extraction failed: {e}")
+
+        # Fall back to regex parsing (scrape markdown only)
+        async with AsyncWebCrawler(config=BrowserConfig(headless=True, verbose=False)) as crawler:
             result = await crawler.arun(url=self.SOURCE_URL)
 
             if not result.success:
@@ -209,86 +262,12 @@ class ObservanceScraperBase(ABC):
                 )
                 return observances
 
-            # Try LLM parsing first (more accurate)
-            try:
-                observances = await self._parse_with_llm(result.markdown)
-                if observances:
-                    logger.info(
-                        f"{self.SOURCE_NAME}_OBSERVANCES: LLM extracted {len(observances)} observances"
-                    )
-                    return observances
-            except Exception as e:
-                logger.warning(
-                    f"{self.SOURCE_NAME}_OBSERVANCES: LLM parsing failed: {e}"
-                )
-
-            # Fall back to regex parsing
             observances = self._parse_regex(result.markdown)
             logger.info(
                 f"{self.SOURCE_NAME}_OBSERVANCES: Regex parsed {len(observances)} observances (fallback)"
             )
 
         return observances
-
-    async def _parse_with_llm(self, markdown: str) -> List[Dict]:
-        """Parse markdown with LLM for accurate extraction."""
-        import os
-        import httpx
-        from storage.settings import get_current_openai_model
-
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            raise ValueError("No OpenAI API key")
-
-        # Truncate markdown to relevant content
-        start_marker = self._get_content_start_marker()
-        if start_marker:
-            start_idx = markdown.find(start_marker)
-            if start_idx > 0:
-                markdown = markdown[start_idx:]
-
-        prompt = self._get_llm_prompt(markdown)
-        model = get_current_openai_model()
-
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={"Authorization": f"Bearer {api_key}"},
-                json={
-                    "model": model,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.1,
-                    "max_tokens": 16000,
-                },
-                timeout=120.0,
-            )
-            response.raise_for_status()
-            data = response.json()
-
-        content = data["choices"][0]["message"]["content"]
-
-        # Strip markdown code fences if present
-        content = self._strip_code_fences(content)
-
-        # Extract JSON from response
-        json_start = content.find("[")
-        json_end = content.rfind("]") + 1
-        if json_start >= 0 and json_end > json_start:
-            raw_list = json.loads(content[json_start:json_end])
-            return self._process_llm_output(raw_list)
-
-        return []
-
-    def _strip_code_fences(self, content: str) -> str:
-        """Strip markdown code fences from LLM response."""
-        if "```" in content:
-            parts = content.split("```")
-            if len(parts) >= 3:
-                code_block = parts[1]
-                if code_block.startswith("json"):
-                    code_block = code_block[4:].lstrip()
-                return code_block
-        return content
 
     def _process_llm_output(self, raw_observances: List[Dict]) -> List[Dict]:
         """Process LLM-extracted observances into our format."""
@@ -494,15 +473,14 @@ class ObservanceScraperBase(ABC):
     # Abstract methods - must be implemented by subclasses
 
     @abstractmethod
-    def _get_llm_prompt(self, markdown: str) -> str:
+    def _get_llm_instruction(self) -> str:
         """
-        Get the LLM prompt for parsing this source.
+        Get the LLM instruction for extracting observances from this source.
 
-        Args:
-            markdown: Markdown content from crawl4ai
+        Used by crawl4ai's LLMExtractionStrategy to guide extraction.
 
         Returns:
-            Prompt string for LLM
+            Instruction string describing what to extract
         """
         pass
 
@@ -516,17 +494,5 @@ class ObservanceScraperBase(ABC):
 
         Returns:
             List of observance dicts
-        """
-        pass
-
-    @abstractmethod
-    def _get_content_start_marker(self) -> str:
-        """
-        Get the marker where relevant content starts in the markdown.
-
-        This is used to truncate navigation/header content before LLM parsing.
-
-        Returns:
-            String marker (e.g., "### January" for UN) or empty string to use full content
         """
         pass

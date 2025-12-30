@@ -46,32 +46,17 @@ class UNESCOObservancesClient(ObservanceScraperBase):
     CACHE_FILE = UNESCO_OBSERVANCES_CACHE_FILE
     CACHE_TTL_DAYS = UNESCO_OBSERVANCES_CACHE_TTL_DAYS
 
-    def _get_content_start_marker(self) -> str:
-        """UNESCO page content starts with January section."""
-        return "January"
-
-    def _get_llm_prompt(self, markdown: str) -> str:
-        """Get UNESCO-specific LLM prompt."""
-        return (
-            """Extract ALL UNESCO International Days from this markdown.
-
-CRITICAL: Return ONLY a valid JSON array. No markdown, no code fences, no explanations, no notes.
-Start with [ and end with ] - nothing else.
-
-Format: [{"day": 14, "month": "January", "name": "World Logic Day", "url": "https://www.unesco.org/en/days/world-logic", "emoji": "🧠"}, ...]
+    def _get_llm_instruction(self) -> str:
+        """Get UNESCO-specific LLM extraction instruction."""
+        return """Extract ALL UNESCO International Days from this page.
 
 Rules:
 - Include ALL observances listed
-- Extract the exact day number and full month name
+- Extract the exact day number and full month name in English
 - Extract the observance name exactly as shown
 - Construct full URLs by prefixing paths with https://www.unesco.org
 - Skip week/decade entries, only include specific days
-- Pick 1 relevant emoji that visually represents each observance's theme
-
-Markdown content:
-"""
-            + markdown
-        )
+- Pick 1 relevant emoji that visually represents each observance's theme"""
 
     def _parse_regex(self, markdown: str) -> List[Dict]:
         """
@@ -116,9 +101,7 @@ Markdown content:
                 seen.add(obs["name"])
                 unique.append(obs)
 
-        logger.info(
-            f"UNESCO_OBSERVANCES: Parsed {len(unique)} observances from UNESCO page"
-        )
+        logger.info(f"UNESCO_OBSERVANCES: Parsed {len(unique)} observances from UNESCO page")
         return unique
 
     def _add_observance(

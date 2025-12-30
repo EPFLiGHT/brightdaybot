@@ -41,9 +41,7 @@ class RateLimiter:
         window_start = now - self.window_seconds
 
         # Clean old requests
-        self._requests[user_id] = [
-            ts for ts in self._requests[user_id] if ts > window_start
-        ]
+        self._requests[user_id] = [ts for ts in self._requests[user_id] if ts > window_start]
 
         # Check limit
         if len(self._requests[user_id]) >= self.max_requests:
@@ -59,9 +57,7 @@ class RateLimiter:
         """Get remaining requests for a user."""
         now = time.time()
         window_start = now - self.window_seconds
-        current_requests = len(
-            [ts for ts in self._requests[user_id] if ts > window_start]
-        )
+        current_requests = len([ts for ts in self._requests[user_id] if ts > window_start])
         return max(0, self.max_requests - current_requests)
 
 
@@ -218,9 +214,7 @@ def handle_mention(app, event: dict, say) -> dict:
         question_type = classify_question(clean_text)
         result["question_type"] = question_type
 
-        logger.info(
-            f"MENTION: User {user_id} asked '{clean_text[:50]}...' (type: {question_type})"
-        )
+        logger.info(f"MENTION: User {user_id} asked '{clean_text[:50]}...' (type: {question_type})")
 
         # Generate response
         from utils.mention_responder import generate_mention_response

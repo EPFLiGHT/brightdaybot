@@ -46,32 +46,17 @@ class UNObservancesClient(ObservanceScraperBase):
     CACHE_FILE = UN_OBSERVANCES_CACHE_FILE
     CACHE_TTL_DAYS = UN_OBSERVANCES_CACHE_TTL_DAYS
 
-    def _get_content_start_marker(self) -> str:
-        """UN page content starts with month headers."""
-        return "### January"
-
-    def _get_llm_prompt(self, markdown: str) -> str:
-        """Get UN-specific LLM prompt."""
-        return (
-            """Extract ALL UN International Days from this markdown.
-
-CRITICAL: Return ONLY a valid JSON array. No markdown, no code fences, no explanations, no notes.
-Start with [ and end with ] - nothing else.
-
-Format: [{"day": 7, "month": "April", "name": "World Health Day", "url": "https://www.un.org/en/observances/health-day", "emoji": "🏥"}, ...]
+    def _get_llm_instruction(self) -> str:
+        """Get UN-specific LLM extraction instruction."""
+        return """Extract ALL UN International Days from this page.
 
 Rules:
 - Include ALL observances (there should be 200+)
-- Extract the exact day number and full month name
-- Extract the observance name WITHOUT [WHO], [UNESCO] suffixes
-- Extract the URL from the markdown link (format: [Name](url))
-- Skip week/decade entries, only include specific days
-- Pick 1 relevant emoji that visually represents each observance's theme
-
-Markdown content:
-"""
-            + markdown
-        )
+- Extract the exact day number and full month name in English
+- Extract the observance name WITHOUT [WHO], [UNESCO], [FAO] suffixes
+- Extract the URL from each observance link
+- Skip week/decade/year entries, only include specific days
+- Pick 1 relevant emoji that visually represents each observance's theme"""
 
     def _parse_regex(self, markdown: str) -> List[Dict]:
         """

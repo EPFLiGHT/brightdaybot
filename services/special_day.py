@@ -63,9 +63,7 @@ def generate_special_day_message(
 
     # Check if personality has special day prompts
     if "special_day_single" not in personality_config and personality != "chronicler":
-        logger.info(
-            f"Personality {personality} doesn't have special day prompts, using Chronicler"
-        )
+        logger.info(f"Personality {personality} doesn't have special day prompts, using Chronicler")
         personality = "chronicler"
         personality_config = get_personality_config(personality)
 
@@ -128,9 +126,9 @@ def generate_special_day_message(
 
             if not use_teaser:
                 # Add category-specific emphasis only for full messages
-                category_emphasis = personality_config.get(
-                    "special_day_category", {}
-                ).get(day.category, "")
+                category_emphasis = personality_config.get("special_day_category", {}).get(
+                    day.category, ""
+                )
                 if category_emphasis:
                     prompt += f"\n\n{category_emphasis}"
 
@@ -171,11 +169,7 @@ def generate_special_day_message(
                     else:
                         sources_info.append(f"{day.name}: UN/WHO observance")
 
-            sources_text = (
-                "\n".join(sources_info)
-                if sources_info
-                else "Various UN/WHO observances"
-            )
+            sources_text = "\n".join(sources_info) if sources_info else "Various UN/WHO observances"
 
             prompt = personality_config.get(
                 prompt_key, personality_config.get("special_day_multiple", "")
@@ -235,9 +229,7 @@ def generate_special_day_message(
         return generate_fallback_special_day_message(special_days, personality_config)
 
 
-def generate_fallback_special_day_message(
-    special_days: List, personality_config: dict
-) -> str:
+def generate_fallback_special_day_message(special_days: List, personality_config: dict) -> str:
     """
     Generate a fallback message when AI generation fails.
 
@@ -330,9 +322,7 @@ def generate_special_day_details(
             # Get additional facts via web search to supplement the brief CSV description
             facts_text = ""
             try:
-                logger.info(
-                    f"Fetching web search facts for {day.name} to enrich details"
-                )
+                logger.info(f"Fetching web search facts for {day.name} to enrich details")
                 facts_result = get_birthday_facts(today.strftime("%d/%m"), personality)
                 if facts_result and facts_result.get("facts"):
                     facts_text = facts_result["facts"]
@@ -506,12 +496,8 @@ TONE & STYLE:
 
         # Truncate if too long for Slack button value (2000 char limit, using 1950 for safety buffer)
         if len(details) > 1950:
-            logger.warning(
-                f"Details too long ({len(details)} chars), truncating to 1950"
-            )
-            details = (
-                details[:1950] + "...\n\nSee official source for complete information."
-            )
+            logger.warning(f"Details too long ({len(details)} chars), truncating to 1950")
+            details = details[:1950] + "...\n\nSee official source for complete information."
 
         return details
 
@@ -576,20 +562,16 @@ def generate_special_day_image(
             days_names = ", ".join([d.name for d in special_days])
             categories = list(set([d.category for d in special_days]))
 
-            image_prompt = f"An artistic composition representing multiple observances: {days_names}. "
-            image_prompt += (
-                f"Blend elements from these categories: {', '.join(categories)}. "
+            image_prompt = (
+                f"An artistic composition representing multiple observances: {days_names}. "
             )
-            image_prompt += (
-                "Educational poster style with symbols representing each observance. "
-            )
+            image_prompt += f"Blend elements from these categories: {', '.join(categories)}. "
+            image_prompt += "Educational poster style with symbols representing each observance. "
             image_prompt += "Dignified, informative, and visually balanced composition."
 
         # Use quality and size parameters
         if not quality:
-            quality = IMAGE_GENERATION_PARAMS["quality"][
-                "test" if test_mode else "default"
-            ]
+            quality = IMAGE_GENERATION_PARAMS["quality"]["test" if test_mode else "default"]
         if not size:
             size = IMAGE_GENERATION_PARAMS["size"]["default"]
 
@@ -608,9 +590,7 @@ def generate_special_day_image(
         )
 
         if result and "image_path" in result:
-            logger.info(
-                f"Successfully generated special day image: {result['image_path']}"
-            )
+            logger.info(f"Successfully generated special day image: {result['image_path']}")
             return result["image_path"]
 
         return None
@@ -620,9 +600,7 @@ def generate_special_day_image(
         return None
 
 
-async def send_special_day_announcement(
-    app, special_days: List, test_mode: bool = False
-):
+async def send_special_day_announcement(app, special_days: List, test_mode: bool = False):
     """
     Send special day announcement to the configured channel.
 
@@ -638,9 +616,7 @@ async def send_special_day_announcement(
 
     try:
         # Generate the message
-        message = generate_special_day_message(
-            special_days, test_mode=test_mode, app=app
-        )
+        message = generate_special_day_message(special_days, test_mode=test_mode, app=app)
 
         if not message:
             logger.error("Failed to generate special day message")
@@ -672,9 +648,7 @@ async def send_special_day_announcement(
         else:
             result = await send_message(app, channel, message)
 
-        logger.info(
-            f"Successfully sent special day announcement for {len(special_days)} day(s)"
-        )
+        logger.info(f"Successfully sent special day announcement for {len(special_days)} day(s)")
         return True
 
     except Exception as e:

@@ -136,9 +136,7 @@ def _handle_slash_check(text, user_id, respond, app):
     else:
         username = get_username(app, target)
         if target == user_id:
-            respond(
-                text="You haven't added your birthday yet! Use `/birthday add` to add it."
-            )
+            respond(text="You haven't added your birthday yet! Use `/birthday add` to add it.")
         else:
             respond(text=f"{username} hasn't added their birthday yet.")
 

@@ -131,9 +131,7 @@ def add_pending_confirmation(user_id, action_type, data):
         "data": data,
         "timestamp": datetime.now(timezone.utc),
     }
-    logger.info(
-        f"CONFIRMATION: Added pending {action_type} confirmation for user {user_id}"
-    )
+    logger.info(f"CONFIRMATION: Added pending {action_type} confirmation for user {user_id}")
 
 
 def get_pending_confirmation(user_id):
@@ -160,9 +158,7 @@ def remove_pending_confirmation(user_id):
     if user_id in PENDING_CONFIRMATIONS:
         action = PENDING_CONFIRMATIONS[user_id]["action"]
         del PENDING_CONFIRMATIONS[user_id]
-        logger.info(
-            f"CONFIRMATION: Removed pending {action} confirmation for user {user_id}"
-        )
+        logger.info(f"CONFIRMATION: Removed pending {action} confirmation for user {user_id}")
 
 
 def handle_confirm_command(user_id, say, app):
@@ -253,9 +249,7 @@ def handle_confirm_command(user_id, say, app):
 
     except Exception as e:
         say(f"❌ Error executing confirmation: {e}")
-        logger.error(
-            f"CONFIRMATION: Error executing {action_type} for {username} ({user_id}): {e}"
-        )
+        logger.error(f"CONFIRMATION: Error executing {action_type} for {username} ({user_id}): {e}")
 
     finally:
         # Always remove the pending confirmation
@@ -431,9 +425,7 @@ def _send_external_backup_if_enabled(updated, username, app, change_type=None):
                     change_type = "update" if updated else "add"
                 send_external_backup(latest_backup, change_type, username, app)
     except Exception as backup_error:
-        logger.error(
-            f"EXTERNAL_BACKUP_ERROR: Failed to send external backup: {backup_error}"
-        )
+        logger.error(f"EXTERNAL_BACKUP_ERROR: Failed to send external backup: {backup_error}")
 
 
 def handle_command(text, user_id, say, app):
@@ -469,9 +461,7 @@ def handle_command(text, user_id, say, app):
         if admin_subcommand == "special":
             # Pass the original text after "admin special" for quoted parsing
             admin_special_text = text[len("admin special") :].strip()
-            handle_admin_special_command_with_quotes(
-                admin_special_text, user_id, say, app
-            )
+            handle_admin_special_command_with_quotes(admin_special_text, user_id, say, app)
         else:
             handle_admin_command(
                 admin_subcommand,
@@ -513,9 +503,7 @@ def handle_command(text, user_id, say, app):
         handle_config_command(parts, user_id, say, app)
 
     elif command == "test":
-        quality, image_size, text_only, error_message = parse_test_command_args(
-            parts[1:]
-        )
+        quality, image_size, text_only, error_message = parse_test_command_args(parts[1:])
         if error_message:
             say(error_message)
             return
@@ -727,9 +715,7 @@ def _handle_hello_command(user_id, say):
         personality_config = get_personality_config(current_personality)
 
     # Get greeting from personality config and format with user mention
-    greeting_template = personality_config.get(
-        "hello_greeting", "Hello {user_mention}! 👋"
-    )
+    greeting_template = personality_config.get("hello_greeting", "Hello {user_mention}! 👋")
     greeting = greeting_template.format(user_mention=get_user_mention(user_id))
 
     # Build Block Kit hello message
@@ -739,9 +725,7 @@ def _handle_hello_command(user_id, say):
     blocks, fallback = build_hello_blocks(greeting, personality_display_name)
 
     say(blocks=blocks, text=fallback)
-    logger.info(
-        f"HELLO: Sent greeting to user ({user_id}) with {current_personality} personality"
-    )
+    logger.info(f"HELLO: Sent greeting to user ({user_id}) with {current_personality} personality")
 
 
 def handle_admin_command(
@@ -793,9 +777,7 @@ def handle_admin_command(
 
     elif subcommand == "status":
         is_detailed = len(args) > 0 and args[0].lower() == "detailed"
-        handle_status_command(
-            [None, "detailed" if is_detailed else None], user_id, say, app
-        )
+        handle_status_command([None, "detailed" if is_detailed else None], user_id, say, app)
         logger.info(
             f"ADMIN: {username} ({user_id}) requested system status {'with details' if is_detailed else ''}"
         )
@@ -828,9 +810,7 @@ def handle_admin_command(
         handle_test_join_command(args, user_id, say, app)
 
     elif subcommand == "announce":
-        handle_announce_command(
-            args, user_id, say, app, add_pending_fn, timeout_minutes
-        )
+        handle_announce_command(args, user_id, say, app, add_pending_fn, timeout_minutes)
 
     elif subcommand == "test-bot-celebration":
         quality, image_size, text_only, error_message = parse_test_command_args(args)
@@ -845,6 +825,4 @@ def handle_admin_command(
         handle_admin_special_command(args, user_id, say, app)
 
     else:
-        say(
-            "Unknown admin command. Use `admin help` for information on admin commands."
-        )
+        say("Unknown admin command. Use `admin help` for information on admin commands.")

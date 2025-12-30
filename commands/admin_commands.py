@@ -57,9 +57,7 @@ def handle_stats_command(user_id, say, app):
     if not check_command_permission(app, user_id, "stats"):
         from slack.blocks import build_permission_error_blocks
 
-        blocks, fallback = build_permission_error_blocks(
-            "stats", "configured permission"
-        )
+        blocks, fallback = build_permission_error_blocks("stats", "configured permission")
         say(blocks=blocks, text=fallback)
         username = get_username(app, user_id)
         logger.warning(
@@ -71,18 +69,14 @@ def handle_stats_command(user_id, say, app):
     total_birthdays = len(birthdays)
 
     # Calculate how many have years
-    birthdays_with_years = sum(
-        1 for data in birthdays.values() if data["year"] is not None
-    )
+    birthdays_with_years = sum(1 for data in birthdays.values() if data["year"] is not None)
 
     # Get channel members count
     channel_members = get_channel_members(app, BIRTHDAY_CHANNEL)
     total_members = len(channel_members)
 
     # Calculate coverage
-    coverage_percentage = (
-        (total_birthdays / total_members * 100) if total_members > 0 else 0
-    )
+    coverage_percentage = (total_birthdays / total_members * 100) if total_members > 0 else 0
 
     # Count birthdays by month
     months = [0] * 12
@@ -156,9 +150,7 @@ def handle_config_command(parts, user_id, say, app):
         config_lines.append(
             "\n*Note:* The `remind` command is always admin-only and cannot be changed."
         )
-        config_lines.append(
-            "\nTo change a setting, use: `config [command] [true/false]`"
-        )
+        config_lines.append("\nTo change a setting, use: `config [command] [true/false]`")
         config_lines.append(
             "Example: `config list false` to make the list command available to all users"
         )
@@ -184,9 +176,7 @@ def handle_config_command(parts, user_id, say, app):
 
     # Validate setting
     if setting_str not in ("true", "false"):
-        say(
-            "Invalid setting. Please use `true` for admin-only or `false` for all users"
-        )
+        say("Invalid setting. Please use `true` for admin-only or `false` for all users")
         return
 
     # Update setting
@@ -207,9 +197,7 @@ def handle_config_command(parts, user_id, say, app):
         )
     else:
         say(f"Failed to update permission for `{cmd}`. Check logs for details.")
-        logger.error(
-            f"CONFIG_ERROR: Failed to save permission change for {cmd} by {username}"
-        )
+        logger.error(f"CONFIG_ERROR: Failed to save permission change for {cmd} by {username}")
 
 
 def handle_announce_command(
@@ -256,9 +244,7 @@ def handle_announce_command(
     if args[0].lower() == "image":
         # Prepare image feature announcement confirmation
         announcement_type = "image_feature"
-        preview_message = (
-            "AI Image Generation Feature Announcement (predefined template)"
-        )
+        preview_message = "AI Image Generation Feature Announcement (predefined template)"
 
         add_pending_confirmation(
             user_id,
@@ -328,7 +314,9 @@ def handle_model_command(args, user_id, say, _app, username):
         if model_info.get("updated_at"):
             response += f"*Last Updated:* {model_info['updated_at']}\n\n"
 
-        response += "Use `admin model set <model>` to change or `admin model list` to see available models."
+        response += (
+            "Use `admin model set <model>` to change or `admin model list` to see available models."
+        )
         say(response)
         return
 
@@ -388,9 +376,7 @@ def handle_model_command(args, user_id, say, _app, username):
             return
 
         if set_current_openai_model(default_model):
-            say(
-                f"✅ OpenAI model reset from `{current_model}` to default (`{default_model}`)"
-            )
+            say(f"✅ OpenAI model reset from `{current_model}` to default (`{default_model}`)")
             logger.info(
                 f"ADMIN_MODEL: {username} ({user_id}) reset OpenAI model from '{current_model}' to default '{default_model}'"
             )
@@ -431,9 +417,7 @@ def handle_cache_command(parts, user_id, say, app):
 
     # parts will be ['clear'] or ['clear', 'DD/MM']
     if not parts or parts[0] != "clear":
-        say(
-            "Usage: `admin cache clear [DD/MM]` - Clear cache (optionally for specific date)"
-        )
+        say("Usage: `admin cache clear [DD/MM]` - Clear cache (optionally for specific date)")
         return
 
     # Check if a specific date was provided
@@ -447,9 +431,7 @@ def handle_cache_command(parts, user_id, say, app):
                 # Handle cases like "admin cache clear somethingelse"
                 say("Invalid date format. Please use DD/MM format (e.g., 25/12)")
                 return
-        except (
-            Exception
-        ) as e:  # Catch potential errors if parts[1] is not a string or other issues
+        except Exception as e:  # Catch potential errors if parts[1] is not a string or other issues
             logger.error(f"Error parsing cache date argument: {e}")
             say("Invalid date format. Please use DD/MM format (e.g., 25/12)")
             return
@@ -529,7 +511,9 @@ def handle_timezone_command(args, user_id, say, app, username):
         else:
             status_msg += f"• Mode: All birthdays announced at {DAILY_CHECK_TIME.strftime('%H:%M')} server time\n"
 
-        status_msg += f"\nUse `admin timezone enable` or `admin timezone disable` to change settings."
+        status_msg += (
+            f"\nUse `admin timezone enable` or `admin timezone disable` to change settings."
+        )
 
         # If enabled, also show the schedule
         if current_enabled:
@@ -551,13 +535,9 @@ def handle_timezone_command(args, user_id, say, app, username):
                 f"The scheduler will check hourly for birthdays.\n\n"
                 f"*Note:* This change will take effect on the next scheduler restart."
             )
-            logger.info(
-                f"ADMIN: {username} ({user_id}) ENABLED timezone-aware announcements"
-            )
+            logger.info(f"ADMIN: {username} ({user_id}) ENABLED timezone-aware announcements")
         else:
-            say(
-                "❌ Failed to enable timezone-aware announcements. Check logs for details."
-            )
+            say("❌ Failed to enable timezone-aware announcements. Check logs for details.")
 
     elif args[0].lower() == "disable":
         # Disable timezone-aware announcements
@@ -568,13 +548,9 @@ def handle_timezone_command(args, user_id, say, app, username):
                 f"regardless of user timezones.\n\n"
                 f"*Note:* This change will take effect on the next scheduler restart."
             )
-            logger.info(
-                f"ADMIN: {username} ({user_id}) DISABLED timezone-aware announcements"
-            )
+            logger.info(f"ADMIN: {username} ({user_id}) DISABLED timezone-aware announcements")
         else:
-            say(
-                "❌ Failed to disable timezone-aware announcements. Check logs for details."
-            )
+            say("❌ Failed to disable timezone-aware announcements. Check logs for details.")
 
     elif args[0].lower() == "status":
         # Detailed status with schedule
@@ -708,9 +684,7 @@ def handle_admin_list_command(_args, _user_id, say, app, _username):
     from storage.settings import get_current_admins
 
     current_admins = get_current_admins()
-    logger.info(
-        f"ADMIN_LIST: Current admin list has {len(current_admins)} users: {current_admins}"
-    )
+    logger.info(f"ADMIN_LIST: Current admin list has {len(current_admins)} users: {current_admins}")
 
     if not current_admins:
         say("No additional admin users configured.")
@@ -780,13 +754,9 @@ def handle_admin_add_command(args, user_id, say, app, username):
 
         new_admin_name = get_username(app, new_admin)
         say(f"Added {new_admin_name} ({get_user_mention(new_admin)}) as admin")
-        logger.info(
-            f"ADMIN: {username} ({user_id}) added {new_admin_name} ({new_admin}) as admin"
-        )
+        logger.info(f"ADMIN: {username} ({user_id}) added {new_admin_name} ({new_admin}) as admin")
     else:
-        say(
-            f"Failed to add {get_user_mention(new_admin)} as admin due to an error saving to file."
-        )
+        say(f"Failed to add {get_user_mention(new_admin)} as admin due to an error saving to file.")
 
 
 def handle_admin_remove_command(args, user_id, say, app, username):
@@ -828,13 +798,9 @@ def handle_admin_remove_command(args, user_id, say, app, username):
         ADMIN_USERS[:] = current_admins
 
         removed_name = get_username(app, admin_to_remove)
-        say(
-            f"Removed {removed_name} ({get_user_mention(admin_to_remove)}) from admin list"
-        )
+        say(f"Removed {removed_name} ({get_user_mention(admin_to_remove)}) from admin list")
         logger.info(
             f"ADMIN: {username} ({user_id}) removed {removed_name} ({admin_to_remove}) from admin list"
         )
     else:
-        say(
-            f"Failed to remove {get_user_mention(admin_to_remove)} due to an error saving to file."
-        )
+        say(f"Failed to remove {get_user_mention(admin_to_remove)} due to an error saving to file.")

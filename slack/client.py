@@ -49,9 +49,7 @@ def get_user_profile(app, user_id):
         info_response = app.client.users_info(user=user_id)
 
         if not (profile_response["ok"] and info_response["ok"]):
-            logger.error(
-                f"API_ERROR: Failed to get complete profile for user {user_id}"
-            )
+            logger.error(f"API_ERROR: Failed to get complete profile for user {user_id}")
             return None
 
         profile = profile_response["profile"]
@@ -65,9 +63,7 @@ def get_user_profile(app, user_id):
             "phone": profile.get("phone", ""),
             "email": profile.get("email", ""),
             "timezone": user_info.get("tz", ""),  # e.g. "America/New_York"
-            "timezone_label": user_info.get(
-                "tz_label", ""
-            ),  # e.g. "Eastern Standard Time"
+            "timezone_label": user_info.get("tz_label", ""),  # e.g. "Eastern Standard Time"
             "timezone_offset": user_info.get("tz_offset", 0),  # seconds from UTC
             "photo_24": profile.get("image_24", ""),
             "photo_32": profile.get("image_32", ""),
@@ -161,9 +157,7 @@ def get_user_profile(app, user_id):
         )
         user_profile["preferred_name"] = preferred_name
 
-        logger.debug(
-            f"PROFILE: Retrieved comprehensive profile for {preferred_name} ({user_id})"
-        )
+        logger.debug(f"PROFILE: Retrieved comprehensive profile for {preferred_name} ({user_id})")
         return user_profile
 
     except SlackApiError as e:
@@ -203,9 +197,7 @@ def get_username(app, user_id):
         entries_to_remove = sorted_entries[: USERNAME_CACHE_MAX_SIZE // 4]
         for key, _ in entries_to_remove:
             del username_cache[key]
-        logger.info(
-            f"CACHE: Cleaned up {len(entries_to_remove)} old username cache entries"
-        )
+        logger.info(f"CACHE: Cleaned up {len(entries_to_remove)} old username cache entries")
 
     try:
         response = app.client.users_profile_get(user=user_id)
@@ -257,20 +249,14 @@ def get_user_status_and_info(app, user_id):
                 should_cache = True
                 if user_id in username_cache:
                     _, cached_time = username_cache[user_id]
-                    cache_age_hours = (
-                        datetime.now() - cached_time
-                    ).total_seconds() / 3600
+                    cache_age_hours = (datetime.now() - cached_time).total_seconds() / 3600
                     should_cache = cache_age_hours >= USERNAME_CACHE_TTL_HOURS
 
                 if should_cache:
                     if len(username_cache) >= USERNAME_CACHE_MAX_SIZE:
                         # Remove oldest entries based on timestamp
-                        sorted_entries = sorted(
-                            username_cache.items(), key=lambda x: x[1][1]
-                        )
-                        entries_to_remove = sorted_entries[
-                            : USERNAME_CACHE_MAX_SIZE // 4
-                        ]
+                        sorted_entries = sorted(username_cache.items(), key=lambda x: x[1][1])
+                        entries_to_remove = sorted_entries[: USERNAME_CACHE_MAX_SIZE // 4]
                         for key, _ in entries_to_remove:
                             del username_cache[key]
                     username_cache[user_id] = (username, datetime.now())
@@ -304,9 +290,7 @@ def is_admin(app, user_id):
     # First, check if user is in the manually configured admin list
     if user_id in current_admins:
         username = get_username(app, user_id)
-        logger.debug(
-            f"PERMISSIONS: {username} ({user_id}) is admin via ADMIN_USERS list"
-        )
+        logger.debug(f"PERMISSIONS: {username} ({user_id}) is admin via ADMIN_USERS list")
         return True
 
     # Then check if they're a workspace admin
@@ -316,9 +300,7 @@ def is_admin(app, user_id):
 
         if is_workspace_admin:
             username = get_username(app, user_id)
-            logger.debug(
-                f"PERMISSIONS: {username} ({user_id}) is admin via workspace permissions"
-            )
+            logger.debug(f"PERMISSIONS: {username} ({user_id}) is admin via workspace permissions")
 
         return is_workspace_admin
     except SlackApiError as e:
@@ -372,9 +354,7 @@ def get_channel_members(app, channel_id):
                     channel=channel_id, cursor=next_cursor, limit=1000
                 )
             else:
-                result = app.client.conversations_members(
-                    channel=channel_id, limit=1000
-                )
+                result = app.client.conversations_members(channel=channel_id, limit=1000)
 
             # Add members from this page
             if result.get("members"):
@@ -385,9 +365,7 @@ def get_channel_members(app, channel_id):
             if not next_cursor:
                 break
 
-        logger.info(
-            f"CHANNEL: Retrieved {len(members)} members from channel {channel_id}"
-        )
+        logger.info(f"CHANNEL: Retrieved {len(members)} members from channel {channel_id}")
         return members
 
     except SlackApiError as e:
@@ -440,9 +418,7 @@ def send_message_with_image(
                             f"IMAGE_ERROR: Failed to open DM channel: {dm_response.get('error')}"
                         )
                         # Fallback to text-only message
-                        return send_message(app, channel, text, blocks, context)[
-                            "success"
-                        ]
+                        return send_message(app, channel, text, blocks, context)["success"]
 
                 # Check for pre-generated custom title first, then generate AI title
                 custom_title = image_data.get("custom_title")
@@ -462,9 +438,7 @@ def send_message_with_image(
                         user_profile = image_data.get(
                             "user_profile"
                         )  # This will need to be added to image_data
-                        is_multiple = (
-                            " and " in name or " , " in name
-                        )  # Detect multiple people
+                        is_multiple = " and " in name or " , " in name  # Detect multiple people
 
                         ai_title = generate_birthday_image_title(
                             name=name,
@@ -475,14 +449,10 @@ def send_message_with_image(
 
                         # Add emoji prefix to AI title
                         final_title = f"🎂 {ai_title}"
-                        logger.info(
-                            f"IMAGE_TITLE: Generated AI title for {name}: '{ai_title}'"
-                        )
+                        logger.info(f"IMAGE_TITLE: Generated AI title for {name}: '{ai_title}'")
 
                     except Exception as e:
-                        logger.error(
-                            f"IMAGE_TITLE_ERROR: Failed to generate AI title: {e}"
-                        )
+                        logger.error(f"IMAGE_TITLE_ERROR: Failed to generate AI title: {e}")
                         # Fallback to original static title
                         final_title = f"🎂 Birthday Image - {image_data.get('personality', 'standard').title()} Style"
 
@@ -515,9 +485,7 @@ def send_message_with_image(
                     )
 
                 if upload_response["ok"]:
-                    logger.info(
-                        f"IMAGE: Successfully sent message with image to {target_channel}"
-                    )
+                    logger.info(f"IMAGE: Successfully sent message with image to {target_channel}")
                     return True
                 else:
                     logger.error(
@@ -531,9 +499,7 @@ def send_message_with_image(
                 # Fallback for older slack client versions or other issues
                 return send_message(app, channel, text, blocks, context)["success"]
             except Exception as upload_error:
-                logger.error(
-                    f"IMAGE_ERROR: Unexpected error during upload process: {upload_error}"
-                )
+                logger.error(f"IMAGE_ERROR: Unexpected error during upload process: {upload_error}")
                 return send_message(app, channel, text, blocks, context)["success"]
 
         else:
@@ -622,19 +588,13 @@ def send_message_with_multiple_images(
                     )
                     # Fallback to simple title
                     personality_name = (
-                        image_data.get("personality", "standard")
-                        .replace("_", " ")
-                        .title()
+                        image_data.get("personality", "standard").replace("_", " ").title()
                     )
-                    final_title = (
-                        f"🎂 {person_name}'s Birthday - {personality_name} Style"
-                    )
+                    final_title = f"🎂 {person_name}'s Birthday - {personality_name} Style"
 
                 # Create filename for this image
                 safe_name = (
-                    "".join(
-                        c for c in person_name if c.isalnum() or c in (" ", "-", "_")
-                    )
+                    "".join(c for c in person_name if c.isalnum() or c in (" ", "-", "_"))
                     .rstrip()
                     .replace(" ", "_")
                 )
@@ -642,9 +602,7 @@ def send_message_with_multiple_images(
                 filename = f"birthday_{safe_name}_{i+1}_{timestamp}.png"
 
                 # Send individual image (no additional text - just the title)
-                image_success = send_message_with_image(
-                    app, channel, "", image_data, blocks=None
-                )
+                image_success = send_message_with_image(app, channel, "", image_data, blocks=None)
 
                 if image_success:
                     results["images_sent"] += 1
@@ -676,9 +634,7 @@ def send_message_with_multiple_images(
         return results
 
 
-def upload_birthday_images_for_blocks(
-    app, channel: str, image_list: list, context: dict = None
-):
+def upload_birthday_images_for_blocks(app, channel: str, image_list: list, context: dict = None):
     """
     Upload birthday images to Slack and return file IDs for embedding in Block Kit
 
@@ -710,9 +666,7 @@ def upload_birthday_images_for_blocks(
         for i, image_data in enumerate(image_list):
             try:
                 if not image_data or not image_data.get("image_data"):
-                    logger.warning(
-                        f"BLOCK_IMAGE_UPLOAD: Skipping attachment {i+1} - no image data"
-                    )
+                    logger.warning(f"BLOCK_IMAGE_UPLOAD: Skipping attachment {i+1} - no image data")
                     continue
 
                 # Generate personalized filename for each image
@@ -729,9 +683,7 @@ def upload_birthday_images_for_blocks(
 
                 # Create safe filename
                 safe_name = (
-                    "".join(
-                        c for c in person_name if c.isalnum() or c in (" ", "-", "_")
-                    )
+                    "".join(c for c in person_name if c.isalnum() or c in (" ", "-", "_"))
                     .rstrip()
                     .replace(" ", "_")
                 )
@@ -756,13 +708,9 @@ def upload_birthday_images_for_blocks(
                     )
                     # Fallback to simple title
                     personality_name = (
-                        image_data.get("personality", "standard")
-                        .replace("_", " ")
-                        .title()
+                        image_data.get("personality", "standard").replace("_", " ").title()
                     )
-                    final_title = (
-                        f"🎂 {person_name}'s Birthday - {personality_name} Style"
-                    )
+                    final_title = f"🎂 {person_name}'s Birthday - {personality_name} Style"
 
                 # Add to file uploads list
                 file_uploads.append(
@@ -778,9 +726,7 @@ def upload_birthday_images_for_blocks(
                 )
 
             except Exception as e:
-                logger.error(
-                    f"BLOCK_IMAGE_UPLOAD_PREP_ERROR: Failed to prepare file {i+1}: {e}"
-                )
+                logger.error(f"BLOCK_IMAGE_UPLOAD_PREP_ERROR: Failed to prepare file {i+1}: {e}")
                 continue
 
         # If no valid files prepared, return empty list
@@ -799,9 +745,7 @@ def upload_birthday_images_for_blocks(
                     f"BLOCK_IMAGE_UPLOAD: Opened DM channel {target_channel} for user {channel}"
                 )
             else:
-                logger.error(
-                    f"BLOCK_IMAGE_UPLOAD: Failed to open DM channel for {channel}"
-                )
+                logger.error(f"BLOCK_IMAGE_UPLOAD: Failed to open DM channel for {channel}")
                 return []
 
         # Upload files using files_upload_v2 WITHOUT channel parameter (private upload)
@@ -835,14 +779,10 @@ def upload_birthday_images_for_blocks(
             for uploaded_file in uploaded_files:
                 file_id = uploaded_file.get("id")
                 file_name = uploaded_file.get("name", "unknown")
-                file_title = uploaded_file.get(
-                    "title", ""
-                )  # Get title from upload response
+                file_title = uploaded_file.get("title", "")  # Get title from upload response
 
                 if not file_id:
-                    logger.warning(
-                        f"BLOCK_IMAGE_UPLOAD: No file ID for {file_name}, skipping"
-                    )
+                    logger.warning(f"BLOCK_IMAGE_UPLOAD: No file ID for {file_name}, skipping")
                     continue
 
                 # If title not in response, try to get it from our mapping
@@ -943,9 +883,7 @@ def send_message_with_multiple_attachments(
         for i, image_data in enumerate(image_list):
             try:
                 if not image_data or not image_data.get("image_data"):
-                    logger.warning(
-                        f"MULTI_ATTACH: Skipping attachment {i+1} - no image data"
-                    )
+                    logger.warning(f"MULTI_ATTACH: Skipping attachment {i+1} - no image data")
                     results["attachments_failed"] += 1
                     continue
 
@@ -963,9 +901,7 @@ def send_message_with_multiple_attachments(
 
                 # Create safe filename
                 safe_name = (
-                    "".join(
-                        c for c in person_name if c.isalnum() or c in (" ", "-", "_")
-                    )
+                    "".join(c for c in person_name if c.isalnum() or c in (" ", "-", "_"))
                     .rstrip()
                     .replace(" ", "_")
                 )
@@ -990,13 +926,9 @@ def send_message_with_multiple_attachments(
                     )
                     # Fallback to simple title
                     personality_name = (
-                        image_data.get("personality", "standard")
-                        .replace("_", " ")
-                        .title()
+                        image_data.get("personality", "standard").replace("_", " ").title()
                     )
-                    final_title = (
-                        f"🎂 {person_name}'s Birthday - {personality_name} Style"
-                    )
+                    final_title = f"🎂 {person_name}'s Birthday - {personality_name} Style"
 
                 # Add to file uploads list
                 file_uploads.append(
@@ -1012,17 +944,13 @@ def send_message_with_multiple_attachments(
                 )
 
             except Exception as e:
-                logger.error(
-                    f"MULTI_ATTACH_PREP_ERROR: Failed to prepare attachment {i+1}: {e}"
-                )
+                logger.error(f"MULTI_ATTACH_PREP_ERROR: Failed to prepare attachment {i+1}: {e}")
                 results["attachments_failed"] += 1
                 continue
 
         # If no valid attachments, send message only
         if not file_uploads:
-            logger.warning(
-                "MULTI_ATTACH: No valid attachments prepared, sending message only"
-            )
+            logger.warning("MULTI_ATTACH: No valid attachments prepared, sending message only")
             result = send_message(app, channel, text, blocks, context)
             results["success"] = result["success"]
             results["message_sent"] = result["success"]
@@ -1035,9 +963,7 @@ def send_message_with_multiple_attachments(
             dm_response = app.client.conversations_open(users=channel)
             if dm_response["ok"]:
                 target_channel = dm_response["channel"]["id"]
-                logger.info(
-                    f"MULTI_ATTACH: Opened DM channel {target_channel} for user {channel}"
-                )
+                logger.info(f"MULTI_ATTACH: Opened DM channel {target_channel} for user {channel}")
             else:
                 logger.error(f"MULTI_ATTACH: Failed to open DM channel for {channel}")
                 # Fallback to sequential method
@@ -1046,9 +972,7 @@ def send_message_with_multiple_attachments(
                 )
 
         # Upload all files in a single message using files_upload_v2
-        logger.info(
-            f"MULTI_ATTACH: Uploading {len(file_uploads)} files to {target_channel}"
-        )
+        logger.info(f"MULTI_ATTACH: Uploading {len(file_uploads)} files to {target_channel}")
 
         # Strategy: If blocks provided, send structured message first, then files
         if blocks:
@@ -1117,9 +1041,7 @@ def send_message_with_multiple_attachments(
                             )
                             break
                     except Exception as e:
-                        logger.error(
-                            f"MULTI_ATTACH: Error checking file status for {file_id}: {e}"
-                        )
+                        logger.error(f"MULTI_ATTACH: Error checking file status for {file_id}: {e}")
                         break
 
             results["success"] = True
@@ -1141,24 +1063,18 @@ def send_message_with_multiple_attachments(
             error = upload_response.get("error", "Unknown error")
             logger.error(f"MULTI_ATTACH_ERROR: Failed to upload files: {error}")
             # Fallback to sequential method
-            return _fallback_to_sequential_images(
-                app, channel, text, image_list, blocks, context
-            )
+            return _fallback_to_sequential_images(app, channel, text, image_list, blocks, context)
 
         return results
 
     except SlackApiError as e:
         logger.error(f"MULTI_ATTACH_API_ERROR: Slack API error: {e}")
         # Fallback to sequential method
-        return _fallback_to_sequential_images(
-            app, channel, text, image_list, blocks, context
-        )
+        return _fallback_to_sequential_images(app, channel, text, image_list, blocks, context)
     except Exception as e:
         logger.error(f"MULTI_ATTACH_ERROR: Unexpected error: {e}")
         # Fallback to sequential method
-        return _fallback_to_sequential_images(
-            app, channel, text, image_list, blocks, context
-        )
+        return _fallback_to_sequential_images(app, channel, text, image_list, blocks, context)
 
 
 def _fallback_to_sequential_images(
@@ -1192,9 +1108,7 @@ def _fallback_to_sequential_images(
 
     # Map sequential results to attachment format for consistency
     sequential_results["attachments_sent"] = sequential_results.pop("images_sent", 0)
-    sequential_results["attachments_failed"] = sequential_results.pop(
-        "images_failed", 0
-    )
+    sequential_results["attachments_failed"] = sequential_results.pop("images_failed", 0)
     sequential_results["total_attachments"] = sequential_results.pop(
         "total_images", len(image_list)
     )
@@ -1219,9 +1133,7 @@ def send_message(app, channel: str, text: str, blocks=None, context: dict = None
     try:
         # Send the message
         if blocks:
-            response = app.client.chat_postMessage(
-                channel=channel, text=text, blocks=blocks
-            )
+            response = app.client.chat_postMessage(channel=channel, text=text, blocks=blocks)
         else:
             response = app.client.chat_postMessage(channel=channel, text=text)
 
@@ -1241,9 +1153,7 @@ def send_message(app, channel: str, text: str, blocks=None, context: dict = None
         return {"success": False, "ts": None}
 
 
-def send_message_with_file(
-    app, channel: str, text: str, file_path: str, context: dict = None
-):
+def send_message_with_file(app, channel: str, text: str, file_path: str, context: dict = None):
     """
     Send a message to a Slack channel with file attachment.
 
@@ -1265,9 +1175,7 @@ def send_message_with_file(
             dm_response = app.client.conversations_open(users=channel)
             if dm_response["ok"]:
                 target_channel = dm_response["channel"]["id"]
-                logger.debug(
-                    f"FILE_UPLOAD: Opened DM channel {target_channel} for user {channel}"
-                )
+                logger.debug(f"FILE_UPLOAD: Opened DM channel {target_channel} for user {channel}")
             else:
                 logger.error(
                     f"FILE_UPLOAD_ERROR: Failed to open DM channel: {dm_response.get('error')}"
@@ -1294,9 +1202,7 @@ def send_message_with_file(
                 f"MESSAGE: Sent file to {username} ({channel}): {os.path.basename(file_path)}"
             )
         else:
-            logger.info(
-                f"MESSAGE: Sent file to channel {channel}: {os.path.basename(file_path)}"
-            )
+            logger.info(f"MESSAGE: Sent file to channel {channel}: {os.path.basename(file_path)}")
 
         return True
 
@@ -1329,9 +1235,7 @@ def fetch_custom_emojis(app):
         response = app.client.emoji_list()
         if response["ok"]:
             CUSTOM_SLACK_EMOJIS = response["emoji"]
-            logger.info(
-                f"EMOJI: Fetched {len(CUSTOM_SLACK_EMOJIS)} custom emojis from workspace"
-            )
+            logger.info(f"EMOJI: Fetched {len(CUSTOM_SLACK_EMOJIS)} custom emojis from workspace")
             return CUSTOM_SLACK_EMOJIS
         else:
             logger.error(
@@ -1533,16 +1437,10 @@ def get_emoji_context_for_ai(app=None, sample_size=None) -> Dict[str, str]:
                 emoji_list = all_emojis
                 custom_count = len(all_emojis) - len(SAFE_SLACK_EMOJIS)
                 emoji_instruction = "USE STANDARD OR CUSTOM SLACK EMOJIS"
-                emoji_warning = (
-                    f"The workspace has {custom_count} custom emoji(s) that you can use"
-                )
-                logger.info(
-                    f"EMOJI: Including {custom_count} custom emojis for AI generation"
-                )
+                emoji_warning = f"The workspace has {custom_count} custom emoji(s) that you can use"
+                logger.info(f"EMOJI: Including {custom_count} custom emojis for AI generation")
         except Exception as e:
-            logger.warning(
-                f"EMOJI: Failed to get custom emojis, using standard only: {e}"
-            )
+            logger.warning(f"EMOJI: Failed to get custom emojis, using standard only: {e}")
 
     # Generate random sample for AI prompt
     actual_sample_size = min(sample_size, len(emoji_list))
@@ -1552,9 +1450,7 @@ def get_emoji_context_for_ai(app=None, sample_size=None) -> Dict[str, str]:
     except Exception as e:
         # Fallback to configured fallback emojis if sampling fails
         logger.error(f"EMOJI: Failed to generate emoji sample: {e}")
-        emoji_examples = EMOJI_GENERATION_PARAMS.get(
-            "fallback_emojis", ":tada: :sparkles: :star:"
-        )
+        emoji_examples = EMOJI_GENERATION_PARAMS.get("fallback_emojis", ":tada: :sparkles: :star:")
 
     logger.debug(
         f"EMOJI: Prepared {actual_sample_size} emoji examples ({len(emoji_list)} total available)"

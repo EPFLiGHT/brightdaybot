@@ -352,9 +352,7 @@ class ThreadTracker:
                 return True
             return False
 
-    def get_thread_stats(
-        self, channel: str, thread_ts: str
-    ) -> Optional[Dict[str, Any]]:
+    def get_thread_stats(self, channel: str, thread_ts: str) -> Optional[Dict[str, Any]]:
         """
         Get statistics for a tracked thread.
 
@@ -395,9 +393,7 @@ class ThreadTracker:
 
         with self._threads_lock:
             expired_keys = [
-                key
-                for key, thread in self._threads.items()
-                if thread.is_expired(self._ttl_hours)
+                key for key, thread in self._threads.items() if thread.is_expired(self._ttl_hours)
             ]
 
             for key in expired_keys:
@@ -416,17 +412,13 @@ class ThreadTracker:
         """Get count of active (non-expired) tracked threads."""
         with self._threads_lock:
             return sum(
-                1
-                for thread in self._threads.values()
-                if not thread.is_expired(self._ttl_hours)
+                1 for thread in self._threads.values() if not thread.is_expired(self._ttl_hours)
             )
 
     def get_all_stats(self) -> Dict[str, Any]:
         """Get overall tracker statistics."""
         with self._threads_lock:
-            active = [
-                t for t in self._threads.values() if not t.is_expired(self._ttl_hours)
-            ]
+            active = [t for t in self._threads.values() if not t.is_expired(self._ttl_hours)]
 
             total_reactions = sum(t.reactions_count for t in active)
 

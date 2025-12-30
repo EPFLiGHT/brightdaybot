@@ -34,15 +34,11 @@ MESSAGES_CACHE_DIR = os.path.join(CACHE_DIR, "messages")
 # ----- FEATURE FLAGS -----
 
 # Enable or disable web search functionality
-WEB_SEARCH_CACHE_ENABLED = (
-    os.getenv("WEB_SEARCH_CACHE_ENABLED", "true").lower() == "true"
-)
+WEB_SEARCH_CACHE_ENABLED = os.getenv("WEB_SEARCH_CACHE_ENABLED", "true").lower() == "true"
 # Use custom emojis in birthday messages
 USE_CUSTOM_EMOJIS = os.getenv("USE_CUSTOM_EMOJIS", "true").lower() == "true"
 # Enable AI image generation for birthday messages
-AI_IMAGE_GENERATION_ENABLED = (
-    os.getenv("AI_IMAGE_GENERATION_ENABLED", "true").lower() == "true"
-)
+AI_IMAGE_GENERATION_ENABLED = os.getenv("AI_IMAGE_GENERATION_ENABLED", "true").lower() == "true"
 # Enable external backup system (sends backups to admin DMs)
 EXTERNAL_BACKUP_ENABLED = os.getenv("EXTERNAL_BACKUP_ENABLED", "true").lower() == "true"
 # Send backup files to admin users via DM
@@ -290,7 +286,9 @@ EMOJI_GENERATION_PARAMS = {
 # ----- TEAM AND BOT IDENTITY -----
 
 # Team and bot identity settings
-TEAM_NAME = 'Laboratory for Intelligent Global Health and Humanitarian Response Technologies ("LiGHT Lab")'
+TEAM_NAME = (
+    'Laboratory for Intelligent Global Health and Humanitarian Response Technologies ("LiGHT Lab")'
+)
 BOT_NAME = "BrightDay"  # Default bot name
 
 # ----- BOT BIRTHDAY CONFIGURATION -----
@@ -327,9 +325,7 @@ SPECIAL_DAYS_FILE = os.path.join(STORAGE_DIR, "special_days.csv")
 SPECIAL_DAYS_CONFIG_FILE = os.path.join(STORAGE_DIR, "special_days_config.json")
 
 # Enable AI image generation for special days
-SPECIAL_DAYS_IMAGE_ENABLED = (
-    os.getenv("SPECIAL_DAYS_IMAGE_ENABLED", "false").lower() == "true"
-)
+SPECIAL_DAYS_IMAGE_ENABLED = os.getenv("SPECIAL_DAYS_IMAGE_ENABLED", "false").lower() == "true"
 
 # ----- CALENDARIFIC API CONFIGURATION -----
 
@@ -360,17 +356,11 @@ UN_OBSERVANCES_CACHE_FILE = os.path.join(UN_OBSERVANCES_CACHE_DIR, "un_days.json
 # ----- UNESCO OBSERVANCES CONFIGURATION -----
 
 # UNESCO International Days scraped from official UNESCO website
-UNESCO_OBSERVANCES_ENABLED = (
-    os.getenv("UNESCO_OBSERVANCES_ENABLED", "true").lower() == "true"
-)
+UNESCO_OBSERVANCES_ENABLED = os.getenv("UNESCO_OBSERVANCES_ENABLED", "true").lower() == "true"
 UNESCO_OBSERVANCES_URL = "https://www.unesco.org/en/days/list"
-UNESCO_OBSERVANCES_CACHE_TTL_DAYS = int(
-    os.getenv("UNESCO_OBSERVANCES_CACHE_TTL_DAYS", "30")
-)
+UNESCO_OBSERVANCES_CACHE_TTL_DAYS = int(os.getenv("UNESCO_OBSERVANCES_CACHE_TTL_DAYS", "30"))
 UNESCO_OBSERVANCES_CACHE_DIR = os.path.join(CACHE_DIR, "unesco_observances")
-UNESCO_OBSERVANCES_CACHE_FILE = os.path.join(
-    UNESCO_OBSERVANCES_CACHE_DIR, "unesco_days.json"
-)
+UNESCO_OBSERVANCES_CACHE_FILE = os.path.join(UNESCO_OBSERVANCES_CACHE_DIR, "unesco_days.json")
 
 # ----- WHO OBSERVANCES CONFIGURATION -----
 
@@ -384,21 +374,15 @@ WHO_OBSERVANCES_CACHE_FILE = os.path.join(WHO_OBSERVANCES_CACHE_DIR, "who_days.j
 # ----- THREAD ENGAGEMENT CONFIGURATION -----
 
 # Enable bot reactions to birthday thread replies
-THREAD_ENGAGEMENT_ENABLED = (
-    os.getenv("THREAD_ENGAGEMENT_ENABLED", "true").lower() == "true"
-)
+THREAD_ENGAGEMENT_ENABLED = os.getenv("THREAD_ENGAGEMENT_ENABLED", "true").lower() == "true"
 
 # ----- SPECIAL DAY THREAD ENGAGEMENT -----
 
 # Enable intelligent responses to special day thread replies
-SPECIAL_DAY_THREAD_ENABLED = (
-    os.getenv("SPECIAL_DAY_THREAD_ENABLED", "true").lower() == "true"
-)
+SPECIAL_DAY_THREAD_ENABLED = os.getenv("SPECIAL_DAY_THREAD_ENABLED", "true").lower() == "true"
 
 # Maximum responses per special day thread (prevent spam)
-SPECIAL_DAY_THREAD_MAX_RESPONSES = int(
-    os.getenv("SPECIAL_DAY_THREAD_MAX_RESPONSES", "5")
-)
+SPECIAL_DAY_THREAD_MAX_RESPONSES = int(os.getenv("SPECIAL_DAY_THREAD_MAX_RESPONSES", "5"))
 
 # ----- @-MENTION Q&A CONFIGURATION -----
 
@@ -413,9 +397,7 @@ MENTION_RATE_LIMIT_MAX = int(os.getenv("MENTION_RATE_LIMIT_MAX", "5"))  # reques
 
 # Enable LLM-based date parsing for natural language birthday input
 # Falls back to regex parsing first, uses LLM only when regex fails
-NLP_DATE_PARSING_ENABLED = (
-    os.getenv("NLP_DATE_PARSING_ENABLED", "false").lower() == "true"
-)
+NLP_DATE_PARSING_ENABLED = os.getenv("NLP_DATE_PARSING_ENABLED", "false").lower() == "true"
 
 # ----- DEFAULT VALUES -----
 

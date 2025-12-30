@@ -94,9 +94,7 @@ def generate_birthday_image(
         use_reference_mode = False
 
         # Check if user has a profile photo for reference-based generation
-        if user_profile and (
-            user_profile.get("photo_512") or user_profile.get("photo_original")
-        ):
+        if user_profile and (user_profile.get("photo_512") or user_profile.get("photo_original")):
             profile_photo_path = download_and_prepare_profile_photo(user_profile, name)
             if profile_photo_path:
                 use_reference_mode = True
@@ -173,9 +171,7 @@ def generate_birthday_image(
                         model=DEFAULT_IMAGE_MODEL,
                     )
 
-                    logger.info(
-                        f"IMAGE_GEN: Successfully used reference photo for {name}"
-                    )
+                    logger.info(f"IMAGE_GEN: Successfully used reference photo for {name}")
                     break  # Success - exit retry loop
 
                 except Exception as e:
@@ -209,9 +205,7 @@ def generate_birthday_image(
                             f"IMAGE_GEN_ERROR: Reference photo generation failed for {name} "
                             f"(attempt {attempt + 1}/{max_attempts}): {e}"
                         )
-                        logger.info(
-                            f"IMAGE_GEN: Falling back to text-only generation for {name}"
-                        )
+                        logger.info(f"IMAGE_GEN: Falling back to text-only generation for {name}")
                         # Fall back to text-only generation
                         use_reference_mode = False
                         prompt = create_image_prompt(
@@ -291,17 +285,11 @@ def generate_birthday_image(
             try:
                 # Occasionally clean up old images and profile photos (10% chance on each generation)
                 if random.random() < 0.1:  # 10% chance
-                    cleanup_old_images(
-                        days_to_keep=CACHE_RETENTION_DAYS["images_generated"]
-                    )
-                    cleanup_old_profile_photos(
-                        days_to_keep=CACHE_RETENTION_DAYS["profile_photos"]
-                    )
+                    cleanup_old_images(days_to_keep=CACHE_RETENTION_DAYS["images_generated"])
+                    cleanup_old_profile_photos(days_to_keep=CACHE_RETENTION_DAYS["profile_photos"])
 
                 # Create a filename based on the user name, personality, and timestamp
-                safe_name = "".join(
-                    c for c in name if c.isalnum() or c in (" ", "-", "_")
-                ).rstrip()
+                safe_name = "".join(c for c in name if c.isalnum() or c in (" ", "-", "_")).rstrip()
                 safe_name = safe_name.replace(" ", "_")
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 filename = f"birthday_{safe_name}_{personality}_{timestamp}.png"
@@ -309,17 +297,11 @@ def generate_birthday_image(
                 saved_path = save_image_to_file(image_data, filename)
                 if saved_path:
                     result["saved_file_path"] = saved_path
-                    logger.info(
-                        f"IMAGE_SAVE: Auto-saved birthday image to {saved_path}"
-                    )
+                    logger.info(f"IMAGE_SAVE: Auto-saved birthday image to {saved_path}")
                 else:
-                    logger.warning(
-                        f"IMAGE_SAVE: Failed to auto-save birthday image for {name}"
-                    )
+                    logger.warning(f"IMAGE_SAVE: Failed to auto-save birthday image for {name}")
             except Exception as e:
-                logger.error(
-                    f"IMAGE_SAVE_ERROR: Failed to auto-save birthday image: {e}"
-                )
+                logger.error(f"IMAGE_SAVE_ERROR: Failed to auto-save birthday image: {e}")
 
         logger.info(f"IMAGE_GEN: Successfully generated birthday image for {name}")
         return result
@@ -388,7 +370,9 @@ def create_image_prompt(
 
     # Build the combined date/age text instruction
     if date_display and age_display:
-        date_age_text = f', with "{date_display}" as the date and "Turning {age_display}" displayed elegantly'
+        date_age_text = (
+            f', with "{date_display}" as the date and "Turning {age_display}" displayed elegantly'
+        )
     elif date_display:
         date_age_text = f', with "{date_display}" displayed as the date'
     elif age_display:
@@ -405,14 +389,10 @@ def create_image_prompt(
         # For reference mode: we're editing an existing photo, so focus on transformation
         face_context = f" Transform this photo into a festive birthday celebration scene. If this image contains a human face, maintain and celebrate that person as the central focus. If this image contains no human faces (like a logo, pet, or landscape), create a celebration scene without adding any fake people or human figures."
         logger.info(f"IMAGE_PROMPT: Using reference mode prompt for {name}")
-    elif user_profile and (
-        user_profile.get("photo_512") or user_profile.get("photo_original")
-    ):
+    elif user_profile and (user_profile.get("photo_512") or user_profile.get("photo_original")):
         # For text-only mode with profile available: describe face characteristics
         face_context = f" IMPORTANT: Include a representation of {name}'s face in the image, making them the central focus of the celebration."
-        logger.info(
-            f"IMAGE_PROMPT: Including face context for {name} (has profile photo)"
-        )
+        logger.info(f"IMAGE_PROMPT: Including face context for {name} (has profile photo)")
     else:
         if is_bot_celebration:
             # For bot self-celebration, don't apply no-people restriction since the bot_celebration_image_prompt
@@ -424,9 +404,7 @@ def create_image_prompt(
         else:
             # For cases with no profile photo: explicitly prevent fake people
             no_people_instruction = " IMPORTANT: Focus only on birthday celebration elements (cake, decorations, balloons, presents, confetti) without including any human faces or people. Create a festive scene celebrating the birthday without any human figures."
-            logger.info(
-                f"IMAGE_PROMPT: Using no-people instruction for {name} (no profile photo)"
-            )
+            logger.info(f"IMAGE_PROMPT: Using no-people instruction for {name} (no profile photo)")
 
     # Include birthday message context if provided
     message_context = ""
@@ -459,9 +437,7 @@ def create_image_prompt(
 
             prompt_template = get_bot_celebration_image_prompt()
             if prompt_template:
-                logger.info(
-                    f"IMAGE_PROMPT: Using special bot_celebration_image_prompt for {name}"
-                )
+                logger.info(f"IMAGE_PROMPT: Using special bot_celebration_image_prompt for {name}")
             else:
                 logger.warning(
                     f"IMAGE_PROMPT: bot_celebration_image_prompt not found, falling back to standard"
@@ -547,9 +523,7 @@ def download_and_prepare_profile_photo(user_profile, name):
             logger.info(f"PROFILE_PHOTO: No profile photo available for {name}")
             return None
 
-        logger.info(
-            f"PROFILE_PHOTO: Downloading profile photo for {name} from {photo_url}"
-        )
+        logger.info(f"PROFILE_PHOTO: Downloading profile photo for {name} from {photo_url}")
 
         # Download the image
         image_data = download_image(photo_url)
@@ -564,9 +538,7 @@ def download_and_prepare_profile_photo(user_profile, name):
             # Create white background
             background = Image.new("RGB", image.size, (255, 255, 255))
             if image.mode == "RGBA":
-                background.paste(
-                    image, mask=image.split()[-1]
-                )  # Use alpha channel as mask
+                background.paste(image, mask=image.split()[-1])  # Use alpha channel as mask
             else:
                 background.paste(image)
             image = background
@@ -580,9 +552,7 @@ def download_and_prepare_profile_photo(user_profile, name):
             logger.info(f"PROFILE_PHOTO: Resized profile photo to {image.size}")
 
         # Save the processed image
-        safe_name = "".join(
-            c for c in name if c.isalnum() or c in (" ", "-", "_")
-        ).rstrip()
+        safe_name = "".join(c for c in name if c.isalnum() or c in (" ", "-", "_")).rstrip()
         safe_name = safe_name.replace(" ", "_")
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"profile_{safe_name}_{timestamp}.png"
@@ -674,10 +644,7 @@ def test_image_generation():
                 print("✓ Reference mode prompt detected!")
 
             # Check if face context was included
-            if (
-                "face" in result["prompt_used"].lower()
-                or "photo" in result["prompt_used"].lower()
-            ):
+            if "face" in result["prompt_used"].lower() or "photo" in result["prompt_used"].lower():
                 print("✓ Face/photo context included in prompt")
 
             # Check if image was automatically saved
@@ -748,9 +715,7 @@ def cleanup_old_images(days_to_keep=None):
                 if file_mtime < cutoff_date:
                     os.remove(file_path)
                     deleted_count += 1
-                    logger.info(
-                        f"IMAGE_CLEANUP: Deleted old image {os.path.basename(file_path)}"
-                    )
+                    logger.info(f"IMAGE_CLEANUP: Deleted old image {os.path.basename(file_path)}")
 
             except Exception as e:
                 logger.error(f"IMAGE_CLEANUP_ERROR: Failed to delete {file_path}: {e}")
@@ -809,9 +774,7 @@ def cleanup_old_profile_photos(days_to_keep=None):
                     )
 
             except Exception as e:
-                logger.error(
-                    f"PROFILE_CLEANUP_ERROR: Failed to delete {file_path}: {e}"
-                )
+                logger.error(f"PROFILE_CLEANUP_ERROR: Failed to delete {file_path}: {e}")
 
         if deleted_count > 0:
             logger.info(
@@ -823,9 +786,7 @@ def cleanup_old_profile_photos(days_to_keep=None):
         return deleted_count
 
     except Exception as e:
-        logger.error(
-            f"PROFILE_CLEANUP_ERROR: Failed to cleanup old profile photos: {e}"
-        )
+        logger.error(f"PROFILE_CLEANUP_ERROR: Failed to cleanup old profile photos: {e}")
         return 0
 
 
@@ -865,17 +826,13 @@ def create_profile_photo_birthday_image(
             )
             return None
 
-        logger.info(
-            f"PROFILE_FALLBACK: Creating birthday image from profile photo for {name}"
-        )
+        logger.info(f"PROFILE_FALLBACK: Creating birthday image from profile photo for {name}")
 
         # Download and prepare the profile photo
         profile_photo_path = download_and_prepare_profile_photo(user_profile, name)
 
         if not profile_photo_path:
-            logger.error(
-                f"PROFILE_FALLBACK_ERROR: Failed to download profile photo for {name}"
-            )
+            logger.error(f"PROFILE_FALLBACK_ERROR: Failed to download profile photo for {name}")
             return None
 
         # Read the image file
@@ -909,22 +866,16 @@ def create_profile_photo_birthday_image(
 
         # Save to birthday images cache for consistency
         try:
-            safe_name = "".join(
-                c for c in name if c.isalnum() or c in (" ", "-", "_")
-            ).rstrip()
+            safe_name = "".join(c for c in name if c.isalnum() or c in (" ", "-", "_")).rstrip()
             safe_name = safe_name.replace(" ", "_")
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"birthday_{safe_name}_profile_fallback_{timestamp}.png"
 
             saved_path = save_image_to_file(image_data, filename)
             result["file_path"] = saved_path
-            logger.info(
-                f"PROFILE_FALLBACK: Saved profile photo fallback to {saved_path}"
-            )
+            logger.info(f"PROFILE_FALLBACK: Saved profile photo fallback to {saved_path}")
         except Exception as save_error:
-            logger.warning(
-                f"PROFILE_FALLBACK: Could not save fallback image: {save_error}"
-            )
+            logger.warning(f"PROFILE_FALLBACK: Could not save fallback image: {save_error}")
             result["file_path"] = None
 
         logger.info(

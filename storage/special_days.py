@@ -79,7 +79,9 @@ class SpecialDay:
         self.url = url
 
     def __repr__(self):
-        return f"SpecialDay({self.date}: {self.name} [{self.category}] - {self.source or 'No source'})"
+        return (
+            f"SpecialDay({self.date}: {self.name} [{self.category}] - {self.source or 'No source'})"
+        )
 
 
 def load_special_days() -> List[SpecialDay]:
@@ -299,9 +301,7 @@ def save_special_day(special_day: SpecialDay, app=None, username=None) -> bool:
         return False
 
 
-def remove_special_day(
-    date: str, name: Optional[str] = None, app=None, username=None
-) -> bool:
+def remove_special_day(date: str, name: Optional[str] = None, app=None, username=None) -> bool:
     """
     Remove a special day from the CSV file with backup.
 
@@ -320,16 +320,13 @@ def remove_special_day(
 
         # Filter out matching days
         if name:
-            existing_days = [
-                d for d in existing_days if not (d.date == date and d.name == name)
-            ]
+            existing_days = [d for d in existing_days if not (d.date == date and d.name == name)]
         else:
             existing_days = [d for d in existing_days if d.date != date]
 
         if len(existing_days) == original_count:
             logger.warning(
-                f"No special day found for date {date}"
-                + (f" with name {name}" if name else "")
+                f"No special day found for date {date}" + (f" with name {name}" if name else "")
             )
             return False
 
@@ -537,18 +534,14 @@ def _deduplicate_special_days(special_days: List[SpecialDay]) -> List[SpecialDay
         for existing in unique_days:
             if _names_match(day.name, existing.name):
                 is_duplicate = True
-                logger.debug(
-                    f"DEDUP: Skipping '{day.name}' (matches '{existing.name}')"
-                )
+                logger.debug(f"DEDUP: Skipping '{day.name}' (matches '{existing.name}')")
                 break
 
         if not is_duplicate:
             unique_days.append(day)
 
     if len(special_days) != len(unique_days):
-        logger.info(
-            f"DEDUP: Reduced {len(special_days)} entries to {len(unique_days)} unique"
-        )
+        logger.info(f"DEDUP: Reduced {len(special_days)} entries to {len(unique_days)} unique")
 
     return unique_days
 
@@ -583,9 +576,7 @@ def get_special_days_for_date(date: datetime) -> List[SpecialDay]:
             un_days = get_un_observances_for_date(date)
             special_days.extend(un_days)
             if un_days:
-                logger.debug(
-                    f"UN_OBSERVANCES: Found {len(un_days)} observance(s) for {date_str}"
-                )
+                logger.debug(f"UN_OBSERVANCES: Found {len(un_days)} observance(s) for {date_str}")
         except Exception as e:
             logger.error(f"UN_OBSERVANCES: Failed to fetch for {date_str}: {e}")
 
@@ -611,9 +602,7 @@ def get_special_days_for_date(date: datetime) -> List[SpecialDay]:
             who_days = get_who_observances_for_date(date)
             special_days.extend(who_days)
             if who_days:
-                logger.debug(
-                    f"WHO_OBSERVANCES: Found {len(who_days)} observance(s) for {date_str}"
-                )
+                logger.debug(f"WHO_OBSERVANCES: Found {len(who_days)} observance(s) for {date_str}")
         except Exception as e:
             logger.error(f"WHO_OBSERVANCES: Failed to fetch for {date_str}: {e}")
 
@@ -626,17 +615,13 @@ def get_special_days_for_date(date: datetime) -> List[SpecialDay]:
             api_days = client.get_holidays_for_date(date)
             special_days.extend(api_days)
             if api_days:
-                logger.debug(
-                    f"CALENDARIFIC: Found {len(api_days)} holiday(s) for {date_str}"
-                )
+                logger.debug(f"CALENDARIFIC: Found {len(api_days)} holiday(s) for {date_str}")
         except Exception as e:
             logger.error(f"CALENDARIFIC: Failed to fetch for {date_str}: {e}")
 
     # Source 5: CSV for Company days (always load)
     csv_days = load_special_days()
-    company_days = [
-        d for d in csv_days if d.date == date_str and d.category == "Company"
-    ]
+    company_days = [d for d in csv_days if d.date == date_str and d.category == "Company"]
     special_days.extend(company_days)
 
     # If no external sources provided data, fall back to full CSV
@@ -652,9 +637,7 @@ def get_special_days_for_date(date: datetime) -> List[SpecialDay]:
 
     # Filter by enabled status and enabled categories
     filtered_days = [
-        day
-        for day in special_days
-        if day.enabled and categories_enabled.get(day.category, True)
+        day for day in special_days if day.enabled and categories_enabled.get(day.category, True)
     ]
 
     # Deduplicate using smart matching (case-insensitive + fuzzy)
@@ -792,9 +775,7 @@ def has_announced_special_day_today(date: Optional[datetime] = None) -> bool:
     if date is None:
         date = datetime.now()
 
-    tracking_file = os.path.join(
-        TRACKING_DIR, f"special_days_{date.strftime('%Y-%m-%d')}.txt"
-    )
+    tracking_file = os.path.join(TRACKING_DIR, f"special_days_{date.strftime('%Y-%m-%d')}.txt")
 
     return os.path.exists(tracking_file)
 
@@ -812,9 +793,7 @@ def mark_special_day_announced(date: Optional[datetime] = None) -> bool:
     if date is None:
         date = datetime.now()
 
-    tracking_file = os.path.join(
-        TRACKING_DIR, f"special_days_{date.strftime('%Y-%m-%d')}.txt"
-    )
+    tracking_file = os.path.join(TRACKING_DIR, f"special_days_{date.strftime('%Y-%m-%d')}.txt")
 
     try:
         os.makedirs(TRACKING_DIR, exist_ok=True)
@@ -902,9 +881,7 @@ def get_special_day_statistics() -> dict:
         stats["by_category"][category] = {
             "total": len(category_days),
             "enabled": len([d for d in category_days if d.enabled]),
-            "category_enabled": config.get("categories_enabled", {}).get(
-                category, True
-            ),
+            "category_enabled": config.get("categories_enabled", {}).get(category, True),
         }
 
     return stats
@@ -1012,9 +989,7 @@ def cleanup_old_special_days_backups():
         ]
 
         # Sort by modification time (newest first)
-        backup_files.sort(
-            key=lambda f: os.path.getmtime(os.path.join(BACKUP_DIR, f)), reverse=True
-        )
+        backup_files.sort(key=lambda f: os.path.getmtime(os.path.join(BACKUP_DIR, f)), reverse=True)
 
         # Remove old backups beyond MAX_BACKUPS
         if len(backup_files) > MAX_BACKUPS:
@@ -1047,18 +1022,14 @@ def restore_latest_special_days_backup() -> bool:
             return False
 
         # Sort by modification time (newest first)
-        backup_files.sort(
-            key=lambda f: os.path.getmtime(os.path.join(BACKUP_DIR, f)), reverse=True
-        )
+        backup_files.sort(key=lambda f: os.path.getmtime(os.path.join(BACKUP_DIR, f)), reverse=True)
 
         latest_backup = backup_files[0]
         backup_path = os.path.join(BACKUP_DIR, latest_backup)
 
         # Create a backup of current file before restoring
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        pre_restore_backup = os.path.join(
-            BACKUP_DIR, f"special_days_pre_restore_{timestamp}.csv"
-        )
+        pre_restore_backup = os.path.join(BACKUP_DIR, f"special_days_pre_restore_{timestamp}.csv")
         shutil.copy2(SPECIAL_DAYS_FILE, pre_restore_backup)
 
         # Restore from backup
@@ -1167,9 +1138,7 @@ def initialize_special_days_cache():
                 if stats.get("error"):
                     logger.warning(f"INIT: UN refresh failed: {stats['error']}")
                 else:
-                    logger.info(
-                        f"INIT: UN cache refreshed with {stats['fetched']} observances"
-                    )
+                    logger.info(f"INIT: UN cache refreshed with {stats['fetched']} observances")
             else:
                 logger.info("INIT: UN observances cache is fresh")
         except Exception as e:
@@ -1182,16 +1151,12 @@ def initialize_special_days_cache():
 
             client = get_unesco_client()
             if not client._is_cache_fresh():
-                logger.info(
-                    "INIT: UNESCO observances cache stale/missing, refreshing..."
-                )
+                logger.info("INIT: UNESCO observances cache stale/missing, refreshing...")
                 stats = client.refresh_cache()
                 if stats.get("error"):
                     logger.warning(f"INIT: UNESCO refresh failed: {stats['error']}")
                 else:
-                    logger.info(
-                        f"INIT: UNESCO cache refreshed with {stats['fetched']} observances"
-                    )
+                    logger.info(f"INIT: UNESCO cache refreshed with {stats['fetched']} observances")
             else:
                 logger.info("INIT: UNESCO observances cache is fresh")
         except Exception as e:
@@ -1209,9 +1174,7 @@ def initialize_special_days_cache():
                 if stats.get("error"):
                     logger.warning(f"INIT: WHO refresh failed: {stats['error']}")
                 else:
-                    logger.info(
-                        f"INIT: WHO cache refreshed with {stats['fetched']} observances"
-                    )
+                    logger.info(f"INIT: WHO cache refreshed with {stats['fetched']} observances")
             else:
                 logger.info("INIT: WHO observances cache is fresh")
         except Exception as e:

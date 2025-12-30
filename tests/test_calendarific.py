@@ -29,10 +29,7 @@ class TestCalendarificClient:
     def test_category_mapping(self, client):
         """Category keywords map correctly"""
         # Health -> Global Health
-        assert (
-            client._map_type_to_category({"name": "World Health Day"})
-            == "Global Health"
-        )
+        assert client._map_type_to_category({"name": "World Health Day"}) == "Global Health"
         # Tech -> Tech
         assert client._map_type_to_category({"name": "Internet Day"}) == "Tech"
         # Unknown -> Culture

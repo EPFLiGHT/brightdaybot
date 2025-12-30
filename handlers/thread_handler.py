@@ -120,9 +120,7 @@ def handle_thread_reply(
         )
         tracker.increment_reactions(channel, thread_ts)
         result["reaction_added"] = True
-        logger.info(
-            f"THREAD_HANDLER: Added :{reaction}: to reply in thread {thread_ts}"
-        )
+        logger.info(f"THREAD_HANDLER: Added :{reaction}: to reply in thread {thread_ts}")
     except SlackApiError as e:
         # Ignore "already_reacted" errors
         if "already_reacted" in str(e):
@@ -219,9 +217,7 @@ def handle_special_day_thread_reply(
             )
         else:
             result["error"] = "Failed to send message"
-            logger.warning(
-                f"SPECIAL_DAY_THREAD: Failed to send response: {send_result}"
-            )
+            logger.warning(f"SPECIAL_DAY_THREAD: Failed to send response: {send_result}")
 
     except SlackApiError as e:
         result["error"] = str(e)
@@ -330,9 +326,7 @@ def _generate_special_day_response(
             return None
 
         # Get personality info
-        personality_config = PERSONALITIES.get(
-            personality, PERSONALITIES.get("chronicler", {})
-        )
+        personality_config = PERSONALITIES.get(personality, PERSONALITIES.get("chronicler", {}))
         personality_name = personality_config.get(
             "vivid_name", personality_config.get("name", "The Chronicler")
         )

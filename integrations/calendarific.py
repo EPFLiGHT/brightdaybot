@@ -136,9 +136,7 @@ class CalendarificClient:
                 return [self._dict_to_special_day(h) for h in cached]
             return []
 
-    def weekly_prefetch(
-        self, days_ahead: int = None, force: bool = False
-    ) -> Dict[str, int]:
+    def weekly_prefetch(self, days_ahead: int = None, force: bool = False) -> Dict[str, int]:
         """
         Prefetch holidays for upcoming days. Call this weekly (or manually).
 
@@ -278,9 +276,7 @@ class CalendarificClient:
             # Include national, local (including "common local"), and observance types
             # Exclude "Season" types (solstice, etc.)
             if any(
-                keyword in t
-                for t in types_lower
-                for keyword in ["national", "local", "observance"]
+                keyword in t for t in types_lower for keyword in ["national", "local", "observance"]
             ):
                 filtered.append(h)
 
@@ -349,10 +345,7 @@ class CalendarificClient:
         """Extract source organization from description."""
         description_lower = description.lower()
 
-        if (
-            "world health organization" in description_lower
-            or "who" in description_lower
-        ):
+        if "world health organization" in description_lower or "who" in description_lower:
             return "WHO"
         if "united nations" in description_lower or " un " in description_lower:
             return "UN"
@@ -490,9 +483,7 @@ class CalendarificClient:
             cache_path = self._get_cache_path(date)
             if os.path.exists(cache_path):
                 os.remove(cache_path)
-                logger.info(
-                    f"CALENDARIFIC: Cleared cache for {date.strftime('%Y-%m-%d')}"
-                )
+                logger.info(f"CALENDARIFIC: Cleared cache for {date.strftime('%Y-%m-%d')}")
         else:
             for filename in os.listdir(self.cache_dir):
                 if filename.endswith(".json"):

@@ -203,11 +203,7 @@ def celebrate_bot_birthday(app, moment):
                                 image_file_id=file_id_tuple if file_id_tuple else None,
                             )
 
-                            image_note = (
-                                f" (with embedded image: {image_title})"
-                                if file_id
-                                else ""
-                            )
+                            image_note = f" (with embedded image: {image_title})" if file_id else ""
                             logger.info(
                                 f"BOT_BIRTHDAY: Built Block Kit structure with {len(blocks)} blocks{image_note}"
                             )
@@ -236,9 +232,7 @@ def celebrate_bot_birthday(app, moment):
                                 celebration_message, bot_age, personality="mystic_dog"
                             )
                         except (TypeError, ValueError, KeyError) as block_error:
-                            logger.debug(
-                                f"BOT_BIRTHDAY: Block building failed: {block_error}"
-                            )
+                            logger.debug(f"BOT_BIRTHDAY: Block building failed: {block_error}")
                             blocks = None
                             fallback_text = celebration_message
 
@@ -255,9 +249,7 @@ def celebrate_bot_birthday(app, moment):
                             celebration_message, bot_age, personality="mystic_dog"
                         )
                     except (TypeError, ValueError, KeyError) as block_error:
-                        logger.debug(
-                            f"BOT_BIRTHDAY: Block building failed: {block_error}"
-                        )
+                        logger.debug(f"BOT_BIRTHDAY: Block building failed: {block_error}")
                         blocks = None
                         fallback_text = celebration_message
 
@@ -305,9 +297,7 @@ def celebrate_bot_birthday(app, moment):
         # Mark as celebrated today to prevent duplicates
         os.makedirs(TRACKING_DIR, exist_ok=True)
         with open(celebration_tracking_file, "w") as f:
-            f.write(
-                f"BrightDayBot birthday celebrated on {moment.strftime('%Y-%m-%d')}"
-            )
+            f.write(f"BrightDayBot birthday celebrated on {moment.strftime('%Y-%m-%d')}")
 
         logger.info(
             f"BOT_BIRTHDAY: Successfully celebrated BrightDayBot's {bot_age} year anniversary!"
@@ -398,9 +388,7 @@ def check_and_announce_special_days(app, moment):
             for special_day in special_days:
                 try:
                     # Generate individual message for this observance
-                    message = generate_special_day_message(
-                        [special_day], app=app, use_teaser=True
-                    )
+                    message = generate_special_day_message([special_day], app=app, use_teaser=True)
 
                     if not message:
                         logger.error(
@@ -411,9 +399,7 @@ def check_and_announce_special_days(app, moment):
                     # Generate detailed content for this observance
                     from services.special_day import generate_special_day_details
 
-                    detailed_content = generate_special_day_details(
-                        [special_day], app=app
-                    )
+                    detailed_content = generate_special_day_details([special_day], app=app)
 
                     # Build blocks for this individual observance (unified function with list)
                     from slack.blocks import build_special_day_blocks
@@ -458,9 +444,7 @@ def check_and_announce_special_days(app, moment):
                         )
 
                 except Exception as e:
-                    logger.error(
-                        f"SPECIAL_DAYS_SPLIT: Error announcing {special_day.name}: {e}"
-                    )
+                    logger.error(f"SPECIAL_DAYS_SPLIT: Error announcing {special_day.name}: {e}")
 
             if announcements_sent > 0:
                 # Mark as announced if at least one announcement succeeded
@@ -480,9 +464,7 @@ def check_and_announce_special_days(app, moment):
             )
 
             # Generate the SHORT teaser announcement message (NEW: use_teaser=True)
-            message = generate_special_day_message(
-                special_days, app=app, use_teaser=True
-            )
+            message = generate_special_day_message(special_days, app=app, use_teaser=True)
 
             if not message:
                 logger.error("SPECIAL_DAYS: Failed to generate message")
@@ -542,9 +524,7 @@ def check_and_announce_special_days(app, moment):
                         personality=SPECIAL_DAYS_PERSONALITY,
                     )
                 except Exception as track_error:
-                    logger.warning(
-                        f"SPECIAL_DAYS: Failed to track thread: {track_error}"
-                    )
+                    logger.warning(f"SPECIAL_DAYS: Failed to track thread: {track_error}")
 
             # Optionally generate and send image
             from config import SPECIAL_DAYS_IMAGE_ENABLED
@@ -664,16 +644,12 @@ def send_reminder_to_users(app, users, custom_message=None, reminder_type="new")
                     )
                 else:
                     # Check what's missing
-                    if not user_profile.get("photo_512") and not user_profile.get(
-                        "photo_original"
-                    ):
+                    if not user_profile.get("photo_512") and not user_profile.get("photo_original"):
                         missing_items.append(
                             "• Profile photo → Better AI-generated birthday images"
                         )
                     if not user_profile.get("title"):
-                        missing_items.append(
-                            "• Job title → More personalized birthday messages"
-                        )
+                        missing_items.append("• Job title → More personalized birthday messages")
                     if not user_profile.get("timezone"):
                         missing_items.append(
                             "• Timezone → Birthday announcements at the right time"
@@ -781,22 +757,16 @@ def send_channel_announcement(app, announcement_type="general", custom_message=N
         elif announcement_type == "general" and custom_message:
             message = announcements["general"].format(message=custom_message)
         else:
-            logger.error(
-                f"ANNOUNCEMENT_ERROR: Invalid announcement type or missing custom message"
-            )
+            logger.error(f"ANNOUNCEMENT_ERROR: Invalid announcement type or missing custom message")
             return False
 
         # Send to birthday channel
         result = send_message(app, BIRTHDAY_CHANNEL, message)
 
         if result["success"]:
-            logger.info(
-                f"ANNOUNCEMENT: Sent {announcement_type} announcement to birthday channel"
-            )
+            logger.info(f"ANNOUNCEMENT: Sent {announcement_type} announcement to birthday channel")
         else:
-            logger.error(
-                f"ANNOUNCEMENT_ERROR: Failed to send {announcement_type} announcement"
-            )
+            logger.error(f"ANNOUNCEMENT_ERROR: Failed to send {announcement_type} announcement")
 
         return result["success"]
 
@@ -882,9 +852,7 @@ def timezone_aware_check(app, moment):
 
         # Skip malformed entries without "date" key
         if not isinstance(birthday_data, dict) or "date" not in birthday_data:
-            logger.warning(
-                f"SKIP: Malformed birthday data for {user_id}, missing 'date' key"
-            )
+            logger.warning(f"SKIP: Malformed birthday data for {user_id}, missing 'date' key")
             continue
 
         # Get user status and profile info efficiently FIRST (moved up to get timezone)
@@ -939,9 +907,7 @@ def timezone_aware_check(app, moment):
             all_birthday_people_today.append(birthday_person)
 
             # Check if this person is hitting celebration time right now (the trigger)
-            if is_celebration_time_for_user(
-                user_timezone, TIMEZONE_CELEBRATION_TIME, utc_moment
-            ):
+            if is_celebration_time_for_user(user_timezone, TIMEZONE_CELEBRATION_TIME, utc_moment):
                 trigger_people.append(birthday_person)
                 # Get actual current time in user's timezone for accurate logging
                 from utils.date import get_user_current_time
@@ -977,9 +943,7 @@ def timezone_aware_check(app, moment):
         )
 
         if not result["success"] and result["error"]:
-            logger.error(
-                f"TIMEZONE_ERROR: Celebration pipeline failed: {result['error']}"
-            )
+            logger.error(f"TIMEZONE_ERROR: Celebration pipeline failed: {result['error']}")
 
     elif all_birthday_people_today:
         # Enhanced logging: Show who has birthdays but no triggers
@@ -1037,9 +1001,7 @@ def simple_daily_check(app, moment):
             )
             return
         channel_member_set = set(channel_members)
-        logger.info(
-            f"SIMPLE_DAILY: Birthday channel has {len(channel_members)} members"
-        )
+        logger.info(f"SIMPLE_DAILY: Birthday channel has {len(channel_members)} members")
     except SlackApiError as e:
         logger.error(f"SIMPLE_DAILY: Failed to get channel members: {e}")
         return
@@ -1051,9 +1013,7 @@ def simple_daily_check(app, moment):
     for user_id, birthday_data in birthdays.items():
         # Skip malformed entries without "date" key
         if not isinstance(birthday_data, dict) or "date" not in birthday_data:
-            logger.warning(
-                f"SKIP: Malformed birthday data for {user_id}, missing 'date' key"
-            )
+            logger.warning(f"SKIP: Malformed birthday data for {user_id}, missing 'date' key")
             continue
 
         # Get user status and profile info efficiently FIRST (moved up to get timezone)
@@ -1114,9 +1074,7 @@ def simple_daily_check(app, moment):
         )
 
         if not result["success"] and result["error"]:
-            logger.error(
-                f"SIMPLE_DAILY_ERROR: Celebration pipeline failed: {result['error']}"
-            )
+            logger.error(f"SIMPLE_DAILY_ERROR: Celebration pipeline failed: {result['error']}")
     else:
         logger.info("SIMPLE_DAILY: No birthdays to celebrate today")
 
@@ -1149,9 +1107,7 @@ def celebrate_missed_birthdays(app):
             )
             return
         channel_member_set = set(channel_members)
-        logger.info(
-            f"MISSED_BIRTHDAYS: Birthday channel has {len(channel_members)} members"
-        )
+        logger.info(f"MISSED_BIRTHDAYS: Birthday channel has {len(channel_members)} members")
         # Load all birthdays
         birthdays = load_birthdays()
         if not birthdays:
@@ -1164,9 +1120,7 @@ def celebrate_missed_birthdays(app):
         for user_id, birthday_data in birthdays.items():
             # Skip malformed entries without "date" key
             if not isinstance(birthday_data, dict) or "date" not in birthday_data:
-                logger.warning(
-                    f"SKIP: Malformed birthday data for {user_id}, missing 'date' key"
-                )
+                logger.warning(f"SKIP: Malformed birthday data for {user_id}, missing 'date' key")
                 continue
 
             date_str = birthday_data["date"]
@@ -1176,9 +1130,7 @@ def celebrate_missed_birthdays(app):
                 # Check if they've already been celebrated today
                 if not is_user_celebrated_today(user_id):
                     # Get user status and profile info efficiently (same as timezone_aware_check)
-                    _, is_bot, is_deleted, username = get_user_status_and_info(
-                        app, user_id
-                    )
+                    _, is_bot, is_deleted, username = get_user_status_and_info(app, user_id)
 
                     # Skip deleted/deactivated users or bots
                     if is_deleted or is_bot:
@@ -1214,9 +1166,7 @@ def celebrate_missed_birthdays(app):
                         }
                     )
 
-                    logger.info(
-                        f"MISSED_BIRTHDAYS: Found missed celebration for {username}"
-                    )
+                    logger.info(f"MISSED_BIRTHDAYS: Found missed celebration for {username}")
 
         # If we found missed birthdays, celebrate them now
         if birthday_people_today:
@@ -1243,6 +1193,4 @@ def celebrate_missed_birthdays(app):
             logger.info("MISSED_BIRTHDAYS: No missed birthday celebrations found")
 
     except Exception as e:
-        logger.error(
-            f"MISSED_BIRTHDAYS_ERROR: Failed to celebrate missed birthdays: {e}"
-        )
+        logger.error(f"MISSED_BIRTHDAYS_ERROR: Failed to celebrate missed birthdays: {e}")

@@ -61,9 +61,7 @@ def _build_home_view(user_id, app):
     blocks = []
 
     # Header
-    blocks.append(
-        {"type": "header", "text": {"type": "plain_text", "text": "BrightDayBot"}}
-    )
+    blocks.append({"type": "header", "text": {"type": "plain_text", "text": "BrightDayBot"}})
 
     blocks.append(
         {
@@ -88,9 +86,7 @@ def _build_home_view(user_id, app):
     if user_birthday:
         date_words = date_to_words(user_birthday["date"], user_birthday.get("year"))
         star_sign = get_star_sign(user_birthday["date"])
-        age = (
-            calculate_age(user_birthday["year"]) if user_birthday.get("year") else None
-        )
+        age = calculate_age(user_birthday["year"]) if user_birthday.get("year") else None
 
         fields = [
             {"type": "mrkdwn", "text": f"*Birthday:*\n{date_words}"},
@@ -163,9 +159,7 @@ def _build_home_view(user_id, app):
             else:
                 days_text = f"in {bday['days_until']} days"
 
-            birthday_lines.append(
-                f"• <@{bday['user_id']}> ({bday['date']}) - {days_text}"
-            )
+            birthday_lines.append(f"• <@{bday['user_id']}> ({bday['date']}) - {days_text}")
 
         blocks.append(
             {

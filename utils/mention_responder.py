@@ -235,9 +235,7 @@ Your capabilities:
                 elif bd["days_until"] == 1:
                     prompt += f"- {bd['name']} - Tomorrow ({bd['date']})\n"
                 else:
-                    prompt += (
-                        f"- {bd['name']} - In {bd['days_until']} days ({bd['date']})\n"
-                    )
+                    prompt += f"- {bd['name']} - In {bd['days_until']} days ({bd['date']})\n"
             prompt += "\n"
         else:
             prompt += "No upcoming birthdays in the next week.\n\n"
@@ -261,9 +259,7 @@ Response:"""
     return prompt
 
 
-def _get_fallback_response(
-    question_type: str, context: Dict[str, Any]
-) -> Optional[str]:
+def _get_fallback_response(question_type: str, context: Dict[str, Any]) -> Optional[str]:
     """Generate a simple fallback response without LLM."""
     from config import BOT_NAME
 
@@ -279,9 +275,7 @@ def _get_fallback_response(
         birthdays = context.get("upcoming_birthdays", [])
         if birthdays:
             if birthdays[0]["days_until"] == 0:
-                return (
-                    f":birthday: It's {birthdays[0]['name']}'s birthday TODAY! :tada:"
-                )
+                return f":birthday: It's {birthdays[0]['name']}'s birthday TODAY! :tada:"
             else:
                 return f":birthday: The next birthday is {birthdays[0]['name']} on {birthdays[0]['date']}!"
         else:

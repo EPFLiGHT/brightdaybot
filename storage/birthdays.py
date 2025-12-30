@@ -98,9 +98,7 @@ def rotate_backups():
         logger.error(f"BACKUP_ERROR: Failed to rotate backups: {e}")
 
 
-def send_external_backup(
-    backup_file_path, change_type="update", username=None, app=None
-):
+def send_external_backup(backup_file_path, change_type="update", username=None, app=None):
     """
     Send backup file to admin users via DM and optionally to backup channel.
 
@@ -145,17 +143,11 @@ def send_external_backup(
         logger.debug(f"BACKUP_DEBUG: Step 5 - Total birthdays: {total_birthdays}")
 
         # Create backup message
-        logger.debug(
-            f"BACKUP_DEBUG: Step 6 - Creating backup message for type: {change_type}"
-        )
+        logger.debug(f"BACKUP_DEBUG: Step 6 - Creating backup message for type: {change_type}")
         change_text = {
             "add": f"Added birthday for {username}" if username else "Added birthday",
-            "update": (
-                f"Updated birthday for {username}" if username else "Updated birthday"
-            ),
-            "remove": (
-                f"Removed birthday for {username}" if username else "Removed birthday"
-            ),
+            "update": (f"Updated birthday for {username}" if username else "Updated birthday"),
+            "remove": (f"Removed birthday for {username}" if username else "Removed birthday"),
             "manual": "Manual backup created",
         }.get(change_type, "Data changed")
         logger.debug(f"BACKUP_DEBUG: Step 7 - Change text: {change_text}")
@@ -190,18 +182,12 @@ This backup was automatically created to protect your birthday data."""
             )
             for admin_id in current_admin_users:
                 try:
-                    logger.debug(
-                        f"BACKUP_DEBUG: Attempting to send backup to admin {admin_id}"
-                    )
+                    logger.debug(f"BACKUP_DEBUG: Attempting to send backup to admin {admin_id}")
                     if send_message_with_file(app, admin_id, message, backup_file_path):
                         success_count += 1
-                        logger.info(
-                            f"BACKUP: Successfully sent backup to admin {admin_id}"
-                        )
+                        logger.info(f"BACKUP: Successfully sent backup to admin {admin_id}")
                     else:
-                        logger.error(
-                            f"BACKUP: Failed to send backup to admin {admin_id}"
-                        )
+                        logger.error(f"BACKUP: Failed to send backup to admin {admin_id}")
 
                 except Exception as e:
                     logger.error(f"BACKUP: Error sending to admin {admin_id}: {e}")
@@ -213,14 +199,10 @@ This backup was automatically created to protect your birthday data."""
         # Optionally send to backup channel
         if BACKUP_CHANNEL_ID:
             try:
-                if send_message_with_file(
-                    app, BACKUP_CHANNEL_ID, message, backup_file_path
-                ):
+                if send_message_with_file(app, BACKUP_CHANNEL_ID, message, backup_file_path):
                     logger.info(f"BACKUP: Sent backup to channel {BACKUP_CHANNEL_ID}")
                 else:
-                    logger.warning(
-                        f"BACKUP: Failed to send backup to channel {BACKUP_CHANNEL_ID}"
-                    )
+                    logger.warning(f"BACKUP: Failed to send backup to channel {BACKUP_CHANNEL_ID}")
 
             except Exception as e:
                 logger.error(f"BACKUP: Error sending to backup channel: {e}")
@@ -280,9 +262,7 @@ def load_birthdays():
                     parts = line.strip().split(",")
                     if len(parts) < 2:
                         # Skip invalid lines
-                        logger.warning(
-                            f"FILE_ERROR: Invalid format at line {line_number}: {line}"
-                        )
+                        logger.warning(f"FILE_ERROR: Invalid format at line {line_number}: {line}")
                         continue
 
                     user_id = parts[0]
@@ -302,9 +282,7 @@ def load_birthdays():
 
             logger.info(f"STORAGE: Loaded {len(birthdays)} birthdays from file")
     except FileNotFoundError:
-        logger.warning(
-            f"FILE_ERROR: {BIRTHDAYS_FILE} not found, will be created when needed"
-        )
+        logger.warning(f"FILE_ERROR: {BIRTHDAYS_FILE} not found, will be created when needed")
         # Try to restore from backup if main file doesn't exist
         if restore_latest_backup():
             # Try loading again after restoration
@@ -393,9 +371,7 @@ def remove_birthday(user: str, username: str = None) -> bool:
         logger.info(f"BIRTHDAY: Removed birthday for {username_log} ({user})")
         return True
 
-    logger.info(
-        f"BIRTHDAY: Attempted to remove birthday for user {user} but none was found"
-    )
+    logger.info(f"BIRTHDAY: Attempted to remove birthday for user {user} but none was found")
     return False
 
 
@@ -449,10 +425,7 @@ def cleanup_old_announcement_files():
 
     try:
         for filename in os.listdir(TRACKING_DIR):
-            if (
-                filename.startswith("announced_")
-                and filename != f"announced_{today}.txt"
-            ):
+            if filename.startswith("announced_") and filename != f"announced_{today}.txt":
                 file_path = os.path.join(TRACKING_DIR, filename)
                 os.remove(file_path)
                 logger.info(f"CLEANUP: Removed old announcement file {filename}")
@@ -501,9 +474,7 @@ def mark_timezone_birthday_announced(user_id, user_timezone):
 
         with open(announced_file, "a") as f:
             f.write(f"{user_id}:{user_timezone}\n")
-        logger.info(
-            f"TIMEZONE: Marked {user_id}'s birthday as announced in {user_timezone}"
-        )
+        logger.info(f"TIMEZONE: Marked {user_id}'s birthday as announced in {user_timezone}")
     except OSError as e:
         logger.error(f"FILE_ERROR: Failed to mark timezone birthday as announced: {e}")
 
@@ -523,13 +494,9 @@ def cleanup_timezone_announcement_files():
             ):
                 file_path = os.path.join(TRACKING_DIR, filename)
                 os.remove(file_path)
-                logger.info(
-                    f"CLEANUP: Removed old timezone announcement file {filename}"
-                )
+                logger.info(f"CLEANUP: Removed old timezone announcement file {filename}")
     except OSError as e:
-        logger.error(
-            f"FILE_ERROR: Failed to clean up old timezone announcement files: {e}"
-        )
+        logger.error(f"FILE_ERROR: Failed to clean up old timezone announcement files: {e}")
 
 
 def is_user_celebrated_today(user_id):
@@ -547,8 +514,6 @@ def is_user_celebrated_today(user_id):
     timezone_announced_raw = get_timezone_announced_birthdays_today()
 
     # Extract user IDs from timezone tracking (format: "user_id:timezone")
-    timezone_announced = [
-        entry.split(":")[0] for entry in timezone_announced_raw if ":" in entry
-    ]
+    timezone_announced = [entry.split(":")[0] for entry in timezone_announced_raw if ":" in entry]
 
     return user_id in legacy_announced or user_id in timezone_announced

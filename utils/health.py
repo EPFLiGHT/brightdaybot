@@ -183,9 +183,7 @@ def check_personality_config():
     try:
         with open(PERSONALITY_FILE, "r") as f:
             data = json.load(f)
-        file_status["current_personality"] = data.get(
-            "current_personality", DEFAULT_PERSONALITY
-        )
+        file_status["current_personality"] = data.get("current_personality", DEFAULT_PERSONALITY)
         file_status["has_custom_settings"] = "custom_settings" in data
         return file_status
     except Exception as e:
@@ -206,11 +204,7 @@ def check_special_days():
         count = 0
         with open(SPECIAL_DAYS_FILE, "r") as f:
             for line in f:
-                if (
-                    line.strip()
-                    and not line.startswith("#")
-                    and not line.startswith("date,")
-                ):
+                if line.strip() and not line.startswith("#") and not line.startswith("date,"):
                     count += 1
         file_status["enabled"] = True
         file_status["observance_count"] = count

@@ -35,9 +35,7 @@ logger = get_logger("config")
 # Configuration Storage Paths
 # =============================================================================
 
-TIMEZONE_SETTINGS_FILE = os.path.join(
-    os.path.dirname(ADMINS_FILE), "timezone_settings.json"
-)
+TIMEZONE_SETTINGS_FILE = os.path.join(os.path.dirname(ADMINS_FILE), "timezone_settings.json")
 OPENAI_MODEL_SETTINGS_FILE = os.path.join(
     os.path.dirname(ADMINS_FILE), "openai_model_settings.json"
 )
@@ -103,9 +101,7 @@ def set_custom_personality_setting(setting_name, value):
         "format_instruction",
         "template_extension",
     ]:
-        logger.error(
-            f"CONFIG_ERROR: Invalid custom personality setting: {setting_name}"
-        )
+        logger.error(f"CONFIG_ERROR: Invalid custom personality setting: {setting_name}")
         return False
 
     BOT_PERSONALITIES["custom"][setting_name] = value
@@ -170,9 +166,7 @@ def set_current_openai_model(model_name):
             logger.info(f"CONFIG: OpenAI model changed to '{model_name}'")
             return True
         else:
-            logger.error(
-                f"CONFIG_ERROR: Failed to save OpenAI model setting '{model_name}'"
-            )
+            logger.error(f"CONFIG_ERROR: Failed to save OpenAI model setting '{model_name}'")
             return False
     except Exception as e:
         logger.error(f"CONFIG_ERROR: Error setting OpenAI model '{model_name}': {e}")
@@ -258,17 +252,13 @@ def get_configured_openai_model():
         else:
             # Fallback to environment variable
             env_model = os.getenv("OPENAI_MODEL", DEFAULT_OPENAI_MODEL)
-            logger.warning(
-                f"CONFIG: Using fallback OpenAI model from environment: {env_model}"
-            )
+            logger.warning(f"CONFIG: Using fallback OpenAI model from environment: {env_model}")
             return env_model
 
     except ImportError:
         # Fallback for backward compatibility during startup
         env_model = os.getenv("OPENAI_MODEL", DEFAULT_OPENAI_MODEL)
-        logger.warning(
-            f"CONFIG: Using fallback OpenAI model due to import error: {env_model}"
-        )
+        logger.warning(f"CONFIG: Using fallback OpenAI model due to import error: {env_model}")
         return env_model
     except Exception as e:
         # Ultimate fallback
@@ -326,9 +316,7 @@ def load_admins_from_file():
             admins = data.get("admins", [])
 
             if not isinstance(admins, list):
-                logger.error(
-                    f"CONFIG_ERROR: Loaded admins is not a list: {type(admins)}"
-                )
+                logger.error(f"CONFIG_ERROR: Loaded admins is not a list: {type(admins)}")
                 return []
 
             logger.info(f"CONFIG: Loaded {len(admins)} admins from {ADMINS_FILE}")
@@ -358,9 +346,7 @@ def save_personality_setting(personality_name, custom_settings=None):
         with open(PERSONALITY_FILE, "w") as f:
             json.dump(data, f, indent=2)
 
-        logger.info(
-            f"CONFIG: Saved personality setting '{personality_name}' to {PERSONALITY_FILE}"
-        )
+        logger.info(f"CONFIG: Saved personality setting '{personality_name}' to {PERSONALITY_FILE}")
         return True
     except Exception as e:
         logger.error(f"CONFIG_ERROR: Failed to save personality setting: {e}")
@@ -376,9 +362,7 @@ def load_personality_setting():
     """
     try:
         if not os.path.exists(PERSONALITY_FILE):
-            logger.info(
-                f"CONFIG: Personality file {PERSONALITY_FILE} not found, using defaults"
-            )
+            logger.info(f"CONFIG: Personality file {PERSONALITY_FILE} not found, using defaults")
             return DEFAULT_PERSONALITY, None
 
         with open(PERSONALITY_FILE, "r") as f:
@@ -506,8 +490,7 @@ def load_timezone_settings():
             interval = data.get("check_interval_hours", 1)
 
             logger.info(
-                f"CONFIG: Loaded timezone settings - enabled: {enabled}, "
-                f"interval: {interval}h"
+                f"CONFIG: Loaded timezone settings - enabled: {enabled}, " f"interval: {interval}h"
             )
             return enabled, interval
     except Exception as e:

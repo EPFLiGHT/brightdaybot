@@ -70,9 +70,7 @@ def send_immediate_birthday_announcement(
 
     if decision["celebrate_immediately"]:
         # Individual immediate celebration (no others have birthdays today)
-        notification = create_birthday_update_notification(
-            user_id, username, date, year, decision
-        )
+        notification = create_birthday_update_notification(user_id, username, date, year, decision)
         say(notification)
 
         try:
@@ -97,9 +95,7 @@ def send_immediate_birthday_announcement(
             )
 
             # Use centralized pipeline with Block Kit formatting
-            pipeline = BirthdayCelebrationPipeline(
-                app, BIRTHDAY_CHANNEL, mode="immediate"
-            )
+            pipeline = BirthdayCelebrationPipeline(app, BIRTHDAY_CHANNEL, mode="immediate")
             result = pipeline.celebrate(
                 [birthday_person],
                 include_image=AI_IMAGE_GENERATION_ENABLED,
@@ -139,9 +135,7 @@ def send_immediate_birthday_announcement(
     else:
         # Notification-only mode (preserve consolidated celebration)
         same_day_count = decision["same_day_count"]
-        notification = create_birthday_update_notification(
-            user_id, username, date, year, decision
-        )
+        notification = create_birthday_update_notification(user_id, username, date, year, decision)
         say(notification)
 
         logger.info(
@@ -172,9 +166,7 @@ def handle_list_command(parts, user_id, say, app):
     if not check_command_permission(app, user_id, "list"):
         from slack.blocks import build_permission_error_blocks
 
-        blocks, fallback = build_permission_error_blocks(
-            "list birthdays", "configured permission"
-        )
+        blocks, fallback = build_permission_error_blocks("list birthdays", "configured permission")
         say(blocks=blocks, text=fallback)
         username = get_username(app, user_id)
         logger.warning(
@@ -189,9 +181,7 @@ def handle_list_command(parts, user_id, say, app):
 
     # Use consistent UTC reference date for all calculations
     reference_date = datetime.now(timezone.utc)
-    logger.info(
-        f"LIST: Using reference date {reference_date.strftime('%Y-%m-%d')} (UTC)"
-    )
+    logger.info(f"LIST: Using reference date {reference_date.strftime('%Y-%m-%d')} (UTC)")
 
     # Current UTC time display at the top
     current_utc = reference_date.strftime("%Y-%m-%d %H:%M:%S")
@@ -347,9 +337,7 @@ def handle_list_command(parts, user_id, say, app):
             date_obj = datetime(2025, month, day)
             day_str = date_obj.strftime("%d")
             year_str = f" ({birth_year})" if birth_year else ""
-            formatted_birthdays.append(
-                (month_name_str, day_str, user_mention, year_str)
-            )
+            formatted_birthdays.append((month_name_str, day_str, user_mention, year_str))
 
         blocks, fallback = build_birthday_list_blocks(
             birthdays=formatted_birthdays,
@@ -459,9 +447,7 @@ def handle_remind_command(
     username = get_username(app, user_id)
 
     if not check_command_permission(app, user_id, "remind"):
-        say(
-            "You don't have permission to send reminders. This command is restricted to admins."
-        )
+        say("You don't have permission to send reminders. This command is restricted to admins.")
         logger.warning(
             f"PERMISSIONS: {username} ({user_id}) attempted to use remind command without permission"
         )
@@ -506,9 +492,7 @@ def handle_remind_command(
 
         # Prepare confirmation for new user reminders
         user_count = len(users_missing_birthdays)
-        message_preview = (
-            custom_message if custom_message else "Default new user reminder message"
-        )
+        message_preview = custom_message if custom_message else "Default new user reminder message"
 
         add_pending_confirmation(
             user_id,
@@ -540,9 +524,7 @@ def handle_remind_command(
         # Prepare confirmation for profile update reminders
         user_count = len(users_for_update)
         message_preview = (
-            custom_message
-            if custom_message
-            else "Default profile update reminder message"
+            custom_message if custom_message else "Default profile update reminder message"
         )
 
         add_pending_confirmation(

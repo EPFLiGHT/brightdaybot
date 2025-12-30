@@ -271,9 +271,7 @@ def log_chat_completion_usage(response, operation_name, logger):
                 f"total: {usage.total_tokens}"
             )
         else:
-            logger.warning(
-                f"{operation_name}_USAGE: No usage data available in response"
-            )
+            logger.warning(f"{operation_name}_USAGE: No usage data available in response")
     except Exception as e:
         logger.error(f"{operation_name}_USAGE: Failed to log token usage: {e}")
 
@@ -310,9 +308,7 @@ def log_image_generation_usage(
             )
 
             if hasattr(response, "created") and response.created:
-                timestamp = datetime.fromtimestamp(response.created).strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                )
+                timestamp = datetime.fromtimestamp(response.created).strftime("%Y-%m-%d %H:%M:%S")
                 logger.info(f"{operation_name}_USAGE: Generated at: {timestamp}")
 
             cost_params = []
@@ -324,21 +320,15 @@ def log_image_generation_usage(
                 cost_params.append(f"model: {model}")
 
             if cost_params:
-                logger.info(
-                    f"{operation_name}_USAGE: Parameters - {', '.join(cost_params)}"
-                )
+                logger.info(f"{operation_name}_USAGE: Parameters - {', '.join(cost_params)}")
 
             if hasattr(response.data[0], "model"):
                 actual_model = response.data[0].model
                 logger.info(f"{operation_name}_USAGE: Response model: {actual_model}")
         else:
-            logger.warning(
-                f"{operation_name}_USAGE: No image data available in response"
-            )
+            logger.warning(f"{operation_name}_USAGE: No image data available in response")
     except Exception as e:
-        logger.error(
-            f"{operation_name}_USAGE: Failed to log image generation usage: {e}"
-        )
+        logger.error(f"{operation_name}_USAGE: Failed to log image generation usage: {e}")
 
 
 def log_web_search_usage(response, operation_name, logger):
@@ -361,9 +351,7 @@ def log_web_search_usage(response, operation_name, logger):
                     f"output: {usage.output_tokens}, "
                     f"total: {total_tokens}"
                 )
-            elif hasattr(usage, "prompt_tokens") and hasattr(
-                usage, "completion_tokens"
-            ):
+            elif hasattr(usage, "prompt_tokens") and hasattr(usage, "completion_tokens"):
                 logger.info(
                     f"{operation_name}_USAGE: Token usage - "
                     f"prompt: {usage.prompt_tokens}, "
@@ -382,9 +370,7 @@ def log_web_search_usage(response, operation_name, logger):
                 f"output length: {output_length} characters"
             )
         else:
-            logger.warning(
-                f"{operation_name}_USAGE: No output_text in web search response"
-            )
+            logger.warning(f"{operation_name}_USAGE: No output_text in web search response")
     except Exception as e:
         logger.error(f"{operation_name}_USAGE: Failed to log web search usage: {e}")
 
@@ -419,9 +405,7 @@ def log_generic_api_usage(response, operation_name, logger, additional_info=None
 
         elif hasattr(response, "output_text"):
             output_length = len(response.output_text) if response.output_text else 0
-            logger.info(
-                f"{operation_name}_USAGE: Output length: {output_length} characters"
-            )
+            logger.info(f"{operation_name}_USAGE: Output length: {output_length} characters")
             logged_something = True
 
         if additional_info:
@@ -430,8 +414,6 @@ def log_generic_api_usage(response, operation_name, logger, additional_info=None
                 logged_something = True
 
         if not logged_something:
-            logger.warning(
-                f"{operation_name}_USAGE: No recognizable usage data in response"
-            )
+            logger.warning(f"{operation_name}_USAGE: No recognizable usage data in response")
     except Exception as e:
         logger.error(f"{operation_name}_USAGE: Failed to log API usage: {e}")

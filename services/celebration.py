@@ -108,9 +108,7 @@ class BirthdayCelebrationPipeline:
             }
         """
         if not birthday_people:
-            logger.warning(
-                f"{self.mode}: No birthday people provided to celebration pipeline"
-            )
+            logger.warning(f"{self.mode}: No birthday people provided to celebration pipeline")
             return {
                 "success": False,
                 "celebrated_people": [],
@@ -120,9 +118,7 @@ class BirthdayCelebrationPipeline:
                 "error": "No birthday people provided",
             }
 
-        logger.info(
-            f"{self.mode}: Starting celebration pipeline for {len(birthday_people)} people"
-        )
+        logger.info(f"{self.mode}: Starting celebration pipeline for {len(birthday_people)} people")
 
         try:
             # Track timing if not provided
@@ -140,9 +136,7 @@ class BirthdayCelebrationPipeline:
 
             # Calculate processing duration if not provided
             if processing_duration is None:
-                processing_duration = (
-                    datetime.now(tz.utc) - processing_start
-                ).total_seconds()
+                processing_duration = (datetime.now(tz.utc) - processing_start).total_seconds()
 
             # Step 2: Validate all people before posting (race condition prevention)
             validation_result = validate_birthday_people_for_posting(
@@ -155,9 +149,7 @@ class BirthdayCelebrationPipeline:
 
             # Log validation results
             if invalid_people:
-                invalid_names = [
-                    p.get("username", p["user_id"]) for p in invalid_people
-                ]
+                invalid_names = [p.get("username", p["user_id"]) for p in invalid_people]
                 logger.info(
                     f"{self.mode}: Filtered out {len(invalid_people)} invalid people: {', '.join(invalid_names)}"
                 )
@@ -178,15 +170,13 @@ class BirthdayCelebrationPipeline:
                 }
 
             # Step 5: Decide whether to regenerate message or filter images
-            final_message, final_images, actual_personality = (
-                self._handle_validation_results(
-                    result,
-                    validation_result,
-                    include_image and AI_IMAGE_GENERATION_ENABLED,
-                    test_mode,
-                    quality,
-                    image_size,
-                )
+            final_message, final_images, actual_personality = self._handle_validation_results(
+                result,
+                validation_result,
+                include_image and AI_IMAGE_GENERATION_ENABLED,
+                test_mode,
+                quality,
+                image_size,
             )
 
             # Step 6: Post the validated message and images
@@ -203,9 +193,7 @@ class BirthdayCelebrationPipeline:
             # Step 7: Track thread for engagement (if enabled and successful)
             message_ts = post_result.get("ts")
             if post_result["message_sent"] and message_ts:
-                self._track_thread_for_engagement(
-                    message_ts, valid_people, actual_personality
-                )
+                self._track_thread_for_engagement(message_ts, valid_people, actual_personality)
 
             # Step 8: Mark validated people as celebrated
             self._mark_as_celebrated(valid_people)
@@ -231,9 +219,7 @@ class BirthdayCelebrationPipeline:
 
             # Fallback: mark as celebrated to prevent retry loops
             # Use valid_people if validation succeeded, otherwise all birthday_people
-            people_to_mark = (
-                valid_people if "valid_people" in locals() else birthday_people
-            )
+            people_to_mark = valid_people if "valid_people" in locals() else birthday_people
             self._mark_as_celebrated(people_to_mark)
 
             return {
@@ -311,21 +297,15 @@ class BirthdayCelebrationPipeline:
                 actual_personality = DEFAULT_PERSONALITY  # Fallback
         else:
             # Minor changes (<30% invalid) - use original message but filter images
-            logger.info(
-                f"{self.mode}: Filtering {len(invalid_people)} invalid people from images"
-            )
+            logger.info(f"{self.mode}: Filtering {len(invalid_people)} invalid people from images")
 
             if isinstance(result, tuple) and len(result) == 3:
                 final_message, original_images, actual_personality = result
-                final_images = filter_images_for_valid_people(
-                    original_images, valid_people
-                )
+                final_images = filter_images_for_valid_people(original_images, valid_people)
             elif isinstance(result, tuple) and len(result) == 2:
                 # Backward compatibility for old 2-tuple format
                 final_message, original_images = result
-                final_images = filter_images_for_valid_people(
-                    original_images, valid_people
-                )
+                final_images = filter_images_for_valid_people(original_images, valid_people)
                 actual_personality = DEFAULT_PERSONALITY  # Fallback
             else:
                 final_message = result
@@ -465,9 +445,7 @@ class BirthdayCelebrationPipeline:
                 return {"message_sent": False, "images_sent": 0, "ts": None}
         else:
             # No images or images disabled - send message only with blocks
-            send_result = send_message(
-                self.app, self.birthday_channel, fallback_text, blocks
-            )
+            send_result = send_message(self.app, self.birthday_channel, fallback_text, blocks)
             success = send_result["success"]
             message_ts = send_result.get("ts")
             logger.info(
@@ -488,9 +466,7 @@ class BirthdayCelebrationPipeline:
             from config import THREAD_ENGAGEMENT_ENABLED
 
             if not THREAD_ENGAGEMENT_ENABLED:
-                logger.debug(
-                    f"{self.mode}: Thread engagement disabled, skipping tracking"
-                )
+                logger.debug(f"{self.mode}: Thread engagement disabled, skipping tracking")
                 return
 
             from utils.thread_tracking import get_thread_tracker
@@ -517,9 +493,7 @@ class BirthdayCelebrationPipeline:
 
         except ImportError:
             # THREAD_ENGAGEMENT_ENABLED not yet added to config - skip silently
-            logger.debug(
-                f"{self.mode}: Thread engagement config not available, skipping"
-            )
+            logger.debug(f"{self.mode}: Thread engagement config not available, skipping")
         except Exception as e:
             # Don't let tracking failures affect the celebration
             logger.warning(f"{self.mode}: Failed to track thread for engagement: {e}")
@@ -552,9 +526,7 @@ class BirthdayCelebrationPipeline:
 # =============================================================================
 
 
-def validate_birthday_people_for_posting(
-    app, birthday_people, birthday_channel_id, mode=None
-):
+def validate_birthday_people_for_posting(app, birthday_people, birthday_channel_id, mode=None):
     """
     Validate that birthday people are still valid for celebration before posting.
 
@@ -626,9 +598,7 @@ def validate_birthday_people_for_posting(
         # Check 1: Still has birthday today? (Skip in test mode - allow testing any time)
         if mode and mode.upper() == "TEST":
             # Test mode: Skip birthday-today validation to allow testing at any time
-            logger.debug(
-                f"VALIDATION: Skipping birthday-today check for {username} (test mode)"
-            )
+            logger.debug(f"VALIDATION: Skipping birthday-today check for {username} (test mode)")
         else:
             # Production modes: Validate birthday is still today
             if user_id in current_birthdays:
@@ -664,16 +634,12 @@ def validate_birthday_people_for_posting(
         # Check 4: Still active user?
         if is_valid:
             try:
-                _, is_bot, is_deleted, current_username = get_user_status_and_info(
-                    app, user_id
-                )
+                _, is_bot, is_deleted, current_username = get_user_status_and_info(app, user_id)
                 if is_deleted or is_bot:
                     is_valid = False
                     invalid_reason = "user_inactive"
             except Exception as e:
-                logger.warning(
-                    f"VALIDATION: Could not check user status for {user_id}: {e}"
-                )
+                logger.warning(f"VALIDATION: Could not check user status for {user_id}: {e}")
                 # If we can't check, assume still valid
                 pass
 
@@ -763,9 +729,7 @@ def filter_images_for_valid_people(images_list, valid_people):
             filtered_images.append(image)
         else:
             person_name = birthday_person.get("username", image_user_id)
-            logger.info(
-                f"VALIDATION: Filtered out image for {person_name} (no longer valid)"
-            )
+            logger.info(f"VALIDATION: Filtered out image for {person_name} (no longer valid)")
 
     logger.info(
         f"VALIDATION: Kept {len(filtered_images)}/{len(images_list)} images for valid people"
@@ -778,9 +742,7 @@ def filter_images_for_valid_people(images_list, valid_people):
 # =============================================================================
 
 
-def get_same_day_birthday_people(
-    app, target_date, exclude_user_id=None, birthday_channel_id=None
-):
+def get_same_day_birthday_people(app, target_date, exclude_user_id=None, birthday_channel_id=None):
     """
     Get all people who have birthdays on the target date (active, in channel, not yet celebrated).
 
@@ -821,9 +783,7 @@ def get_same_day_birthday_people(
             ):
                 # Skip if already celebrated today
                 if is_user_celebrated_today(user_id):
-                    logger.debug(
-                        f"IMMEDIATE_CHECK: {user_id} already celebrated today, skipping"
-                    )
+                    logger.debug(f"IMMEDIATE_CHECK: {user_id} already celebrated today, skipping")
                     continue
 
                 # Get user status and info
@@ -838,9 +798,7 @@ def get_same_day_birthday_people(
 
                 # Skip users not in birthday channel (if channel specified)
                 if birthday_channel_id and user_id not in channel_member_set:
-                    logger.debug(
-                        f"IMMEDIATE_CHECK: {user_id} not in birthday channel, skipping"
-                    )
+                    logger.debug(f"IMMEDIATE_CHECK: {user_id} not in birthday channel, skipping")
                     continue
 
                 # This person qualifies
@@ -934,9 +892,7 @@ def should_celebrate_immediately(
     return decision
 
 
-def create_birthday_update_notification(
-    user_id, username, target_date, year, decision_result
-):
+def create_birthday_update_notification(user_id, username, target_date, year, decision_result):
     """
     Create appropriate notification message for birthday updates.
 
@@ -1012,9 +968,7 @@ def log_immediate_celebration_decision(user_id, username, decision_result):
         # Log the other people for context
         if decision_result["same_day_people"]:
             other_names = [p["username"] for p in decision_result["same_day_people"]]
-            logger.info(
-                f"IMMEDIATE_CELEBRATION: Same-day birthdays: {', '.join(other_names)}"
-            )
+            logger.info(f"IMMEDIATE_CELEBRATION: Same-day birthdays: {', '.join(other_names)}")
 
     # Log for celebration consistency monitoring
     logger.info(
@@ -1063,9 +1017,7 @@ def generate_bot_celebration_message(
         return f"🌟 Happy Birthday Ludo | LiGHT BrightDay Coordinator! 🎂 Today marks {bot_age} year(s) of free birthday celebrations!"
 
     # Format the prompt with actual statistics
-    bot_birthday_formatted = date_to_words(
-        BOT_BIRTHDAY
-    )  # Convert "05/03" to "5th of March"
+    bot_birthday_formatted = date_to_words(BOT_BIRTHDAY)  # Convert "05/03" to "5th of March"
 
     formatted_prompt = prompt_template.format(
         total_birthdays=total_birthdays,
@@ -1093,14 +1045,10 @@ def generate_bot_celebration_message(
         if generated_message:
             # Fix Slack formatting issues
             generated_message = fix_slack_formatting(generated_message)
-            logger.info(
-                "BOT_CELEBRATION: Successfully generated AI celebration message"
-            )
+            logger.info("BOT_CELEBRATION: Successfully generated AI celebration message")
             return generated_message
         else:
-            logger.warning(
-                "BOT_CELEBRATION: AI generated empty message, using fallback"
-            )
+            logger.warning("BOT_CELEBRATION: AI generated empty message, using fallback")
             return f"🌟 Happy Birthday Ludo | LiGHT BrightDay Coordinator! 🎂 Today marks {bot_age} year(s) of mystical birthday magic!"
 
     except Exception as e:

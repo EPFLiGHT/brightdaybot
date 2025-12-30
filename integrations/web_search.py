@@ -98,9 +98,7 @@ def process_facts_for_personality(facts_text, formatted_date, personality):
         return processed_facts
 
     except (APIError, APIConnectionError, RateLimitError, APITimeoutError) as e:
-        logger.error(
-            f"WEB_SEARCH_ERROR: Failed to process facts for {personality}: {e}"
-        )
+        logger.error(f"WEB_SEARCH_ERROR: Failed to process facts for {personality}: {e}")
         # Return a simplified version of the original text if processing fails
         return f"On this day, {formatted_date}, several notable events occurred in history and remarkable individuals were born."
 
@@ -125,9 +123,7 @@ def get_birthday_facts(date_str, personality=DEFAULT_IMAGE_PERSONALITY):
 
     # Periodically clean up old cache files (only once per day)
     if WEB_SEARCH_CACHE_ENABLED:
-        cleanup_marker = os.path.join(
-            CACHE_DIR, f"cleanup_{datetime.now().strftime('%Y_%m_%d')}"
-        )
+        cleanup_marker = os.path.join(CACHE_DIR, f"cleanup_{datetime.now().strftime('%Y_%m_%d')}")
         if not os.path.exists(cleanup_marker):
             cleared = clear_old_cache_files()
             if cleared > 0:
@@ -144,9 +140,7 @@ def get_birthday_facts(date_str, personality=DEFAULT_IMAGE_PERSONALITY):
         try:
             with open(cache_file, "r") as f:
                 cached_data = json.load(f)
-                logger.info(
-                    f"WEB_SEARCH: Using cached results for {date_str} ({personality})"
-                )
+                logger.info(f"WEB_SEARCH: Using cached results for {date_str} ({personality})")
                 return cached_data
         except (OSError, json.JSONDecodeError) as e:
             logger.error(f"CACHE_ERROR: Failed to read cache: {e}")
@@ -173,9 +167,7 @@ def get_birthday_facts(date_str, personality=DEFAULT_IMAGE_PERSONALITY):
             # Fallback for personalities without custom query
             search_query = f"Notable people born on {formatted_date} and significant historical events on this day"
 
-        logger.info(
-            f"WEB_SEARCH: Searching for facts about {formatted_date} for {personality}"
-        )
+        logger.info(f"WEB_SEARCH: Searching for facts about {formatted_date} for {personality}")
 
         # Using the new responses.create method with web_search_preview tool
         response = _get_client().responses.create(
@@ -200,9 +192,7 @@ def get_birthday_facts(date_str, personality=DEFAULT_IMAGE_PERSONALITY):
             return None
 
         # Process the facts text to make it suitable for the specified personality
-        processed_facts = process_facts_for_personality(
-            facts_text, formatted_date, personality
-        )
+        processed_facts = process_facts_for_personality(facts_text, formatted_date, personality)
 
         results = {
             "facts": processed_facts,
@@ -220,9 +210,7 @@ def get_birthday_facts(date_str, personality=DEFAULT_IMAGE_PERSONALITY):
 
                 with open(cache_file, "w") as f:
                     json.dump(results, f)
-                    logger.info(
-                        f"WEB_SEARCH: Cached results for {date_str} ({personality})"
-                    )
+                    logger.info(f"WEB_SEARCH: Cached results for {date_str} ({personality})")
             except (OSError, TypeError) as e:
                 logger.error(f"CACHE_ERROR: Failed to write to cache: {e}")
 
@@ -332,9 +320,7 @@ def main():
     parser.add_argument(
         "--raw", action="store_true", help="Show raw search results before processing"
     )
-    parser.add_argument(
-        "--sources", action="store_true", help="Show source URLs in the output"
-    )
+    parser.add_argument("--sources", action="store_true", help="Show source URLs in the output")
     parser.add_argument(
         "--clear-cache",
         action="store_true",
@@ -366,9 +352,7 @@ def main():
     import logging
 
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(
-        logging.Formatter("%(asctime)s - [%(levelname)s] %(message)s")
-    )
+    console_handler.setFormatter(logging.Formatter("%(asctime)s - [%(levelname)s] %(message)s"))
     test_logger = logging.getLogger("birthday_bot.web_search_test")
     test_logger.setLevel(logging.INFO)
     test_logger.addHandler(console_handler)
@@ -408,9 +392,7 @@ def main():
         # Format in European style: DD Month
         from utils.date import format_date_european_short
 
-        formatted_date = format_date_european_short(
-            formatted_date_obj
-        )  # e.g. "15 April"
+        formatted_date = format_date_european_short(formatted_date_obj)  # e.g. "15 April"
         print(f"Searching for: {formatted_date}\n")
 
         if WEB_SEARCH_CACHE_ENABLED:
@@ -449,9 +431,7 @@ def main():
                 print(f"   {source.get('url', 'No URL')}")
 
     except ValueError as e:
-        print(
-            f"Error: Invalid date format '{args.date}'. Please use DD/MM format (e.g., 25/12)"
-        )
+        print(f"Error: Invalid date format '{args.date}'. Please use DD/MM format (e.g., 25/12)")
         print(f"Details: {e}")
     except Exception as e:
         print(f"Error: {e}")

@@ -162,9 +162,7 @@ class TestBuildBirthdayNotFoundBlocks:
         blocks, _ = build_birthday_not_found_blocks("Alice", is_self=True)
         # Check section text includes instructions
         section_texts = [
-            b.get("text", {}).get("text", "")
-            for b in blocks
-            if b.get("type") == "section"
+            b.get("text", {}).get("text", "") for b in blocks if b.get("type") == "section"
         ]
         any_has_instructions = any("DD/MM" in t for t in section_texts)
         assert any_has_instructions
@@ -344,9 +342,7 @@ class TestBuildUpcomingBirthdaysBlocks:
         blocks, fallback = build_upcoming_birthdays_blocks([])
         assert "No" in fallback or "no" in fallback
         section_texts = [
-            b.get("text", {}).get("text", "")
-            for b in blocks
-            if b.get("type") == "section"
+            b.get("text", {}).get("text", "") for b in blocks if b.get("type") == "section"
         ]
         any_has_no_birthdays = any(
             "No birthdays" in t or "no birthdays" in t.lower() for t in section_texts
@@ -380,11 +376,7 @@ class TestBuildUpcomingBirthdaysBlocks:
             ]
         )
         section_texts = " ".join(
-            [
-                b.get("text", {}).get("text", "")
-                for b in blocks
-                if b.get("type") == "section"
-            ]
+            [b.get("text", {}).get("text", "") for b in blocks if b.get("type") == "section"]
         )
         assert "<@U123>" in section_texts
         assert "<@U456>" in section_texts
@@ -395,11 +387,7 @@ class TestBuildUpcomingBirthdaysBlocks:
             [{"user_id": "U123", "username": "Alice", "date": "25/12", "days_until": 0}]
         )
         section_texts = " ".join(
-            [
-                b.get("text", {}).get("text", "")
-                for b in blocks
-                if b.get("type") == "section"
-            ]
+            [b.get("text", {}).get("text", "") for b in blocks if b.get("type") == "section"]
         )
         assert "Today!" in section_texts
 
@@ -409,11 +397,7 @@ class TestBuildUpcomingBirthdaysBlocks:
             [{"user_id": "U123", "username": "Alice", "date": "25/12", "days_until": 1}]
         )
         section_texts = " ".join(
-            [
-                b.get("text", {}).get("text", "")
-                for b in blocks
-                if b.get("type") == "section"
-            ]
+            [b.get("text", {}).get("text", "") for b in blocks if b.get("type") == "section"]
         )
         assert "Tomorrow" in section_texts
 
@@ -438,11 +422,7 @@ class TestBuildSlashHelpBlocks:
         """Birthday help lists subcommands"""
         blocks, fallback = build_slash_help_blocks("birthday")
         section_texts = " ".join(
-            [
-                b.get("text", {}).get("text", "")
-                for b in blocks
-                if b.get("type") == "section"
-            ]
+            [b.get("text", {}).get("text", "") for b in blocks if b.get("type") == "section"]
         )
         assert "add" in section_texts.lower()
         assert "check" in section_texts.lower()
@@ -459,11 +439,7 @@ class TestBuildSlashHelpBlocks:
         """Special day help lists options"""
         blocks, _ = build_slash_help_blocks("special-day")
         section_texts = " ".join(
-            [
-                b.get("text", {}).get("text", "")
-                for b in blocks
-                if b.get("type") == "section"
-            ]
+            [b.get("text", {}).get("text", "") for b in blocks if b.get("type") == "section"]
         )
         assert "today" in section_texts.lower()
         assert "week" in section_texts.lower()

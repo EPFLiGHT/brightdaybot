@@ -143,9 +143,7 @@ def get_logger(name):
         Configured logger instance with appropriate file routing
     """
     if not _logging_initialized:
-        raise RuntimeError(
-            "Logging system not initialized. Call setup_logging() first."
-        )
+        raise RuntimeError("Logging system not initialized. Call setup_logging() first.")
 
     if not name.startswith("birthday_bot."):
         full_name = f"birthday_bot.{name}"

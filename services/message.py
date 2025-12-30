@@ -160,9 +160,7 @@ def get_random_personality_name():
     # Base pool: all personalities except meta-personalities
     # Chronicler is reserved for special days only, not birthday celebrations
     base_pool = [
-        name
-        for name in BOT_PERSONALITIES.keys()
-        if name not in ["random", "custom", "chronicler"]
+        name for name in BOT_PERSONALITIES.keys() if name not in ["random", "custom", "chronicler"]
     ]
 
     # Weighted pool: exclude recently used personalities
@@ -170,9 +168,7 @@ def get_random_personality_name():
 
     # Fallback: if we've somehow constrained too much, use full base pool
     if len(weighted_pool) < 2:
-        logger.warning(
-            f"RANDOM: Weighted pool too small ({len(weighted_pool)}), using full pool"
-        )
+        logger.warning(f"RANDOM: Weighted pool too small ({len(weighted_pool)}), using full pool")
         weighted_pool = base_pool
 
     # Select from the weighted pool
@@ -462,9 +458,7 @@ def _generate_birthday_message(
 
     if has_web_search and birthday_date:
         try:
-            birthday_facts = get_birthday_facts(
-                birthday_date, selected_personality_name
-            )
+            birthday_facts = get_birthday_facts(birthday_date, selected_personality_name)
             if birthday_facts and birthday_facts["facts"]:
                 from personality_config import get_personality_config
 
@@ -473,9 +467,7 @@ def _generate_birthday_message(
                     "birthday_facts_text",
                     "Incorporate these interesting facts about their birthday date: {facts}",
                 )
-                birthday_facts_text = (
-                    f"\n\n{facts_template.format(facts=birthday_facts['facts'])}"
-                )
+                birthday_facts_text = f"\n\n{facts_template.format(facts=birthday_facts['facts'])}"
                 if birthday_facts["sources"]:
                     birthday_facts_text += "\n\nYou may reference where this information came from in a way that fits your personality, without mentioning specific URLs."
                 logger.info(
@@ -517,9 +509,7 @@ def _generate_birthday_message(
     while retry_count <= max_retries:
         try:
             log_prefix = "AI" if is_single else "CONSOLIDATED_AI"
-            name_desc = (
-                birthday_people[0]["username"] if is_single else f"{count} people"
-            )
+            name_desc = birthday_people[0]["username"] if is_single else f"{count} people"
             logger.info(
                 f"{log_prefix}: Requesting birthday message for {name_desc} using "
                 f"{selected_personality_name} personality"
@@ -544,13 +534,9 @@ def _generate_birthday_message(
                 )
             else:
                 # Post-process to ensure all required mentions are present
-                message = _ensure_mentions_present(
-                    message, required_mentions, mention_text
-                )
+                message = _ensure_mentions_present(message, required_mentions, mention_text)
                 is_valid = _validate_consolidated_message(message, required_mentions)
-                validation_errors = (
-                    [] if is_valid else ["Consolidated validation failed"]
-                )
+                validation_errors = [] if is_valid else ["Consolidated validation failed"]
 
             if is_valid:
                 logger.info(
@@ -627,9 +613,7 @@ def _generate_birthday_message(
                             "date": person.get("date"),
                             "year": person.get("year"),
                         }
-                        logger.info(
-                            f"IMAGE: Successfully generated image for {person['username']}"
-                        )
+                        logger.info(f"IMAGE: Successfully generated image for {person['username']}")
                         return person_image
                     else:
                         # Try profile photo fallback
@@ -677,9 +661,7 @@ def _generate_birthday_message(
                 if result:
                     generated_images.append(result)
 
-            logger.info(
-                f"IMAGE: Generated {len(generated_images)}/{count} birthday images"
-            )
+            logger.info(f"IMAGE: Generated {len(generated_images)}/{count} birthday images")
 
         except Exception as e:
             logger.error(f"IMAGE_ERROR: Failed during image generation: {e}")
@@ -818,9 +800,7 @@ def _build_consolidated_birthday_prompt(
             display_name = profile.get("display_name", "")
             real_name = profile.get("real_name", "")
             if display_name and real_name and display_name != real_name:
-                name_info = (
-                    f" [display name: '{display_name}', full name: '{real_name}']"
-                )
+                name_info = f" [display name: '{display_name}', full name: '{real_name}']"
 
             if profile.get("pronouns"):
                 profile_details.append(f"pronouns: {profile['pronouns']}")
@@ -879,9 +859,7 @@ def _build_consolidated_birthday_prompt(
     day_of_week = datetime.now().strftime("%A")
 
     # Build system prompt
-    system_prompt = _build_consolidated_system_prompt(
-        personality, selected_personality_name
-    )
+    system_prompt = _build_consolidated_system_prompt(personality, selected_personality_name)
 
     user_prompt = f"""Create a consolidated birthday celebration message for multiple people sharing the same birthday!
 
@@ -964,9 +942,7 @@ def _get_fallback_single_message(person, selected_personality_name):
     )
     formatted_message = fix_slack_formatting(formatted_message)
 
-    logger.info(
-        f"AI: Used personality-specific fallback message ({selected_personality_name})"
-    )
+    logger.info(f"AI: Used personality-specific fallback message ({selected_personality_name})")
     return formatted_message
 
 
@@ -1012,9 +988,7 @@ def completion(
     """
     # Extract name from user_profile for backward compatibility
     name = (
-        user_profile.get("preferred_name", "Birthday Person")
-        if user_profile
-        else "Birthday Person"
+        user_profile.get("preferred_name", "Birthday Person") if user_profile else "Birthday Person"
     )
 
     # Convert old-style parameters to unified format
@@ -1182,42 +1156,32 @@ def _ensure_mentions_present(message, required_mentions, formatted_mentions):
         if "Happy Birthday" in message and not any(
             mention in message for mention in required_mentions
         ):
-            message = message.replace(
-                "Happy Birthday", f"Happy Birthday {formatted_mentions}"
-            )
+            message = message.replace("Happy Birthday", f"Happy Birthday {formatted_mentions}")
             logger.info(f"POST_PROCESS: Injected mentions after 'Happy Birthday'")
 
         # Pattern 2: Look for birthday-related keywords and inject nearby
         elif any(
-            keyword in message.lower()
-            for keyword in ["birthday", "celebrating", "celebrate"]
+            keyword in message.lower() for keyword in ["birthday", "celebrating", "celebrate"]
         ):
             # Find first birthday-related sentence and try to inject there
             lines = message.split("\n")
             for i, line in enumerate(lines):
                 if any(
-                    keyword in line.lower()
-                    for keyword in ["birthday", "celebrating", "celebrate"]
+                    keyword in line.lower() for keyword in ["birthday", "celebrating", "celebrate"]
                 ):
                     if not any(mention in line for mention in required_mentions):
                         # Try to inject mentions naturally
                         if "birthday" in line.lower():
-                            lines[i] = line.replace(
-                                "birthday", f"birthday {formatted_mentions}"
-                            )
+                            lines[i] = line.replace("birthday", f"birthday {formatted_mentions}")
                         elif "celebrating" in line.lower():
                             lines[i] = line.replace(
                                 "celebrating", f"celebrating {formatted_mentions}"
                             )
                         elif "celebrate" in line.lower():
-                            lines[i] = line.replace(
-                                "celebrate", f"celebrate {formatted_mentions}"
-                            )
+                            lines[i] = line.replace("celebrate", f"celebrate {formatted_mentions}")
 
                         message = "\n".join(lines)
-                        logger.info(
-                            f"POST_PROCESS: Injected mentions in birthday-related line"
-                        )
+                        logger.info(f"POST_PROCESS: Injected mentions in birthday-related line")
                         break
 
         # Pattern 3: Last resort - add mentions at the beginning after <!here>
@@ -1256,12 +1220,8 @@ def _validate_consolidated_message(message, required_mentions):
 
     # Check minimum length
     if len(message.strip()) < 50:
-        validation_errors.append(
-            f"Message too short ({len(message.strip())} chars, need 50+)"
-        )
-        logger.warning(
-            f"VALIDATION: Message too short ({len(message.strip())} characters)"
-        )
+        validation_errors.append(f"Message too short ({len(message.strip())} chars, need 50+)")
+        logger.warning(f"VALIDATION: Message too short ({len(message.strip())} characters)")
 
     # If there are validation errors, log a summary
     if validation_errors:
@@ -1290,7 +1250,9 @@ def _generate_fallback_consolidated_message(birthday_people):
 
     # Simple but elegant fallback
     message = f":star2: *{title} Alert!* :star2:\n\n"
-    message += f"<!here> What are the odds?! {mention_text} are all celebrating birthdays today!\n\n"
+    message += (
+        f"<!here> What are the odds?! {mention_text} are all celebrating birthdays today!\n\n"
+    )
     message += f"This calls for an extra special celebration! :birthday: :tada:\n\n"
     message += f"Let's make their shared special day absolutely amazing! :sparkles:"
 
@@ -1357,9 +1319,7 @@ def generate_birthday_image_title(
             name=name,
             title_context=title_context,
             multiple_context=(
-                " This is for multiple people celebrating together!"
-                if is_multiple_people
-                else ""
+                " This is for multiple people celebrating together!" if is_multiple_people else ""
             ),
         )
 
@@ -1396,9 +1356,7 @@ def generate_birthday_image_title(
                             f"TITLE_GEN: Title length invalid ({len(ai_title)} chars), retrying..."
                         )
                         continue
-                    raise ValueError(
-                        f"Title length invalid: {len(ai_title)} characters"
-                    )
+                    raise ValueError(f"Title length invalid: {len(ai_title)} characters")
 
                 # Validate that the title contains the name(s) - critical for personalization
                 name_validation_passed = _validate_title_contains_names(
@@ -1416,16 +1374,12 @@ def generate_birthday_image_title(
                             f"TITLE_GEN: Title still missing names after {max_retries} retries, using anyway: '{ai_title}'"
                         )
 
-                logger.info(
-                    f"TITLE_GEN: Successfully generated title for {name}: '{ai_title}'"
-                )
+                logger.info(f"TITLE_GEN: Successfully generated title for {name}: '{ai_title}'")
                 return ai_title
 
             except Exception as e:
                 if attempt < max_retries:
-                    logger.warning(
-                        f"TITLE_GEN: API error on attempt {attempt + 1}, retrying: {e}"
-                    )
+                    logger.warning(f"TITLE_GEN: API error on attempt {attempt + 1}, retrying: {e}")
                     continue
                 else:
                     # If all retries failed, re-raise the exception to trigger fallback
@@ -1533,9 +1487,7 @@ def _validate_title_contains_names(title, name, is_multiple_people):
                     individual_names.append(first_name.lower())
 
         # Check if at least one name appears in the title
-        names_found = sum(
-            1 for name_part in individual_names if name_part in title_lower
-        )
+        names_found = sum(1 for name_part in individual_names if name_part in title_lower)
 
         # For multiple people, we want at least 50% of names to appear, or at least 1 name
         required_names = max(1, len(individual_names) // 2)
@@ -1604,9 +1556,7 @@ def test_fallback_messages(name="Test User", user_id="U123456789"):
         print("-" * 60)
 
 
-def test_announcement(
-    name="Test User", user_id="U123456789", birth_date="14/04", birth_year=1990
-):
+def test_announcement(name="Test User", user_id="U123456789", birth_date="14/04", birth_year=1990):
     """
     Test the birthday announcement format
     """
@@ -1718,15 +1668,9 @@ def main():
     parser = argparse.ArgumentParser(description="Test the birthday message generator")
     parser.add_argument("--name", default="John Doe", help="Name of the person")
     parser.add_argument("--user-id", default="U1234567890", help="Slack user ID")
-    parser.add_argument(
-        "--date", default="25th of December", help="Birthday date in words"
-    )
-    parser.add_argument(
-        "--birth-date", default="25/12", help="Birth date in DD/MM format"
-    )
-    parser.add_argument(
-        "--birth-year", default=1990, type=int, help="Birth year (optional)"
-    )
+    parser.add_argument("--date", default="25th of December", help="Birthday date in words")
+    parser.add_argument("--birth-date", default="25/12", help="Birth date in DD/MM format")
+    parser.add_argument("--birth-year", default=1990, type=int, help="Birth year (optional)")
     parser.add_argument(
         "--fallback", action="store_true", help="Test fallback messages instead of API"
     )
@@ -1768,9 +1712,7 @@ def main():
 
     # Configure console logging for direct testing
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(
-        logging.Formatter("%(asctime)s - [%(levelname)s] %(message)s")
-    )
+    console_handler.setFormatter(logging.Formatter("%(asctime)s - [%(levelname)s] %(message)s"))
 
     # Create a separate logger just for command-line testing
     test_logger = logging.getLogger("birthday_bot.test")
@@ -1778,9 +1720,7 @@ def main():
     test_logger.addHandler(console_handler)
 
     test_logger.info(f"TEST: === Birthday Message Generator Test ===")
-    test_logger.info(
-        f"Current Date/Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-    )
+    test_logger.info(f"Current Date/Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     current_model = get_configured_model()
     test_logger.info(f"Model: {current_model}")
     test_logger.info(
@@ -1805,9 +1745,7 @@ def main():
         test_consolidated_announcement()
     else:
         try:
-            message = completion(
-                args.date, args.user_id, args.birth_date, args.birth_year
-            )
+            message = completion(args.date, args.user_id, args.birth_date, args.birth_year)
             print("\nGenerated Message:")
             print("-" * 60)
             print(message)

@@ -76,9 +76,7 @@ def handle_special_command(args, user_id, say, app):
             if date_str in upcoming:
                 sorted_upcoming[date_str] = upcoming[date_str]
 
-        blocks, fallback = build_special_days_list_blocks(
-            sorted_upcoming, view_mode="week"
-        )
+        blocks, fallback = build_special_days_list_blocks(sorted_upcoming, view_mode="week")
         say(blocks=blocks, text=fallback)
 
     elif subcommand == "month":
@@ -95,9 +93,7 @@ def handle_special_command(args, user_id, say, app):
             if date_str in upcoming:
                 sorted_upcoming[date_str] = upcoming[date_str]
 
-        blocks, fallback = build_special_days_list_blocks(
-            sorted_upcoming, view_mode="month"
-        )
+        blocks, fallback = build_special_days_list_blocks(sorted_upcoming, view_mode="month")
         say(blocks=blocks, text=fallback)
 
     elif subcommand == "list":
@@ -106,9 +102,7 @@ def handle_special_command(args, user_id, say, app):
         all_days = load_all_special_days()
 
         if category_filter:
-            all_days = [
-                d for d in all_days if d.category.lower() == category_filter.lower()
-            ]
+            all_days = [d for d in all_days if d.category.lower() == category_filter.lower()]
 
         blocks, fallback = build_special_days_list_blocks(
             all_days, view_mode="list", category_filter=category_filter
@@ -134,9 +128,7 @@ def handle_special_command(args, user_id, say, app):
 _Sources: UN/WHO/UNESCO observances, Calendarific holidays, and custom entries._"""
         say(help_text)
 
-    logger.info(
-        f"SPECIAL: {get_username(app, user_id)} used special command: {' '.join(args)}"
-    )
+    logger.info(f"SPECIAL: {get_username(app, user_id)} used special command: {' '.join(args)}")
 
 
 def parse_quoted_args(command_text):
@@ -236,9 +228,7 @@ def handle_admin_special_command_with_quotes(command_text, user_id, say, app):
             from config import SPECIAL_DAYS_CATEGORIES
 
             if category not in SPECIAL_DAYS_CATEGORIES:
-                say(
-                    f"Invalid category. Must be one of: {', '.join(SPECIAL_DAYS_CATEGORIES)}"
-                )
+                say(f"Invalid category. Must be one of: {', '.join(SPECIAL_DAYS_CATEGORIES)}")
                 return
 
             special_day = SpecialDay(
@@ -322,9 +312,7 @@ def handle_admin_special_command(args, user_id, say, app):
         all_days = load_all_special_days()
 
         if category_filter:
-            all_days = [
-                d for d in all_days if d.category.lower() == category_filter.lower()
-            ]
+            all_days = [d for d in all_days if d.category.lower() == category_filter.lower()]
 
         blocks, fallback = build_special_days_list_blocks(
             all_days, view_mode="list", category_filter=category_filter, admin_view=True
@@ -368,9 +356,7 @@ def handle_admin_special_command(args, user_id, say, app):
                 # Parse date (DD/MM) using datetime
                 date_str = args[1]
                 date_obj = datetime.strptime(date_str, DATE_FORMAT)
-                test_date = datetime.now().replace(
-                    day=date_obj.day, month=date_obj.month
-                )
+                test_date = datetime.now().replace(day=date_obj.day, month=date_obj.month)
             except (ValueError, IndexError):
                 say("Invalid date format. Use DD/MM")
                 return
@@ -511,11 +497,15 @@ def handle_admin_special_command(args, user_id, say, app):
         if len(args) == 1:
             # Show current config
             message = "⚙️ *Special Days Configuration:*\n\n"
-            message += f"• Feature: {'✅ Enabled' if config.get('enabled', False) else '❌ Disabled'}\n"
+            message += (
+                f"• Feature: {'✅ Enabled' if config.get('enabled', False) else '❌ Disabled'}\n"
+            )
             message += f"• Personality: {config.get('personality', 'chronicler')}\n"
             message += f"• Announcement time: {config.get('announcement_time', DEFAULT_ANNOUNCEMENT_TIME)}\n"
             message += f"• Channel: {config.get('channel_override') or 'Using birthday channel'}\n"
-            message += f"• Image generation: {'✅' if config.get('image_generation', False) else '❌'}\n"
+            message += (
+                f"• Image generation: {'✅' if config.get('image_generation', False) else '❌'}\n"
+            )
             say(message)
 
         elif len(args) >= 3:
@@ -541,9 +531,7 @@ def handle_admin_special_command(args, user_id, say, app):
 
             if save_special_days_config(config):
                 say(f"✅ Updated special days {setting}")
-                logger.info(
-                    f"ADMIN_SPECIAL: {username} updated config: {setting} = {value}"
-                )
+                logger.info(f"ADMIN_SPECIAL: {username} updated config: {setting} = {value}")
             else:
                 say("❌ Failed to save configuration")
 
@@ -567,9 +555,7 @@ def handle_admin_special_command(args, user_id, say, app):
         issues_found = False
         if results["missing_sources"]:
             issues_found = True
-            message += (
-                f"\n⚠️ *Missing Sources:* {len(results['missing_sources'])} days\n"
-            )
+            message += f"\n⚠️ *Missing Sources:* {len(results['missing_sources'])} days\n"
             if len(results["missing_sources"]) <= 5:
                 for day in results["missing_sources"]:
                     message += f"  - {day}\n"
@@ -605,15 +591,11 @@ def handle_admin_special_command(args, user_id, say, app):
         from config import CALENDARIFIC_ENABLED, CALENDARIFIC_API_KEY
 
         if not CALENDARIFIC_ENABLED:
-            say(
-                "❌ Calendarific API is not enabled. Set `CALENDARIFIC_ENABLED=true` in .env"
-            )
+            say("❌ Calendarific API is not enabled. Set `CALENDARIFIC_ENABLED=true` in .env")
             return
 
         if not CALENDARIFIC_API_KEY:
-            say(
-                "❌ Calendarific API key not configured. Add `CALENDARIFIC_API_KEY=...` to .env"
-            )
+            say("❌ Calendarific API key not configured. Add `CALENDARIFIC_API_KEY=...` to .env")
             return
 
         try:
@@ -723,9 +705,7 @@ _Cache refreshes weekly. Use `admin special un-refresh` to force update._"""
             if stats.get("error"):
                 say(f"❌ Refresh failed: {stats['error']}")
             else:
-                say(
-                    f"✅ UN observances cache refreshed: {stats['fetched']} observances"
-                )
+                say(f"✅ UN observances cache refreshed: {stats['fetched']} observances")
                 logger.info(f"ADMIN_SPECIAL: {username} refreshed UN cache")
 
         except Exception as e:
@@ -774,9 +754,7 @@ _Cache refreshes monthly. Use `admin special unesco-refresh` to force update._""
             if stats.get("error"):
                 say(f"❌ Refresh failed: {stats['error']}")
             else:
-                say(
-                    f"✅ UNESCO observances cache refreshed: {stats['fetched']} observances"
-                )
+                say(f"✅ UNESCO observances cache refreshed: {stats['fetched']} observances")
                 logger.info(f"ADMIN_SPECIAL: {username} refreshed UNESCO cache")
 
         except Exception as e:
@@ -825,9 +803,7 @@ _Cache refreshes monthly. Use `admin special who-refresh` to force update._"""
             if stats.get("error"):
                 say(f"❌ Refresh failed: {stats['error']}")
             else:
-                say(
-                    f"✅ WHO observances cache refreshed: {stats['fetched']} observances"
-                )
+                say(f"✅ WHO observances cache refreshed: {stats['fetched']} observances")
                 logger.info(f"ADMIN_SPECIAL: {username} refreshed WHO cache")
 
         except Exception as e:

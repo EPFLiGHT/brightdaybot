@@ -12,8 +12,7 @@ import pytest
 
 # Skip all tests in this module if no API key
 pytestmark = pytest.mark.skipif(
-    not os.getenv("OPENAI_API_KEY")
-    or os.getenv("OPENAI_API_KEY").startswith("sk-dummy"),
+    not os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY").startswith("sk-dummy"),
     reason="OPENAI_API_KEY not set or is dummy key",
 )
 

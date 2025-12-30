@@ -35,8 +35,7 @@ class TestGetPersonalityConfig:
         """Pirate personality returns valid config"""
         config = get_personality_config("pirate")
         assert (
-            "pirate" in config["description"].lower()
-            or "nautical" in config["description"].lower()
+            "pirate" in config["description"].lower() or "nautical" in config["description"].lower()
         )
 
     def test_invalid_falls_back_to_standard(self):

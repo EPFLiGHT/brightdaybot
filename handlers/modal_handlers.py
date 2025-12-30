@@ -35,12 +35,8 @@ def register_modal_handlers(app):
         values = view["state"]["values"]
 
         # Get month and day from dropdowns
-        month_value = values["birthday_month_block"]["birthday_month"][
-            "selected_option"
-        ]["value"]
-        day_value = values["birthday_day_block"]["birthday_day"]["selected_option"][
-            "value"
-        ]
+        month_value = values["birthday_month_block"]["birthday_month"]["selected_option"]["value"]
+        day_value = values["birthday_day_block"]["birthday_day"]["selected_option"]["value"]
 
         # Get optional year from text input
         year_block = values.get("birth_year_block", {})
@@ -93,13 +89,9 @@ def register_modal_handlers(app):
                     client, user_id, username, date_ddmm, birth_year, updated, app
                 )
             else:
-                _send_modal_confirmation(
-                    client, user_id, date_ddmm, birth_year, updated
-                )
+                _send_modal_confirmation(client, user_id, date_ddmm, birth_year, updated)
 
-            logger.info(
-                f"MODAL: Birthday {'updated' if updated else 'saved'} for {username}"
-            )
+            logger.info(f"MODAL: Birthday {'updated' if updated else 'saved'} for {username}")
 
         except ValueError as e:
             logger.error(f"MODAL_ERROR: Invalid input from {username}: {e}")
@@ -170,14 +162,10 @@ def _send_modal_confirmation(client, user_id, date_ddmm, birth_year, updated):
         }
     )
 
-    client.chat_postMessage(
-        channel=user_id, blocks=blocks, text=f"Birthday {action} successfully!"
-    )
+    client.chat_postMessage(channel=user_id, blocks=blocks, text=f"Birthday {action} successfully!")
 
 
-def _send_birthday_today_message(
-    client, user_id, username, date_ddmm, birth_year, updated, app
-):
+def _send_birthday_today_message(client, user_id, username, date_ddmm, birth_year, updated, app):
     """Send special message when birthday is today."""
     from utils.date import date_to_words
 
@@ -206,9 +194,7 @@ def _send_birthday_today_message(
     )
 
     # Trigger immediate celebration via existing flow
-    logger.info(
-        f"MODAL: Birthday today for {username}, triggering immediate celebration"
-    )
+    logger.info(f"MODAL: Birthday today for {username}, triggering immediate celebration")
 
 
 def _send_modal_error(client, user_id, message):
@@ -218,9 +204,7 @@ def _send_modal_error(client, user_id, message):
         {"type": "section", "text": {"type": "mrkdwn", "text": f"*{message}*"}},
         {
             "type": "context",
-            "elements": [
-                {"type": "mrkdwn", "text": "Please try again with valid input."}
-            ],
+            "elements": [{"type": "mrkdwn", "text": "Please try again with valid input."}],
         },
     ]
 

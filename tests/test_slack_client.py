@@ -70,9 +70,7 @@ class TestFixSlackFormatting:
 
     def test_multiple_formatting_issues(self):
         """Multiple formatting issues fixed in one pass"""
-        result = fix_slack_formatting(
-            "**Bold** and __italic__ with [link](http://test.com)"
-        )
+        result = fix_slack_formatting("**Bold** and __italic__ with [link](http://test.com)")
         assert "*Bold*" in result
         assert "_italic_" in result
         assert "http://test.com|link" in result

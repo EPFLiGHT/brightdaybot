@@ -31,9 +31,7 @@ class TestGetUserProfile:
         """Returns None when SlackApiError occurs."""
         from slack.client import get_user_profile
 
-        mock_slack_app.client.users_profile_get.side_effect = slack_api_error(
-            "user_not_found"
-        )
+        mock_slack_app.client.users_profile_get.side_effect = slack_api_error("user_not_found")
 
         result = get_user_profile(mock_slack_app, "U999999")
 
@@ -123,9 +121,7 @@ class TestGetUsername:
         """Returns formatted mention when API fails."""
         from slack.client import get_username
 
-        mock_slack_app.client.users_profile_get.side_effect = slack_api_error(
-            "user_not_found"
-        )
+        mock_slack_app.client.users_profile_get.side_effect = slack_api_error("user_not_found")
 
         with patch("slack.client.username_cache", {}):
             result = get_username(mock_slack_app, "U999999")
@@ -179,9 +175,7 @@ class TestSendMessage:
         """Returns dict with success=False when SlackApiError occurs."""
         from slack.client import send_message
 
-        mock_slack_app.client.chat_postMessage.side_effect = slack_api_error(
-            "channel_not_found"
-        )
+        mock_slack_app.client.chat_postMessage.side_effect = slack_api_error("channel_not_found")
 
         result = send_message(mock_slack_app, "C999999", "Hello")
 
@@ -196,9 +190,7 @@ class TestSlackApiErrorHandling:
         """Errors are logged when get_user_profile fails."""
         from slack.client import get_user_profile
 
-        mock_slack_app.client.users_profile_get.side_effect = slack_api_error(
-            "rate_limited"
-        )
+        mock_slack_app.client.users_profile_get.side_effect = slack_api_error("rate_limited")
 
         with patch("slack.client.logger") as mock_logger:
             result = get_user_profile(mock_slack_app, "U123456")
@@ -210,9 +202,7 @@ class TestSlackApiErrorHandling:
         """Errors are logged when send_message fails."""
         from slack.client import send_message
 
-        mock_slack_app.client.chat_postMessage.side_effect = slack_api_error(
-            "channel_not_found"
-        )
+        mock_slack_app.client.chat_postMessage.side_effect = slack_api_error("channel_not_found")
 
         with patch("slack.client.logger") as mock_logger:
             result = send_message(mock_slack_app, "C999999", "Hello")

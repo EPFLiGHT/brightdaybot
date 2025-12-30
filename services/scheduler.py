@@ -174,9 +174,7 @@ def run_scheduler():
         except Exception as e:
             _failed_executions += 1
             logger.error(f"SCHEDULER_HEALTH: Error in scheduler loop: {e}")
-            time.sleep(
-                SCHEDULER_CHECK_INTERVAL_SECONDS
-            )  # Continue running even after errors
+            time.sleep(SCHEDULER_CHECK_INTERVAL_SECONDS)  # Continue running even after errors
 
 
 def setup_scheduler(app, timezone_aware_check, simple_daily_check):
@@ -209,9 +207,7 @@ def setup_scheduler(app, timezone_aware_check, simple_daily_check):
     else:
         # Only schedule daily check when timezone mode is disabled
         schedule.every().day.at(DAILY_CHECK_TIME.strftime("%H:%M")).do(daily_task)
-        logger.info(
-            f"SCHEDULER: Timezone-aware birthday checks DISABLED (using daily check only)"
-        )
+        logger.info(f"SCHEDULER: Timezone-aware birthday checks DISABLED (using daily check only)")
 
     # Get time zone info for logging
     local_timezone = datetime.now().astimezone().tzinfo
@@ -224,9 +220,7 @@ def setup_scheduler(app, timezone_aware_check, simple_daily_check):
     # Schedule weekly Calendarific cache refresh (every Sunday)
     cache_time_str = CACHE_REFRESH_TIME.strftime("%H:%M")
     schedule.every().sunday.at(cache_time_str).do(weekly_calendarific_refresh_task)
-    logger.info(
-        f"SCHEDULER: Weekly Calendarific refresh scheduled for Sunday {cache_time_str}"
-    )
+    logger.info(f"SCHEDULER: Weekly Calendarific refresh scheduled for Sunday {cache_time_str}")
 
     # Schedule monthly observances cache refresh (1st of each month)
     # Refreshes UN, UNESCO, and WHO observances caches
@@ -283,9 +277,7 @@ def startup_birthday_catchup(app, current_time):
         app: Slack app instance
         current_time: Current datetime (passed for logging purposes)
     """
-    logger.info(
-        "STARTUP: Checking for missed birthday celebrations due to server downtime"
-    )
+    logger.info("STARTUP: Checking for missed birthday celebrations due to server downtime")
 
     # Use the dedicated missed birthday function that bypasses time checks
     # and celebrates all uncelebrated birthdays for today
@@ -317,13 +309,9 @@ def get_scheduler_health():
     # Calculate success rate
     success_rate = None
     if _total_executions > 0:
-        success_rate = (
-            (_total_executions - _failed_executions) / _total_executions
-        ) * 100
+        success_rate = ((_total_executions - _failed_executions) / _total_executions) * 100
 
-    health_status = (
-        "ok" if (thread_alive and heartbeat_fresh and _scheduler_running) else "error"
-    )
+    health_status = "ok" if (thread_alive and heartbeat_fresh and _scheduler_running) else "error"
 
     return {
         "status": health_status,

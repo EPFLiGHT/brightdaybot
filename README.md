@@ -39,8 +39,35 @@ A Slack bot that celebrates birthdays with AI-generated personalized messages an
 
 ### 2. Configure Environment
 
+#### Option A: Using uv (Recommended)
+
 ```bash
-pip install -r requirements.txt
+# Install uv (if not installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install dependencies
+uv sync
+
+# Setup crawl4ai browser (for UN observances)
+uv run crawl4ai-setup
+```
+
+#### Option B: Using pip
+
+```bash
+# Create virtual environment
+python -m venv .venv && source .venv/bin/activate
+
+# Install dependencies
+pip install .
+
+# Setup crawl4ai browser
+crawl4ai-setup
+```
+
+**Configure environment:**
+
+```bash
 cp .env.example .env
 ```
 
@@ -56,7 +83,11 @@ OPENAI_API_KEY="sk-..."
 ### 3. Run
 
 ```bash
-python app.py
+# Using uv (recommended)
+uv run python app.py
+
+# Or using Docker
+docker compose up -d
 ```
 
 ## Commands
@@ -150,8 +181,8 @@ NLP_DATE_PARSING_ENABLED="false"    # Enable NLP parsing (default: false)
 ### Special Days Setup (Optional)
 
 ```bash
-# UN/UNESCO/WHO Observances (requires crawl4ai)
-pip install crawl4ai && crawl4ai-setup
+# UN/UNESCO/WHO Observances - browser setup for crawl4ai
+uv run crawl4ai-setup
 
 # Calendarific holidays (optional, 500 free calls/month)
 # Add to .env: CALENDARIFIC_API_KEY="..." CALENDARIFIC_ENABLED="true"
@@ -227,38 +258,47 @@ brightdaybot/
 
 ## Production Deployment
 
-### Playwright Setup (for UN Observances)
-
-If using UN observances with crawl4ai, install Playwright browsers to a shared path:
+### Docker (Recommended)
 
 ```bash
-# Create shared directory
-sudo mkdir -p /opt/playwright
-sudo chmod 777 /opt/playwright
+# Build and run
+docker compose up -d
 
-# Install Chromium (replace paths as needed)
-sudo -u <service_user> PLAYWRIGHT_BROWSERS_PATH=/opt/playwright /path/to/venv/bin/python -m playwright install chromium
+# View logs
+docker compose logs -f
+
+# Update
+docker compose pull && docker compose up -d
 ```
 
-### systemd Service
+### systemd with uv
 
 ```bash
-sudo nano /etc/systemd/system/brightdaybot.service
+# Install uv system-wide
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Move uv to /usr/local/bin (optional, for system-wide access)
+sudo mv ~/.local/bin/uv /usr/local/bin/
+
+# Install dependencies and setup crawl4ai browser
+cd /path/to/brightdaybot
+uv sync
+sudo mkdir -p /opt/playwright && sudo chmod 777 /opt/playwright
+PLAYWRIGHT_BROWSERS_PATH=/opt/playwright uv run crawl4ai-setup
 ```
 
 ```ini
+# /etc/systemd/system/brightdaybot.service
 [Unit]
 Description=BrightDayBot
 After=network-online.target
 
 [Service]
 Type=simple
-User=<service_user>
-ExecStart=/path/to/venv/bin/python /path/to/app.py
+ExecStart=/usr/local/bin/uv run python app.py
 WorkingDirectory=/path/to/brightdaybot
 Restart=always
 RestartSec=30
-Environment="PATH=/path/to/venv/bin:/usr/bin:/bin"
 Environment="PLAYWRIGHT_BROWSERS_PATH=/opt/playwright"
 
 [Install]
@@ -266,6 +306,10 @@ WantedBy=multi-user.target
 ```
 
 ```bash
+# Reload systemd after creating/modifying the service file
+sudo systemctl daemon-reload
+
+# Enable and start the service
 sudo systemctl enable --now brightdaybot
 ```
 

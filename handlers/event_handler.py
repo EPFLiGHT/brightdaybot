@@ -43,9 +43,7 @@ def _try_nlp_date_parsing(text_lower: str, original_text: str):
         result = parse_date_with_nlp(original_text)
 
         if result["status"] in ["success", "ambiguous"]:
-            events_logger.info(
-                f"NLP_DATE: Parsed date from '{original_text[:50]}...' - {result}"
-            )
+            events_logger.info(f"NLP_DATE: Parsed date from '{original_text[:50]}...' - {result}")
             return result
 
         return None
@@ -137,9 +135,7 @@ def _handle_thread_reply(app, event, channel, thread_ts):
 
 
 def register_event_handlers(app):
-    events_logger.info(
-        "EVENT_HANDLER: Registering event handlers including button actions"
-    )
+    events_logger.info("EVENT_HANDLER: Registering event handlers including button actions")
 
     @app.action(re.compile("^special_day_details_"))
     def handle_special_day_details(ack, body, action, client):
@@ -151,12 +147,8 @@ def register_event_handlers(app):
         """
         # DEBUG: Log immediately when button is clicked
         events_logger.info("BUTTON_CLICKED: Received button interaction!")
-        events_logger.info(
-            f"BUTTON_CLICKED: action_id={action.get('action_id', 'UNKNOWN')}"
-        )
-        events_logger.info(
-            f"BUTTON_CLICKED: user={body.get('user', {}).get('id', 'UNKNOWN')}"
-        )
+        events_logger.info(f"BUTTON_CLICKED: action_id={action.get('action_id', 'UNKNOWN')}")
+        events_logger.info(f"BUTTON_CLICKED: user={body.get('user', {}).get('id', 'UNKNOWN')}")
         events_logger.info(
             f"BUTTON_CLICKED: channel={body.get('channel', {}).get('id', 'UNKNOWN')}"
         )
@@ -187,9 +179,7 @@ def register_event_handlers(app):
             events_logger.info(
                 f"SPECIAL_DAY_DETAILS: User {user_id} clicked View Details for {observance_name} in channel {channel_id}"
             )
-            events_logger.info(
-                f"SPECIAL_DAY_DETAILS: Description length: {len(description)} chars"
-            )
+            events_logger.info(f"SPECIAL_DAY_DETAILS: Description length: {len(description)} chars")
 
             # Check if this is a DM (channel type is "im")
             channel_type = body.get("channel", {}).get("type", "unknown")
@@ -232,9 +222,7 @@ def register_event_handlers(app):
                 )
 
         except Exception as e:
-            events_logger.error(
-                f"SPECIAL_DAY_DETAILS_ERROR: Failed to show details: {e}"
-            )
+            events_logger.error(f"SPECIAL_DAY_DETAILS_ERROR: Failed to show details: {e}")
             events_logger.error(f"SPECIAL_DAY_DETAILS_ERROR: Body: {body}")
             events_logger.error(f"SPECIAL_DAY_DETAILS_ERROR: Action: {action}")
 
@@ -311,9 +299,7 @@ def register_event_handlers(app):
         # Ignore thread replies in DMs - don't process them as commands
         # This prevents "I Didn't Understand That" errors when users reply to bot messages
         if thread_ts:
-            events_logger.debug(
-                f"DM_THREAD: Ignoring thread reply from user {event.get('user')}"
-            )
+            events_logger.debug(f"DM_THREAD: Ignoring thread reply from user {event.get('user')}")
             return
 
         text = event.get("text", "").lower()
@@ -393,9 +379,7 @@ def register_event_handlers(app):
         events_logger.debug(f"CHANNEL_JOIN: User {user} joined channel {channel}")
 
         # Use Slack logger for framework logging
-        logger.debug(
-            f"SLACK_EVENT: Processing member_joined_channel event for user {user}"
-        )
+        logger.debug(f"SLACK_EVENT: Processing member_joined_channel event for user {user}")
 
         # Send welcome message if they joined the birthday channel
         if channel == BIRTHDAY_CHANNEL:
@@ -425,9 +409,7 @@ def register_event_handlers(app):
                 events_logger.error(
                     f"BIRTHDAY_CHANNEL: Failed to send welcome message to {user}: {e}"
                 )
-                logger.error(
-                    f"SLACK_ERROR: Failed to process welcome for user {user}: {e}"
-                )
+                logger.error(f"SLACK_ERROR: Failed to process welcome for user {user}: {e}")
         else:
             # Log non-birthday channel joins for debugging
             events_logger.debug(

@@ -46,33 +46,18 @@ class WHOObservancesClient(ObservanceScraperBase):
     CACHE_FILE = WHO_OBSERVANCES_CACHE_FILE
     CACHE_TTL_DAYS = WHO_OBSERVANCES_CACHE_TTL_DAYS
 
-    def _get_content_start_marker(self) -> str:
-        """WHO page content starts with health days section."""
-        return "Global public health days"
-
-    def _get_llm_prompt(self, markdown: str) -> str:
-        """Get WHO-specific LLM prompt."""
-        return (
-            """Extract ALL WHO Global Health Days from this markdown.
-
-CRITICAL: Return ONLY a valid JSON array. No markdown, no code fences, no explanations, no notes.
-Start with [ and end with ] - nothing else.
-
-Format: [{"day": 7, "month": "April", "name": "World Health Day", "url": "https://www.who.int/campaigns/world-health-day", "emoji": "🏥"}, ...]
+    def _get_llm_instruction(self) -> str:
+        """Get WHO-specific LLM extraction instruction."""
+        return """Extract ALL WHO Global Health Days and campaigns from this page.
 
 Rules:
-- Include ALL health days and campaigns listed (both "Global public health days" and "Other days and events" sections)
-- Extract the exact day number and full month name
+- Include ALL health days from both "Global public health days" and "Other days and events" sections
+- Extract the exact day number and full month name in English
 - For date ranges like "24-30 April", use the START date (24)
 - Extract the campaign/day name exactly as shown
 - Construct full URLs by prefixing paths with https://www.who.int
 - Skip week-long events (like "World Immunization Week") - only include specific days
-- Pick 1 relevant health/medical emoji that represents each campaign
-
-Markdown content:
-"""
-            + markdown
-        )
+- Pick 1 relevant health/medical emoji that represents each campaign"""
 
     def _parse_regex(self, markdown: str) -> List[Dict]:
         """
