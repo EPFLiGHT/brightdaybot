@@ -395,16 +395,36 @@ def _normalize_name(name: str) -> str:
     """
     Normalize a special day name for deduplication comparison.
 
-    Removes common prefixes, converts to lowercase, strips punctuation.
+    Removes common prefixes, converts to lowercase, strips punctuation,
+    and expands common abbreviations.
 
     Examples:
         "International Day of Peace" -> "peace"
         "World Health Day" -> "health"
         "International Women's Day" -> "women"
+        "World TB Day" -> "tuberculosis"
     """
     import re
 
     name = name.lower().strip()
+
+    # Expand common abbreviations (before other processing)
+    abbreviations = {
+        " tb ": " tuberculosis ",
+        " tb,": " tuberculosis,",
+        "(tb)": "(tuberculosis)",
+        " aids ": " hiv aids ",
+        " hiv ": " hiv aids ",
+        " ntd ": " neglected tropical diseases ",
+        " ict ": " information communication technology ",
+        # Synonyms for same concepts
+        " francophonie ": " french language ",
+    }
+    # Handle word boundaries
+    name_spaced = f" {name} "
+    for abbr, full in abbreviations.items():
+        name_spaced = name_spaced.replace(abbr, full)
+    name = name_spaced.strip()
 
     # Remove common prefixes
     prefixes = [
@@ -438,7 +458,11 @@ def _normalize_name(name: str) -> str:
                 name = name[: -len(suffix)]
                 break
 
-    # Remove punctuation and extra whitespace
+    # Replace hyphens with spaces (before removing other punctuation)
+    # This ensures "no-tobacco" → "no tobacco" not "notobacco"
+    name = name.replace("-", " ")
+
+    # Remove other punctuation and extra whitespace
     name = re.sub(r"[^\w\s]", "", name)
     name = re.sub(r"\s+", " ", name).strip()
 
@@ -472,12 +496,11 @@ def _names_match(name1: str, name2: str) -> bool:
     if norm1 == norm2:
         return True
 
-    # Containment match - only if the shorter name is a significant portion
-    # E.g., "women" matches "womens rights" but "health" doesn't match "mental health"
+    # Containment match - shorter name is contained in longer
     if len(norm1) >= 4 and len(norm2) >= 4:
         shorter, longer = (norm1, norm2) if len(norm1) <= len(norm2) else (norm2, norm1)
-        # Only match if shorter is at least 60% of longer (prevents "health" matching "mental health")
-        if shorter in longer and len(shorter) >= len(longer) * 0.6:
+        # Match if shorter is at least 40% of longer (e.g., "girl" vs "girl child")
+        if shorter in longer and len(shorter) >= len(longer) * 0.4:
             return True
 
     # Check word overlap - if 2+ significant words match
@@ -488,12 +511,24 @@ def _names_match(name1: str, name2: str) -> bool:
     if len(common_words) >= 2:
         return True
 
-    # Single word match - only when normalized names are also identical
-    # This prevents "christmas day" from matching "christmas eve"
-    # (both have single significant word "christmas" but different short words)
+    # Single significant word match - only if normalized names are also similar
+    # Prevents "christmas day" matching "christmas eve" (day ≠ eve)
     if len(words1) == 1 and len(words2) == 1 and words1 == words2:
-        # Additional check: require normalized names to be identical
-        if norm1 == norm2:
+        # Check that the differing parts are only common suffixes (day, week) not different words
+        all_words1 = set(norm1.split())
+        all_words2 = set(norm2.split())
+        diff_words = (all_words1 - all_words2) | (all_words2 - all_words1)
+        # Only allow match if differing words are just "day", "week", etc.
+        allowed_diff = {"day", "week", "month", "year", "the", "of", "for", "and", "a", "an"}
+        if diff_words <= allowed_diff:
+            return True
+
+    # Prefix/suffix variations after normalization
+    # E.g., "universal health coverage" vs "health coverage"
+    if len(norm1) >= 6 and len(norm2) >= 6:
+        shorter, longer = (norm1, norm2) if len(norm1) <= len(norm2) else (norm2, norm1)
+        # Check if shorter is a prefix or suffix of longer (with some tolerance)
+        if longer.startswith(shorter) or longer.endswith(shorter):
             return True
 
     return False

@@ -215,6 +215,9 @@ class ObservanceScraperBase(ABC):
         if api_key:
             try:
                 model = get_current_openai_model()
+                logger.debug(
+                    f"{self.SOURCE_NAME}_OBSERVANCES: Starting LLM extraction with model {model}"
+                )
                 llm_strategy = LLMExtractionStrategy(
                     llm_config=LLMConfig(
                         provider=f"openai/{model}",
@@ -223,8 +226,9 @@ class ObservanceScraperBase(ABC):
                     schema=ObservanceItem.model_json_schema(),
                     extraction_type="schema",
                     instruction=self._get_llm_instruction(),
-                    chunk_token_threshold=8000,
-                    apply_chunking=True,
+                    # Disable chunking - GPT-4.1's 128K context can handle entire pages
+                    # Chunking causes inconsistent results due to boundary effects
+                    apply_chunking=False,
                     extra_args={"temperature": 0.1, "max_tokens": 16000},
                 )
 
@@ -235,11 +239,20 @@ class ObservanceScraperBase(ABC):
                 ) as crawler:
                     result = await crawler.arun(url=self.SOURCE_URL, config=config)
 
-                    if result.success and result.extracted_content:
+                    if not result.success:
+                        logger.warning(
+                            f"{self.SOURCE_NAME}_OBSERVANCES: Crawl failed: {result.error_message}"
+                        )
+                    elif not result.extracted_content:
+                        logger.warning(
+                            f"{self.SOURCE_NAME}_OBSERVANCES: LLM returned empty content"
+                        )
+                    else:
                         raw_data = json.loads(result.extracted_content)
-                        # Handle both list and dict with 'items' key
-                        items = (
-                            raw_data if isinstance(raw_data, list) else raw_data.get("items", [])
+                        # Handle crawl4ai's chunked response format
+                        items = self._extract_items_from_response(raw_data)
+                        logger.debug(
+                            f"{self.SOURCE_NAME}_OBSERVANCES: LLM returned {len(items)} raw items"
                         )
                         observances = self._process_llm_output(items)
 
@@ -248,7 +261,13 @@ class ObservanceScraperBase(ABC):
                                 f"{self.SOURCE_NAME}_OBSERVANCES: LLM extracted {len(observances)} observances"
                             )
                             return observances
+                        else:
+                            logger.warning(
+                                f"{self.SOURCE_NAME}_OBSERVANCES: LLM returned {len(items)} items but 0 valid after processing"
+                            )
 
+            except json.JSONDecodeError as e:
+                logger.warning(f"{self.SOURCE_NAME}_OBSERVANCES: LLM returned invalid JSON: {e}")
             except Exception as e:
                 logger.warning(f"{self.SOURCE_NAME}_OBSERVANCES: LLM extraction failed: {e}")
 
@@ -269,10 +288,101 @@ class ObservanceScraperBase(ABC):
 
         return observances
 
+    def _extract_items_from_response(self, raw_data) -> List[Dict]:
+        """
+        Extract items from crawl4ai's LLM response.
+
+        Handles two formats:
+        1. Direct list of objects: [{day: 4, month: "January", ...}, ...]
+        2. Chunked wrapper: [{index: 0, content: ['json1', 'json2', ...]}, ...]
+           (used when content is split across multiple LLM calls)
+        """
+        items = []
+        chunk_count = 0
+        parse_errors = 0
+
+        # Case 1: Direct list of observance objects
+        if isinstance(raw_data, list):
+            logger.debug(
+                f"{self.SOURCE_NAME}_OBSERVANCES: Raw data is list with {len(raw_data)} top-level items"
+            )
+            for idx, item in enumerate(raw_data):
+                # Check if this is a chunked wrapper (has 'content' key with list of JSON strings)
+                if (
+                    isinstance(item, dict)
+                    and "content" in item
+                    and isinstance(item["content"], list)
+                ):
+                    chunk_count += 1
+                    chunk_items = 0
+                    # Parse each JSON string in the content array
+                    for json_str in item["content"]:
+                        if isinstance(json_str, str):
+                            try:
+                                # Fix ES6 unicode escapes: \u{1F4DD} -> actual emoji
+                                fixed_str = self._fix_unicode_escapes(json_str)
+                                parsed = json.loads(fixed_str)
+                                items.append(parsed)
+                                chunk_items += 1
+                            except json.JSONDecodeError as e:
+                                parse_errors += 1
+                                logger.debug(
+                                    f"{self.SOURCE_NAME}_OBSERVANCES: JSON parse error in chunk {idx}: {e}"
+                                )
+                                continue
+                        elif isinstance(json_str, dict):
+                            items.append(json_str)
+                            chunk_items += 1
+                    logger.debug(
+                        f"{self.SOURCE_NAME}_OBSERVANCES: Chunk {idx} yielded {chunk_items} items"
+                    )
+                # Check if this is a direct observance object (has 'day' and 'month')
+                elif isinstance(item, dict) and "day" in item and "month" in item:
+                    items.append(item)
+                # Log unexpected item format
+                elif isinstance(item, dict):
+                    keys = list(item.keys())[:5]
+                    logger.debug(
+                        f"{self.SOURCE_NAME}_OBSERVANCES: Unexpected item format at {idx}, keys: {keys}"
+                    )
+
+        # Case 2: Dict with 'items' key
+        elif isinstance(raw_data, dict):
+            items = raw_data.get("items", [])
+            logger.debug(f"{self.SOURCE_NAME}_OBSERVANCES: Raw data is dict with 'items' key")
+
+        if chunk_count > 0:
+            logger.info(
+                f"{self.SOURCE_NAME}_OBSERVANCES: Processed {chunk_count} chunks, "
+                f"extracted {len(items)} items, {parse_errors} parse errors"
+            )
+        else:
+            logger.debug(f"{self.SOURCE_NAME}_OBSERVANCES: Extracted {len(items)} direct items")
+
+        return items
+
+    def _fix_unicode_escapes(self, text: str) -> str:
+        r"""
+        Fix ES6-style unicode escapes to valid JSON.
+
+        LLMs sometimes output \u{1F4DD} (ES6) instead of valid JSON unicode.
+        Convert to actual characters.
+        """
+        import re
+
+        def replace_unicode(match):
+            code_point = int(match.group(1), 16)
+            return chr(code_point)
+
+        # Replace \u{XXXX} or \u{XXXXX} with actual character
+        return re.sub(r"\\u\{([0-9A-Fa-f]+)\}", replace_unicode, text)
+
     def _process_llm_output(self, raw_observances: List[Dict]) -> List[Dict]:
         """Process LLM-extracted observances into our format."""
         observances = []
         seen_names = set()
+        skipped_invalid = 0
+        skipped_duplicate = 0
 
         for obs in raw_observances:
             try:
@@ -284,10 +394,12 @@ class ObservanceScraperBase(ABC):
 
                 month_num = MONTH_FULL_TO_NUM.get(month_name)
                 if not month_num or not (1 <= day <= 31) or not name:
+                    skipped_invalid += 1
                     continue
 
                 # Skip duplicates
                 if name in seen_names:
+                    skipped_duplicate += 1
                     continue
                 seen_names.add(name)
 
@@ -312,7 +424,14 @@ class ObservanceScraperBase(ABC):
                     }
                 )
             except (ValueError, TypeError):
+                skipped_invalid += 1
                 continue
+
+        if skipped_invalid > 0 or skipped_duplicate > 0:
+            logger.debug(
+                f"{self.SOURCE_NAME}_OBSERVANCES: Processing stats - "
+                f"valid: {len(observances)}, invalid: {skipped_invalid}, duplicates: {skipped_duplicate}"
+            )
 
         return observances
 

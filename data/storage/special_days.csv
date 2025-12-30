@@ -1,7 +1,6 @@
 date,name,category,description,emoji,enabled,source,url
 28/01,Data Protection Day,Tech,Raising awareness about privacy and data protection best practices,🔒,true,Council of Europe,https://www.coe.int/en/web/data-protection/data-protection-day
 04/02,World Cancer Day,Global Health,Uniting the world in the fight against cancer,🎗️,true,UICC/WHO,https://www.worldcancerday.org/
-04/03,World Engineering Day,Tech,Raising awareness of engineering's essential role in sustainable development and climate action,⚙️,true,UNESCO,https://www.unesco.org/en/days/engineering-sustainable-development
 14/03,Pi Day,Tech,Celebrating the mathematical constant π and mathematics in general,🥧,true,Larry Shaw/Exploratorium,https://www.piday.org/
 20/03,World Oral Health Day,Global Health,Empowering people with knowledge and tools to secure good oral health,🦷,true,FDI,https://www.worldoralhealthday.org/
 31/03,World Backup Day,Tech,Reminder to protect digital data through regular backups,💾,true,Ismail Jadun,https://www.worldbackupday.com/
@@ -9,7 +8,6 @@ date,name,category,description,emoji,enabled,source,url
 18/04,International Day for Monuments and Sites,Culture,Promoting cultural heritage preservation and awareness,🏛️,true,UNESCO/ICOMOS,https://www.icomos.org/en/focus/18-april-international-day-for-monuments-and-sites
 19/04,World Liver Day,Global Health,Raising awareness about liver diseases and promoting liver health globally,🫀,true,EASL,https://worldliverday.org/
 25/04,World DNA Day,Tech,Commemorating the discovery of DNA's double helix and the completion of the Human Genome Project,🧬,true,NHGRI/ASHG,https://www.genome.gov/dna-day
-26/04,World Intellectual Property Day,Tech,"Celebrating creativity and innovation protected by patents, copyrights, and trademarks",💡,true,WIPO,https://www.wipo.int/en/web/ipday/
 04/05,Star Wars Day,Tech,Celebrating science fiction and space technology (May the Fourth),🌟,true,Fan-created,
 05/05,International Day of the Midwife,Global Health,Recognizing midwives' vital role in maternal and newborn health worldwide,🤱,true,ICM,https://www.internationalmidwives.org/what-we-do/policy-and-practice/international-day-of-the-midwife.html
 08/05,World Red Cross and Red Crescent Day,Global Health,Celebrating humanitarian work and founder Henry Dunant's birthday,⚕️,true,IFRC,https://www.ifrc.org/
@@ -19,7 +17,7 @@ date,name,category,description,emoji,enabled,source,url
 20/05,International Clinical Trials Day,Tech,Recognizing the importance of clinical research and honoring James Lind's first trial in 1747,🔬,true,ECRIN/ACRP,https://www.clinicaltrialsday.org/
 28/05,Menstrual Hygiene Day,Global Health,Breaking taboos and raising awareness about menstrual hygiene,🌸,true,WASH United,https://menstrualhygieneday.org/
 19/06,World Sickle Cell Day,Global Health,Increasing awareness of sickle cell disease affecting millions worldwide,🩸,true,UN,https://www.un.org/en/observances/sickle-cell-day
-23/06,International Women in Engineering Day,Tech,Promoting gender equality in STEM fields worldwide,👷‍♀️,true,UNESCO,https://www.unesco.org/en/days/women-in-engineering-day
+23/06,International Women in Engineering Day,Tech,Promoting gender equality in STEM fields worldwide,👷‍♀️,true,Women's Engineering Society (WES),https://www.inwed.org.uk/
 06/07,World Zoonoses Day,Global Health,Raising awareness of diseases transmitted between animals and humans,🦠,true,One Health,https://www.onehealthcommission.org/
 25/07,System Administrator Appreciation Day,Tech,Honoring sysadmins who keep IT infrastructure running (last Friday of July),🖥️,true,Ted Kekatos,https://sysadminday.com/
 31/08,International Overdose Awareness Day,Global Health,Remembering those lost to overdose and ending stigma,💜,true,Penington Institute,https://www.overdoseday.com/
