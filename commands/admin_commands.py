@@ -25,10 +25,6 @@ from config import (
     COMMAND_PERMISSIONS,
     BOT_PERSONALITIES,
     DATE_FORMAT,
-    DATA_DIR,
-    STORAGE_DIR,
-    CACHE_DIR,
-    BIRTHDAYS_FILE,
     DAILY_CHECK_TIME,
     TIMEZONE_CELEBRATION_TIME,
     EXTERNAL_BACKUP_ENABLED,
@@ -486,7 +482,6 @@ def handle_status_command(parts, user_id, say, app):
     """
     from utils.health import get_system_status
     from slack.blocks import build_health_status_blocks
-    from services.scheduler import get_scheduler_summary
 
     username = get_username(app, user_id)
 
@@ -496,49 +491,9 @@ def handle_status_command(parts, user_id, say, app):
     # Get system status data
     status = get_system_status()
 
-    # Build Block Kit status display
+    # Build Block Kit status display (includes all details when detailed=True)
     blocks, fallback = build_health_status_blocks(status, detailed=is_detailed)
-
-    if is_detailed:
-        # Add detailed information for advanced users
-        status = get_system_status()
-
-        # Add system paths
-        detailed_info = [
-            "\n*System Paths:*",
-            f"• Data Directory: `{DATA_DIR}`",
-            f"• Storage Directory: `{STORAGE_DIR}`",
-            f"• Birthdays File: `{BIRTHDAYS_FILE}`",
-            f"• Cache Directory: `{CACHE_DIR}`",
-        ]
-
-        # Add cache statistics if available
-        if (
-            status["components"].get("cache", {}).get("status") == "ok"
-            and status["components"].get("cache", {}).get("file_count", 0) > 0
-        ):
-            detailed_info.extend(
-                [
-                    "\n*Cache Details:*",
-                    f"• Total Files: {status['components'].get('cache', {}).get('file_count', 0)}",
-                    f"• Oldest Cache: {status['components'].get('cache', {}).get('oldest_cache', {}).get('file', 'N/A')} ({status['components'].get('cache', {}).get('oldest_cache', {}).get('date', 'N/A')})",
-                    f"• Newest Cache: {status['components'].get('cache', {}).get('newest_cache', {}).get('file', 'N/A')} ({status['components'].get('cache', {}).get('newest_cache', {}).get('date', 'N/A')})",
-                ]
-            )
-
-        # Add scheduler health summary
-        scheduler_summary = get_scheduler_summary()
-        detailed_info.extend(["\n*Scheduler:*", f"• {scheduler_summary}"])
-
-        # For detailed mode, append additional text info after Block Kit
-        detailed_text = "\n" + "\n".join(detailed_info)
-        # Send Block Kit first
-        say(blocks=blocks, text=fallback)
-        # Then send detailed text separately
-        say(detailed_text)
-    else:
-        # Standard mode - just send Block Kit
-        say(blocks=blocks, text=fallback)
+    say(blocks=blocks, text=fallback)
     logger.info(
         f"STATUS: {username} ({user_id}) requested system status {'with details' if is_detailed else ''}"
     )

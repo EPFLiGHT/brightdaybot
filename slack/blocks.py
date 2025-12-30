@@ -8,7 +8,6 @@ Block Kit provides rich, visually appealing message layouts with proper hierarch
 organization, and professional polish.
 """
 
-import warnings
 from typing import List, Dict, Any, Optional
 from config import (
     DEFAULT_IMAGE_PERSONALITY,
@@ -146,11 +145,15 @@ def build_birthday_blocks(
     # Add person information in fields layout
     fields = []
     for person in birthday_people:
-        age_text = f" • {person['age']} years" if person.get("age") is not None else ""
+        user_id = person.get("user_id", "unknown")
+        star_sign = person.get("star_sign", "")
+        age_text = (
+            f" • {person.get('age')} years" if person.get("age") is not None else ""
+        )
         fields.append(
             {
                 "type": "mrkdwn",
-                "text": f"*<@{person['user_id']}>*\n{person['star_sign']}{age_text}",
+                "text": f"*<@{user_id}>*\n{star_sign}{age_text}",
             }
         )
 
@@ -179,109 +182,17 @@ def build_birthday_blocks(
     # Generate fallback text
     if count == 1:
         person = birthday_people[0]
-        age_text = f" ({person['age']} years old)" if person.get("age") else ""
-        fallback_text = (
-            f"🎂 Happy Birthday {person['username']}!{age_text} {person['star_sign']}"
-        )
+        username = person.get("username", "Birthday Person")
+        star_sign = person.get("star_sign", "")
+        age_text = f" ({person.get('age')} years old)" if person.get("age") else ""
+        fallback_text = f"🎂 Happy Birthday {username}!{age_text} {star_sign}"
     else:
-        names = ", ".join([person["username"] for person in birthday_people])
+        names = ", ".join(
+            [person.get("username", "Someone") for person in birthday_people]
+        )
         fallback_text = f"🎂 Happy Birthday to {names}!"
 
     return blocks, fallback_text
-
-
-def build_birthday_blocks_single(
-    username: str,
-    user_id: str,
-    age: Optional[int],
-    star_sign: str,
-    message: str,
-    historical_fact: Optional[str] = None,
-    personality: str = "standard",
-    image_file_id: Optional[Any] = None,
-    image_title: Optional[str] = None,
-) -> tuple[List[Dict[str, Any]], str]:
-    """
-    DEPRECATED: Use build_birthday_blocks() with a single-element list instead.
-
-    Build Block Kit structure for single birthday announcement.
-    This is a backward-compatibility wrapper.
-    """
-    warnings.warn(
-        "build_birthday_blocks_single() is deprecated. "
-        "Use build_birthday_blocks() with a single-element list instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-
-    # Convert single person to list format
-    birthday_people = [
-        {
-            "username": username,
-            "user_id": user_id,
-            "age": age,
-            "star_sign": star_sign,
-        }
-    ]
-
-    # Convert image to list format, handling tuple
-    image_file_ids = None
-    if image_file_id:
-        if isinstance(image_file_id, tuple):
-            image_file_ids = [image_file_id]
-        else:
-            image_file_ids = [(image_file_id, image_title)]
-
-    return build_birthday_blocks(
-        birthday_people_or_username=birthday_people,
-        message=message,
-        historical_fact=historical_fact,
-        personality=personality,
-        image_file_ids=image_file_ids,
-    )
-
-
-def build_consolidated_birthday_blocks(
-    birthday_people: List[Dict[str, Any]],
-    message: str,
-    historical_fact: Optional[str] = None,
-    personality: str = "standard",
-    image_file_ids: Optional[List[Any]] = None,
-    image_titles: Optional[List[str]] = None,
-) -> tuple[List[Dict[str, Any]], str]:
-    """
-    DEPRECATED: Use build_birthday_blocks() instead.
-
-    Build Block Kit structure for multiple birthday announcements.
-    This is a backward-compatibility wrapper.
-    """
-    warnings.warn(
-        "build_consolidated_birthday_blocks() is deprecated. "
-        "Use build_birthday_blocks() instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-
-    # Convert image_titles to tuple format if needed
-    converted_image_ids = None
-    if image_file_ids:
-        converted_image_ids = []
-        for i, file_id in enumerate(image_file_ids):
-            if isinstance(file_id, tuple):
-                converted_image_ids.append(file_id)
-            else:
-                title = (
-                    image_titles[i] if image_titles and i < len(image_titles) else None
-                )
-                converted_image_ids.append((file_id, title))
-
-    return build_birthday_blocks(
-        birthday_people_or_username=birthday_people,
-        message=message,
-        historical_fact=historical_fact,
-        personality=personality,
-        image_file_ids=converted_image_ids,
-    )
 
 
 def build_special_day_blocks(
@@ -504,33 +415,6 @@ def build_special_day_blocks(
         fallback_text = f"🌍 {count} Special Observances Today: {names}"
 
     return blocks, fallback_text
-
-
-def build_consolidated_special_days_blocks(
-    special_days: List[Any],
-    message: str,
-    personality: str = "chronicler",
-    detailed_content: Optional[str] = None,
-) -> tuple[List[Dict[str, Any]], str]:
-    """
-    DEPRECATED: Use build_special_day_blocks() instead.
-
-    Build Block Kit structure for multiple special day announcements.
-    This is a backward-compatibility wrapper.
-    """
-    warnings.warn(
-        "build_consolidated_special_days_blocks() is deprecated. "
-        "Use build_special_day_blocks() instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-
-    return build_special_day_blocks(
-        special_days=special_days,
-        message=message,
-        personality=personality,
-        detailed_content=detailed_content,
-    )
 
 
 def build_announce_result_blocks(success: bool) -> tuple[List[Dict[str, Any]], str]:
@@ -2319,12 +2203,12 @@ def build_unrecognized_input_blocks() -> tuple[List[Dict[str, Any]], str]:
 # =============================================================================
 
 
-def build_birthday_modal(user_id: str) -> Dict[str, Any]:
+def build_birthday_modal(_user_id: str) -> Dict[str, Any]:
     """
     Build the birthday input modal with month/day dropdowns.
 
     Args:
-        user_id: User ID for the modal
+        _user_id: User ID (reserved for future use, e.g., prefilling existing data)
 
     Returns:
         Modal view definition
