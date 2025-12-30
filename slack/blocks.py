@@ -1064,7 +1064,9 @@ def build_health_status_blocks(
     )
 
     core_fields = []
-    storage = components.get("storage_directory", {})
+    # Storage comes from directories.storage
+    directories = components.get("directories", {})
+    storage = directories.get("storage", {})
     storage_emoji = "✅" if storage.get("status") == STATUS_OK else "❌"
     core_fields.append(
         {
@@ -1073,9 +1075,10 @@ def build_health_status_blocks(
         }
     )
 
-    birthdays = components.get("birthdays_file", {})
+    # Birthdays file
+    birthdays = components.get("birthdays", {})
     birthday_emoji = "✅" if birthdays.get("status") == STATUS_OK else "❌"
-    birthday_count = birthdays.get("birthdays_count", "Unknown")
+    birthday_count = birthdays.get("birthday_count", "Unknown")
     core_fields.append(
         {
             "type": "mrkdwn",
@@ -1083,16 +1086,18 @@ def build_health_status_blocks(
         }
     )
 
-    admins = components.get("admin_config", {})
+    # Admins config
+    admins = components.get("admins", {})
     admin_emoji = "✅" if admins.get("status") == STATUS_OK else "❌"
     admin_count = admins.get("admin_count", "Unknown")
     core_fields.append(
         {"type": "mrkdwn", "text": f"{admin_emoji} *Admins*\n{admin_count} configured"}
     )
 
-    personality = components.get("personality_config", {})
+    # Personality config
+    personality = components.get("personality", {})
     personality_emoji = "✅" if personality.get("status") == STATUS_OK else "ℹ️"
-    personality_name = personality.get("personality", "standard")
+    personality_name = personality.get("current_personality", "standard")
     core_fields.append(
         {
             "type": "mrkdwn",
@@ -1109,19 +1114,26 @@ def build_health_status_blocks(
     )
 
     api_fields = []
-    openai = components.get("openai_api", {})
-    openai_emoji = "✅" if openai.get("status") == STATUS_OK else "❌"
+    # Environment variables for API keys
+    env = components.get("environment", {})
+    env_vars = env.get("variables", {})
+
+    openai_var = env_vars.get("OPENAI_API_KEY", {})
+    openai_emoji = "✅" if openai_var.get("status") == STATUS_OK else "❌"
     api_fields.append(
         {
             "type": "mrkdwn",
-            "text": f"{openai_emoji} *OpenAI API*\n{'Configured' if openai.get('status') == STATUS_OK else 'Not configured'}",
+            "text": f"{openai_emoji} *OpenAI API*\n{'Configured' if openai_var.get('set') else 'Not configured'}",
         }
     )
 
-    model = components.get("openai_model", {})
-    model_emoji = "✅" if model.get("status") == STATUS_OK else "⚠️"
-    model_name = model.get("model", "unknown")
-    model_source = model.get("source", "default")
+    # Get model info from storage if available
+    from storage.settings import get_openai_model_info
+
+    model_info = get_openai_model_info()
+    model_emoji = "✅" if model_info.get("valid") else "⚠️"
+    model_name = model_info.get("model", "unknown")
+    model_source = model_info.get("source", "default")
     api_fields.append(
         {
             "type": "mrkdwn",
@@ -1129,21 +1141,21 @@ def build_health_status_blocks(
         }
     )
 
-    slack_bot = components.get("slack_bot_token", {})
-    slack_bot_emoji = "✅" if slack_bot.get("status") == STATUS_OK else "❌"
+    slack_bot_var = env_vars.get("SLACK_BOT_TOKEN", {})
+    slack_bot_emoji = "✅" if slack_bot_var.get("status") == STATUS_OK else "❌"
     api_fields.append(
         {
             "type": "mrkdwn",
-            "text": f"{slack_bot_emoji} *Slack Bot*\n{'Configured' if slack_bot.get('status') == STATUS_OK else 'Not configured'}",
+            "text": f"{slack_bot_emoji} *Slack Bot*\n{'Configured' if slack_bot_var.get('set') else 'Not configured'}",
         }
     )
 
-    slack_app = components.get("slack_app_token", {})
-    slack_app_emoji = "✅" if slack_app.get("status") == STATUS_OK else "❌"
+    slack_app_var = env_vars.get("SLACK_APP_TOKEN", {})
+    slack_app_emoji = "✅" if slack_app_var.get("status") == STATUS_OK else "❌"
     api_fields.append(
         {
             "type": "mrkdwn",
-            "text": f"{slack_app_emoji} *Socket Mode*\n{'Configured' if slack_app.get('status') == STATUS_OK else 'Not configured'}",
+            "text": f"{slack_app_emoji} *Socket Mode*\n{'Configured' if slack_app_var.get('set') else 'Not configured'}",
         }
     )
 
@@ -1159,39 +1171,41 @@ def build_health_status_blocks(
     )
 
     feature_fields = []
-    timezone = components.get("timezone_settings", {})
-    timezone_emoji = "✅" if timezone.get("status") == STATUS_OK else "❌"
-    timezone_mode = timezone.get("mode", "unknown")
-    timezone_enabled = "Enabled" if timezone.get("enabled", True) else "Disabled"
+    # Timezone settings from storage
+    from storage.settings import load_timezone_settings
+
+    tz_enabled, _ = load_timezone_settings()
+    timezone_emoji = "✅" if tz_enabled else "ℹ️"
     feature_fields.append(
         {
             "type": "mrkdwn",
-            "text": f"{timezone_emoji} *Timezone Mode*\n{timezone_mode.title()} ({timezone_enabled})",
+            "text": f"{timezone_emoji} *Timezone Mode*\n{'Enabled' if tz_enabled else 'Disabled'}",
         }
     )
 
-    cache = components.get("cache", {})
-    cache_emoji = "✅" if cache.get("status") == STATUS_OK else "ℹ️"
-    cache_count = cache.get("file_count", 0)
-    cache_enabled = "Enabled" if cache.get("enabled", False) else "Disabled"
+    # Cache directory
+    cache_dir = directories.get("cache", {})
+    cache_emoji = "✅" if cache_dir.get("status") == STATUS_OK else "ℹ️"
     feature_fields.append(
         {
             "type": "mrkdwn",
-            "text": f"{cache_emoji} *Web Cache*\n{cache_count} facts ({cache_enabled})",
+            "text": f"{cache_emoji} *Cache*\n{'Available' if cache_dir.get('status') == STATUS_OK else 'Unavailable'}",
         }
     )
 
-    logs = components.get("log_files", {})
+    # Log files
+    logs = components.get("logs", {})
     logs_emoji = "✅" if logs.get("status") == STATUS_OK else "ℹ️"
-    logs_count = logs.get("total_files", 0)
     logs_size = logs.get("total_size_mb", 0)
+    log_file_count = len(logs.get("files", {}))
     feature_fields.append(
         {
             "type": "mrkdwn",
-            "text": f"{logs_emoji} *Log Files*\n{logs_count} files ({logs_size} MB)",
+            "text": f"{logs_emoji} *Log Files*\n{log_file_count} files ({logs_size} MB)",
         }
     )
 
+    # Birthday channel
     channel = components.get("birthday_channel", {})
     channel_emoji = "✅" if channel.get("status") == STATUS_OK else "❌"
     channel_name = channel.get("channel", "Not configured")
