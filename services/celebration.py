@@ -383,9 +383,9 @@ class BirthdayCelebrationPipeline:
                     }
                 )
 
-            # Extract historical fact from message if available (it's embedded in the message)
-            # For now, we'll pass None and let the block builder handle it
-            historical_fact = None  # TODO: Extract from message if needed
+            # Historical facts are embedded directly in the AI-generated message text
+            # (not returned separately), so we pass None here. This is by design.
+            historical_fact = None
 
             # Build blocks WITH embedded images using file IDs
             # Unified function handles both single and multiple birthdays

@@ -818,10 +818,13 @@ def build_birthday_list_blocks(
             }
         )
 
-    # Fallback text
+    # Fallback text - handle different tuple formats
+    # "upcoming": (user_mention, date_words, age_text, days_text) - user_mention at index 0
+    # "all": (month_name, day_str, user_mention, year_str) - user_mention at index 2
     fallback_lines = [header_text]
     for entry in birthdays[:10]:  # Limit fallback to 10
-        fallback_lines.append(f"• {entry[0]}")
+        user_mention = entry[0] if list_type == "upcoming" else entry[2]
+        fallback_lines.append(f"• {user_mention}")
     fallback_text = "\n".join(fallback_lines)
 
     return blocks, fallback_text

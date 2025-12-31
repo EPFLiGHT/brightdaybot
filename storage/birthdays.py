@@ -464,6 +464,14 @@ def mark_timezone_birthday_announced(user_id, user_timezone):
         user_id: User ID whose birthday was announced
         user_timezone: User's timezone where celebration occurred
     """
+    # Validate timezone before writing
+    from utils.date import get_timezone_object
+    from config import DEFAULT_TIMEZONE
+
+    if not get_timezone_object(user_timezone):
+        logger.warning(f"TIMEZONE: Invalid timezone '{user_timezone}', using default")
+        user_timezone = DEFAULT_TIMEZONE
+
     # Use UTC date for consistent tracking across timezones
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     announced_file = os.path.join(TRACKING_DIR, f"timezone_announced_{today}.txt")

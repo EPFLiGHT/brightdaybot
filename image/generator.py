@@ -78,6 +78,8 @@ def generate_birthday_image(
         title = user_profile.get("title", "")
 
         # DEFENSIVE: Ensure name is always a string
+        # Note: This can happen when Slack profile parsing returns unexpected types
+        # The root cause is in slack/client.py get_user_profile() - keep this as safety net
         if not isinstance(name, str):
             logger.error(
                 f"IMAGE_GEN_BUG: user_profile['preferred_name'] is not a string "

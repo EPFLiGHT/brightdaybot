@@ -1043,7 +1043,10 @@ def create_consolidated_birthday_announcement(
         image_size: Override image size ("auto", "1024x1024", "1536x1024", "1024x1536")
 
     Returns:
-        Tuple of (message, images_list_or_none, actual_personality_name)
+        Always returns a 3-tuple: (message, images_list_or_none, actual_personality_name)
+        - message: str - The generated birthday message (empty string if no people)
+        - images_list_or_none: list|None - List of image dicts if include_image=True, else None
+        - actual_personality_name: str - The personality used for generation
     """
     if not birthday_people:
         return "", None, "standard"
@@ -1432,7 +1435,8 @@ def _format_multiple_names(name):
         return f"{first_names[0]}, {first_names[1]} & {len(first_names)-2} others"
     else:
         # Fallback - shouldn't happen but just in case
-        return name.split()[0] if name else "Team"
+        parts = name.split() if name else []
+        return parts[0] if parts else "Team"
 
 
 def _validate_title_contains_names(title, name, is_multiple_people):
@@ -1495,9 +1499,11 @@ def _validate_title_contains_names(title, name, is_multiple_people):
 
     else:
         # For single person, extract first name
-        first_name = name.strip().split()[0].lower()
-        if len(first_name) > 1:  # Avoid single letters
-            return first_name in title_lower
+        parts = name.strip().split() if name else []
+        if parts:
+            first_name = parts[0].lower()
+            if len(first_name) > 1:  # Avoid single letters
+                return first_name in title_lower
 
     return True  # If we can't validate properly, assume it's okay
 

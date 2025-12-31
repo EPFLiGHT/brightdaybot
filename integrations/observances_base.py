@@ -17,7 +17,7 @@ import asyncio
 import calendar
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import List, Optional, Dict
+from typing import Any, List, Optional, Dict
 
 from pydantic import BaseModel, Field
 
@@ -140,7 +140,7 @@ class ObservanceScraperBase(ABC):
 
         return observances
 
-    def refresh_cache(self, force: bool = False) -> Dict[str, any]:
+    def refresh_cache(self, force: bool = False) -> Dict[str, Any]:
         """
         Refresh the observances cache by scraping the source.
 
