@@ -14,78 +14,75 @@ Main function: handle_command(). Routes to:
 
 from datetime import datetime, timezone
 
-from utils.date import (
-    extract_date,
-    date_to_words,
-    calculate_age,
-    check_if_birthday_today,
-)
-from storage.birthdays import (
-    save_birthday,
-    remove_birthday,
-    mark_birthday_announced,
-)
-from slack.client import (
-    get_username,
-    is_admin,
-)
-from slack.client import get_user_mention
-from services.message import (
-    get_current_personality,
-    get_random_personality_name,
+from config import (
+    EXTERNAL_BACKUP_ENABLED,
+    TIMEOUTS,
+    get_logger,
 )
 from personality_config import get_personality_config
 from services.birthday import send_reminder_to_users
-from config import (
-    BIRTHDAY_CHANNEL,
-    get_logger,
-    EXTERNAL_BACKUP_ENABLED,
-    TIMEOUTS,
+from services.message import (
+    get_random_personality_name,
+)
+from slack.client import (
+    get_user_mention,
+    get_username,
+    is_admin,
+)
+from storage.birthdays import (
+    remove_birthday,
+    save_birthday,
 )
 from storage.settings import get_current_personality_name
+from utils.date import (
+    calculate_age,
+    check_if_birthday_today,
+    date_to_words,
+    extract_date,
+)
 
 # Confirmation timeout from centralized config
 CONFIRMATION_TIMEOUT_MINUTES = TIMEOUTS.get("confirmation_minutes", 5)
 
 # Import from split handler modules
-from commands.birthday_commands import (
-    send_immediate_birthday_announcement,
-    handle_list_command,
-    handle_check_command,
-    handle_remind_command,
-)
 from commands.admin_commands import (
-    handle_stats_command,
-    handle_config_command,
+    handle_admin_add_command,
+    handle_admin_list_command,
+    handle_admin_remove_command,
     handle_announce_command,
-    handle_model_command,
+    handle_backup_command,
     handle_cache_command,
+    handle_config_command,
+    handle_model_command,
+    handle_personality_command,
+    handle_restore_command,
+    handle_stats_command,
     handle_status_command,
     handle_timezone_command,
-    handle_backup_command,
-    handle_restore_command,
-    handle_personality_command,
-    handle_admin_list_command,
-    handle_admin_add_command,
-    handle_admin_remove_command,
 )
-from commands.test_commands import (
-    parse_test_command_args,
-    handle_test_command,
-    handle_test_block_command,
-    handle_test_upload_command,
-    handle_test_upload_multi_command,
-    handle_test_file_upload_command,
-    handle_test_external_backup_command,
-    handle_test_blockkit_command,
-    handle_test_join_command,
-    handle_test_birthday_command,
-    handle_test_bot_celebration_command,
+from commands.birthday_commands import (
+    handle_check_command,
+    handle_list_command,
+    handle_remind_command,
+    send_immediate_birthday_announcement,
 )
 from commands.special_commands import (
-    handle_special_command,
-    handle_admin_special_command_with_quotes,
     handle_admin_special_command,
+    handle_admin_special_command_with_quotes,
+    handle_special_command,
+)
+from commands.test_commands import (
+    handle_test_birthday_command,
+    handle_test_block_command,
+    handle_test_blockkit_command,
+    handle_test_bot_celebration_command,
+    handle_test_command,
+    handle_test_external_backup_command,
+    handle_test_file_upload_command,
+    handle_test_join_command,
+    handle_test_upload_command,
+    handle_test_upload_multi_command,
+    parse_test_command_args,
 )
 
 logger = get_logger("commands")
@@ -409,9 +406,10 @@ def _send_external_backup_if_enabled(updated, username, app, change_type=None):
         change_type: Optional override for change type ("add", "update", "remove")
     """
     try:
-        from storage.birthdays import send_external_backup
-        from config import BACKUP_ON_EVERY_CHANGE, BACKUP_DIR
         import os
+
+        from config import BACKUP_DIR, BACKUP_ON_EVERY_CHANGE
+        from storage.birthdays import send_external_backup
 
         if EXTERNAL_BACKUP_ENABLED and BACKUP_ON_EVERY_CHANGE:
             backup_files = [
@@ -479,6 +477,12 @@ def handle_command(text, user_id, say, app):
 
     elif command == "remove":
         _handle_remove_command(user_id, username, say, app)
+
+    elif command == "pause":
+        _handle_pause_command(user_id, say)
+
+    elif command == "resume":
+        _handle_resume_command(user_id, say)
 
     elif command == "list":
         handle_list_command(parts, user_id, say, app)
@@ -693,6 +697,64 @@ def _handle_remove_command(user_id, username, say, app):
     # Send external backup after user confirmation (only if birthday was actually removed)
     if removed:
         _send_external_backup_if_enabled(True, username, app, change_type="remove")
+
+
+def _handle_pause_command(user_id, say):
+    """
+    Handle pause command via DM.
+
+    Pauses birthday celebrations for the user.
+
+    Args:
+        user_id: Slack user ID
+        say: Slack say function for sending messages
+    """
+    from storage.birthdays import get_birthday, update_user_preferences
+
+    birthday = get_birthday(user_id)
+    if not birthday:
+        say("You haven't added your birthday yet. Use `add DD/MM` to add it first.")
+        return
+
+    # Update preferences to pause
+    success = update_user_preferences(user_id, {"active": False})
+
+    if success:
+        logger.info(f"PAUSE: User {user_id} paused their birthday celebrations")
+        say(
+            "Your birthday celebrations have been paused. You won't receive any announcements until you resume. Use `resume` to enable again."
+        )
+    else:
+        say("Unable to pause celebrations. Please try again.")
+
+
+def _handle_resume_command(user_id, say):
+    """
+    Handle resume command via DM.
+
+    Resumes birthday celebrations for the user.
+
+    Args:
+        user_id: Slack user ID
+        say: Slack say function for sending messages
+    """
+    from storage.birthdays import get_birthday, update_user_preferences
+
+    birthday = get_birthday(user_id)
+    if not birthday:
+        say("You haven't added your birthday yet. Use `add DD/MM` to add it first.")
+        return
+
+    # Update preferences to resume
+    success = update_user_preferences(user_id, {"active": True})
+
+    if success:
+        logger.info(f"RESUME: User {user_id} resumed their birthday celebrations")
+        say(
+            "Your birthday celebrations have been resumed! You'll receive announcements on your birthday."
+        )
+    else:
+        say("Unable to resume celebrations. Please try again.")
 
 
 def _handle_hello_command(user_id, say):

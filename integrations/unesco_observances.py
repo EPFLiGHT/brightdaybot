@@ -15,17 +15,18 @@ Features:
 """
 
 import re
-from typing import List, Dict, Optional
+import threading
+from typing import Dict, List, Optional
 
 from config import (
-    UNESCO_OBSERVANCES_URL,
-    UNESCO_OBSERVANCES_CACHE_TTL_DAYS,
     UNESCO_OBSERVANCES_CACHE_DIR,
     UNESCO_OBSERVANCES_CACHE_FILE,
+    UNESCO_OBSERVANCES_CACHE_TTL_DAYS,
+    UNESCO_OBSERVANCES_URL,
 )
 from integrations.observances_base import (
-    ObservanceScraperBase,
     MONTH_ABBR_TO_NUM,
+    ObservanceScraperBase,
     logger,
 )
 
@@ -148,15 +149,18 @@ Rules:
             pass
 
 
-# Singleton instance
+# Singleton instance with thread lock
 _client: Optional[UNESCOObservancesClient] = None
+_client_lock = threading.Lock()
 
 
 def get_unesco_client() -> UNESCOObservancesClient:
-    """Get or create the UNESCO observances client singleton."""
+    """Get or create the UNESCO observances client singleton (thread-safe)."""
     global _client
     if _client is None:
-        _client = UNESCOObservancesClient()
+        with _client_lock:
+            if _client is None:
+                _client = UNESCOObservancesClient()
     return _client
 
 

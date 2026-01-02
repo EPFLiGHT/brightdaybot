@@ -2,10 +2,11 @@
 Tests for Calendarific API client - core functionality only.
 """
 
-import pytest
 import tempfile
 from datetime import datetime
 from unittest.mock import patch
+
+import pytest
 
 
 class TestCalendarificClient:

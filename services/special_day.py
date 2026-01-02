@@ -5,25 +5,23 @@ AI-powered message generation for special days/holidays using OpenAI API.
 Leverages the Chronicler personality by default but supports all personalities.
 """
 
-import os
-import logging
-from typing import List, Optional, Dict
 from datetime import datetime
+from typing import List, Optional
 
 from config import (
-    SPECIAL_DAYS_PERSONALITY,
-    SPECIAL_DAYS_IMAGE_ENABLED,
-    TOKEN_LIMITS,
-    TEMPERATURE_SETTINGS,
     IMAGE_GENERATION_PARAMS,
     SPECIAL_DAYS_CHANNEL,
+    SPECIAL_DAYS_IMAGE_ENABLED,
+    SPECIAL_DAYS_PERSONALITY,
     TEAM_NAME,
+    TEMPERATURE_SETTINGS,
+    TOKEN_LIMITS,
 )
-from personality_config import get_personality_config
-from utils.log_setup import get_logger
-from integrations.web_search import get_birthday_facts
 from image.generator import generate_birthday_image
 from integrations.openai import complete
+from integrations.web_search import get_birthday_facts
+from personality_config import get_personality_config
+from utils.log_setup import get_logger
 
 # Get dedicated logger
 logger = get_logger("special_days")
@@ -134,11 +132,11 @@ def generate_special_day_message(
 
                 # Add date requirement for full messages
                 prompt += f"\n\nTODAY'S DATE: {today_formatted} ({day_of_week})"
-                prompt += f"\n\nDATE REQUIREMENT: Organically mention today's date somewhere in your announcement. Examples:"
+                prompt += "\n\nDATE REQUIREMENT: Organically mention today's date somewhere in your announcement. Examples:"
                 prompt += f"\n- 'On {today_formatted}, we observe...'"
                 prompt += f"\n- 'This {day_of_week}, {today_formatted}, marks...'"
                 prompt += f"\n- '{today_formatted} brings us...'"
-                prompt += f"\nIntegrate naturally - keep it coherent and not forced."
+                prompt += "\nIntegrate naturally - keep it coherent and not forced."
 
             # Add emoji instructions
             emoji_count = "2-3" if use_teaser else "3-5"
@@ -184,7 +182,7 @@ def generate_special_day_message(
             if not use_teaser:
                 # Add date requirement for multiple days (full messages only)
                 prompt += f"\n\nTODAY'S DATE: {today_formatted} ({day_of_week})"
-                prompt += f"\n\nDATE REQUIREMENT: Organically reference today's date when introducing the observances. Keep it natural."
+                prompt += "\n\nDATE REQUIREMENT: Organically reference today's date when introducing the observances. Keep it natural."
 
             # Add emoji instructions
             emoji_count = "3-4" if use_teaser else "4-6"
@@ -195,7 +193,7 @@ def generate_special_day_message(
             prompt += f"\n\nHistorical context for today: {facts_text}"
 
         # Add channel mention
-        prompt += f"\n\nInclude <!here> to notify the channel."
+        prompt += "\n\nInclude <!here> to notify the channel."
 
         # Generate the message using Responses API
         # Use lower token limit for teasers (shorter messages)
@@ -243,18 +241,18 @@ def generate_fallback_special_day_message(special_days: List, personality_config
     if len(special_days) == 1:
         day = special_days[0]
         emoji = f"{day.emoji} " if day.emoji else ""
-        message = f"📅 TODAY IN HUMAN HISTORY...\n\n"
+        message = "📅 TODAY IN HUMAN HISTORY...\n\n"
         message += f"Today marks {emoji}*{day.name}*!\n\n"
         message += f"{day.description}\n\n"
         message += f"<!here> Let's take a moment to recognize this important {day.category.lower()} observance.\n\n"
         message += f"- {personality_config.get('name', 'The Chronicler')}"
     else:
-        message = f"📅 TODAY IN HUMAN HISTORY...\n\n"
-        message += f"Today brings together multiple important observances:\n\n"
+        message = "📅 TODAY IN HUMAN HISTORY...\n\n"
+        message += "Today brings together multiple important observances:\n\n"
         for day in special_days:
             emoji = f"{day.emoji} " if day.emoji else ""
             message += f"• {emoji}*{day.name}* ({day.category})\n"
-        message += f"\n<!here> These observances remind us of humanity's diverse priorities and shared values.\n\n"
+        message += "\n<!here> These observances remind us of humanity's diverse priorities and shared values.\n\n"
         message += f"- {personality_config.get('name', 'The Chronicler')}"
 
     return message
@@ -326,7 +324,7 @@ def generate_special_day_details(
                 facts_result = get_birthday_facts(today.strftime("%d/%m"), personality)
                 if facts_result and facts_result.get("facts"):
                     facts_text = facts_result["facts"]
-                    logger.info(f"Successfully retrieved historical facts for context")
+                    logger.info("Successfully retrieved historical facts for context")
             except Exception as e:
                 logger.warning(
                     f"Could not fetch web facts for details: {e}. Continuing without them."
@@ -377,7 +375,7 @@ def generate_special_day_details(
                 facts_result = get_birthday_facts(today.strftime("%d/%m"), personality)
                 if facts_result and facts_result.get("facts"):
                     facts_text = facts_result["facts"]
-                    logger.info(f"Successfully retrieved historical facts for context")
+                    logger.info("Successfully retrieved historical facts for context")
             except Exception as e:
                 logger.warning(
                     f"Could not fetch web facts for details: {e}. Continuing without them."
@@ -635,7 +633,7 @@ async def send_special_day_announcement(app, special_days: List, test_mode: bool
 
         # Send message with image if available
         if image_data:
-            result = await send_message_with_image(
+            await send_message_with_image(
                 app,
                 channel,
                 message,
@@ -646,7 +644,7 @@ async def send_special_day_announcement(app, special_days: List, test_mode: bool
                 },
             )
         else:
-            result = await send_message(app, channel, message)
+            await send_message(app, channel, message)
 
         logger.info(f"Successfully sent special day announcement for {len(special_days)} day(s)")
         return True
@@ -658,7 +656,6 @@ async def send_special_day_announcement(app, special_days: List, test_mode: bool
 
 # Test function
 if __name__ == "__main__":
-    import asyncio
     from storage.special_days import get_todays_special_days
 
     print("Testing Special Day Message Generator...")

@@ -94,26 +94,30 @@ docker compose up -d
 
 ### Slash Commands (Use Anywhere)
 
-| Command                   | Description             |
-| ------------------------- | ----------------------- |
-| `/birthday`               | Open birthday form      |
-| `/birthday add`           | Open birthday form      |
-| `/birthday check [@user]` | Check birthday          |
-| `/birthday list`          | List upcoming birthdays |
-| `/special-day`            | Today's special days    |
-| `/special-day week`       | Next 7 days             |
-| `/special-day month`      | Next 30 days            |
+| Command                   | Description                  |
+| ------------------------- | ---------------------------- |
+| `/birthday`               | Open birthday form           |
+| `/birthday add`           | Open birthday form           |
+| `/birthday check [@user]` | Check birthday               |
+| `/birthday list`          | List upcoming birthdays      |
+| `/birthday pause`         | Pause birthday celebrations  |
+| `/birthday resume`        | Resume birthday celebrations |
+| `/special-day`            | Today's special days         |
+| `/special-day week`       | Next 7 days                  |
+| `/special-day month`      | Next 30 days                 |
 
 ### User Commands (DM the bot)
 
-| Command              | Description              |
-| -------------------- | ------------------------ |
-| `add DD/MM [YYYY]`   | Set your birthday        |
-| `check`              | View your birthday       |
-| `remove`             | Remove your birthday     |
-| `test [--text-only]` | Preview birthday message |
-| `special`            | Today's special days     |
-| `help`               | Show commands            |
+| Command              | Description                  |
+| -------------------- | ---------------------------- |
+| `add DD/MM [YYYY]`   | Set your birthday            |
+| `check`              | View your birthday           |
+| `remove`             | Remove your birthday         |
+| `pause`              | Pause birthday celebrations  |
+| `resume`             | Resume birthday celebrations |
+| `test [--text-only]` | Preview birthday message     |
+| `special`            | Today's special days         |
+| `help`               | Show commands                |
 
 ### Admin Commands
 

@@ -9,13 +9,11 @@ events, and app mentions with comprehensive error handling.
 """
 
 import re
-from slack_sdk.errors import SlackApiError
 
-from utils.date import extract_date
-from slack.client import get_username, send_message
-from slack.client import get_user_mention, get_channel_mention
-from services.dispatcher import handle_command, handle_dm_date
 from config import BIRTHDAY_CHANNEL, get_logger
+from services.dispatcher import handle_command, handle_dm_date
+from slack.client import get_channel_mention, get_user_mention, get_username, send_message
+from utils.date import extract_date
 
 events_logger = get_logger("events")
 
@@ -275,6 +273,47 @@ def register_event_handlers(app):
             f"LINK_BUTTON: User clicked link button {action.get('action_id', 'unknown')}"
         )
 
+    @app.action("remove_birthday_confirm")
+    def handle_remove_birthday(ack, body, client):
+        """
+        Handle remove birthday button click from App Home.
+        """
+        ack()
+        user_id = body["user"]["id"]
+
+        try:
+            from slack.client import get_username
+            from storage.birthdays import remove_birthday
+
+            username = get_username(app, user_id)
+            removed = remove_birthday(user_id, username)
+
+            if removed:
+                events_logger.info(f"APP_HOME: Removed birthday for {username} ({user_id})")
+                client.chat_postMessage(
+                    channel=user_id,
+                    text="Your birthday has been removed. You can add it again anytime via the modal or `/birthday` command.",
+                )
+            else:
+                events_logger.warning(f"APP_HOME: No birthday found to remove for {user_id}")
+                client.chat_postMessage(
+                    channel=user_id,
+                    text="No birthday was found to remove.",
+                )
+
+            # Refresh the App Home view
+            from handlers.app_home import _build_home_view
+
+            view = _build_home_view(user_id, app)
+            client.views_publish(user_id=user_id, view=view)
+
+        except Exception as e:
+            events_logger.error(f"REMOVE_BIRTHDAY_ERROR: Failed to remove birthday: {e}")
+            client.chat_postMessage(
+                channel=user_id,
+                text="Sorry, there was an error removing your birthday. Please try again.",
+            )
+
     @app.event("message")
     def handle_message(event, say, client, logger):
         """Handle direct message events and thread replies"""
@@ -327,6 +366,8 @@ def register_event_handlers(app):
             "test",
             "confirm",
             "special",
+            "pause",
+            "resume",
         ]
 
         if first_word in command_words:

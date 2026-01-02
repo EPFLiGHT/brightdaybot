@@ -14,19 +14,20 @@ Key functions:
 Uses schedule library and threading for non-blocking execution.
 """
 
-import schedule
-import time
 import threading
+import time
 from datetime import datetime, timezone
 
+import schedule
+
 from config import (
-    DAILY_CHECK_TIME,
     CACHE_REFRESH_TIME,
-    SCHEDULER_CHECK_INTERVAL_SECONDS,
+    DAILY_CHECK_TIME,
     HEARTBEAT_STALE_THRESHOLD_SECONDS,
+    SCHEDULER_CHECK_INTERVAL_SECONDS,
     get_logger,
 )
-from services.birthday import timezone_aware_check, celebrate_missed_birthdays
+from services.birthday import celebrate_missed_birthdays
 
 logger = get_logger("scheduler")
 
@@ -207,7 +208,7 @@ def setup_scheduler(app, timezone_aware_check, simple_daily_check):
     else:
         # Only schedule daily check when timezone mode is disabled
         schedule.every().day.at(DAILY_CHECK_TIME.strftime("%H:%M")).do(daily_task)
-        logger.info(f"SCHEDULER: Timezone-aware birthday checks DISABLED (using daily check only)")
+        logger.info("SCHEDULER: Timezone-aware birthday checks DISABLED (using daily check only)")
 
     # Get time zone info for logging
     local_timezone = datetime.now().astimezone().tzinfo

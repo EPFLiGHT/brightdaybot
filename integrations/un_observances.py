@@ -15,17 +15,18 @@ Features:
 """
 
 import re
-from typing import List, Dict, Optional
+import threading
+from typing import Dict, List, Optional
 
 from config import (
-    UN_OBSERVANCES_URL,
-    UN_OBSERVANCES_CACHE_TTL_DAYS,
     UN_OBSERVANCES_CACHE_DIR,
     UN_OBSERVANCES_CACHE_FILE,
+    UN_OBSERVANCES_CACHE_TTL_DAYS,
+    UN_OBSERVANCES_URL,
 )
 from integrations.observances_base import (
-    ObservanceScraperBase,
     MONTH_ABBR_TO_NUM,
+    ObservanceScraperBase,
     logger,
 )
 
@@ -131,15 +132,18 @@ Rules:
         return unique
 
 
-# Singleton instance
+# Singleton instance with thread lock
 _client: Optional[UNObservancesClient] = None
+_client_lock = threading.Lock()
 
 
 def get_un_client() -> UNObservancesClient:
-    """Get or create the UN observances client singleton."""
+    """Get or create the UN observances client singleton (thread-safe)."""
     global _client
     if _client is None:
-        _client = UNObservancesClient()
+        with _client_lock:
+            if _client is None:
+                _client = UNObservancesClient()
     return _client
 
 

@@ -5,8 +5,8 @@ Generates LLM-powered responses to @-mention questions.
 Builds context from special days, birthdays, and general knowledge.
 """
 
-from typing import Optional, List, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 from config import get_logger
 
@@ -112,10 +112,9 @@ def _get_special_days_context() -> List[Dict[str, str]]:
 def _get_birthday_context(app: Any) -> List[Dict[str, str]]:
     """Get upcoming birthdays for context."""
     try:
-        from storage.birthdays import load_birthdays
-        from utils.date import check_if_birthday_today
-        from slack.client import get_username
         from config import UPCOMING_DAYS_DEFAULT
+        from slack.client import get_username
+        from storage.birthdays import load_birthdays
 
         birthdays = load_birthdays()
         today = datetime.now()
@@ -172,8 +171,8 @@ def _generate_llm_response(
         Response text or None on failure
     """
     try:
+        from config import TEMPERATURE_SETTINGS, TOKEN_LIMITS
         from integrations.openai import complete
-        from config import TOKEN_LIMITS, TEMPERATURE_SETTINGS, BOT_NAME
 
         # Build the prompt
         prompt = _build_prompt(question_text, question_type, context)
@@ -269,7 +268,7 @@ def _get_fallback_response(question_type: str, context: Dict[str, Any]) -> Optio
             names = [sd["name"] for sd in special_days]
             return f":calendar: Today's special observances include: {', '.join(names)}. Ask me for more details about any of them!"
         else:
-            return f":calendar: I don't have any special observances listed for today. Check back tomorrow!"
+            return ":calendar: I don't have any special observances listed for today. Check back tomorrow!"
 
     if question_type == "birthdays":
         birthdays = context.get("upcoming_birthdays", [])
@@ -279,9 +278,9 @@ def _get_fallback_response(question_type: str, context: Dict[str, Any]) -> Optio
             else:
                 return f":birthday: The next birthday is {birthdays[0]['name']} on {birthdays[0]['date']}!"
         else:
-            return f":birthday: No upcoming birthdays in the next week. Stay tuned!"
+            return ":birthday: No upcoming birthdays in the next week. Stay tuned!"
 
     if question_type == "help":
         return f":wave: Hi! I'm {BOT_NAME}. I track birthdays and announce special days. DM me to set your birthday, or ask me about upcoming events!"
 
-    return f":thinking_face: I'm not quite sure how to answer that. Try asking about birthdays, special days, or what I can do!"
+    return ":thinking_face: I'm not quite sure how to answer that. Try asking about birthdays, special days, or what I can do!"

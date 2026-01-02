@@ -5,39 +5,41 @@ Handles admin-only operations: stats, config, announcements, model management,
 cache management, status checks, backup/restore, personality, and timezone settings.
 """
 
-from datetime import datetime
 from calendar import month_name
+from datetime import datetime
+
 from slack_sdk.errors import SlackApiError
-from storage.birthdays import load_birthdays, create_backup, restore_latest_backup
-from slack.client import (
-    get_username,
-    check_command_permission,
-    get_channel_members,
-    is_admin,
-    get_user_mention,
-    get_channel_mention,
-)
-from services.message import get_current_personality
-from personality_config import get_personality_descriptions
+
 from config import (
-    BIRTHDAY_CHANNEL,
     ADMIN_USERS,
-    COMMAND_PERMISSIONS,
+    BIRTHDAY_CHANNEL,
     BOT_PERSONALITIES,
-    DATE_FORMAT,
+    COMMAND_PERMISSIONS,
     DAILY_CHECK_TIME,
-    TIMEZONE_CELEBRATION_TIME,
+    DATE_FORMAT,
     EXTERNAL_BACKUP_ENABLED,
+    TIMEZONE_CELEBRATION_TIME,
     get_logger,
 )
-from storage.settings import (
-    save_admins_to_file,
-    get_current_personality_name,
-    set_current_personality,
-    get_current_openai_model,
-    set_current_openai_model,
-)
 from integrations.web_search import clear_cache
+from personality_config import get_personality_descriptions
+from services.message import get_current_personality
+from slack.client import (
+    check_command_permission,
+    get_channel_members,
+    get_channel_mention,
+    get_user_mention,
+    get_username,
+    is_admin,
+)
+from storage.birthdays import create_backup, load_birthdays, restore_latest_backup
+from storage.settings import (
+    get_current_openai_model,
+    get_current_personality_name,
+    save_admins_to_file,
+    set_current_openai_model,
+    set_current_personality,
+)
 
 logger = get_logger("commands")
 
@@ -156,7 +158,7 @@ def handle_config_command(parts, user_id, say, app):
         )
 
         say("\n".join(config_lines))
-        logger.info(f"CONFIG: Displayed current configuration")
+        logger.info("CONFIG: Displayed current configuration")
         return
 
     # Get command and new setting
@@ -381,7 +383,7 @@ def handle_model_command(args, user_id, say, _app, username):
                 f"ADMIN_MODEL: {username} ({user_id}) reset OpenAI model from '{current_model}' to default '{default_model}'"
             )
         else:
-            say(f"❌ Failed to reset model to default. Check logs for details.")
+            say("❌ Failed to reset model to default. Check logs for details.")
 
     else:
         # Show help
@@ -462,8 +464,8 @@ def handle_status_command(parts, user_id, say, app):
         say: Slack say function for sending messages
         app: Slack app instance for API calls
     """
-    from utils.health import get_system_status
     from slack.blocks import build_health_status_blocks
+    from utils.health import get_system_status
 
     username = get_username(app, user_id)
 
@@ -495,7 +497,7 @@ def handle_timezone_command(args, user_id, say, app, username):
         app: Slack app instance for timezone data
         username: Display name of requesting user for logging
     """
-    from storage.settings import save_timezone_settings, load_timezone_settings
+    from storage.settings import load_timezone_settings, save_timezone_settings
     from utils.date import format_timezone_schedule
 
     # Get current settings
@@ -503,7 +505,7 @@ def handle_timezone_command(args, user_id, say, app, username):
 
     if not args:
         # No arguments - show current status
-        status_msg = f"*Timezone-Aware Announcements Status:*\n\n"
+        status_msg = "*Timezone-Aware Announcements Status:*\n\n"
         status_msg += f"• Status: {'ENABLED' if current_enabled else 'DISABLED'}\n"
         if current_enabled:
             status_msg += f"• Check Interval: Every {current_interval} hour(s)\n"
@@ -512,7 +514,7 @@ def handle_timezone_command(args, user_id, say, app, username):
             status_msg += f"• Mode: All birthdays announced at {DAILY_CHECK_TIME.strftime('%H:%M')} server time\n"
 
         status_msg += (
-            f"\nUse `admin timezone enable` or `admin timezone disable` to change settings."
+            "\nUse `admin timezone enable` or `admin timezone disable` to change settings."
         )
 
         # If enabled, also show the schedule
@@ -554,7 +556,7 @@ def handle_timezone_command(args, user_id, say, app, username):
 
     elif args[0].lower() == "status":
         # Detailed status with schedule
-        status_msg = f"*Timezone-Aware Announcements Status:*\n\n"
+        status_msg = "*Timezone-Aware Announcements Status:*\n\n"
         status_msg += f"• Status: {'ENABLED' if current_enabled else 'DISABLED'}\n"
         if current_enabled:
             status_msg += f"• Check Interval: Every {current_interval} hour(s)\n"
@@ -699,7 +701,7 @@ def handle_admin_list_command(_args, _user_id, say, app, _username):
             logger.error(f"ERROR: Failed to get username for admin {admin_id}: {e}")
             admin_list.append(f"• {admin_id} (name unavailable)")
 
-    say(f"*Configured Admin Users:*\n\n" + "\n".join(admin_list))
+    say("*Configured Admin Users:*\n\n" + "\n".join(admin_list))
 
 
 def handle_admin_add_command(args, user_id, say, app, username):

@@ -2,9 +2,10 @@
 Shared pytest fixtures for BrightDayBot tests.
 """
 
-import pytest
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
+
+import pytest
 
 
 @pytest.fixture
@@ -85,3 +86,45 @@ def slack_api_error():
         return SlackApiError(message=error_code, response=response)
 
     return _create_error
+
+
+# Birthday data fixtures
+
+
+@pytest.fixture
+def mock_birthday_data():
+    """Factory fixture for creating mock birthday data with full JSON structure."""
+
+    def _create_birthday(
+        date="25/12",
+        year=1990,
+        active=True,
+        image_enabled=True,
+        show_age=True,
+        created_at="2025-01-01T00:00:00+00:00",
+        updated_at="2025-01-01T00:00:00+00:00",
+    ):
+        return {
+            "date": date,
+            "year": year,
+            "preferences": {
+                "active": active,
+                "image_enabled": image_enabled,
+                "show_age": show_age,
+            },
+            "created_at": created_at,
+            "updated_at": updated_at,
+        }
+
+    return _create_birthday
+
+
+@pytest.fixture
+def sample_birthdays(mock_birthday_data):
+    """Sample birthday data dict with multiple users."""
+    return {
+        "U001": mock_birthday_data(date="15/03", year=1990),
+        "U002": mock_birthday_data(date="25/12", year=1985, show_age=False),
+        "U003": mock_birthday_data(date="01/01", year=None, image_enabled=False),
+        "U004": mock_birthday_data(date="29/02", year=2000, active=False),  # Paused user
+    }

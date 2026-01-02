@@ -9,41 +9,41 @@ Main functions: create_birthday_announcement(), create_consolidated_birthday_ann
 Supports dynamic personality selection and configurable AI models.
 """
 
-import logging
-import os
-import random
 import argparse
+import logging
+import random
 import sys
-from datetime import datetime
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 
-from config import get_logger, USE_CUSTOM_EMOJIS, DATE_FORMAT, RETRY_LIMITS
 from config import (
     BOT_PERSONALITIES,
+    DATE_FORMAT,
+    RETRY_LIMITS,
     TEAM_NAME,
-    TOKEN_LIMITS,
     TEMPERATURE_SETTINGS,
+    TOKEN_LIMITS,
+    get_logger,
 )
-from storage.settings import get_current_personality_name
-
-from utils.date import get_star_sign
-from config import SAFE_SLACK_EMOJIS
-from slack.client import get_user_mention, fix_slack_formatting
-from integrations.web_search import get_birthday_facts
 from integrations.openai import complete
+from integrations.web_search import get_birthday_facts
+from slack.client import fix_slack_formatting, get_user_mention
+from storage.settings import get_current_personality_name
+from utils.date import get_star_sign
 
 logger = get_logger("llm")
 
 # ----- WEIGHTED RANDOM PERSONALITY SELECTION -----
 # Track recently used personalities to encourage variety
 # When "random" mode is active, we avoid repeating recent selections
+_recent_personalities_lock = threading.Lock()
 _recent_personalities = []
 _MAX_RECENT_PERSONALITIES = 3  # With 10 personalities, this leaves 7 choices (70%)
 
 
 # Import centralized model configuration function
 from storage.settings import get_configured_openai_model as get_configured_model
-
 
 # Birthday announcement formats
 BIRTHDAY_INTROS = [
@@ -163,32 +163,34 @@ def get_random_personality_name():
         name for name in BOT_PERSONALITIES.keys() if name not in ["random", "custom", "chronicler"]
     ]
 
-    # Weighted pool: exclude recently used personalities
-    weighted_pool = [p for p in base_pool if p not in _recent_personalities]
+    with _recent_personalities_lock:
+        # Weighted pool: exclude recently used personalities
+        weighted_pool = [p for p in base_pool if p not in _recent_personalities]
 
-    # Fallback: if we've somehow constrained too much, use full base pool
-    if len(weighted_pool) < 2:
-        logger.warning(f"RANDOM: Weighted pool too small ({len(weighted_pool)}), using full pool")
-        weighted_pool = base_pool
+        # Fallback: if we've somehow constrained too much, use full base pool
+        if len(weighted_pool) < 2:
+            logger.warning(
+                f"RANDOM: Weighted pool too small ({len(weighted_pool)}), using full pool"
+            )
+            weighted_pool = base_pool
 
-    # Select from the weighted pool
-    if weighted_pool:
-        selected = random.choice(weighted_pool)
+        # Select from the weighted pool
+        if weighted_pool:
+            selected = random.choice(weighted_pool)
 
-        # Update recency tracking
-        _recent_personalities.append(selected)
-        if len(_recent_personalities) > _MAX_RECENT_PERSONALITIES:
-            removed = _recent_personalities.pop(0)
-            logger.debug(f"RANDOM: Removed '{removed}' from recency list")
+            # Update recency tracking
+            _recent_personalities.append(selected)
+            if len(_recent_personalities) > _MAX_RECENT_PERSONALITIES:
+                removed = _recent_personalities.pop(0)
+                logger.debug(f"RANDOM: Removed '{removed}' from recency list")
 
-        logger.info(
-            f"RANDOM: Selected '{selected}' (avoided: {_recent_personalities[:-1] or 'none'})"
-        )
-        return selected
-    else:
-        # Ultimate fallback
-        logger.warning("RANDOM: No personalities available, using standard")
-        return "standard"
+            avoided = _recent_personalities[:-1] or []
+            logger.info(f"RANDOM: Selected '{selected}' (avoided: {avoided or 'none'})")
+            return selected
+        else:
+            # Ultimate fallback
+            logger.warning("RANDOM: No personalities available, using standard")
+            return "standard"
 
 
 def create_birthday_announcement(
@@ -296,11 +298,11 @@ BACKUP_MESSAGES = [
     """
 :birthday: HAPPY BIRTHDAY {name}!!! :tada:
 
-<!here> We've got a birthday to celebrate! 
+<!here> We've got a birthday to celebrate!
 
 :cake: :cake: :cake: :cake: :cake: :cake: :cake:
 
-*Let the festivities begin!* :confetti_ball: 
+*Let the festivities begin!* :confetti_ball:
 
 Wishing you a day filled with:
 • Joy :smile:
@@ -315,7 +317,7 @@ Any special celebration plans for your big day? :sparkles:
     """
 :rotating_light: ATTENTION <!here> :rotating_light:
 
-IT'S {name}'s BIRTHDAY!!! :birthday: 
+IT'S {name}'s BIRTHDAY!!! :birthday:
 
 :star2: :star2: :star2: :star2: :star2:
 
@@ -349,7 +351,7 @@ What's on the birthday agenda today? :calendar:
 :point_right: Reply with your best birthday GIF! :point_left:
     """,
     """
-Whoop whoop! :tada: 
+Whoop whoop! :tada:
 
 :loudspeaker: <!here> Announcement! :loudspeaker:
 
@@ -369,7 +371,7 @@ How are you celebrating this year? :cake:
     """
 :rotating_light: SPECIAL BIRTHDAY ANNOUNCEMENT :rotating_light:
 
-<!here> HEY EVERYONE! 
+<!here> HEY EVERYONE!
 
 :arrow_down: :arrow_down: :arrow_down:
 It's {name}'s birthday!
@@ -382,7 +384,7 @@ Time to shower them with:
 • Your most ridiculous emojis :stuck_out_tongue_closed_eyes:
 • Virtual high-fives :raised_hands:
 
-Hope your special day is absolutely *fantastic*! :star2: 
+Hope your special day is absolutely *fantastic*! :star2:
 
 Any exciting birthday plans to share? :eyes:
     """,
@@ -587,12 +589,20 @@ def _generate_birthday_message(
     if include_image and message:
         try:
             from image.generator import (
-                generate_birthday_image,
                 create_profile_photo_birthday_image,
+                generate_birthday_image,
             )
 
             def _generate_image_for_person(person):
                 """Generate image for a single person (used in parallel execution)."""
+                # Check user preference for image generation
+                prefs = person.get("preferences", {})
+                if not prefs.get("image_enabled", True):
+                    logger.info(
+                        f"IMAGE: Skipping image for {person['username']} - user has disabled images"
+                    )
+                    return None
+
                 try:
                     person_image = generate_birthday_image(
                         person.get("profile", {}),
@@ -702,13 +712,17 @@ def _build_single_birthday_prompt(
     user_mention = f"{get_user_mention(user_id)}" if user_id else name
     required_mentions = [user_mention] if user_id else []
 
+    # Check user preferences for show_age
+    prefs = person.get("preferences", {})
+    show_age = prefs.get("show_age", True)
+
     # Star sign
     star_sign = get_star_sign(birth_date) if birth_date else None
     star_sign_text = f" Their star sign is {star_sign}." if star_sign else ""
 
-    # Age
+    # Age (only if user allows it)
     age_text = ""
-    if birth_year:
+    if birth_year and show_age:
         age = datetime.now().year - birth_year
         age_text = f" They're turning {age} today!"
 
@@ -785,8 +799,12 @@ def _build_consolidated_birthday_prompt(
         user_mention = f"<@{person['user_id']}>"
         mentions.append(user_mention)
 
+        # Check user preferences for show_age
+        prefs = person.get("preferences", {})
+        show_age = prefs.get("show_age", True)
+
         age_info = ""
-        if person.get("year"):
+        if person.get("year") and show_age:
             age = datetime.now().year - person["year"]
             age_info = f" (turning {age})"
 
@@ -1160,7 +1178,7 @@ def _ensure_mentions_present(message, required_mentions, formatted_mentions):
             mention in message for mention in required_mentions
         ):
             message = message.replace("Happy Birthday", f"Happy Birthday {formatted_mentions}")
-            logger.info(f"POST_PROCESS: Injected mentions after 'Happy Birthday'")
+            logger.info("POST_PROCESS: Injected mentions after 'Happy Birthday'")
 
         # Pattern 2: Look for birthday-related keywords and inject nearby
         elif any(
@@ -1184,7 +1202,7 @@ def _ensure_mentions_present(message, required_mentions, formatted_mentions):
                             lines[i] = line.replace("celebrate", f"celebrate {formatted_mentions}")
 
                         message = "\n".join(lines)
-                        logger.info(f"POST_PROCESS: Injected mentions in birthday-related line")
+                        logger.info("POST_PROCESS: Injected mentions in birthday-related line")
                         break
 
         # Pattern 3: Last resort - add mentions at the beginning after <!here>
@@ -1193,11 +1211,11 @@ def _ensure_mentions_present(message, required_mentions, formatted_mentions):
                 message = message.replace(
                     "<!here>", f"<!here>\n\nHappy Birthday {formatted_mentions}!"
                 )
-                logger.info(f"POST_PROCESS: Added mentions after <!here> as fallback")
+                logger.info("POST_PROCESS: Added mentions after <!here> as fallback")
             else:
                 # Ultimate fallback - prepend mentions
                 message = f"Happy Birthday {formatted_mentions}!\n\n{message}"
-                logger.info(f"POST_PROCESS: Prepended mentions as ultimate fallback")
+                logger.info("POST_PROCESS: Prepended mentions as ultimate fallback")
 
     return message
 
@@ -1256,8 +1274,8 @@ def _generate_fallback_consolidated_message(birthday_people):
     message += (
         f"<!here> What are the odds?! {mention_text} are all celebrating birthdays today!\n\n"
     )
-    message += f"This calls for an extra special celebration! :birthday: :tada:\n\n"
-    message += f"Let's make their shared special day absolutely amazing! :sparkles:"
+    message += "This calls for an extra special celebration! :birthday: :tada:\n\n"
+    message += "Let's make their shared special day absolutely amazing! :sparkles:"
 
     logger.info(
         f"FALLBACK: Generated template consolidated message for {len(birthday_people)} people"
@@ -1579,7 +1597,7 @@ def test_consolidated_announcement():
     """
     Test the AI-powered consolidated birthday announcement for multiple people
     """
-    print(f"\n=== Testing AI-Powered Consolidated Birthday Announcements ===\n")
+    print("\n=== Testing AI-Powered Consolidated Birthday Announcements ===\n")
 
     # Test with 2 people (twins)
     birthday_twins = [
@@ -1725,7 +1743,7 @@ def main():
     test_logger.setLevel(logging.INFO)
     test_logger.addHandler(console_handler)
 
-    test_logger.info(f"TEST: === Birthday Message Generator Test ===")
+    test_logger.info("TEST: === Birthday Message Generator Test ===")
     test_logger.info(f"Current Date/Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     current_model = get_configured_model()
     test_logger.info(f"Model: {current_model}")
@@ -1736,7 +1754,7 @@ def main():
     current_personality = get_current_personality_name()
     if current_personality == "random":
         test_logger.info(
-            f"Using random personality mode (will select a random personality for each message)"
+            "Using random personality mode (will select a random personality for each message)"
         )
     else:
         test_logger.info(f"Personality: {current_personality}")

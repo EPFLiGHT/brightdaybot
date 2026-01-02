@@ -11,10 +11,10 @@ Falls back gracefully on LLM errors.
 """
 
 import json
-from typing import Optional, Dict, Any
 from datetime import datetime
+from typing import Any, Dict
 
-from config import get_logger, MIN_BIRTH_YEAR
+from config import MIN_BIRTH_YEAR, get_logger
 
 logger = get_logger("ai")
 
@@ -114,8 +114,8 @@ def _parse_with_llm(text: str) -> Dict[str, Any]:
         Dict with parsing result
     """
     try:
+        from config import TEMPERATURE_SETTINGS, TOKEN_LIMITS
         from integrations.openai import complete
-        from config import TOKEN_LIMITS, TEMPERATURE_SETTINGS
 
         prompt = f"""Extract the birthday date from this text. Return ONLY a JSON object with day, month, and year (if provided).
 

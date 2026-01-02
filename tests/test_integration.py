@@ -8,6 +8,7 @@ NOTE: These tests cost money (API usage) - run sparingly.
 """
 
 import os
+
 import pytest
 
 # Skip all tests in this module if no API key

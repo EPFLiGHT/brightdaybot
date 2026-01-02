@@ -10,21 +10,22 @@ Key functions:
 - Templates: get_base_template(), get_full_template_for_personality()
 """
 
-import os
 import json
+import os
+import threading
 from datetime import datetime
 
 from config import (
-    SUPPORTED_OPENAI_MODELS,
+    ADMIN_USERS,
+    ADMINS_FILE,
+    BOT_PERSONALITIES,
+    COMMAND_PERMISSIONS,
+    DEFAULT_ADMIN_USERS,
     DEFAULT_OPENAI_MODEL,
     DEFAULT_PERSONALITY,
-    BOT_PERSONALITIES,
-    ADMIN_USERS,
-    DEFAULT_ADMIN_USERS,
-    COMMAND_PERMISSIONS,
-    ADMINS_FILE,
-    PERSONALITY_FILE,
     PERMISSIONS_FILE,
+    PERSONALITY_FILE,
+    SUPPORTED_OPENAI_MODELS,
     USE_CUSTOM_EMOJIS,
 )
 from utils.log_setup import get_logger
@@ -40,20 +41,21 @@ OPENAI_MODEL_SETTINGS_FILE = os.path.join(
     os.path.dirname(ADMINS_FILE), "openai_model_settings.json"
 )
 
-# Global state variables
+# Global state variables with thread lock for concurrent access
+_settings_lock = threading.Lock()
 _current_personality = DEFAULT_PERSONALITY
 _current_openai_model = None  # Will be set during initialization
 
 
 def get_current_personality_name():
-    """Get the currently selected personality name"""
-    global _current_personality
-    return _current_personality
+    """Get the currently selected personality name (thread-safe)"""
+    with _settings_lock:
+        return _current_personality
 
 
 def set_current_personality(personality_name):
     """
-    Set the current personality name and save to storage file
+    Set the current personality name and save to storage file (thread-safe)
 
     Args:
         personality_name: Name of personality to set
@@ -63,7 +65,8 @@ def set_current_personality(personality_name):
     """
     global _current_personality
     if personality_name in BOT_PERSONALITIES:
-        _current_personality = personality_name
+        with _settings_lock:
+            _current_personality = personality_name
         logger.info(f"CONFIG: Bot personality changed to '{personality_name}'")
 
         # Save the setting to file
@@ -115,13 +118,14 @@ def set_custom_personality_setting(setting_name, value):
 
 
 def get_current_openai_model():
-    """Get the currently configured OpenAI model"""
+    """Get the currently configured OpenAI model (thread-safe)"""
     global _current_openai_model
-    if _current_openai_model is None:
-        # Load from storage system if not yet initialized
-        model_info = get_openai_model_info()
-        _current_openai_model = model_info["model"]
-    return _current_openai_model
+    with _settings_lock:
+        if _current_openai_model is None:
+            # Load from storage system if not yet initialized
+            model_info = get_openai_model_info()
+            _current_openai_model = model_info["model"]
+        return _current_openai_model
 
 
 def is_valid_openai_model(model_name):
@@ -149,7 +153,7 @@ def get_supported_openai_models():
 
 def set_current_openai_model(model_name):
     """
-    Set the current OpenAI model and save to storage file
+    Set the current OpenAI model and save to storage file (thread-safe)
 
     Args:
         model_name: OpenAI model name to set
@@ -162,7 +166,8 @@ def set_current_openai_model(model_name):
     try:
         # Save to file
         if save_openai_model_setting(model_name):
-            _current_openai_model = model_name
+            with _settings_lock:
+                _current_openai_model = model_name
             logger.info(f"CONFIG: OpenAI model changed to '{model_name}'")
             return True
         else:
@@ -174,7 +179,7 @@ def set_current_openai_model(model_name):
 
 
 def initialize_config():
-    """Initialize configuration from storage files"""
+    """Initialize configuration from storage files (thread-safe)"""
     global ADMIN_USERS, _current_personality, BOT_PERSONALITIES, COMMAND_PERMISSIONS, _current_openai_model
 
     # Load admins
@@ -185,7 +190,7 @@ def initialize_config():
         logger.info(f"CONFIG: Loaded {len(ADMIN_USERS)} admin users from file")
     else:
         # If no admins in file, use defaults but make sure to maintain any existing ones
-        logger.info(f"CONFIG: No admins found in file, using default list")
+        logger.info("CONFIG: No admins found in file, using default list")
         # Add any default admins that aren't already in the list
         for admin in DEFAULT_ADMIN_USERS:
             if admin not in ADMIN_USERS:
@@ -200,7 +205,8 @@ def initialize_config():
 
     # Load personality settings
     personality_name, custom_settings = load_personality_setting()
-    _current_personality = personality_name
+    with _settings_lock:
+        _current_personality = personality_name
 
     # If there are custom settings, apply them
     if custom_settings and isinstance(custom_settings, dict):
@@ -213,17 +219,18 @@ def initialize_config():
     if permissions_from_file:
         # Update the COMMAND_PERMISSIONS with values from file
         COMMAND_PERMISSIONS.update(permissions_from_file)
-        logger.info(f"CONFIG: Loaded command permissions from file")
+        logger.info("CONFIG: Loaded command permissions from file")
     else:
         # Save default permissions to file if none exist
         save_permissions_to_file(COMMAND_PERMISSIONS)
-        logger.info(f"CONFIG: Saved default command permissions to file")
+        logger.info("CONFIG: Saved default command permissions to file")
 
     # Load OpenAI model configuration
     model_info = get_openai_model_info()
-    _current_openai_model = model_info["model"]
+    with _settings_lock:
+        _current_openai_model = model_info["model"]
     logger.info(
-        f"CONFIG: OpenAI model loaded: '{_current_openai_model}' (source: {model_info['source']})"
+        f"CONFIG: OpenAI model loaded: '{model_info['model']}' (source: {model_info['source']})"
     )
 
     logger.info("CONFIG: Configuration initialized from storage files")
@@ -395,7 +402,7 @@ def load_permissions_from_file():
         if os.path.exists(PERMISSIONS_FILE):
             with open(PERMISSIONS_FILE, "r") as f:
                 permissions = json.load(f)
-                logger.info(f"CONFIG: Loaded permissions from file")
+                logger.info("CONFIG: Loaded permissions from file")
                 return permissions
         return None
     except Exception as e:
@@ -416,7 +423,7 @@ def save_permissions_to_file(permissions):
     try:
         with open(PERMISSIONS_FILE, "w") as f:
             json.dump(permissions, f, indent=2)
-            logger.info(f"CONFIG: Saved permissions to file")
+            logger.info("CONFIG: Saved permissions to file")
             return True
     except Exception as e:
         logger.error(f"CONFIG_ERROR: Failed to save permissions to file: {e}")
@@ -479,8 +486,8 @@ def load_timezone_settings():
     try:
         if not os.path.exists(TIMEZONE_SETTINGS_FILE):
             logger.info(
-                f"CONFIG: Timezone settings file not found, using defaults "
-                f"(enabled: True, interval: 1h)"
+                "CONFIG: Timezone settings file not found, using defaults "
+                "(enabled: True, interval: 1h)"
             )
             return True, 1
 

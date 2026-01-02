@@ -8,54 +8,50 @@ integration, and smart consolidation for multiple same-day birthdays.
 Main functions: timezone_aware_check(), simple_daily_check(), send_reminder_to_users().
 """
 
-import random
 import os
+import random
 from datetime import datetime, timezone
 
+from filelock import FileLock
 from slack_sdk.errors import SlackApiError
 
-from utils.date import (
-    check_if_birthday_today,
-    date_to_words,
-    check_if_birthday_today_in_user_timezone,
-)
-from storage.birthdays import (
-    load_birthdays,
-    mark_timezone_birthday_announced,
-    cleanup_timezone_announcement_files,
-    is_user_celebrated_today,
-    mark_birthday_announced,
-)
-from slack.client import (
-    send_message,
-    send_message_with_image,
-    send_message_with_multiple_attachments,
-    get_user_profile,
-    get_user_status_and_info,
-    get_channel_members,
-)
-from slack.client import get_user_mention, get_channel_mention
-from services.message import (
-    create_consolidated_birthday_announcement,
-)
-from utils.date import is_celebration_time_for_user
-from services.celebration import BirthdayCelebrationPipeline
 from config import (
-    BIRTHDAY_CHANNEL,
     AI_IMAGE_GENERATION_ENABLED,
-    get_logger,
+    BIRTHDAY_CHANNEL,
     BOT_BIRTH_YEAR,
     BOT_BIRTHDAY,
+    DAILY_CHECK_TIME,
     IMAGE_GENERATION_PARAMS,
     TIMEZONE_CELEBRATION_TIME,
-    DAILY_CHECK_TIME,
     TRACKING_DIR,
+    get_logger,
 )
+from image.generator import generate_birthday_image
 from services.celebration import (
+    BirthdayCelebrationPipeline,
     generate_bot_celebration_message,
     get_bot_celebration_image_title,
 )
-from image.generator import generate_birthday_image
+from slack.client import (
+    get_channel_members,
+    get_channel_mention,
+    get_user_mention,
+    get_user_profile,
+    get_user_status_and_info,
+    send_message,
+)
+from storage.birthdays import (
+    cleanup_timezone_announcement_files,
+    get_user_preferences,
+    is_user_active,
+    is_user_celebrated_today,
+    load_birthdays,
+)
+from utils.date import (
+    check_if_birthday_today,
+    date_to_words,
+    is_celebration_time_for_user,
+)
 
 logger = get_logger("birthday")
 
@@ -79,12 +75,23 @@ def celebrate_bot_birthday(app, moment):
         return False
 
     # Check if we already celebrated today to prevent duplicates
+    # Use FileLock for atomic check-and-create to prevent race conditions
     celebration_tracking_file = os.path.join(
         TRACKING_DIR, f"bot_birthday_{moment.strftime('%Y-%m-%d')}.txt"
     )
-    if os.path.exists(celebration_tracking_file):
-        logger.debug("BOT_BIRTHDAY: Already celebrated today, skipping")
-        return False
+    lock_file = celebration_tracking_file + ".lock"
+    lock = FileLock(lock_file)
+
+    # Atomic check-and-reserve pattern
+    with lock:
+        if os.path.exists(celebration_tracking_file):
+            logger.debug("BOT_BIRTHDAY: Already celebrated today, skipping")
+            return False
+
+        # Reserve the celebration slot immediately to prevent race conditions
+        os.makedirs(TRACKING_DIR, exist_ok=True)
+        with open(celebration_tracking_file, "w") as f:
+            f.write(f"BrightDayBot birthday celebration started on {moment.strftime('%Y-%m-%d')}")
 
     try:
         logger.info(
@@ -294,10 +301,11 @@ def celebrate_bot_birthday(app, moment):
                 "BOT_BIRTHDAY: Sent celebration message with Block Kit formatting (images disabled)"
             )
 
-        # Mark as celebrated today to prevent duplicates
-        os.makedirs(TRACKING_DIR, exist_ok=True)
+        # Update tracking file to indicate successful completion
         with open(celebration_tracking_file, "w") as f:
-            f.write(f"BrightDayBot birthday celebrated on {moment.strftime('%Y-%m-%d')}")
+            f.write(
+                f"BrightDayBot birthday celebrated on {moment.strftime('%Y-%m-%d')} - COMPLETED"
+            )
 
         logger.info(
             f"BOT_BIRTHDAY: Successfully celebrated BrightDayBot's {bot_age} year anniversary!"
@@ -321,20 +329,19 @@ def check_and_announce_special_days(app, moment):
         bool: True if special days were announced, False otherwise
     """
     from config import (
-        SPECIAL_DAYS_ENABLED,
         SPECIAL_DAYS_CHANNEL,
         SPECIAL_DAYS_CHECK_TIME,
+        SPECIAL_DAYS_ENABLED,
     )
+    from services.special_day import (
+        generate_special_day_message,
+    )
+    from slack.client import send_message
     from storage.special_days import (
         get_special_days_for_date,
         has_announced_special_day_today,
         mark_special_day_announced,
     )
-    from services.special_day import (
-        generate_special_day_message,
-        generate_special_day_image,
-    )
-    from slack.client import send_message, send_message_with_image
 
     # Check if feature is enabled
     if not SPECIAL_DAYS_ENABLED:
@@ -395,8 +402,8 @@ def check_and_announce_special_days(app, moment):
                     detailed_content = generate_special_day_details([special_day], app=app)
 
                     # Build blocks for this individual observance (unified function with list)
-                    from slack.blocks import build_special_day_blocks
                     from config import SPECIAL_DAYS_PERSONALITY
+                    from slack.blocks import build_special_day_blocks
 
                     blocks, fallback_text = build_special_day_blocks(
                         [special_day],
@@ -652,7 +659,7 @@ def send_channel_announcement(app, announcement_type="general", custom_message=N
         elif announcement_type == "general" and custom_message:
             message = announcements["general"].format(message=custom_message)
         else:
-            logger.error(f"ANNOUNCEMENT_ERROR: Invalid announcement type or missing custom message")
+            logger.error("ANNOUNCEMENT_ERROR: Invalid announcement type or missing custom message")
             return False
 
         # Send to birthday channel
@@ -767,6 +774,13 @@ def timezone_aware_check(app, moment):
             )
             continue
 
+        # Skip users who have paused their celebrations
+        if not is_user_active(user_id):
+            logger.debug(
+                f"SKIP: User {user_id} ({username}) has paused celebrations, skipping birthday check"
+            )
+            continue
+
         # Get full user profile for timezone info (with caching) - moved up
         if user_id not in profile_cache:
             profile_cache[user_id] = get_user_profile(app, user_id)
@@ -796,6 +810,7 @@ def timezone_aware_check(app, moment):
                 "date_words": date_words,
                 "profile": user_profile,
                 "timezone": user_timezone,
+                "preferences": get_user_preferences(user_id) or {},
             }
 
             # Add to all birthday people for today
@@ -871,8 +886,6 @@ def simple_daily_check(app, moment):
         )
         return
 
-    # Profile cache for this check to reduce API calls
-    profile_cache = {}
     # Ensure moment has timezone info
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=timezone.utc)
@@ -928,11 +941,12 @@ def simple_daily_check(app, moment):
             )
             continue
 
-        # Get full user profile for timezone info (with caching) - moved up
-        if user_id not in profile_cache:
-            profile_cache[user_id] = get_user_profile(app, user_id)
-        user_profile = profile_cache[user_id]
-        user_timezone = user_profile.get("timezone", "UTC") if user_profile else "UTC"
+        # Skip users who have paused their celebrations
+        if not is_user_active(user_id):
+            logger.debug(
+                f"SKIP: User {user_id} ({username}) has paused celebrations, skipping birthday check"
+            )
+            continue
 
         # SIMPLE MODE: Check if it's their birthday today using SERVER timezone
         # In simple mode, we don't care about user timezones - just same calendar date
@@ -942,6 +956,9 @@ def simple_daily_check(app, moment):
             )
             date_words = date_to_words(birthday_data["date"], birthday_data.get("year"))
 
+            # Get user profile for image generation
+            user_profile = get_user_profile(app, user_id)
+
             birthday_person = {
                 "user_id": user_id,
                 "username": username,
@@ -949,6 +966,7 @@ def simple_daily_check(app, moment):
                 "year": birthday_data.get("year"),
                 "date_words": date_words,
                 "profile": user_profile,
+                "preferences": get_user_preferences(user_id) or {},
             }
 
             birthday_people_today.append(birthday_person)
@@ -1041,6 +1059,13 @@ def celebrate_missed_birthdays(app):
                         )
                         continue
 
+                    # Skip users who have paused their celebrations
+                    if not is_user_active(user_id):
+                        logger.info(
+                            f"MISSED_BIRTHDAYS: User {user_id} ({username}) has paused celebrations, skipping"
+                        )
+                        continue
+
                     # Get full user profile for additional data (with caching)
                     if user_id not in profile_cache:
                         profile_cache[user_id] = get_user_profile(app, user_id)
@@ -1058,6 +1083,7 @@ def celebrate_missed_birthdays(app):
                             "year": year,
                             "date_words": date_words,
                             "profile": user_profile,
+                            "preferences": get_user_preferences(user_id) or {},
                         }
                     )
 

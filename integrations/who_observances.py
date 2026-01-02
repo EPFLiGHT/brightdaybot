@@ -15,17 +15,18 @@ Features:
 """
 
 import re
-from typing import List, Dict, Optional
+import threading
+from typing import Dict, List, Optional
 
 from config import (
-    WHO_OBSERVANCES_URL,
-    WHO_OBSERVANCES_CACHE_TTL_DAYS,
     WHO_OBSERVANCES_CACHE_DIR,
     WHO_OBSERVANCES_CACHE_FILE,
+    WHO_OBSERVANCES_CACHE_TTL_DAYS,
+    WHO_OBSERVANCES_URL,
 )
 from integrations.observances_base import (
-    ObservanceScraperBase,
     MONTH_FULL_TO_NUM,
+    ObservanceScraperBase,
     logger,
 )
 
@@ -157,15 +158,18 @@ Rules:
             pass
 
 
-# Singleton instance
+# Singleton instance with thread lock
 _client: Optional[WHOObservancesClient] = None
+_client_lock = threading.Lock()
 
 
 def get_who_client() -> WHOObservancesClient:
-    """Get or create the WHO observances client singleton."""
+    """Get or create the WHO observances client singleton (thread-safe)."""
     global _client
     if _client is None:
-        _client = WHOObservancesClient()
+        with _client_lock:
+            if _client is None:
+                _client = WHOObservancesClient()
     return _client
 
 

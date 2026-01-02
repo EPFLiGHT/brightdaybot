@@ -7,25 +7,26 @@ message sending, file uploads, emoji management, and admin verification.
 Key functions: get_user_profile(), send_message_with_image(), is_admin().
 """
 
-from slack_sdk.errors import SlackApiError
-from datetime import datetime
-from typing import Dict, Optional
-import requests
-import random
 import os
+import random
 import re
+from datetime import datetime
+from typing import Dict
+
+from slack_sdk.errors import SlackApiError
 
 from config import (
-    username_cache,
-    USERNAME_CACHE_MAX_SIZE,
-    USERNAME_CACHE_TTL_HOURS,
     COMMAND_PERMISSIONS,
-    SAFE_SLACK_EMOJIS,
     CUSTOM_SLACK_EMOJIS,
-    USE_CUSTOM_EMOJIS,
     EMOJI_GENERATION_PARAMS,
     RETRY_LIMITS,
+    SAFE_SLACK_EMOJIS,
+    SLACK_MAX_BLOCKS,
+    USE_CUSTOM_EMOJIS,
+    USERNAME_CACHE_MAX_SIZE,
+    USERNAME_CACHE_TTL_HOURS,
     get_logger,
+    username_cache,
 )
 from storage.settings import get_current_admins
 
@@ -458,12 +459,12 @@ def send_message_with_image(
 
                 # Strategy: If blocks provided, send structured message first, then image
                 if blocks:
-                    logger.info(f"IMAGE: Sending structured Block Kit message first")
+                    logger.info("IMAGE: Sending structured Block Kit message first")
                     # Send the Block Kit message first
                     message_result = send_message(app, channel, text, blocks, context)
                     if not message_result["success"]:
                         logger.warning(
-                            f"IMAGE: Block Kit message failed, continuing with image upload"
+                            "IMAGE: Block Kit message failed, continuing with image upload"
                         )
 
                     # Then upload the image without initial_comment (image appears after structured message)
@@ -475,7 +476,7 @@ def send_message_with_image(
                     )
                 else:
                     # Legacy behavior: Upload with initial_comment (plain text)
-                    logger.info(f"IMAGE: Using legacy upload with initial_comment")
+                    logger.info("IMAGE: Using legacy upload with initial_comment")
                     upload_response = app.client.files_upload_v2(
                         channel=target_channel,
                         initial_comment=text,
@@ -547,7 +548,7 @@ def send_message_with_multiple_images(
 
         if not message_result["success"]:
             logger.warning(
-                f"MULTI_IMAGE: Failed to send main message, continuing with images anyway"
+                "MULTI_IMAGE: Failed to send main message, continuing with images anyway"
             )
 
         # Send each image individually
@@ -569,37 +570,6 @@ def send_message_with_multiple_images(
                     if image_user_profile
                     else image_data.get("generated_for", f"Person {i+1}")
                 )
-
-                # Use AI to generate personalized title
-                try:
-                    from services.message import generate_birthday_image_title
-
-                    ai_title = generate_birthday_image_title(
-                        person_name,
-                        image_data.get("personality", "standard"),
-                        image_user_profile,
-                        None,  # birthday_message - not needed for individual titles
-                        False,  # is_multiple_people - each image is individual
-                    )
-                    final_title = f"🎂 {ai_title}"
-                except Exception as e:
-                    logger.error(
-                        f"MULTI_IMAGE_TITLE_ERROR: Failed to generate AI title for {person_name}: {e}"
-                    )
-                    # Fallback to simple title
-                    personality_name = (
-                        image_data.get("personality", "standard").replace("_", " ").title()
-                    )
-                    final_title = f"🎂 {person_name}'s Birthday - {personality_name} Style"
-
-                # Create filename for this image
-                safe_name = (
-                    "".join(c for c in person_name if c.isalnum() or c in (" ", "-", "_"))
-                    .rstrip()
-                    .replace(" ", "_")
-                )
-                timestamp = datetime.now().strftime("%H%M%S")
-                filename = f"birthday_{safe_name}_{i+1}_{timestamp}.png"
 
                 # Send individual image (no additional text - just the title)
                 image_success = send_message_with_image(app, channel, "", image_data, blocks=None)
@@ -976,12 +946,12 @@ def send_message_with_multiple_attachments(
 
         # Strategy: If blocks provided, send structured message first, then files
         if blocks:
-            logger.info(f"MULTI_ATTACH: Sending structured Block Kit message first")
+            logger.info("MULTI_ATTACH: Sending structured Block Kit message first")
             # Send the Block Kit message first
             message_result = send_message(app, channel, text, blocks, context)
             if not message_result["success"]:
                 logger.warning(
-                    f"MULTI_ATTACH: Block Kit message failed, continuing with file upload"
+                    "MULTI_ATTACH: Block Kit message failed, continuing with file upload"
                 )
 
             # Then upload files without initial_comment (files appear after structured message)
@@ -1118,7 +1088,9 @@ def _fallback_to_sequential_images(
 
 def send_message(app, channel: str, text: str, blocks=None, context: dict = None):
     """
-    Send a message to a Slack channel with error handling and automatic archiving
+    Send a message to a Slack channel with error handling and automatic archiving.
+
+    If blocks exceed Slack's limit (50), sends in batches as follow-up messages.
 
     Args:
         app: Slack app instance
@@ -1128,10 +1100,53 @@ def send_message(app, channel: str, text: str, blocks=None, context: dict = None
         context: Optional context for archiving (message_type, personality, etc.)
 
     Returns:
-        dict: {"success": bool, "ts": str or None} - ts is message timestamp for threading
+        dict: {"success": bool, "ts": str or None} - ts is first message timestamp for threading
     """
     try:
-        # Send the message
+        first_ts = None
+
+        # Handle block count exceeding Slack limit by batching
+        if blocks and len(blocks) > SLACK_MAX_BLOCKS:
+            logger.info(
+                f"BLOCKS: Message has {len(blocks)} blocks, exceeds limit of {SLACK_MAX_BLOCKS}. Sending in batches."
+            )
+
+            # Split blocks into batches
+            batches = [
+                blocks[i : i + SLACK_MAX_BLOCKS] for i in range(0, len(blocks), SLACK_MAX_BLOCKS)
+            ]
+
+            for i, batch in enumerate(batches):
+                if i == 0:
+                    # First batch: send with text as main message
+                    response = app.client.chat_postMessage(channel=channel, text=text, blocks=batch)
+                    first_ts = response.get("ts") if response.get("ok") else None
+                else:
+                    # Subsequent batches: send as thread replies
+                    if first_ts:
+                        response = app.client.chat_postMessage(
+                            channel=channel,
+                            text="(continued)",
+                            blocks=batch,
+                            thread_ts=first_ts,
+                        )
+                    else:
+                        # Fallback if first message failed
+                        response = app.client.chat_postMessage(
+                            channel=channel, text="(continued)", blocks=batch
+                        )
+
+            if channel.startswith("U"):
+                username = get_username(app, channel)
+                logger.info(
+                    f"MESSAGE: Sent {len(batches)} batched messages as DM to {username} ({channel})"
+                )
+            else:
+                logger.info(f"MESSAGE: Sent {len(batches)} batched messages to channel {channel}")
+
+            return {"success": True, "ts": first_ts}
+
+        # Normal path: blocks within limit
         if blocks:
             response = app.client.chat_postMessage(channel=channel, text=text, blocks=blocks)
         else:
@@ -1387,7 +1402,7 @@ def fix_slack_formatting(text):
     # Fix blockquotes: replace markdown > with Slack's blockquote
     text = re.sub(r"^>\s+(.*?)$", r">>>\1", text, flags=re.MULTILINE)
 
-    logger.debug(f"AI_FORMAT: Fixed Slack formatting issues in message")
+    logger.debug("AI_FORMAT: Fixed Slack formatting issues in message")
     return text
 
 

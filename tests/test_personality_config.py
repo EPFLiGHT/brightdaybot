@@ -8,10 +8,10 @@ Tests pure lookup functions:
 """
 
 from personality_config import (
+    PERSONALITIES,
     get_personality_config,
     get_personality_descriptions,
     get_personality_display_name,
-    PERSONALITIES,
 )
 
 

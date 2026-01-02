@@ -7,9 +7,9 @@ logs by functionality: commands, events, AI operations, Slack API, etc.
 Key functions: setup_logging(), get_logger() with 9 specialized log files.
 """
 
-import os
 import logging
 import logging.handlers
+import os
 
 # Enhanced logging with separate files for different components
 # Use relative paths to avoid circular import, construct full paths when needed

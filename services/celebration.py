@@ -11,41 +11,42 @@ Key classes: BirthdayCelebrationPipeline
 Key functions: validate_birthday_people_for_posting(), should_celebrate_immediately()
 """
 
-from datetime import datetime, timezone as tz
+from datetime import datetime
+from datetime import timezone as tz
 
 from config import (
-    get_logger,
     AI_IMAGE_GENERATION_ENABLED,
     BIRTHDAY_CHANNEL,
-    DEFAULT_PERSONALITY,
-    DEFAULT_TIMEZONE,
     BOT_BIRTH_YEAR,
     BOT_BIRTHDAY,
-    TOKEN_LIMITS,
+    DEFAULT_PERSONALITY,
+    DEFAULT_TIMEZONE,
     TEMPERATURE_SETTINGS,
+    TOKEN_LIMITS,
+    get_logger,
 )
+from integrations.openai import complete
 from personality_config import (
     PERSONALITIES,
+    get_celebration_image_descriptions,
     get_celebration_personality_count,
     get_celebration_personality_list,
-    get_celebration_image_descriptions,
 )
 from services.message import create_consolidated_birthday_announcement
+from slack.blocks import build_birthday_blocks
 from slack.client import (
-    send_message,
     fix_slack_formatting,
-    get_user_status_and_info,
     get_channel_members,
+    get_user_status_and_info,
+    send_message,
 )
 from storage.birthdays import (
-    mark_timezone_birthday_announced,
-    mark_birthday_announced,
-    load_birthdays,
     is_user_celebrated_today,
+    load_birthdays,
+    mark_birthday_announced,
+    mark_timezone_birthday_announced,
 )
-from slack.blocks import build_birthday_blocks
 from utils.date import check_if_birthday_today, date_to_words
-from integrations.openai import complete
 
 logger = get_logger("birthday")
 
@@ -871,9 +872,7 @@ def should_celebrate_immediately(
             "same_day_people": [],
             "recommended_action": "immediate_celebration",
         }
-        logger.info(
-            f"IMMEDIATE_DECISION: Immediate celebration approved - no other birthdays today"
-        )
+        logger.info("IMMEDIATE_DECISION: Immediate celebration approved - no other birthdays today")
 
     else:
         # Other people have birthdays today - preserve consolidation

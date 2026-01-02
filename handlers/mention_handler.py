@@ -10,8 +10,9 @@ Includes rate limiting to prevent abuse.
 """
 
 import time
-from typing import Dict, Optional, Tuple
 from collections import defaultdict
+from typing import Dict, Optional, Tuple
+
 from slack_sdk.errors import SlackApiError
 
 from config import get_logger
@@ -69,7 +70,7 @@ def get_rate_limiter() -> RateLimiter:
     """Get or create the global rate limiter."""
     global _rate_limiter
     if _rate_limiter is None:
-        from config import MENTION_RATE_LIMIT_WINDOW, MENTION_RATE_LIMIT_MAX
+        from config import MENTION_RATE_LIMIT_MAX, MENTION_RATE_LIMIT_WINDOW
 
         _rate_limiter = RateLimiter(
             window_seconds=MENTION_RATE_LIMIT_WINDOW,

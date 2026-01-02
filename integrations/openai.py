@@ -12,8 +12,11 @@ Key functions:
 """
 
 import os
+import threading
 from datetime import datetime
-from openai import OpenAI, APIError, APIConnectionError, RateLimitError, APITimeoutError
+
+from openai import APIConnectionError, APIError, APITimeoutError, OpenAI, RateLimitError
+
 from config import get_logger
 from storage.settings import get_configured_openai_model
 
@@ -23,13 +26,14 @@ logger = get_logger("ai")
 # Client Management
 # =============================================================================
 
-# Singleton client instance
+# Singleton client instance with thread lock
 _client = None
+_client_lock = threading.Lock()
 
 
 def get_openai_client():
     """
-    Get configured OpenAI client singleton.
+    Get configured OpenAI client singleton (thread-safe).
 
     Uses OPENAI_API_KEY from environment and supports dynamic model
     configuration via config.py.
@@ -42,14 +46,17 @@ def get_openai_client():
     """
     global _client
 
+    # Double-checked locking pattern for thread safety
     if _client is None:
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            logger.error("OPENAI_ERROR: OPENAI_API_KEY not found in environment")
-            raise ValueError("OPENAI_API_KEY environment variable not set")
+        with _client_lock:
+            if _client is None:
+                api_key = os.getenv("OPENAI_API_KEY")
+                if not api_key:
+                    logger.error("OPENAI_ERROR: OPENAI_API_KEY not found in environment")
+                    raise ValueError("OPENAI_API_KEY environment variable not set")
 
-        _client = OpenAI(api_key=api_key)
-        logger.info("OPENAI: Client initialized successfully")
+                _client = OpenAI(api_key=api_key)
+                logger.info("OPENAI: Client initialized successfully")
 
     return _client
 

@@ -9,15 +9,15 @@ Tests structural validity of Slack Block Kit output:
 
 from slack.blocks import (
     build_birthday_blocks,
-    build_birthday_error_blocks,
-    build_permission_error_blocks,
     build_birthday_check_blocks,
-    build_birthday_not_found_blocks,
-    build_unrecognized_input_blocks,
-    build_special_day_blocks,
+    build_birthday_error_blocks,
     build_birthday_modal,
-    build_upcoming_birthdays_blocks,
+    build_birthday_not_found_blocks,
+    build_permission_error_blocks,
     build_slash_help_blocks,
+    build_special_day_blocks,
+    build_unrecognized_input_blocks,
+    build_upcoming_birthdays_blocks,
 )
 
 

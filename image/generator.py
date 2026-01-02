@@ -8,25 +8,27 @@ Main functions: generate_birthday_image(), download_profile_photo(), cleanup_old
 Uses OpenAI API, PIL for processing, with automatic cache management.
 """
 
-import os
-import requests
+import base64
 import glob
+import io
+import os
 import random
 from datetime import datetime, timedelta
+
+import requests
+from PIL import Image
+
 from config import (
-    get_logger,
     CACHE_DIR,
-    IMAGE_GENERATION_PARAMS,
+    CACHE_RETENTION_DAYS,
     DEFAULT_IMAGE_MODEL,
     DEFAULT_IMAGE_PERSONALITY,
+    IMAGE_GENERATION_PARAMS,
     RETRY_LIMITS,
     TIMEOUTS,
-    CACHE_RETENTION_DAYS,
+    get_logger,
 )
-from integrations.openai import log_image_generation_usage, get_openai_client
-import base64
-from PIL import Image
-import io
+from integrations.openai import get_openai_client, log_image_generation_usage
 
 logger = get_logger("image_generator")
 
@@ -389,7 +391,7 @@ def create_image_prompt(
 
     if use_reference_mode:
         # For reference mode: we're editing an existing photo, so focus on transformation
-        face_context = f" Transform this photo into a festive birthday celebration scene. If this image contains a human face, maintain and celebrate that person as the central focus. If this image contains no human faces (like a logo, pet, or landscape), create a celebration scene without adding any fake people or human figures."
+        face_context = " Transform this photo into a festive birthday celebration scene. If this image contains a human face, maintain and celebrate that person as the central focus. If this image contains no human faces (like a logo, pet, or landscape), create a celebration scene without adding any fake people or human figures."
         logger.info(f"IMAGE_PROMPT: Using reference mode prompt for {name}")
     elif user_profile and (user_profile.get("photo_512") or user_profile.get("photo_original")):
         # For text-only mode with profile available: describe face characteristics
@@ -412,7 +414,7 @@ def create_image_prompt(
     message_context = ""
     if birthday_message:
         # Extract key themes from the birthday message
-        message_context = f" Incorporate elements that reflect the birthday announcement message's themes and personality."
+        message_context = " Incorporate elements that reflect the birthday announcement message's themes and personality."
         logger.info(f"IMAGE_PROMPT: Including message context for {name}")
 
     # Get image prompt from centralized configuration
@@ -442,7 +444,7 @@ def create_image_prompt(
                 logger.info(f"IMAGE_PROMPT: Using special bot_celebration_image_prompt for {name}")
             else:
                 logger.warning(
-                    f"IMAGE_PROMPT: bot_celebration_image_prompt not found, falling back to standard"
+                    "IMAGE_PROMPT: bot_celebration_image_prompt not found, falling back to standard"
                 )
                 prompt_template = personality_config.get("image_prompt", "")
         else:
@@ -727,7 +729,7 @@ def cleanup_old_images(days_to_keep=None):
                 f"IMAGE_CLEANUP: Deleted {deleted_count} old birthday images (older than {days_to_keep} days)"
             )
         else:
-            logger.debug(f"IMAGE_CLEANUP: No old images found to delete")
+            logger.debug("IMAGE_CLEANUP: No old images found to delete")
 
         return deleted_count
 
@@ -783,7 +785,7 @@ def cleanup_old_profile_photos(days_to_keep=None):
                 f"PROFILE_CLEANUP: Deleted {deleted_count} old profile photos (older than {days_to_keep} days)"
             )
         else:
-            logger.debug(f"PROFILE_CLEANUP: No old profile photos found to delete")
+            logger.debug("PROFILE_CLEANUP: No old profile photos found to delete")
 
         return deleted_count
 

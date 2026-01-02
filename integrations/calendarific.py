@@ -13,39 +13,44 @@ Strategy: Weekly prefetch with 7-day cache
 API docs: https://calendarific.com/api-documentation
 """
 
-import os
 import json
-import requests
+import os
+import threading
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
+
+import requests
 
 from config import (
+    CACHE_RETENTION_DAYS,
     CALENDARIFIC_API_KEY,
-    CALENDARIFIC_ENABLED,
-    CALENDARIFIC_COUNTRY,
-    CALENDARIFIC_STATE,
     CALENDARIFIC_CACHE_DIR,
     CALENDARIFIC_CACHE_TTL_DAYS,
+    CALENDARIFIC_COUNTRY,
+    CALENDARIFIC_ENABLED,
     CALENDARIFIC_PREFETCH_DAYS,
     CALENDARIFIC_RATE_LIMIT_MONTHLY,
     CALENDARIFIC_RATE_WARNING_THRESHOLD,
-    CACHE_RETENTION_DAYS,
+    CALENDARIFIC_STATE,
     TIMEOUTS,
 )
+from utils.keywords import HEALTH_KEYWORDS, TECH_KEYWORDS
 from utils.log_setup import get_logger
-from utils.keywords import HEALTH_KEYWORDS, TECH_KEYWORDS, CULTURE_KEYWORDS
 
 logger = get_logger("calendarific")
 
-# Singleton client instance
+# Singleton client instance with thread lock
 _client: Optional["CalendarificClient"] = None
+_client_lock = threading.Lock()
 
 
 def get_calendarific_client() -> "CalendarificClient":
-    """Get or create the singleton Calendarific client."""
+    """Get or create the singleton Calendarific client (thread-safe)."""
     global _client
     if _client is None:
-        _client = CalendarificClient()
+        with _client_lock:
+            if _client is None:
+                _client = CalendarificClient()
     return _client
 
 
@@ -94,7 +99,6 @@ class CalendarificClient:
         Returns:
             List of SpecialDay objects
         """
-        from storage.special_days import SpecialDay
 
         # Check cache first
         cached = self._load_from_cache(date)

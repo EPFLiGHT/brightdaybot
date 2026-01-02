@@ -194,35 +194,3 @@ CULTURE_KEYWORDS = [
     "agriculture",
     "farmer",
 ]
-
-
-def categorize_by_keywords(name: str, description: str = "") -> str:
-    """
-    Categorize a special day based on keywords in name and description.
-
-    Args:
-        name: Name of the special day/holiday
-        description: Optional description text
-
-    Returns:
-        Category string: "Global Health", "Tech", "Culture", or "Culture" as default
-    """
-    text = f"{name} {description}".lower()
-
-    # Check Health first (highest priority for health-related days)
-    for keyword in HEALTH_KEYWORDS:
-        if keyword in text:
-            return "Global Health"
-
-    # Check Tech
-    for keyword in TECH_KEYWORDS:
-        if keyword in text:
-            return "Tech"
-
-    # Check Culture
-    for keyword in CULTURE_KEYWORDS:
-        if keyword in text:
-            return "Culture"
-
-    # Default to Culture for general observances
-    return "Culture"

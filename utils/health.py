@@ -5,25 +5,27 @@ Essential health checks: directories, files, API connectivity.
 Main functions: get_system_status(), get_status_summary().
 """
 
-import os
 import json
+import os
 from datetime import datetime
+
 from config import (
-    DATA_DIR,
-    STORAGE_DIR,
+    ADMINS_FILE,
     BACKUP_DIR,
-    BIRTHDAYS_FILE,
-    TRACKING_DIR,
-    CACHE_DIR,
     BIRTHDAY_CHANNEL,
+    BIRTHDAYS_FILE,
+    CACHE_DIR,
+    DATA_DIR,
     DEFAULT_PERSONALITY,
-    get_logger,
     LOGS_DIR,
-    SPECIAL_DAYS_FILE,
+    PERSONALITY_FILE,
     SPECIAL_DAYS_ENABLED,
+    SPECIAL_DAYS_FILE,
+    STORAGE_DIR,
+    TRACKING_DIR,
+    get_logger,
 )
 from utils.log_setup import LOG_FILES
-from config import ADMINS_FILE, PERSONALITY_FILE
 
 logger = get_logger("system")
 

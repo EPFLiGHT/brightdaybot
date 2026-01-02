@@ -4,36 +4,36 @@ Birthday-related command handlers for BrightDayBot.
 Handles birthday list, check, remind commands, and immediate celebration logic.
 """
 
-from datetime import datetime, timezone
 from calendar import month_name
+from datetime import datetime, timezone
 
+from config import (
+    AI_IMAGE_GENERATION_ENABLED,
+    BIRTHDAY_CHANNEL,
+    DATE_FORMAT,
+    get_logger,
+)
+from services.celebration import (
+    create_birthday_update_notification,
+    log_immediate_celebration_decision,
+    should_celebrate_immediately,
+)
+from services.message import create_birthday_announcement
+from slack.client import (
+    check_command_permission,
+    get_channel_members,
+    get_user_mention,
+    get_user_profile,
+    get_username,
+    send_message,
+)
+from storage.birthdays import load_birthdays, mark_birthday_announced
 from utils.date import (
-    date_to_words,
     calculate_age,
     calculate_days_until_birthday,
     calculate_next_birthday_age,
+    date_to_words,
     get_star_sign,
-)
-from storage.birthdays import load_birthdays, mark_birthday_announced
-from slack.client import (
-    get_username,
-    get_user_profile,
-    check_command_permission,
-    get_channel_members,
-    send_message,
-    get_user_mention,
-)
-from services.message import create_birthday_announcement
-from services.celebration import (
-    should_celebrate_immediately,
-    create_birthday_update_notification,
-    log_immediate_celebration_decision,
-)
-from config import (
-    BIRTHDAY_CHANNEL,
-    DATE_FORMAT,
-    AI_IMAGE_GENERATION_ENABLED,
-    get_logger,
 )
 
 logger = get_logger("commands")
@@ -237,7 +237,6 @@ def handle_list_command(parts, user_id, say, app):
     if list_all:
         # For "list all", sort by month and day
         birthday_list.sort(key=lambda x: (x[6], x[7]))  # month, day
-        title = f"📅 *All Birthdays:* (current UTC time: {current_utc})"
 
         # Calculate age text for list_all users
         for i, (
@@ -273,7 +272,6 @@ def handle_list_command(parts, user_id, say, app):
     else:
         # For regular list, sort by approximate sort key first
         birthday_list.sort(key=lambda x: x[4])  # approximate_sort_key
-        title = f"📅 *Upcoming Birthdays:* (current UTC time: {current_utc})"
 
         # Now only calculate precise days, usernames, and age for the top 10 candidates
         # We might need a few extra in case some are invalid dates

@@ -7,22 +7,24 @@ people born on specific dates, with personality-specific formatting and caching.
 Key functions: get_birthday_facts(), process_facts_for_personality().
 """
 
+import argparse
 import json
 import os
-from datetime import datetime
-from config import (
-    get_logger,
-    CACHE_DIR,
-    WEB_SEARCH_CACHE_ENABLED,
-    DATE_FORMAT,
-    TOKEN_LIMITS,
-    TEMPERATURE_SETTINGS,
-    DEFAULT_OPENAI_MODEL,
-    DEFAULT_IMAGE_PERSONALITY,
-)
-import argparse
 import sys
-from openai import APIError, APIConnectionError, RateLimitError, APITimeoutError
+from datetime import datetime
+
+from openai import APIConnectionError, APIError, APITimeoutError, RateLimitError
+
+from config import (
+    CACHE_DIR,
+    DATE_FORMAT,
+    DEFAULT_IMAGE_PERSONALITY,
+    DEFAULT_OPENAI_MODEL,
+    TEMPERATURE_SETTINGS,
+    TOKEN_LIMITS,
+    WEB_SEARCH_CACHE_ENABLED,
+    get_logger,
+)
 from integrations.openai import complete, get_openai_client, log_web_search_usage
 
 logger = get_logger("web_search")
@@ -396,9 +398,9 @@ def main():
         print(f"Searching for: {formatted_date}\n")
 
         if WEB_SEARCH_CACHE_ENABLED:
-            print(f"Cache: ENABLED (set WEB_SEARCH_CACHE_ENABLED=false to disable)")
+            print("Cache: ENABLED (set WEB_SEARCH_CACHE_ENABLED=false to disable)")
         else:
-            print(f"Cache: DISABLED")
+            print("Cache: DISABLED")
 
         # Call the function
         results = get_birthday_facts(args.date, args.personality)

@@ -7,10 +7,12 @@ when users open the app's Home tab.
 
 from datetime import datetime, timezone
 
-from config import get_logger
-from storage.birthdays import load_birthdays
-from utils.date import calculate_days_until_birthday
+from slack_sdk.errors import SlackApiError
+
+from config import APP_HOME_UPCOMING_LIMIT, get_logger
 from slack.client import get_username
+from storage.birthdays import get_user_preferences, load_birthdays
+from utils.date import calculate_days_until_birthday
 
 logger = get_logger("events")
 
@@ -41,22 +43,29 @@ def register_app_home_handlers(app):
 
             logger.info(f"APP_HOME: Published home view for {user_id}")
 
+        except SlackApiError as e:
+            logger.error(f"APP_HOME_ERROR: Slack API error publishing home view: {e}")
+            # Try to show a fallback error view
+            _publish_fallback_view(client, user_id)
+
         except Exception as e:
             logger.error(f"APP_HOME_ERROR: Failed to publish home view: {e}")
+            # Try to show a fallback error view
+            _publish_fallback_view(client, user_id)
 
     logger.info("APP_HOME: App Home handlers registered")
 
 
 def _build_home_view(user_id, app):
     """Build the App Home view blocks."""
-    from utils.date import date_to_words, calculate_age, get_star_sign
+    from utils.date import calculate_age, date_to_words, get_star_sign
 
     # Get user's birthday status
     birthdays = load_birthdays()
     user_birthday = birthdays.get(user_id)
 
-    # Get upcoming birthdays (top 5)
-    upcoming = _get_upcoming_birthdays(birthdays, app, limit=5)
+    # Get upcoming birthdays
+    upcoming = _get_upcoming_birthdays(birthdays, app, limit=APP_HOME_UPCOMING_LIMIT)
 
     blocks = []
 
@@ -98,7 +107,28 @@ def _build_home_view(user_id, app):
 
         blocks.append({"type": "section", "fields": fields})
 
-        # Edit button
+        # Get and display preferences
+        prefs = get_user_preferences(user_id) or {}
+        is_active = prefs.get("active", True)
+        image_enabled = prefs.get("image_enabled", True)
+        show_age = prefs.get("show_age", True)
+
+        pref_items = []
+        if is_active:
+            pref_items.append("Celebrations: Active")
+        else:
+            pref_items.append("Celebrations: Paused")
+        pref_items.append(f"AI Images: {'On' if image_enabled else 'Off'}")
+        pref_items.append(f"Show Age: {'Yes' if show_age else 'No'}")
+
+        blocks.append(
+            {
+                "type": "context",
+                "elements": [{"type": "mrkdwn", "text": " | ".join(pref_items)}],
+            }
+        )
+
+        # Edit and Remove buttons
         blocks.append(
             {
                 "type": "actions",
@@ -108,7 +138,22 @@ def _build_home_view(user_id, app):
                         "text": {"type": "plain_text", "text": "Edit Birthday"},
                         "action_id": "open_birthday_modal",
                         "style": "primary",
-                    }
+                    },
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "Remove Birthday"},
+                        "action_id": "remove_birthday_confirm",
+                        "style": "danger",
+                        "confirm": {
+                            "title": {"type": "plain_text", "text": "Remove Birthday?"},
+                            "text": {
+                                "type": "mrkdwn",
+                                "text": "Are you sure you want to remove your birthday? You won't receive celebrations until you add it again.",
+                            },
+                            "confirm": {"type": "plain_text", "text": "Remove"},
+                            "deny": {"type": "plain_text", "text": "Cancel"},
+                        },
+                    },
                 ],
             }
         )
@@ -221,7 +266,7 @@ def _build_home_view(user_id, app):
     return {"type": "home", "blocks": blocks}
 
 
-def _get_upcoming_birthdays(birthdays, app, limit=5):
+def _get_upcoming_birthdays(birthdays, app, limit=APP_HOME_UPCOMING_LIMIT):
     """Get list of upcoming birthdays."""
     reference_date = datetime.now(timezone.utc)
     upcoming = []
@@ -242,3 +287,46 @@ def _get_upcoming_birthdays(birthdays, app, limit=5):
     # Sort by days until and limit
     upcoming.sort(key=lambda x: x["days_until"])
     return upcoming[:limit]
+
+
+def _publish_fallback_view(client, user_id):
+    """Publish a minimal fallback view when the main view fails."""
+    fallback_view = {
+        "type": "home",
+        "blocks": [
+            {"type": "header", "text": {"type": "plain_text", "text": "BrightDayBot"}},
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "Something went wrong loading your birthday info. Please try again in a moment.",
+                },
+            },
+            {
+                "type": "actions",
+                "elements": [
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "Add My Birthday"},
+                        "action_id": "open_birthday_modal",
+                        "style": "primary",
+                    }
+                ],
+            },
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": "You can also use `/birthday` to manage your birthday.",
+                    }
+                ],
+            },
+        ],
+    }
+
+    try:
+        client.views_publish(user_id=user_id, view=fallback_view)
+        logger.info(f"APP_HOME: Published fallback view for {user_id}")
+    except Exception as e:
+        logger.error(f"APP_HOME_ERROR: Failed to publish fallback view: {e}")

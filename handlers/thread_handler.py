@@ -9,10 +9,11 @@ Uses the ThreadTracker to identify active threads.
 """
 
 import random
-from typing import Optional, List, Tuple
+from typing import List, Optional, Tuple
+
 from slack_sdk.errors import SlackApiError
 
-from config import get_logger
+from config import THREAD_MIN_TEXT_LENGTH, get_logger
 
 logger = get_logger("events")
 
@@ -164,8 +165,8 @@ def handle_special_day_thread_reply(
     Returns:
         Dict with results: {"response_sent": bool, "error": str or None}
     """
-    from utils.thread_tracking import get_thread_tracker
     from config import SPECIAL_DAY_THREAD_ENABLED, SPECIAL_DAY_THREAD_MAX_RESPONSES
+    from utils.thread_tracking import get_thread_tracker
 
     result = {"response_sent": False, "error": None}
 
@@ -183,7 +184,7 @@ def handle_special_day_thread_reply(
 
     # Check if this looks like a question or engagement
     if not _is_engaging_message(text):
-        logger.debug(f"SPECIAL_DAY_THREAD: Message doesn't appear to need response")
+        logger.debug("SPECIAL_DAY_THREAD: Message doesn't appear to need response")
         return result
 
     try:
@@ -291,7 +292,7 @@ def _is_engaging_message(text: str) -> bool:
             return True
 
     # Short messages are usually not engagement (just reactions like "nice!")
-    if len(text_lower) < 15:
+    if len(text_lower) < THREAD_MIN_TEXT_LENGTH:
         return False
 
     return False
@@ -316,8 +317,8 @@ def _generate_special_day_response(
         Response text or None on failure
     """
     try:
+        from config import TEMPERATURE_SETTINGS, TOKEN_LIMITS
         from integrations.openai import complete
-        from config import TOKEN_LIMITS, TEMPERATURE_SETTINGS
         from personality_config import PERSONALITIES
 
         # Defensive check for special_day_info

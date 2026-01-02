@@ -50,7 +50,13 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
-ignore = ["E501"]
+ignore = [
+    "E501",  # Line too long (handled by black)
+    "E402",  # Module level import not at top (intentional for circular import avoidance)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"integrations/calendarific.py" = ["F821"]  # Forward reference with import inside method
 
 [tool.black]
 line-length = 100

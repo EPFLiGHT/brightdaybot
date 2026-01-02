@@ -9,19 +9,18 @@ Tests pure functions with complex logic:
 - check_if_birthday_today(): Core business logic
 """
 
-import pytest
-from datetime import datetime, timezone
+from datetime import datetime
 
 from utils.date import (
-    extract_date,
-    date_to_words,
-    get_star_sign,
-    check_if_birthday_today,
-    calculate_days_until_birthday,
+    _is_date_in_zodiac_range,
     calculate_age,
+    calculate_days_until_birthday,
+    check_if_birthday_today,
+    date_to_words,
+    extract_date,
     format_date_european,
     format_date_european_short,
-    _is_date_in_zodiac_range,
+    get_star_sign,
 )
 
 

@@ -11,19 +11,19 @@ Features:
 - Keyword-based category and emoji mapping
 """
 
-import os
-import json
 import asyncio
 import calendar
+import json
+import os
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Any, List, Optional, Dict
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
 from storage.special_days import SpecialDay
-from utils.log_setup import get_logger
 from utils.keywords import HEALTH_KEYWORDS, TECH_KEYWORDS
+from utils.log_setup import get_logger
 
 logger = get_logger("special_days")
 
@@ -206,6 +206,7 @@ class ObservanceScraperBase(ABC):
             LLMConfig,
             LLMExtractionStrategy,
         )
+
         from storage.settings import get_current_openai_model
 
         observances = []

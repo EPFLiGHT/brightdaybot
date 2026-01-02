@@ -4,7 +4,6 @@ Tests for Observances modules (UN, UNESCO, WHO) - core functionality only.
 
 import pytest
 
-
 # ============================================================================
 # UN Observances Tests
 # ============================================================================

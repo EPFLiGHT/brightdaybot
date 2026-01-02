@@ -2,12 +2,11 @@
 Tests for special days deduplication functions - core functionality only.
 """
 
-import pytest
 from storage.special_days import (
-    _normalize_name,
-    _names_match,
-    _deduplicate_special_days,
     SpecialDay,
+    _deduplicate_special_days,
+    _names_match,
+    _normalize_name,
 )
 
 

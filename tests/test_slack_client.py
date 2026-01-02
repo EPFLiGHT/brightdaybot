@@ -8,9 +8,9 @@ Tests pure formatting functions (no API calls):
 """
 
 from slack.client import (
-    get_user_mention,
-    get_channel_mention,
     fix_slack_formatting,
+    get_channel_mention,
+    get_user_mention,
 )
 
 

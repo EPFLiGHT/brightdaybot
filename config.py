@@ -8,8 +8,9 @@ Key modules: storage/settings.py, utils/log_setup.py
 """
 
 import os
-from dotenv import load_dotenv
 from datetime import time
+
+from dotenv import load_dotenv
 
 # Load environment variables first - this should be at the very top
 # Get the directory where this config.py file is located
@@ -132,7 +133,8 @@ CUSTOM_SLACK_EMOJIS = {}
 # ----- FILE PATHS -----
 
 # Core data files
-BIRTHDAYS_FILE = os.path.join(STORAGE_DIR, "birthdays.txt")
+BIRTHDAYS_FILE = os.path.join(STORAGE_DIR, "birthdays.txt")  # Legacy CSV format
+BIRTHDAYS_JSON_FILE = os.path.join(STORAGE_DIR, "birthdays.json")  # New JSON format
 ADMINS_FILE = os.path.join(STORAGE_DIR, "admins.json")
 PERSONALITY_FILE = os.path.join(STORAGE_DIR, "personality.json")
 PERMISSIONS_FILE = os.path.join(STORAGE_DIR, "permissions.json")
@@ -415,6 +417,15 @@ DEFAULT_ANNOUNCEMENT_TIME = "09:00"
 
 # Minimum valid birth year for birthday validation
 MIN_BIRTH_YEAR = 1900
+
+# App Home settings
+APP_HOME_UPCOMING_LIMIT = 5  # Number of upcoming birthdays to show
+
+# Thread engagement settings
+THREAD_MIN_TEXT_LENGTH = 15  # Minimum text length for thank you detection
+
+# Slack API limits
+SLACK_MAX_BLOCKS = 50  # Maximum blocks per message (Slack API limit)
 
 # ----- PERSONALITY CONFIGURATION -----
 

@@ -5,8 +5,8 @@ Tests handler registration, input parsing, and response generation
 without requiring live Slack connections.
 """
 
-from unittest.mock import MagicMock, patch
 from datetime import datetime
+from unittest.mock import MagicMock, patch
 
 
 class TestSlashCommandRegistration:
@@ -312,7 +312,7 @@ class TestAppHomeViewBuilding:
         assert button["action_id"] == "open_birthday_modal"
         assert "Add" in button["text"]["text"]
 
-    def test_home_view_shows_edit_button_when_has_birthday(self):
+    def test_home_view_shows_edit_button_when_has_birthday(self, mock_birthday_data):
         """Home shows Edit button when user has birthday"""
         from handlers.app_home import _build_home_view
 
@@ -320,10 +320,14 @@ class TestAppHomeViewBuilding:
 
         with patch(
             "handlers.app_home.load_birthdays",
-            return_value={"U123": {"date": "25/12", "year": 1990}},
+            return_value={"U123": mock_birthday_data(date="25/12", year=1990)},
         ):
-            with patch("handlers.app_home.get_username", return_value="TestUser"):
-                view = _build_home_view("U123", mock_app)
+            with patch(
+                "handlers.app_home.get_user_preferences",
+                return_value={"active": True, "image_enabled": True, "show_age": True},
+            ):
+                with patch("handlers.app_home.get_username", return_value="TestUser"):
+                    view = _build_home_view("U123", mock_app)
 
         action_blocks = [b for b in view["blocks"] if b.get("type") == "actions"]
         assert len(action_blocks) >= 1
@@ -337,15 +341,17 @@ class TestAppHomeViewBuilding:
 class TestUpcomingBirthdaysFiltering:
     """Tests for upcoming birthdays calculation"""
 
-    def test_get_upcoming_birthdays_limits_results(self):
+    def test_get_upcoming_birthdays_limits_results(self, mock_birthday_data):
         """Upcoming birthdays respects limit parameter"""
+
         from handlers.app_home import _get_upcoming_birthdays
-        from datetime import timezone
 
         mock_app = MagicMock()
 
-        # Create more birthdays than limit
-        birthdays = {f"U{i}": {"date": f"{10+i:02d}/01"} for i in range(10)}
+        # Create more birthdays than limit with full preferences structure
+        birthdays = {
+            f"U{i}": mock_birthday_data(date=f"{10+i:02d}/01", year=1990) for i in range(10)
+        }
 
         with patch("handlers.app_home.get_username", return_value="User"):
             with patch(
@@ -356,15 +362,15 @@ class TestUpcomingBirthdaysFiltering:
 
         assert len(result) <= 5
 
-    def test_get_upcoming_birthdays_includes_all_dates(self):
+    def test_get_upcoming_birthdays_includes_all_dates(self, mock_birthday_data):
         """All birthdays are included regardless of days until"""
         from handlers.app_home import _get_upcoming_birthdays
 
         mock_app = MagicMock()
 
         birthdays = {
-            "U1": {"date": "01/01"},  # Will be 5 days
-            "U2": {"date": "02/01"},  # Will be 40 days
+            "U1": mock_birthday_data(date="01/01", year=1990),  # Will be 5 days
+            "U2": mock_birthday_data(date="02/01", year=1985),  # Will be 40 days
         }
 
         with patch("handlers.app_home.get_username", return_value="User"):

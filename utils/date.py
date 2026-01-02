@@ -9,15 +9,16 @@ is_celebration_time_for_user(), format_timezone_schedule().
 """
 
 import re
-from datetime import datetime, timezone
 from calendar import month_name
+from datetime import datetime, timezone
+
 import pytz
 
 from config import (
     DATE_FORMAT,
     DATE_WITH_YEAR_FORMAT,
-    TIMEZONE_CELEBRATION_TIME,
     MIN_BIRTH_YEAR,
+    TIMEZONE_CELEBRATION_TIME,
     get_logger,
 )
 
@@ -494,8 +495,8 @@ def format_timezone_schedule(app=None):
 
     # Get birthdays data to find users in each timezone
     try:
+        from slack.client import get_user_mention, get_user_profile
         from storage.birthdays import load_birthdays
-        from slack.client import get_user_profile, get_user_mention
 
         birthdays = load_birthdays()
         timezone_users = {}

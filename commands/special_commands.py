@@ -13,36 +13,30 @@ Main functions:
 """
 
 from datetime import datetime, timedelta
-from collections import defaultdict
-from calendar import month_name
-import csv
 
 from config import (
-    get_logger,
-    SPECIAL_DAYS_CATEGORIES,
-    SPECIAL_DAYS_PERSONALITY,
-    DEFAULT_ANNOUNCEMENT_TIME,
-    DATE_FORMAT,
-    UPCOMING_DAYS_DEFAULT,
-    UPCOMING_DAYS_EXTENDED,
     CALENDARIFIC_PREFETCH_DAYS,
+    DATE_FORMAT,
+    DEFAULT_ANNOUNCEMENT_TIME,
+    UPCOMING_DAYS_EXTENDED,
+    get_logger,
 )
-from slack.client import get_username, send_message
+from slack.client import get_username
 
 logger = get_logger("commands")
 
 
 def handle_special_command(args, user_id, say, app):
     """Handle user special days commands using Block Kit"""
+    from slack.blocks import (
+        build_special_day_stats_blocks,
+        build_special_days_list_blocks,
+    )
     from storage.special_days import (
+        get_special_day_statistics,
         get_todays_special_days,
         get_upcoming_special_days,
-        get_special_day_statistics,
         load_all_special_days,
-    )
-    from slack.blocks import (
-        build_special_days_list_blocks,
-        build_special_day_stats_blocks,
     )
 
     # Default to showing today if no args
@@ -115,18 +109,19 @@ def handle_special_command(args, user_id, say, app):
         blocks, fallback = build_special_day_stats_blocks(stats)
         say(blocks=blocks, text=fallback)
 
+    elif subcommand == "help":
+        # Show help using Block Kit
+        from slack.blocks import build_slash_help_blocks
+
+        blocks, fallback = build_slash_help_blocks("special-day")
+        say(blocks=blocks, text=fallback)
+
     else:
-        # Help message
-        help_text = f"""*Special Days Commands:*
+        # Unknown subcommand - show help
+        from slack.blocks import build_slash_help_blocks
 
-• `special` or `special today` - Show today's special days
-• `special week` - Show special days for the next {UPCOMING_DAYS_DEFAULT} days
-• `special month` - Show special days for the next {UPCOMING_DAYS_EXTENDED} days
-• `special list [category]` - List all special days (optionally by category)
-• `special stats` - Show special days statistics
-
-_Sources: UN/WHO/UNESCO observances, Calendarific holidays, and custom entries._"""
-        say(help_text)
+        blocks, fallback = build_slash_help_blocks("special-day")
+        say(blocks=blocks, text=fallback)
 
     logger.info(f"SPECIAL: {get_username(app, user_id)} used special command: {' '.join(args)}")
 
@@ -173,16 +168,7 @@ def handle_admin_special_command_with_quotes(command_text, user_id, say, app):
     from storage.special_days import (
         SpecialDay,
         save_special_day,
-        remove_special_day,
-        load_special_days,
-        update_category_status,
-        load_special_days_config,
-        save_special_days_config,
-        format_special_days_list,
-        get_special_days_for_date,
-        mark_special_day_announced,
     )
-    from services.special_day import generate_special_day_message
 
     username = get_username(app, user_id)
 
@@ -254,9 +240,9 @@ def handle_admin_special_command_with_quotes(command_text, user_id, say, app):
             else:
                 say("❌ Failed to add special day. Check logs for details.")
 
-        except (ValueError, IndexError) as e:
+        except (ValueError, IndexError):
             say(
-                f'❌ Invalid format. Use: `admin special add DD/MM "Name" "Category" "Description" ["emoji"] ["source"] ["url"]`\n'
+                '❌ Invalid format. Use: `admin special add DD/MM "Name" "Category" "Description" ["emoji"] ["source"] ["url"]`\n'
                 'Example: `admin special add 15/03 "World Sleep Day" "Global Health" "Promoting healthy sleep" "💤" "World Sleep Society" "https://worldsleepday.org"`'
             )
 
@@ -269,18 +255,15 @@ def handle_admin_special_command_with_quotes(command_text, user_id, say, app):
 
 def handle_admin_special_command(args, user_id, say, app):
     """Handle admin special days commands (non-add commands only)"""
-    from storage.special_days import (
-        remove_special_day,
-        load_special_days,
-        load_all_special_days,
-        update_category_status,
-        load_special_days_config,
-        save_special_days_config,
-        format_special_days_list,
-        get_special_days_for_date,
-        mark_special_day_announced,
-    )
     from services.special_day import generate_special_day_message
+    from storage.special_days import (
+        get_special_days_for_date,
+        load_all_special_days,
+        load_special_days_config,
+        remove_special_day,
+        save_special_days_config,
+        update_category_status,
+    )
 
     username = get_username(app, user_id)
 
@@ -399,8 +382,8 @@ def handle_admin_special_command(args, user_id, say, app):
 
                         if message:
                             # Build blocks for individual observance (unified function with list)
-                            from slack.blocks import build_special_day_blocks
                             from config import SPECIAL_DAYS_PERSONALITY
+                            from slack.blocks import build_special_day_blocks
 
                             blocks, fallback_text = build_special_day_blocks(
                                 [special_day],
@@ -479,7 +462,7 @@ def handle_admin_special_command(args, user_id, say, app):
         results = verify_special_days()
 
         message = "🔍 *Special Days Verification Report:*\n\n"
-        message += f"*Statistics:*\n"
+        message += "*Statistics:*\n"
         message += f"• Total days: {results['stats']['total']}\n"
         message += f"• Days with source: {results['stats']['with_source']}\n"
         message += f"• Days with URL: {results['stats']['with_url']}\n\n"
@@ -497,13 +480,13 @@ def handle_admin_special_command(args, user_id, say, app):
                 for day in results["missing_sources"]:
                     message += f"  - {day}\n"
             else:
-                message += f"  (showing first 5)\n"
+                message += "  (showing first 5)\n"
                 for day in results["missing_sources"][:5]:
                     message += f"  - {day}\n"
 
         if results["duplicate_dates"]:
             issues_found = True
-            message += f"\n⚠️ *Duplicate Dates:*\n"
+            message += "\n⚠️ *Duplicate Dates:*\n"
             for date, names in results["duplicate_dates"].items():
                 message += f"  • {date}: {', '.join(names)}\n"
 
@@ -525,7 +508,7 @@ def handle_admin_special_command(args, user_id, say, app):
 
     elif subcommand == "refresh":
         # Calendarific: Force weekly prefetch
-        from config import CALENDARIFIC_ENABLED, CALENDARIFIC_API_KEY
+        from config import CALENDARIFIC_API_KEY, CALENDARIFIC_ENABLED
 
         if not CALENDARIFIC_ENABLED:
             say("❌ Calendarific API is not enabled. Set `CALENDARIFIC_ENABLED=true` in .env")
@@ -749,7 +732,7 @@ _Cache refreshes monthly. Use `admin special who-refresh` to force update._"""
 
     elif subcommand in ["api-status", "api", "calendarific"]:
         # Calendarific: Show API status
-        from config import CALENDARIFIC_ENABLED, CALENDARIFIC_API_KEY
+        from config import CALENDARIFIC_API_KEY, CALENDARIFIC_ENABLED
 
         if not CALENDARIFIC_ENABLED:
             say(

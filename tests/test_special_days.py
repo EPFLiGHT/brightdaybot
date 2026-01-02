@@ -6,8 +6,8 @@ Tests observance analysis functions:
 """
 
 from storage.special_days import (
-    group_observances_by_category,
     SpecialDay,
+    group_observances_by_category,
 )
 
 

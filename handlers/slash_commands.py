@@ -39,8 +39,14 @@ def register_slash_commands(app):
             _handle_slash_check(text, user_id, respond, app)
         elif text == "list":
             _handle_slash_list(respond, app)
+        elif text == "pause":
+            _handle_slash_pause(user_id, respond)
+        elif text == "resume":
+            _handle_slash_resume(user_id, respond)
+        elif text == "help":
+            _send_birthday_help(respond)
         else:
-            # Show help
+            # Show help for unknown subcommand
             _send_birthday_help(respond)
 
     @app.command("/special-day")
@@ -95,10 +101,10 @@ def _handle_slash_check(text, user_id, respond, app):
         respond: Slack respond function for ephemeral messages
         app: Slack app instance
     """
-    from storage.birthdays import load_birthdays
-    from slack.client import get_username
-    from utils.date import date_to_words, calculate_age, get_star_sign
     from slack.blocks import build_birthday_check_blocks
+    from slack.client import get_username
+    from storage.birthdays import load_birthdays
+    from utils.date import calculate_age, date_to_words, get_star_sign
 
     parts = text.split()
 
@@ -152,10 +158,11 @@ def _handle_slash_list(respond, app):
         app: Slack app instance for username lookups
     """
     from datetime import datetime, timezone
-    from storage.birthdays import load_birthdays
-    from slack.client import get_username
-    from utils.date import calculate_days_until_birthday
+
     from slack.blocks import build_upcoming_birthdays_blocks
+    from slack.client import get_username
+    from storage.birthdays import load_birthdays
+    from utils.date import calculate_days_until_birthday
 
     birthdays = load_birthdays()
     reference_date = datetime.now(timezone.utc)
@@ -198,3 +205,61 @@ def _send_birthday_help(respond):
 
     blocks, fallback = build_slash_help_blocks("birthday")
     respond(blocks=blocks, text=fallback)
+
+
+def _handle_slash_pause(user_id, respond):
+    """
+    Handle /birthday pause command.
+
+    Pauses birthday celebrations for the user.
+
+    Args:
+        user_id: Slack user ID
+        respond: Slack respond function for ephemeral messages
+    """
+    from storage.birthdays import get_birthday, update_user_preferences
+
+    birthday = get_birthday(user_id)
+    if not birthday:
+        respond(text="You haven't added your birthday yet. Use `/birthday` to add it first.")
+        return
+
+    # Update preferences to pause
+    success = update_user_preferences(user_id, {"active": False})
+
+    if success:
+        logger.info(f"PAUSE: User {user_id} paused their birthday celebrations")
+        respond(
+            text="Your birthday celebrations have been paused. You won't receive any announcements until you resume. Use `/birthday resume` to enable again."
+        )
+    else:
+        respond(text="Unable to pause celebrations. Please try again.")
+
+
+def _handle_slash_resume(user_id, respond):
+    """
+    Handle /birthday resume command.
+
+    Resumes birthday celebrations for the user.
+
+    Args:
+        user_id: Slack user ID
+        respond: Slack respond function for ephemeral messages
+    """
+    from storage.birthdays import get_birthday, update_user_preferences
+
+    birthday = get_birthday(user_id)
+    if not birthday:
+        respond(text="You haven't added your birthday yet. Use `/birthday` to add it first.")
+        return
+
+    # Update preferences to resume
+    success = update_user_preferences(user_id, {"active": True})
+
+    if success:
+        logger.info(f"RESUME: User {user_id} resumed their birthday celebrations")
+        respond(
+            text="Your birthday celebrations have been resumed! You'll receive announcements on your birthday."
+        )
+    else:
+        respond(text="Unable to resume celebrations. Please try again.")

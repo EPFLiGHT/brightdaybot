@@ -18,27 +18,26 @@ testing, and verification purposes.
 from datetime import datetime
 
 from config import (
-    get_logger,
-    BIRTHDAY_CHANNEL,
     AI_IMAGE_GENERATION_ENABLED,
-    IMAGE_GENERATION_PARAMS,
+    BACKUP_CHANNEL_ID,
+    BACKUP_DIR,
+    BACKUP_ON_EVERY_CHANGE,
+    BACKUP_TO_ADMINS,
+    BIRTHDAY_CHANNEL,
     BOT_BIRTH_YEAR,
     BOT_BIRTHDAY,
-    DATA_DIR,
-    BACKUP_DIR,
     EXTERNAL_BACKUP_ENABLED,
-    BACKUP_TO_ADMINS,
-    BACKUP_ON_EVERY_CHANGE,
-    BACKUP_CHANNEL_ID,
+    IMAGE_GENERATION_PARAMS,
+    get_logger,
 )
 from slack.client import (
-    get_username,
+    get_channel_members,
+    get_channel_mention,
+    get_user_mention,
     get_user_profile,
+    get_username,
     send_message,
     send_message_with_image,
-    get_channel_members,
-    get_user_mention,
-    get_channel_mention,
 )
 
 logger = get_logger("commands")
@@ -97,7 +96,7 @@ def parse_test_command_args(args):
             None,
             None,
             False,
-            f"Too many arguments. Expected: [quality] [size] [--text-only]",
+            "Too many arguments. Expected: [quality] [size] [--text-only]",
         )
 
     return quality, image_size, text_only, None
@@ -129,12 +128,11 @@ def handle_test_command(
         target_user_id: Single user ID or list of user IDs to test
         text_only: Skip image generation if True
     """
+    from datetime import datetime
+
     from services.celebration import BirthdayCelebrationPipeline
     from storage.birthdays import load_birthdays
-    from slack.client import get_username, get_user_profile
     from utils.date import date_to_words
-    from datetime import datetime
-    from config import AI_IMAGE_GENERATION_ENABLED
 
     # Handle single or multiple target users
     if target_user_id is None:
@@ -212,7 +210,7 @@ def handle_test_command(
     if image_size:
         logger.info(f"TEST: Using image size: {image_size}")
     if text_only:
-        logger.info(f"TEST: Using text-only mode (skipping image generation)")
+        logger.info("TEST: Using text-only mode (skipping image generation)")
 
     # Call production pipeline - handles single OR multiple automatically!
     result = pipeline.celebrate(
@@ -233,7 +231,7 @@ def handle_test_command(
         )
     else:
         logger.error(f"TEST: Failed - {result.get('error', 'unknown')}")
-        say(f"❌ Test failed. Check logs for details.")
+        say("❌ Test failed. Check logs for details.")
 
 
 def handle_test_block_command(user_id, args, say, app):
@@ -249,14 +247,15 @@ def handle_test_block_command(user_id, args, say, app):
         say: Slack say function for sending messages
         app: Slack app instance for API calls
     """
+    from datetime import datetime
+
     from slack.blocks import (
         build_birthday_blocks,
-        build_special_day_blocks,
         build_bot_celebration_blocks,
+        build_special_day_blocks,
     )
-    from slack.client import send_message, get_username, get_user_profile
+    from slack.client import send_message
     from storage.settings import get_current_personality_name
-    from datetime import datetime
 
     username = get_username(app, user_id)
 
@@ -287,7 +286,6 @@ def handle_test_block_command(user_id, args, say, app):
                 target_user_id = user_id
 
             target_username = get_username(app, target_user_id)
-            user_profile = get_user_profile(app, target_user_id)
 
             # Build test birthday block (unified function with list format)
             test_message = f"🎉 Happy birthday {target_username}! This is a test Block Kit message to demonstrate the visual layout without AI generation. The actual message would be personalized and creative!"
@@ -445,8 +443,9 @@ def handle_test_upload_command(user_id, say, app):
     """
     say("Attempting to upload a test image to you via DM...")
     try:
-        from PIL import Image, ImageDraw
         import io
+
+        from PIL import Image, ImageDraw
 
         # Create a dummy image
         img = Image.new("RGB", (200, 50), color="blue")
@@ -491,7 +490,7 @@ def handle_test_upload_multi_command(user_id, say, app):
         say: Slack say function for sending messages
         app: Slack app instance for file uploads
     """
-    from slack.client import send_message_with_multiple_attachments, get_username
+    from slack.client import send_message_with_multiple_attachments
 
     username = get_username(app, user_id)
     say(
@@ -499,8 +498,9 @@ def handle_test_upload_multi_command(user_id, say, app):
     )
 
     try:
-        from PIL import Image, ImageDraw, ImageFont
         import io
+
+        from PIL import Image, ImageDraw, ImageFont
 
         # Create multiple dummy images with different themes
         test_images = []
@@ -620,10 +620,11 @@ def handle_test_file_upload_command(user_id, say, app):
         say: Slack say function for sending messages
         app: Slack app instance for file upload
     """
-    import tempfile
     import os
+    import tempfile
     from datetime import datetime
-    from slack.client import send_message_with_file, get_username
+
+    from slack.client import send_message_with_file
 
     username = get_username(app, user_id)
     say("📄 Creating and uploading a test text file to you via DM...")
@@ -726,11 +727,11 @@ def handle_test_external_backup_command(user_id, say, app):
         say: Slack say function for sending messages
         app: Slack app instance for backup delivery
     """
-    from slack.client import get_username
-    from storage.birthdays import send_external_backup
-    from datetime import datetime
-    import os
     import glob
+    import os
+    from datetime import datetime
+
+    from storage.birthdays import send_external_backup
 
     username = get_username(app, user_id)
     say(
@@ -738,12 +739,6 @@ def handle_test_external_backup_command(user_id, say, app):
     )
 
     # Check environment variables
-    from config import (
-        EXTERNAL_BACKUP_ENABLED,
-        BACKUP_TO_ADMINS,
-        BACKUP_ON_EVERY_CHANGE,
-        BACKUP_CHANNEL_ID,
-    )
 
     config_status = f"""📋 *External Backup Configuration:*
 • `EXTERNAL_BACKUP_ENABLED`: {EXTERNAL_BACKUP_ENABLED}
@@ -820,9 +815,9 @@ def handle_test_blockkit_command(user_id, args, say, app):
     - simple: Simplest possible block structure
     - all: Run all modes sequentially
     """
-    from slack.client import get_username
-    from PIL import Image, ImageDraw
     import io
+
+    from PIL import Image, ImageDraw
 
     username = get_username(app, user_id)
 
@@ -961,8 +956,8 @@ def _test_blockkit_with_channel(app, user_id, username, image_bytes, say):
         )
 
         if result["ok"]:
-            say(f"✅ Block Kit message sent successfully!")
-            logger.info(f"TEST_BLOCKKIT_WITH_CHANNEL: Success!")
+            say("✅ Block Kit message sent successfully!")
+            logger.info("TEST_BLOCKKIT_WITH_CHANNEL: Success!")
         else:
             say(f"❌ Block Kit message failed: {result.get('error', 'Unknown')}")
             logger.error(f"TEST_BLOCKKIT_WITH_CHANNEL: Failed: {result}")
@@ -1042,8 +1037,8 @@ def _test_blockkit_private(app, user_id, username, image_bytes, say):
         )
 
         if result["ok"]:
-            say(f"✅ Block Kit message sent successfully!")
-            logger.info(f"TEST_BLOCKKIT_PRIVATE: Success!")
+            say("✅ Block Kit message sent successfully!")
+            logger.info("TEST_BLOCKKIT_PRIVATE: Success!")
         else:
             say(f"❌ Block Kit message failed: {result.get('error', 'Unknown')}")
             logger.error(f"TEST_BLOCKKIT_PRIVATE: Failed: {result}")
@@ -1123,8 +1118,8 @@ def _test_blockkit_url_only(app, user_id, username, image_bytes, say):
         )
 
         if result["ok"]:
-            say(f"✅ Block Kit message sent successfully!")
-            logger.info(f"TEST_BLOCKKIT_URL_ONLY: Success!")
+            say("✅ Block Kit message sent successfully!")
+            logger.info("TEST_BLOCKKIT_URL_ONLY: Success!")
         else:
             say(f"❌ Block Kit message failed: {result.get('error', 'Unknown')}")
             logger.error(f"TEST_BLOCKKIT_URL_ONLY: Failed: {result}")
@@ -1179,7 +1174,7 @@ def _test_blockkit_simple(app, user_id, username, image_bytes, say):
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": f"🧪 *Simple Test*\n\nMinimal block structure with `slack_file`.",
+                "text": "🧪 *Simple Test*\n\nMinimal block structure with `slack_file`.",
             },
         },
         {"type": "image", "slack_file": {"url": file_url}, "alt_text": "Test image"},
@@ -1195,8 +1190,8 @@ def _test_blockkit_simple(app, user_id, username, image_bytes, say):
         )
 
         if result["ok"]:
-            say(f"✅ Block Kit message sent successfully!")
-            logger.info(f"TEST_BLOCKKIT_SIMPLE: Success!")
+            say("✅ Block Kit message sent successfully!")
+            logger.info("TEST_BLOCKKIT_SIMPLE: Success!")
         else:
             say(f"❌ Block Kit message failed: {result.get('error', 'Unknown')}")
             logger.error(f"TEST_BLOCKKIT_SIMPLE: Failed: {result}")
@@ -1218,8 +1213,6 @@ def handle_test_join_command(args, user_id, say, app):
         say: Slack say function for sending messages
         app: Slack app instance for API calls
     """
-    from slack.client import get_username
-    from config import BIRTHDAY_CHANNEL
 
     username = get_username(app, user_id)
 
@@ -1235,7 +1228,7 @@ def handle_test_join_command(args, user_id, say, app):
     # Show what we're testing
     if test_user_id == user_id:
         say(
-            f"🧪 *Testing Birthday Channel Welcome for Yourself*\nSimulating member_joined_channel event..."
+            "🧪 *Testing Birthday Channel Welcome for Yourself*\nSimulating member_joined_channel event..."
         )
     else:
         say(
@@ -1406,26 +1399,18 @@ def handle_test_bot_celebration_command(
         image_size: Optional image size (auto/1024x1024/etc.)
         text_only: Skip image generation if True
     """
-    from slack.client import (
-        get_username,
-        get_channel_members,
-        send_message_with_image,
-    )
+    from datetime import datetime
+
+    from image.generator import generate_birthday_image
     from services.celebration import (
         generate_bot_celebration_message,
         get_bot_celebration_image_title,
     )
-    from image.generator import generate_birthday_image
+    from slack.client import (
+        send_message_with_image,
+    )
     from storage.birthdays import load_birthdays
     from utils.date import date_to_words
-    from config import (
-        BOT_BIRTH_YEAR,
-        BOT_BIRTHDAY,
-        BIRTHDAY_CHANNEL,
-        AI_IMAGE_GENERATION_ENABLED,
-        IMAGE_GENERATION_PARAMS,
-    )
-    from datetime import datetime
 
     username = get_username(app, user_id)
     say(
@@ -1467,7 +1452,7 @@ def handle_test_bot_celebration_command(
 
         # Log text_only flag if provided
         if text_only:
-            logger.info(f"TEST_BOT_CELEBRATION: Using text-only mode (skipping image generation)")
+            logger.info("TEST_BOT_CELEBRATION: Using text-only mode (skipping image generation)")
 
         # Determine quality and size settings with smart defaults for display
         display_quality = (
@@ -1656,13 +1641,13 @@ def handle_test_bot_celebration_command(
 
                         send_message_with_image(app, user_id, fallback_text, None, blocks=blocks)
                         say(
-                            f"⚠️ *Bot Celebration Test - Image Upload Failed* ⚠️\n\n"
-                            f"_Results:_\n"
-                            f"• Ludo's mystical message: ✅ Generated and sent above with blocks\n"
-                            f"• AI image generation: ✅ Generated successfully\n"
-                            f"• Image upload: ❌ Failed to send to Slack\n"
-                            f"• Fallback: Message-only mode used\n\n"
-                            f"🔧 _Admin tip:_ Check Slack API permissions or image file format."
+                            "⚠️ *Bot Celebration Test - Image Upload Failed* ⚠️\n\n"
+                            "_Results:_\n"
+                            "• Ludo's mystical message: ✅ Generated and sent above with blocks\n"
+                            "• AI image generation: ✅ Generated successfully\n"
+                            "• Image upload: ❌ Failed to send to Slack\n"
+                            "• Fallback: Message-only mode used\n\n"
+                            "🔧 _Admin tip:_ Check Slack API permissions or image file format."
                         )
                         logger.warning(
                             f"TEST_BOT_CELEBRATION: Image upload failed for {username}, fell back to message-only with blocks"
@@ -1712,13 +1697,13 @@ def handle_test_bot_celebration_command(
 
                 send_message_with_image(app, user_id, fallback_text, None, blocks=blocks)
                 say(
-                    f"⚠️ *Bot Celebration Test - Image Error* ⚠️\n\n"
-                    f"_Results:_\n"
-                    f"• Ludo's mystical message: ✅ Generated and sent above with blocks\n"
-                    f"• AI image generation: ❌ Exception occurred\n"
-                    f"• Error details: Check logs for technical details\n"
-                    f"• Fallback: Message-only mode used\n\n"
-                    f"🔧 _Admin tip:_ Review image generation logs for troubleshooting."
+                    "⚠️ *Bot Celebration Test - Image Error* ⚠️\n\n"
+                    "_Results:_\n"
+                    "• Ludo's mystical message: ✅ Generated and sent above with blocks\n"
+                    "• AI image generation: ❌ Exception occurred\n"
+                    "• Error details: Check logs for technical details\n"
+                    "• Fallback: Message-only mode used\n\n"
+                    "🔧 _Admin tip:_ Review image generation logs for troubleshooting."
                 )
         else:
             # Images disabled - send message only but with blocks

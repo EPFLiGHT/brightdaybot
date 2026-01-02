@@ -1,71 +1,99 @@
 """
-File-based data storage and backup management for BrightDayBot.
+JSON-based data storage and backup management for BrightDayBot.
 
-Handles birthday data persistence, automatic backups, announcement tracking,
-and external backup delivery with file locking for data integrity.
+Handles birthday data persistence with user preferences, automatic backups,
+announcement tracking, and external backup delivery with file locking.
 
-Key functions: load_birthdays(), save_birthday(), create_backup().
+Storage format:
+{
+  "USER_ID": {
+    "date": "DD/MM",
+    "year": YYYY or null,
+    "preferences": {
+      "active": true,
+      "image_enabled": true,
+      "show_age": true
+    },
+    "created_at": "ISO timestamp",
+    "updated_at": "ISO timestamp"
+  }
+}
+
+Key functions: load_birthdays(), save_birthday(), get_user_preferences(), update_user_preferences()
 """
 
+import json
 import os
 import shutil
+import threading
 from datetime import datetime, timezone
+
 from filelock import FileLock
+
 from config import (
+    BACKUP_CHANNEL_ID,
     BACKUP_DIR,
-    MAX_BACKUPS,
+    BACKUP_TO_ADMINS,
     BIRTHDAYS_FILE,
+    BIRTHDAYS_JSON_FILE,
+    EXTERNAL_BACKUP_ENABLED,
+    MAX_BACKUPS,
     TRACKING_DIR,
     get_logger,
-    EXTERNAL_BACKUP_ENABLED,
-    BACKUP_TO_ADMINS,
-    BACKUP_CHANNEL_ID,
 )
-
-# Import all potentially circular dependencies at the top
-from storage.settings import get_current_admins
 from slack.client import send_message_with_file
+from storage.settings import get_current_admins
 
 logger = get_logger("storage")
 
-# File lock for birthday data operations
-BIRTHDAYS_LOCK_FILE = BIRTHDAYS_FILE + ".lock"
+# File lock for birthday data operations (cross-process)
+BIRTHDAYS_LOCK_FILE = BIRTHDAYS_JSON_FILE + ".lock"
+
+# Thread lock for atomic read-modify-write operations (same process)
+_birthdays_thread_lock = threading.Lock()
+
+# Default preferences for new users
+DEFAULT_PREFERENCES = {
+    "active": True,
+    "image_enabled": True,
+    "show_age": True,
+}
+
+
+def _use_json_storage():
+    """
+    Determine which storage format to use.
+    Returns True if JSON exists, False to use legacy CSV.
+    """
+    return os.path.exists(BIRTHDAYS_JSON_FILE)
 
 
 def create_backup():
     """
-    Create a timestamped backup of the birthdays file
+    Create a timestamped backup of the birthdays file.
 
     Returns:
         str: Path to created backup file, or None if backup failed
     """
-    # Ensure backup directory exists
     if not os.path.exists(BACKUP_DIR):
         os.makedirs(BACKUP_DIR)
         logger.info(f"BACKUP: Created backup directory at {BACKUP_DIR}")
 
-    # Only backup if the file exists
-    if not os.path.exists(BIRTHDAYS_FILE):
-        logger.warning(f"BACKUP: Cannot backup {BIRTHDAYS_FILE} as it does not exist")
+    # Determine which file to backup
+    source_file = BIRTHDAYS_JSON_FILE if _use_json_storage() else BIRTHDAYS_FILE
+    extension = ".json" if _use_json_storage() else ".txt"
+
+    if not os.path.exists(source_file):
+        logger.warning(f"BACKUP: Cannot backup {source_file} as it does not exist")
         return None
 
-    # Create a timestamped backup filename
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_file = os.path.join(BACKUP_DIR, f"birthdays_{timestamp}.txt")
+    backup_file = os.path.join(BACKUP_DIR, f"birthdays_{timestamp}{extension}")
 
     try:
-        # Copy the current file to backup location
-        shutil.copy2(BIRTHDAYS_FILE, backup_file)
+        shutil.copy2(source_file, backup_file)
         logger.info(f"BACKUP: Created backup at {backup_file}")
-
-        # Rotate backups if we have too many
         rotate_backups()
-
-        # External backup is now handled separately after user confirmation
-        logger.debug(
-            f"BACKUP_DEBUG: External backup will be handled after user confirmation to avoid API conflicts"
-        )
-
         return backup_file
 
     except OSError as e:
@@ -75,20 +103,17 @@ def create_backup():
 
 def rotate_backups():
     """
-    Maintain only the specified number of most recent backups
+    Maintain only the specified number of most recent backups.
     """
     try:
-        # List all backup files
         backup_files = [
             os.path.join(BACKUP_DIR, f)
             for f in os.listdir(BACKUP_DIR)
-            if f.startswith("birthdays_") and f.endswith(".txt")
+            if f.startswith("birthdays_") and (f.endswith(".txt") or f.endswith(".json"))
         ]
 
-        # Sort by modification time (oldest first)
         backup_files.sort(key=lambda x: os.path.getmtime(x))
 
-        # Remove oldest files if we exceed the limit
         while len(backup_files) > MAX_BACKUPS:
             oldest = backup_files.pop(0)
             os.remove(oldest)
@@ -108,51 +133,31 @@ def send_external_backup(backup_file_path, change_type="update", username=None, 
         username: Username of person whose birthday changed (for context)
         app: Slack app instance (required for sending messages)
     """
-    logger.info(
-        f"BACKUP: send_external_backup called - type: {change_type}, user: {username}, file: {backup_file_path}"
-    )
-    logger.debug(f"BACKUP_DEBUG: Function entry - about to check config variables")
-    logger.debug(
-        f"BACKUP_DEBUG: EXTERNAL_BACKUP_ENABLED = {EXTERNAL_BACKUP_ENABLED}, app exists: {app is not None}"
-    )
+    logger.info(f"BACKUP: send_external_backup called - type: {change_type}, user: {username}")
 
     if not EXTERNAL_BACKUP_ENABLED or not app:
         logger.debug("BACKUP: External backup disabled or no app instance")
         return
 
-    logger.debug(f"BACKUP_DEBUG: Config check passed, entering try block")
-
     try:
-        logger.debug(f"BACKUP_DEBUG: Step 1 - Starting file info gathering")
-        # Get backup file info
         if not os.path.exists(backup_file_path):
             logger.error(f"BACKUP: Backup file not found: {backup_file_path}")
             return
 
-        logger.debug(f"BACKUP_DEBUG: Step 2 - File exists, getting size")
-
         file_size = os.path.getsize(backup_file_path)
         file_size_kb = round(file_size / 1024, 1)
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        logger.debug(f"BACKUP_DEBUG: Step 3 - File size calculated: {file_size_kb} KB")
 
-        # Count total birthdays
-        logger.debug(f"BACKUP_DEBUG: Step 4 - Loading birthdays for count")
         birthdays = load_birthdays()
         total_birthdays = len(birthdays)
-        logger.debug(f"BACKUP_DEBUG: Step 5 - Total birthdays: {total_birthdays}")
 
-        # Create backup message
-        logger.debug(f"BACKUP_DEBUG: Step 6 - Creating backup message for type: {change_type}")
         change_text = {
             "add": f"Added birthday for {username}" if username else "Added birthday",
-            "update": (f"Updated birthday for {username}" if username else "Updated birthday"),
-            "remove": (f"Removed birthday for {username}" if username else "Removed birthday"),
+            "update": f"Updated birthday for {username}" if username else "Updated birthday",
+            "remove": f"Removed birthday for {username}" if username else "Removed birthday",
             "manual": "Manual backup created",
         }.get(change_type, "Data changed")
-        logger.debug(f"BACKUP_DEBUG: Step 7 - Change text: {change_text}")
 
-        logger.debug(f"BACKUP_DEBUG: Step 8 - Building message")
         message = f"""🗂️ *Birthday Data Backup* - {timestamp}
 
 📊 *Changes:* {change_text}
@@ -161,18 +166,12 @@ def send_external_backup(backup_file_path, change_type="update", username=None, 
 🔄 *Auto-backup after data changes*
 
 This backup was automatically created to protect your birthday data."""
-        logger.debug(f"BACKUP_DEBUG: Step 9 - Message built, length: {len(message)}")
 
-        # Send to admin users via DM
-        logger.debug(f"BACKUP_DEBUG: BACKUP_TO_ADMINS = {BACKUP_TO_ADMINS}")
         if BACKUP_TO_ADMINS:
-            # Get current admin list dynamically
             current_admin_users = get_current_admins()
-            logger.debug(f"BACKUP_DEBUG: Retrieved admin users: {current_admin_users}")
-
             if not current_admin_users:
                 logger.warning(
-                    "BACKUP: No bot admins configured - external backup will not be sent. Use 'admin add @username' to configure bot admins who should receive backup files."
+                    "BACKUP: No bot admins configured - external backup will not be sent."
                 )
                 return
 
@@ -182,13 +181,11 @@ This backup was automatically created to protect your birthday data."""
             )
             for admin_id in current_admin_users:
                 try:
-                    logger.debug(f"BACKUP_DEBUG: Attempting to send backup to admin {admin_id}")
                     if send_message_with_file(app, admin_id, message, backup_file_path):
                         success_count += 1
                         logger.info(f"BACKUP: Successfully sent backup to admin {admin_id}")
                     else:
                         logger.error(f"BACKUP: Failed to send backup to admin {admin_id}")
-
                 except Exception as e:
                     logger.error(f"BACKUP: Error sending to admin {admin_id}: {e}")
 
@@ -196,14 +193,12 @@ This backup was automatically created to protect your birthday data."""
                 f"BACKUP: Sent external backup to {success_count}/{len(current_admin_users)} admins"
             )
 
-        # Optionally send to backup channel
         if BACKUP_CHANNEL_ID:
             try:
                 if send_message_with_file(app, BACKUP_CHANNEL_ID, message, backup_file_path):
                     logger.info(f"BACKUP: Sent backup to channel {BACKUP_CHANNEL_ID}")
                 else:
                     logger.warning(f"BACKUP: Failed to send backup to channel {BACKUP_CHANNEL_ID}")
-
             except Exception as e:
                 logger.error(f"BACKUP: Error sending to backup channel: {e}")
 
@@ -213,29 +208,31 @@ This backup was automatically created to protect your birthday data."""
 
 def restore_latest_backup():
     """
-    Restore the most recent backup file
+    Restore the most recent backup file.
 
     Returns:
         bool: True if restore succeeded, False otherwise
     """
     try:
-        # List all backup files
         backup_files = [
             os.path.join(BACKUP_DIR, f)
             for f in os.listdir(BACKUP_DIR)
-            if f.startswith("birthdays_") and f.endswith(".txt")
+            if f.startswith("birthdays_") and (f.endswith(".txt") or f.endswith(".json"))
         ]
 
         if not backup_files:
             logger.warning("RESTORE: No backup files found")
             return False
 
-        # Sort by modification time (newest first)
         backup_files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
         latest = backup_files[0]
 
-        # Copy the backup to the main file
-        shutil.copy2(latest, BIRTHDAYS_FILE)
+        # Restore to appropriate file based on backup type
+        if latest.endswith(".json"):
+            shutil.copy2(latest, BIRTHDAYS_JSON_FILE)
+        else:
+            shutil.copy2(latest, BIRTHDAYS_FILE)
+
         logger.info(f"RESTORE: Successfully restored from {latest}")
         return True
 
@@ -244,16 +241,44 @@ def restore_latest_backup():
         return False
 
 
-def load_birthdays():
+def _load_json_birthdays():
     """
-    Load birthdays from file into a dictionary.
-    Compatible with both new format (with optional year) and old format (date only).
+    Load birthdays from JSON file.
+
+    Returns:
+        Dictionary mapping user_id to birthday data with preferences
+    """
+    lock = FileLock(BIRTHDAYS_LOCK_FILE)
+
+    try:
+        with lock:
+            with open(BIRTHDAYS_JSON_FILE, "r") as f:
+                data = json.load(f)
+                logger.info(f"STORAGE: Loaded {len(data)} birthdays from JSON")
+                return data
+    except FileNotFoundError:
+        logger.warning(f"FILE_ERROR: {BIRTHDAYS_JSON_FILE} not found")
+        return {}
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON_ERROR: Failed to parse birthdays JSON: {e}")
+        return {}
+    except PermissionError as e:
+        logger.error(f"PERMISSION_ERROR: Cannot read {BIRTHDAYS_JSON_FILE}: {e}")
+        return {}
+    except Exception as e:
+        logger.error(f"UNEXPECTED_ERROR: Failed to load birthdays: {e}")
+        return {}
+
+
+def _load_csv_birthdays():
+    """
+    Load birthdays from legacy CSV file.
 
     Returns:
         Dictionary mapping user_id to {'date': 'DD/MM', 'year': YYYY or None}
     """
     birthdays = {}
-    lock = FileLock(BIRTHDAYS_LOCK_FILE)
+    lock = FileLock(BIRTHDAYS_FILE + ".lock")
 
     try:
         with lock:
@@ -261,31 +286,27 @@ def load_birthdays():
                 for line_number, line in enumerate(f, 1):
                     parts = line.strip().split(",")
                     if len(parts) < 2:
-                        # Skip invalid lines
                         logger.warning(f"FILE_ERROR: Invalid format at line {line_number}: {line}")
                         continue
 
                     user_id = parts[0]
                     date = parts[1]
 
-                    # Try to extract year if present
                     year = None
                     if len(parts) > 2 and parts[2].strip():
                         try:
                             year = int(parts[2])
                         except ValueError:
                             logger.warning(
-                                f"FILE_ERROR: Invalid year for user {user_id} at line {line_number}: {parts[2]}"
+                                f"FILE_ERROR: Invalid year at line {line_number}: {parts[2]}"
                             )
 
                     birthdays[user_id] = {"date": date, "year": year}
 
-            logger.info(f"STORAGE: Loaded {len(birthdays)} birthdays from file")
+            logger.info(f"STORAGE: Loaded {len(birthdays)} birthdays from CSV")
     except FileNotFoundError:
         logger.warning(f"FILE_ERROR: {BIRTHDAYS_FILE} not found, will be created when needed")
-        # Try to restore from backup if main file doesn't exist
         if restore_latest_backup():
-            # Try loading again after restoration
             return load_birthdays()
     except PermissionError as e:
         logger.error(f"PERMISSION_ERROR: Cannot read {BIRTHDAYS_FILE}: {e}")
@@ -295,14 +316,52 @@ def load_birthdays():
     return birthdays
 
 
-def save_birthdays(birthdays):
+def load_birthdays():
     """
-    Save birthdays dictionary to file
+    Load birthdays from storage (JSON or legacy CSV).
+
+    Returns:
+        Dictionary mapping user_id to birthday data.
+        For JSON: Full data with preferences
+        For CSV: {'date': 'DD/MM', 'year': YYYY or None}
+    """
+    if _use_json_storage():
+        return _load_json_birthdays()
+    else:
+        return _load_csv_birthdays()
+
+
+def _save_json_birthdays(birthdays):
+    """
+    Save birthdays dictionary to JSON file.
+
+    Args:
+        birthdays: Dictionary mapping user_id to birthday data with preferences
+    """
+    lock = FileLock(BIRTHDAYS_LOCK_FILE)
+
+    try:
+        with lock:
+            with open(BIRTHDAYS_JSON_FILE, "w") as f:
+                json.dump(birthdays, f, indent=2)
+
+            logger.info(f"STORAGE: Saved {len(birthdays)} birthdays to JSON")
+            create_backup()
+
+    except PermissionError as e:
+        logger.error(f"PERMISSION_ERROR: Cannot write to {BIRTHDAYS_JSON_FILE}: {e}")
+    except Exception as e:
+        logger.error(f"UNEXPECTED_ERROR: Failed to save birthdays: {e}")
+
+
+def _save_csv_birthdays(birthdays):
+    """
+    Save birthdays dictionary to legacy CSV file.
 
     Args:
         birthdays: Dictionary mapping user_id to {'date': 'DD/MM', 'year': YYYY or None}
     """
-    lock = FileLock(BIRTHDAYS_LOCK_FILE)
+    lock = FileLock(BIRTHDAYS_FILE + ".lock")
 
     try:
         with lock:
@@ -312,49 +371,89 @@ def save_birthdays(birthdays):
                     year_part = f",{year}" if year else ""
                     f.write(f"{user},{data['date']}{year_part}\n")
 
-            logger.info(f"STORAGE: Saved {len(birthdays)} birthdays to file")
-
-            # Create a backup after saving
+            logger.info(f"STORAGE: Saved {len(birthdays)} birthdays to CSV")
             create_backup()
 
     except PermissionError as e:
         logger.error(f"PERMISSION_ERROR: Cannot write to {BIRTHDAYS_FILE}: {e}")
     except Exception as e:
-        logger.error(f"UNEXPECTED_ERROR: Failed to save birthdays file: {e}")
+        logger.error(f"UNEXPECTED_ERROR: Failed to save birthdays: {e}")
 
 
-def save_birthday(date: str, user: str, year: int = None, username: str = None) -> bool:
+def save_birthdays(birthdays):
     """
-    Save user's birthday to the record
+    Save birthdays dictionary to storage.
+
+    Args:
+        birthdays: Dictionary of birthday data
+    """
+    if _use_json_storage():
+        _save_json_birthdays(birthdays)
+    else:
+        _save_csv_birthdays(birthdays)
+
+
+def save_birthday(
+    date: str, user: str, year: int = None, username: str = None, preferences: dict = None
+) -> bool:
+    """
+    Save user's birthday to the record (thread-safe atomic operation).
 
     Args:
         date: Date in DD/MM format
         user: User ID
         year: Optional birth year
         username: User's display name (for logging)
+        preferences: Optional user preferences dict
 
     Returns:
         True if updated existing record, False if new record
     """
-    birthdays = load_birthdays()
-    updated = user in birthdays
+    # Use thread lock for atomic read-modify-write
+    with _birthdays_thread_lock:
+        birthdays = load_birthdays()
+        updated = user in birthdays
+        now = datetime.now(timezone.utc).isoformat()
 
-    action = "Updated" if updated else "Added new"
-    username_log = username or user
+        action = "Updated" if updated else "Added new"
+        username_log = username or user
 
-    birthdays[user] = {"date": date, "year": year}
+        if _use_json_storage():
+            # Preserve existing preferences if updating
+            existing_prefs = {}
+            if updated and "preferences" in birthdays[user]:
+                existing_prefs = birthdays[user]["preferences"]
 
-    save_birthdays(birthdays)
-    logger.info(
-        f"BIRTHDAY: {action} birthday for {username_log} ({user}): {date}"
-        + (f", year: {year}" if year else "")
-    )
-    return updated
+            # Merge with provided preferences or defaults
+            merged_prefs = {**DEFAULT_PREFERENCES, **existing_prefs}
+            if preferences:
+                merged_prefs.update(preferences)
+
+            # Set show_age based on year if not explicitly set
+            if "show_age" not in (preferences or {}):
+                merged_prefs["show_age"] = year is not None
+
+            birthdays[user] = {
+                "date": date,
+                "year": year,
+                "preferences": merged_prefs,
+                "created_at": birthdays.get(user, {}).get("created_at", now),
+                "updated_at": now,
+            }
+        else:
+            birthdays[user] = {"date": date, "year": year}
+
+        save_birthdays(birthdays)
+        logger.info(
+            f"BIRTHDAY: {action} birthday for {username_log} ({user}): {date}"
+            + (f", year: {year}" if year else "")
+        )
+        return updated
 
 
 def remove_birthday(user: str, username: str = None) -> bool:
     """
-    Remove user's birthday from the record
+    Remove user's birthday from the record (thread-safe atomic operation).
 
     Args:
         user: User ID
@@ -363,26 +462,135 @@ def remove_birthday(user: str, username: str = None) -> bool:
     Returns:
         True if removed, False if not found
     """
+    # Use thread lock for atomic read-modify-write
+    with _birthdays_thread_lock:
+        birthdays = load_birthdays()
+        if user in birthdays:
+            username_log = username or user
+            del birthdays[user]
+            save_birthdays(birthdays)
+            logger.info(f"BIRTHDAY: Removed birthday for {username_log} ({user})")
+            return True
+
+        logger.info(f"BIRTHDAY: Attempted to remove birthday for user {user} but none was found")
+        return False
+
+
+def get_birthday(user: str) -> dict:
+    """
+    Get a user's birthday data.
+
+    Args:
+        user: User ID
+
+    Returns:
+        Birthday data dict or None if not found
+    """
     birthdays = load_birthdays()
-    if user in birthdays:
-        username_log = username or user
-        del birthdays[user]
+    return birthdays.get(user)
+
+
+def get_user_preferences(user: str) -> dict:
+    """
+    Get user's celebration preferences.
+
+    Args:
+        user: User ID
+
+    Returns:
+        Preferences dict (with defaults if not set)
+    """
+    birthday_data = get_birthday(user)
+    if not birthday_data:
+        return None
+
+    if _use_json_storage():
+        return {**DEFAULT_PREFERENCES, **birthday_data.get("preferences", {})}
+    else:
+        # For CSV, return defaults
+        return DEFAULT_PREFERENCES.copy()
+
+
+def update_user_preferences(user: str, preferences: dict) -> bool:
+    """
+    Update user's celebration preferences (thread-safe atomic operation).
+
+    Args:
+        user: User ID
+        preferences: Dict with preference keys to update
+
+    Returns:
+        True if updated, False if user not found
+    """
+    if not _use_json_storage():
+        logger.warning("PREFERENCES: Cannot update preferences in CSV mode. Migrate to JSON first.")
+        return False
+
+    # Use thread lock for atomic read-modify-write
+    with _birthdays_thread_lock:
+        birthdays = load_birthdays()
+        if user not in birthdays:
+            return False
+
+        now = datetime.now(timezone.utc).isoformat()
+
+        # Merge preferences
+        current_prefs = birthdays[user].get("preferences", DEFAULT_PREFERENCES.copy())
+        current_prefs.update(preferences)
+
+        birthdays[user]["preferences"] = current_prefs
+        birthdays[user]["updated_at"] = now
+
         save_birthdays(birthdays)
-        logger.info(f"BIRTHDAY: Removed birthday for {username_log} ({user})")
+        logger.info(f"PREFERENCES: Updated preferences for user {user}: {preferences}")
         return True
 
-    logger.info(f"BIRTHDAY: Attempted to remove birthday for user {user} but none was found")
-    return False
+
+def is_user_active(user: str) -> bool:
+    """
+    Check if user's birthday celebrations are active.
+
+    Args:
+        user: User ID
+
+    Returns:
+        True if active (or not set), False if paused
+    """
+    prefs = get_user_preferences(user)
+    if prefs is None:
+        return True  # No birthday = default active
+    return prefs.get("active", True)
+
+
+def get_all_active_birthdays() -> dict:
+    """
+    Get all birthdays where user is active (not paused).
+
+    Returns:
+        Dictionary of active birthday entries
+    """
+    birthdays = load_birthdays()
+
+    if not _use_json_storage():
+        return birthdays
+
+    return {
+        user_id: data
+        for user_id, data in birthdays.items()
+        if data.get("preferences", {}).get("active", True)
+    }
+
+
+# ==================== ANNOUNCEMENT TRACKING ====================
 
 
 def get_announced_birthdays_today():
     """
-    Get list of user IDs whose birthdays have already been announced today
+    Get list of user IDs whose birthdays have already been announced today.
 
     Returns:
         List of user IDs
     """
-    # Use UTC for consistent daily tracking across timezones
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     announced_file = os.path.join(TRACKING_DIR, f"announced_{today}.txt")
 
@@ -399,12 +607,11 @@ def get_announced_birthdays_today():
 
 def mark_birthday_announced(user_id):
     """
-    Mark a user's birthday as announced for today
+    Mark a user's birthday as announced for today.
 
     Args:
         user_id: User ID whose birthday was announced
     """
-    # Use UTC for consistent daily tracking across timezones
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     announced_file = os.path.join(TRACKING_DIR, f"announced_{today}.txt")
 
@@ -418,9 +625,8 @@ def mark_birthday_announced(user_id):
 
 def cleanup_old_announcement_files():
     """
-    Remove announcement tracking files older than today
+    Remove announcement tracking files older than today.
     """
-    # Use UTC for consistent daily tracking across timezones
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     try:
@@ -435,13 +641,11 @@ def cleanup_old_announcement_files():
 
 def get_timezone_announced_birthdays_today():
     """
-    Get list of user IDs who have been announced today via timezone-aware celebrations
-    This prevents duplicate celebrations when users are celebrated in their timezone
+    Get list of user IDs who have been announced today via timezone-aware celebrations.
 
     Returns:
         List of user IDs who have been announced today
     """
-    # Use UTC date for consistent tracking
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     announced_file = os.path.join(TRACKING_DIR, f"timezone_announced_{today}.txt")
 
@@ -458,26 +662,23 @@ def get_timezone_announced_birthdays_today():
 
 def mark_timezone_birthday_announced(user_id, user_timezone):
     """
-    Mark a user's birthday as announced via timezone-aware celebration
+    Mark a user's birthday as announced via timezone-aware celebration.
 
     Args:
         user_id: User ID whose birthday was announced
         user_timezone: User's timezone where celebration occurred
     """
-    # Validate timezone before writing
-    from utils.date import get_timezone_object
     from config import DEFAULT_TIMEZONE
+    from utils.date import get_timezone_object
 
     if not get_timezone_object(user_timezone):
         logger.warning(f"TIMEZONE: Invalid timezone '{user_timezone}', using default")
         user_timezone = DEFAULT_TIMEZONE
 
-    # Use UTC date for consistent tracking across timezones
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     announced_file = os.path.join(TRACKING_DIR, f"timezone_announced_{today}.txt")
 
     try:
-        # Ensure tracking directory exists
         os.makedirs(TRACKING_DIR, exist_ok=True)
 
         with open(announced_file, "a") as f:
@@ -489,9 +690,8 @@ def mark_timezone_birthday_announced(user_id, user_timezone):
 
 def cleanup_timezone_announcement_files():
     """
-    Remove timezone announcement tracking files older than today
+    Remove timezone announcement tracking files older than today.
     """
-    # Use UTC for consistent daily tracking across timezones
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     try:
@@ -509,7 +709,7 @@ def cleanup_timezone_announcement_files():
 
 def is_user_celebrated_today(user_id):
     """
-    Check if user has been celebrated today via either legacy or timezone-aware system
+    Check if user has been celebrated today via either legacy or timezone-aware system.
 
     Args:
         user_id: User ID to check
@@ -517,7 +717,6 @@ def is_user_celebrated_today(user_id):
     Returns:
         True if user has been celebrated today, False otherwise
     """
-    # Check both legacy and timezone-aware tracking
     legacy_announced = get_announced_birthdays_today()
     timezone_announced_raw = get_timezone_announced_birthdays_today()
 

@@ -8,18 +8,19 @@ Block Kit provides rich, visually appealing message layouts with proper hierarch
 organization, and professional polish.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
 from config import (
-    DEFAULT_IMAGE_PERSONALITY,
     BOT_BIRTHDAY,
+    DEFAULT_IMAGE_PERSONALITY,
+    MIN_BIRTH_YEAR,
     UPCOMING_DAYS_DEFAULT,
     UPCOMING_DAYS_EXTENDED,
-    MIN_BIRTH_YEAR,
 )
 from personality_config import (
-    get_personality_display_name,
     get_celebration_personality_count,
     get_personality_descriptions,
+    get_personality_display_name,
 )
 from utils.date import date_to_words
 
@@ -276,6 +277,7 @@ def build_special_day_blocks(
     date_str = get_attr(special_day, "date")
     if date_str:
         from datetime import datetime
+
         from utils.date import format_date_european_short
 
         try:
@@ -502,7 +504,7 @@ def build_bot_celebration_blocks(
     birthday_display = date_to_words(BOT_BIRTHDAY)  # e.g., "5th of March"
     personality_count = get_celebration_personality_count()
     fields = [
-        {"type": "mrkdwn", "text": f"*Bot Name:*\nLudo | LiGHT BrightDay Coordinator"},
+        {"type": "mrkdwn", "text": "*Bot Name:*\nLudo | LiGHT BrightDay Coordinator"},
         {
             "type": "mrkdwn",
             "text": f"*Age:*\n{bot_age} year{'s' if bot_age != 1 else ''} old",
@@ -1035,7 +1037,7 @@ def build_health_status_blocks(
         )
 
         # System Paths
-        from config import DATA_DIR, STORAGE_DIR, BIRTHDAYS_FILE, CACHE_DIR
+        from config import BIRTHDAYS_FILE, CACHE_DIR, DATA_DIR, STORAGE_DIR
 
         paths_text = f"*System Paths:*\n• Data Directory: `{DATA_DIR}`\n• Storage Directory: `{STORAGE_DIR}`\n• Birthdays File: `{BIRTHDAYS_FILE}`\n• Cache Directory: `{CACHE_DIR}`"
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": paths_text}})
@@ -1062,8 +1064,9 @@ def build_health_status_blocks(
             )
 
             # Check UN observances cache
-            from config import UN_OBSERVANCES_ENABLED, UN_OBSERVANCES_CACHE_FILE
             import os
+
+            from config import UN_OBSERVANCES_CACHE_FILE, UN_OBSERVANCES_ENABLED
 
             if UN_OBSERVANCES_ENABLED and os.path.exists(UN_OBSERVANCES_CACHE_FILE):
                 try:
@@ -1078,7 +1081,7 @@ def build_health_status_blocks(
                     sd_text += "\n• UN observances: cache error"
 
             # Check UNESCO observances cache
-            from config import UNESCO_OBSERVANCES_ENABLED, UNESCO_OBSERVANCES_CACHE_FILE
+            from config import UNESCO_OBSERVANCES_CACHE_FILE, UNESCO_OBSERVANCES_ENABLED
 
             if UNESCO_OBSERVANCES_ENABLED and os.path.exists(UNESCO_OBSERVANCES_CACHE_FILE):
                 try:
@@ -1093,7 +1096,7 @@ def build_health_status_blocks(
                     sd_text += "\n• UNESCO observances: cache error"
 
             # Check WHO observances cache
-            from config import WHO_OBSERVANCES_ENABLED, WHO_OBSERVANCES_CACHE_FILE
+            from config import WHO_OBSERVANCES_CACHE_FILE, WHO_OBSERVANCES_ENABLED
 
             if WHO_OBSERVANCES_ENABLED and os.path.exists(WHO_OBSERVANCES_CACHE_FILE):
                 try:
@@ -1106,7 +1109,7 @@ def build_health_status_blocks(
                     sd_text += "\n• WHO observances: cache error"
 
             # Check Calendarific cache (uses per-date files in a directory)
-            from config import CALENDARIFIC_ENABLED, CALENDARIFIC_CACHE_DIR
+            from config import CALENDARIFIC_CACHE_DIR, CALENDARIFIC_ENABLED
 
             if CALENDARIFIC_ENABLED and os.path.exists(CALENDARIFIC_CACHE_DIR):
                 try:
@@ -1129,10 +1132,10 @@ def build_health_status_blocks(
 
         # Interactive Features Status
         from config import (
-            THREAD_ENGAGEMENT_ENABLED,
+            AI_IMAGE_GENERATION_ENABLED,
             MENTION_QA_ENABLED,
             NLP_DATE_PARSING_ENABLED,
-            AI_IMAGE_GENERATION_ENABLED,
+            THREAD_ENGAGEMENT_ENABLED,
         )
 
         features_text = "*Interactive Features:*"
@@ -1443,6 +1446,8 @@ _(All announcements require confirmation)_"""
 • `check` - Check your saved birthday
 • `check @user` - Check someone else's birthday
 • `remove` - Remove your birthday
+• `pause` - Pause your birthday celebrations
+• `resume` - Resume your birthday celebrations
 • `test [quality] [size] [--text-only]` - Test birthday message
   _Quality: low/medium/high/auto, Size: auto/1024x1024/etc_"""
 
@@ -1630,8 +1635,9 @@ def build_special_days_list_blocks(
 
     elif view_mode == "list":
         # Group by month for better organization
-        from datetime import datetime
         from calendar import month_name as cal_month_name
+        from datetime import datetime
+
         from config import DATE_FORMAT
 
         months_dict = {}
@@ -2152,6 +2158,56 @@ def build_birthday_modal(_user_id: str) -> Dict[str, Any]:
                     "text": "Add your birth year to show your age on celebrations",
                 },
             },
+            {"type": "divider"},
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "*Celebration Preferences*",
+                },
+            },
+            {
+                "type": "input",
+                "block_id": "preferences_block",
+                "optional": True,
+                "element": {
+                    "type": "checkboxes",
+                    "action_id": "preferences",
+                    "options": [
+                        {
+                            "text": {
+                                "type": "plain_text",
+                                "text": "Generate AI image for my birthday",
+                            },
+                            "value": "image_enabled",
+                        },
+                        {
+                            "text": {
+                                "type": "plain_text",
+                                "text": "Show my age in celebration messages",
+                            },
+                            "value": "show_age",
+                        },
+                    ],
+                    "initial_options": [
+                        {
+                            "text": {
+                                "type": "plain_text",
+                                "text": "Generate AI image for my birthday",
+                            },
+                            "value": "image_enabled",
+                        },
+                        {
+                            "text": {
+                                "type": "plain_text",
+                                "text": "Show my age in celebration messages",
+                            },
+                            "value": "show_age",
+                        },
+                    ],
+                },
+                "label": {"type": "plain_text", "text": "Options"},
+            },
         ],
     }
 
@@ -2247,7 +2303,10 @@ def build_slash_help_blocks(
                     "text": "*Available subcommands:*\n\n"
                     + "- `/birthday` or `/birthday add` - Open birthday form\n"
                     + "- `/birthday check [@user]` - Check birthday\n"
-                    + "- `/birthday list` - List upcoming birthdays",
+                    + "- `/birthday list` - List upcoming birthdays\n"
+                    + "- `/birthday pause` - Pause your celebrations\n"
+                    + "- `/birthday resume` - Resume your celebrations\n"
+                    + "- `/birthday help` - Show this help",
                 },
             },
         ]
@@ -2265,8 +2324,18 @@ def build_slash_help_blocks(
                     "text": "*Available options:*\n\n"
                     + "- `/special-day` or `/special-day today` - Today's observances\n"
                     + f"- `/special-day week` - Next {UPCOMING_DAYS_DEFAULT} days\n"
-                    + f"- `/special-day month` - Next {UPCOMING_DAYS_EXTENDED} days",
+                    + f"- `/special-day month` - Next {UPCOMING_DAYS_EXTENDED} days\n"
+                    + "- `/special-day help` - Show this help",
                 },
+            },
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": "_Sources: UN/WHO/UNESCO observances, Calendarific holidays, and custom entries._",
+                    }
+                ],
             },
         ]
         fallback = "/special-day Command Help"

@@ -5,36 +5,37 @@ Manages special days/holidays tracking, loading, and announcement logic.
 Integrates with the existing birthday infrastructure for consistent user experience.
 """
 
-import os
 import csv
 import json
+import os
 import shutil
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
+
 from filelock import FileLock
 
 from config import (
-    SPECIAL_DAYS_FILE,
-    SPECIAL_DAYS_CONFIG_FILE,
-    TRACKING_DIR,
-    SPECIAL_DAYS_ENABLED,
-    SPECIAL_DAYS_CATEGORIES,
-    SPECIAL_DAYS_PERSONALITY,
     BACKUP_DIR,
-    MAX_BACKUPS,
-    DEFAULT_ANNOUNCEMENT_TIME,
-    DATE_FORMAT,
-    TIMEOUTS,
-    UN_OBSERVANCES_ENABLED,
-    UN_OBSERVANCES_CACHE_FILE,
-    UNESCO_OBSERVANCES_ENABLED,
-    UNESCO_OBSERVANCES_CACHE_FILE,
-    WHO_OBSERVANCES_ENABLED,
-    WHO_OBSERVANCES_CACHE_FILE,
-    CALENDARIFIC_ENABLED,
     CALENDARIFIC_API_KEY,
+    CALENDARIFIC_ENABLED,
+    DATE_FORMAT,
+    DEFAULT_ANNOUNCEMENT_TIME,
+    MAX_BACKUPS,
+    SPECIAL_DAYS_CATEGORIES,
+    SPECIAL_DAYS_CONFIG_FILE,
+    SPECIAL_DAYS_ENABLED,
+    SPECIAL_DAYS_FILE,
+    SPECIAL_DAYS_PERSONALITY,
+    TIMEOUTS,
+    TRACKING_DIR,
+    UN_OBSERVANCES_CACHE_FILE,
+    UN_OBSERVANCES_ENABLED,
+    UNESCO_OBSERVANCES_CACHE_FILE,
+    UNESCO_OBSERVANCES_ENABLED,
     UPCOMING_DAYS_DEFAULT,
     UPCOMING_DAYS_EXTENDED,
+    WHO_OBSERVANCES_CACHE_FILE,
+    WHO_OBSERVANCES_ENABLED,
 )
 from utils.log_setup import get_logger
 
@@ -176,8 +177,8 @@ def load_all_special_days() -> List[SpecialDay]:
     # Uses the same _dict_to_special_day() method as get_holidays_for_date()
     if CALENDARIFIC_ENABLED and CALENDARIFIC_API_KEY:
         try:
-            from integrations.calendarific import get_calendarific_client
             from config import CALENDARIFIC_CACHE_DIR
+            from integrations.calendarific import get_calendarific_client
 
             client = get_calendarific_client()
 
@@ -1200,7 +1201,7 @@ if __name__ == "__main__":
 
     # Test upcoming
     upcoming = get_upcoming_special_days(7)
-    print(f"\nUpcoming special days in next 7 days:")
+    print("\nUpcoming special days in next 7 days:")
     for date, days_list in upcoming.items():
         print(f"  {date}: {[d.name for d in days_list]}")
 

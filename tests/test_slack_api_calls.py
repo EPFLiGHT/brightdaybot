@@ -5,7 +5,7 @@ Verifies that slack_utils functions call the correct Slack SDK methods
 with proper parameters and handle errors appropriately.
 """
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 
 class TestGetUserProfile:
@@ -130,8 +130,9 @@ class TestGetUsername:
 
     def test_uses_cache_when_available(self, mock_slack_app):
         """Uses cached username instead of making API call."""
-        from slack.client import get_username
         from datetime import datetime
+
+        from slack.client import get_username
 
         # Cache now stores (username, timestamp) tuples
         cache_with_ttl = {"U123456": ("CachedName", datetime.now())}
@@ -232,8 +233,9 @@ class TestIsAdmin:
 
     def test_checks_admin_users_list_first(self, mock_slack_app):
         """Checks configured ADMIN_USERS before making API call."""
-        from slack.client import is_admin
         from datetime import datetime
+
+        from slack.client import is_admin
 
         # Cache now stores (username, timestamp) tuples
         cache_with_ttl = {"U123456": ("AdminUser", datetime.now())}

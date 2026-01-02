@@ -5,13 +5,13 @@ Handles birthday modal submissions with date picker integration
 and validation.
 """
 
-from datetime import datetime
 from calendar import month_name
+from datetime import datetime
 
-from config import get_logger, DATE_FORMAT, MIN_BIRTH_YEAR
+from config import MIN_BIRTH_YEAR, get_logger
+from slack.client import get_username
 from storage.birthdays import save_birthday
 from utils.date import check_if_birthday_today
-from slack.client import get_username
 
 logger = get_logger("commands")
 
@@ -32,20 +32,64 @@ def register_modal_handlers(app):
         username = get_username(app, user_id)
 
         # Extract values from modal
-        values = view["state"]["values"]
+        values = view.get("state", {}).get("values", {})
 
-        # Get month and day from dropdowns
-        month_value = values["birthday_month_block"]["birthday_month"]["selected_option"]["value"]
-        day_value = values["birthday_day_block"]["birthday_day"]["selected_option"]["value"]
+        # Get month and day from dropdowns (with safe access)
+        month_block = values.get("birthday_month_block", {})
+        month_input = month_block.get("birthday_month", {})
+        month_option = month_input.get("selected_option")
+
+        day_block = values.get("birthday_day_block", {})
+        day_input = day_block.get("birthday_day", {})
+        day_option = day_input.get("selected_option")
+
+        # Validate that required fields are present
+        if not month_option or not day_option:
+            logger.error(
+                f"MODAL: Missing required fields - month: {month_option}, day: {day_option}"
+            )
+            _send_modal_error(
+                app.client, user_id, "Please select both a month and day for your birthday."
+            )
+            return
+
+        month_value = month_option.get("value")
+        day_value = day_option.get("value")
+
+        if not month_value or not day_value:
+            logger.error(f"MODAL: Invalid field values - month: {month_value}, day: {day_value}")
+            _send_modal_error(
+                app.client, user_id, "Invalid month or day selection. Please try again."
+            )
+            return
 
         # Get optional year from text input
         year_block = values.get("birth_year_block", {})
         year_input = year_block.get("birth_year", {})
         year_value = year_input.get("value")
 
+        # Get preferences from checkboxes
+        prefs_block = values.get("preferences_block", {})
+        prefs_input = prefs_block.get("preferences", {})
+        selected_options = prefs_input.get("selected_options", [])
+        selected_values = [opt.get("value") for opt in selected_options]
+
+        # Preserve existing pause state if user has one
+        from storage.birthdays import get_user_preferences
+
+        existing_prefs = get_user_preferences(user_id) or {}
+        existing_active = existing_prefs.get("active", True)
+
+        # Build preferences dict (preserve active state from pause/resume commands)
+        preferences = {
+            "image_enabled": "image_enabled" in selected_values,
+            "show_age": "show_age" in selected_values,
+            "active": existing_active,  # Preserve pause state from /birthday pause
+        }
+
         logger.info(
             f"MODAL: Received birthday submission from {username}: "
-            f"month={month_value}, day={day_value}, year={year_value}"
+            f"month={month_value}, day={day_value}, year={year_value}, prefs={preferences}"
         )
 
         try:
@@ -80,8 +124,8 @@ def register_modal_handlers(app):
                     )
                     return
 
-            # Save birthday using existing function
-            updated = save_birthday(date_ddmm, user_id, birth_year, username)
+            # Save birthday with preferences using existing function
+            updated = save_birthday(date_ddmm, user_id, birth_year, username, preferences)
 
             # Check if birthday is today
             if check_if_birthday_today(date_ddmm):
@@ -120,7 +164,7 @@ def register_modal_handlers(app):
 
 def _send_modal_confirmation(client, user_id, date_ddmm, birth_year, updated):
     """Send confirmation after modal submission."""
-    from utils.date import date_to_words, calculate_age, get_star_sign
+    from utils.date import calculate_age, date_to_words, get_star_sign
 
     date_words = date_to_words(date_ddmm, birth_year)
     star_sign = get_star_sign(date_ddmm)

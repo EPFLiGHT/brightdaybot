@@ -5,7 +5,6 @@ Verifies ThreadPoolExecutor integration for generating multiple birthday
 images concurrently when people share the same birthday.
 """
 
-import pytest
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
@@ -43,6 +42,7 @@ class TestParallelImageGeneration:
     def test_generate_birthday_message_signature(self):
         """Verify _generate_birthday_message has expected parameters"""
         import inspect
+
         from services.message import _generate_birthday_message
 
         sig = inspect.signature(_generate_birthday_message)
@@ -58,8 +58,9 @@ class TestParallelImageGeneration:
     def test_parallel_config_max_workers(self):
         """Verify the parallel config uses 3 workers as documented"""
         # Read the source to verify max_workers=3 is used
-        import services.message as mg
         import inspect
+
+        import services.message as mg
 
         source = inspect.getsource(mg._generate_birthday_message)
 
@@ -71,6 +72,7 @@ class TestParallelImageGeneration:
     def test_single_person_optimization_exists(self):
         """Verify single person case skips ThreadPoolExecutor"""
         import inspect
+
         from services.message import _generate_birthday_message
 
         source = inspect.getsource(_generate_birthday_message)

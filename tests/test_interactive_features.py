@@ -7,15 +7,11 @@ Tests pure functions with minimal mocking:
 - NLP date parser: LLM response parsing, date formatting
 """
 
-import pytest
-import time
-
+from handlers.mention_handler import RateLimiter, classify_question
 from handlers.thread_handler import (
-    get_reaction_for_message,
-    REACTION_MAPPINGS,
     DEFAULT_REACTIONS,
+    get_reaction_for_message,
 )
-from handlers.mention_handler import classify_question, RateLimiter
 from utils.date_nlp import _parse_llm_response, format_parsed_date
 
 

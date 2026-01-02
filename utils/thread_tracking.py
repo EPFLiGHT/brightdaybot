@@ -12,11 +12,11 @@ Uses in-memory storage with JSON persistence for restart survival.
 import json
 import os
 import threading
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
 
-from config import get_logger, TRACKED_THREADS_FILE, THREAD_TRACKING_TTL_DAYS
+from config import THREAD_TRACKING_TTL_DAYS, TRACKED_THREADS_FILE, get_logger
 
 logger = get_logger("events")
 
