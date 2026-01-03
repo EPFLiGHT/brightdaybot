@@ -121,8 +121,6 @@ def get_user_profile(app, user_id):
         # Time with organization/lab
         if user_profile.get("start_date"):
             try:
-                from datetime import datetime
-
                 start = datetime.fromisoformat(user_profile["start_date"])
                 years = (datetime.now() - start).days // 365
                 if years > 0:
@@ -604,7 +602,7 @@ def send_message_with_multiple_images(
         return results
 
 
-def upload_birthday_images_for_blocks(app, channel: str, image_list: list, context: dict = None):
+def upload_birthday_images_for_blocks(app, channel: str, image_list: list, _context: dict = None):
     """
     Upload birthday images to Slack and return file IDs for embedding in Block Kit
 
@@ -1086,7 +1084,7 @@ def _fallback_to_sequential_images(
     return sequential_results
 
 
-def send_message(app, channel: str, text: str, blocks=None, context: dict = None):
+def send_message(app, channel: str, text: str, blocks=None, _context: dict = None):
     """
     Send a message to a Slack channel with error handling and automatic archiving.
 
@@ -1168,7 +1166,7 @@ def send_message(app, channel: str, text: str, blocks=None, context: dict = None
         return {"success": False, "ts": None}
 
 
-def send_message_with_file(app, channel: str, text: str, file_path: str, context: dict = None):
+def send_message_with_file(app, channel: str, text: str, file_path: str, _context: dict = None):
     """
     Send a message to a Slack channel with file attachment.
 

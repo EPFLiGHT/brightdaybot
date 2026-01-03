@@ -121,6 +121,9 @@ class BirthdayCelebrationPipeline:
 
         logger.info(f"{self.mode}: Starting celebration pipeline for {len(birthday_people)} people")
 
+        # Initialize before try block to avoid unsafe locals() check in exception handler
+        valid_people = None
+
         try:
             # Track timing if not provided
             processing_start = datetime.now(tz.utc)
@@ -220,7 +223,7 @@ class BirthdayCelebrationPipeline:
 
             # Fallback: mark as celebrated to prevent retry loops
             # Use valid_people if validation succeeded, otherwise all birthday_people
-            people_to_mark = valid_people if "valid_people" in locals() else birthday_people
+            people_to_mark = valid_people if valid_people is not None else birthday_people
             self._mark_as_celebrated(people_to_mark)
 
             return {
@@ -635,7 +638,7 @@ def validate_birthday_people_for_posting(app, birthday_people, birthday_channel_
         # Check 4: Still active user?
         if is_valid:
             try:
-                _, is_bot, is_deleted, current_username = get_user_status_and_info(app, user_id)
+                _, is_bot, is_deleted, _current_username = get_user_status_and_info(app, user_id)
                 if is_deleted or is_bot:
                     is_valid = False
                     invalid_reason = "user_inactive"
@@ -823,7 +826,7 @@ def get_same_day_birthday_people(app, target_date, exclude_user_id=None, birthda
 
 
 def should_celebrate_immediately(
-    app, user_id, target_date, birthday_channel_id=None, time_threshold_hours=2
+    app, user_id, target_date, birthday_channel_id=None, _time_threshold_hours=2
 ):
     """
     Determine whether a birthday update should trigger immediate celebration or notification.
@@ -891,7 +894,7 @@ def should_celebrate_immediately(
     return decision
 
 
-def create_birthday_update_notification(user_id, username, target_date, year, decision_result):
+def create_birthday_update_notification(_user_id, _username, target_date, year, decision_result):
     """
     Create appropriate notification message for birthday updates.
 
