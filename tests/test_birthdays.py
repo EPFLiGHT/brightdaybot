@@ -27,8 +27,7 @@ class TestUserPreferences:
         birthday_data = mock_birthday_data(active=False, image_enabled=True, show_age=False)
 
         with patch("storage.birthdays.load_birthdays", return_value={"U123": birthday_data}):
-            with patch("storage.birthdays._use_json_storage", return_value=True):
-                result = get_user_preferences("U123")
+            result = get_user_preferences("U123")
 
         assert result is not None
         assert result["active"] is False
@@ -46,8 +45,7 @@ class TestIsUserActive:
         birthday_data = mock_birthday_data(active=True)
 
         with patch("storage.birthdays.load_birthdays", return_value={"U123": birthday_data}):
-            with patch("storage.birthdays._use_json_storage", return_value=True):
-                result = is_user_active("U123")
+            result = is_user_active("U123")
 
         assert result is True
 
@@ -58,8 +56,7 @@ class TestIsUserActive:
         birthday_data = mock_birthday_data(active=False)
 
         with patch("storage.birthdays.load_birthdays", return_value={"U123": birthday_data}):
-            with patch("storage.birthdays._use_json_storage", return_value=True):
-                result = is_user_active("U123")
+            result = is_user_active("U123")
 
         assert result is False
 
@@ -84,8 +81,7 @@ class TestIsUserActive:
         }
 
         with patch("storage.birthdays.load_birthdays", return_value={"U123": birthday_data}):
-            with patch("storage.birthdays._use_json_storage", return_value=True):
-                result = is_user_active("U123")
+            result = is_user_active("U123")
 
         assert result is True
 
@@ -104,8 +100,7 @@ class TestGetAllActiveBirthdays:
         }
 
         with patch("storage.birthdays.load_birthdays", return_value=birthdays):
-            with patch("storage.birthdays._use_json_storage", return_value=True):
-                result = get_all_active_birthdays()
+            result = get_all_active_birthdays()
 
         assert len(result) == 2
         assert "U001" in result
@@ -122,27 +117,11 @@ class TestGetAllActiveBirthdays:
         }
 
         with patch("storage.birthdays.load_birthdays", return_value=birthdays):
-            with patch("storage.birthdays._use_json_storage", return_value=True):
-                result = get_all_active_birthdays()
+            result = get_all_active_birthdays()
 
         assert len(result) == 2
         assert "U001" in result
         assert "U002" in result
-
-    def test_get_all_active_birthdays_returns_all_in_csv_mode(self, mock_birthday_data):
-        """CSV mode returns all birthdays (no preferences support)"""
-        from storage.birthdays import get_all_active_birthdays
-
-        birthdays = {
-            "U001": {"date": "15/03", "year": 1990},
-            "U002": {"date": "25/12", "year": 1985},
-        }
-
-        with patch("storage.birthdays.load_birthdays", return_value=birthdays):
-            with patch("storage.birthdays._use_json_storage", return_value=False):
-                result = get_all_active_birthdays()
-
-        assert len(result) == 2
 
 
 class TestUpdateUserPreferences:
@@ -167,9 +146,8 @@ class TestUpdateUserPreferences:
 
         with patch("storage.birthdays.BIRTHDAYS_JSON_FILE", str(json_file)):
             with patch("storage.birthdays.BIRTHDAYS_LOCK_FILE", str(json_file) + ".lock"):
-                with patch("storage.birthdays._use_json_storage", return_value=True):
-                    with patch("storage.birthdays.create_backup"):  # Skip backup
-                        result = update_user_preferences("U123", {"active": False})
+                with patch("storage.birthdays.create_backup"):  # Skip backup
+                    result = update_user_preferences("U123", {"active": False})
 
         assert result is True
 
@@ -195,9 +173,8 @@ class TestUpdateUserPreferences:
 
         with patch("storage.birthdays.BIRTHDAYS_JSON_FILE", str(json_file)):
             with patch("storage.birthdays.BIRTHDAYS_LOCK_FILE", str(json_file) + ".lock"):
-                with patch("storage.birthdays._use_json_storage", return_value=True):
-                    with patch("storage.birthdays.create_backup"):
-                        result = update_user_preferences("U123", {"active": True})
+                with patch("storage.birthdays.create_backup"):
+                    result = update_user_preferences("U123", {"active": True})
 
         assert result is True
 
@@ -209,16 +186,6 @@ class TestUpdateUserPreferences:
         from storage.birthdays import update_user_preferences
 
         with patch("storage.birthdays.load_birthdays", return_value={}):
-            with patch("storage.birthdays._use_json_storage", return_value=True):
-                result = update_user_preferences("U999", {"active": False})
-
-        assert result is False
-
-    def test_update_user_preferences_fails_in_csv_mode(self):
-        """Returns False in CSV mode (preferences not supported)"""
-        from storage.birthdays import update_user_preferences
-
-        with patch("storage.birthdays._use_json_storage", return_value=False):
-            result = update_user_preferences("U123", {"active": False})
+            result = update_user_preferences("U999", {"active": False})
 
         assert result is False

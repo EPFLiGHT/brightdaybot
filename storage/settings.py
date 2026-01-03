@@ -391,6 +391,62 @@ def get_current_admins():
     return load_admins_from_file()
 
 
+def save_recent_personalities(recent_list):
+    """
+    Save recent personalities list to personality.json (preserving other fields).
+
+    Used by the weighted random personality selection to persist recency data
+    across restarts.
+
+    Args:
+        recent_list: List of recently used personality names
+
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        # Load existing data first
+        data = {}
+        if os.path.exists(PERSONALITY_FILE):
+            with open(PERSONALITY_FILE, "r") as f:
+                data = json.load(f)
+
+        # Update only the recent_personalities field
+        data["recent_personalities"] = recent_list
+
+        with open(PERSONALITY_FILE, "w") as f:
+            json.dump(data, f, indent=2)
+
+        logger.debug(f"CONFIG: Saved {len(recent_list)} recent personalities")
+        return True
+    except Exception as e:
+        logger.error(f"CONFIG_ERROR: Failed to save recent personalities: {e}")
+        return False
+
+
+def load_recent_personalities():
+    """
+    Load recent personalities list from personality.json.
+
+    Returns:
+        list: List of recently used personality names, empty list if not found
+    """
+    try:
+        if not os.path.exists(PERSONALITY_FILE):
+            return []
+
+        with open(PERSONALITY_FILE, "r") as f:
+            data = json.load(f)
+            recent = data.get("recent_personalities", [])
+
+            if recent:
+                logger.debug(f"CONFIG: Loaded {len(recent)} recent personalities")
+            return recent
+    except Exception as e:
+        logger.error(f"CONFIG_ERROR: Failed to load recent personalities: {e}")
+        return []
+
+
 def load_permissions_from_file():
     """
     Load command permissions from file

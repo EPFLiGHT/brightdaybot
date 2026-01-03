@@ -34,7 +34,6 @@ from config import (
     BACKUP_CHANNEL_ID,
     BACKUP_DIR,
     BACKUP_TO_ADMINS,
-    BIRTHDAYS_FILE,
     BIRTHDAYS_JSON_FILE,
     EXTERNAL_BACKUP_ENABLED,
     MAX_BACKUPS,
@@ -60,17 +59,9 @@ DEFAULT_PREFERENCES = {
 }
 
 
-def _use_json_storage():
-    """
-    Determine which storage format to use.
-    Returns True if JSON exists, False to use legacy CSV.
-    """
-    return os.path.exists(BIRTHDAYS_JSON_FILE)
-
-
 def create_backup():
     """
-    Create a timestamped backup of the birthdays file.
+    Create a timestamped backup of the birthdays JSON file.
 
     Returns:
         str: Path to created backup file, or None if backup failed
@@ -79,19 +70,15 @@ def create_backup():
         os.makedirs(BACKUP_DIR)
         logger.info(f"BACKUP: Created backup directory at {BACKUP_DIR}")
 
-    # Determine which file to backup
-    source_file = BIRTHDAYS_JSON_FILE if _use_json_storage() else BIRTHDAYS_FILE
-    extension = ".json" if _use_json_storage() else ".txt"
-
-    if not os.path.exists(source_file):
-        logger.warning(f"BACKUP: Cannot backup {source_file} as it does not exist")
+    if not os.path.exists(BIRTHDAYS_JSON_FILE):
+        logger.warning(f"BACKUP: Cannot backup {BIRTHDAYS_JSON_FILE} as it does not exist")
         return None
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_file = os.path.join(BACKUP_DIR, f"birthdays_{timestamp}{extension}")
+    backup_file = os.path.join(BACKUP_DIR, f"birthdays_{timestamp}.json")
 
     try:
-        shutil.copy2(source_file, backup_file)
+        shutil.copy2(BIRTHDAYS_JSON_FILE, backup_file)
         logger.info(f"BACKUP: Created backup at {backup_file}")
         rotate_backups()
         return backup_file
@@ -103,13 +90,13 @@ def create_backup():
 
 def rotate_backups():
     """
-    Maintain only the specified number of most recent backups.
+    Maintain only the specified number of most recent JSON backups.
     """
     try:
         backup_files = [
             os.path.join(BACKUP_DIR, f)
             for f in os.listdir(BACKUP_DIR)
-            if f.startswith("birthdays_") and (f.endswith(".txt") or f.endswith(".json"))
+            if f.startswith("birthdays_") and f.endswith(".json")
         ]
 
         backup_files.sort(key=lambda x: os.path.getmtime(x))
@@ -208,7 +195,7 @@ This backup was automatically created to protect your birthday data."""
 
 def restore_latest_backup():
     """
-    Restore the most recent backup file.
+    Restore the most recent JSON backup file.
 
     Returns:
         bool: True if restore succeeded, False otherwise
@@ -217,7 +204,7 @@ def restore_latest_backup():
         backup_files = [
             os.path.join(BACKUP_DIR, f)
             for f in os.listdir(BACKUP_DIR)
-            if f.startswith("birthdays_") and (f.endswith(".txt") or f.endswith(".json"))
+            if f.startswith("birthdays_") and f.endswith(".json")
         ]
 
         if not backup_files:
@@ -227,12 +214,7 @@ def restore_latest_backup():
         backup_files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
         latest = backup_files[0]
 
-        # Restore to appropriate file based on backup type
-        if latest.endswith(".json"):
-            shutil.copy2(latest, BIRTHDAYS_JSON_FILE)
-        else:
-            shutil.copy2(latest, BIRTHDAYS_FILE)
-
+        shutil.copy2(latest, BIRTHDAYS_JSON_FILE)
         logger.info(f"RESTORE: Successfully restored from {latest}")
         return True
 
@@ -241,9 +223,9 @@ def restore_latest_backup():
         return False
 
 
-def _load_json_birthdays():
+def load_birthdays():
     """
-    Load birthdays from JSON file.
+    Load birthdays from JSON storage.
 
     Returns:
         Dictionary mapping user_id to birthday data with preferences
@@ -270,70 +252,9 @@ def _load_json_birthdays():
         return {}
 
 
-def _load_csv_birthdays():
+def save_birthdays(birthdays):
     """
-    Load birthdays from legacy CSV file.
-
-    Returns:
-        Dictionary mapping user_id to {'date': 'DD/MM', 'year': YYYY or None}
-    """
-    birthdays = {}
-    lock = FileLock(BIRTHDAYS_FILE + ".lock")
-
-    try:
-        with lock:
-            with open(BIRTHDAYS_FILE, "r") as f:
-                for line_number, line in enumerate(f, 1):
-                    parts = line.strip().split(",")
-                    if len(parts) < 2:
-                        logger.warning(f"FILE_ERROR: Invalid format at line {line_number}: {line}")
-                        continue
-
-                    user_id = parts[0]
-                    date = parts[1]
-
-                    year = None
-                    if len(parts) > 2 and parts[2].strip():
-                        try:
-                            year = int(parts[2])
-                        except ValueError:
-                            logger.warning(
-                                f"FILE_ERROR: Invalid year at line {line_number}: {parts[2]}"
-                            )
-
-                    birthdays[user_id] = {"date": date, "year": year}
-
-            logger.info(f"STORAGE: Loaded {len(birthdays)} birthdays from CSV")
-    except FileNotFoundError:
-        logger.warning(f"FILE_ERROR: {BIRTHDAYS_FILE} not found, will be created when needed")
-        if restore_latest_backup():
-            return load_birthdays()
-    except PermissionError as e:
-        logger.error(f"PERMISSION_ERROR: Cannot read {BIRTHDAYS_FILE}: {e}")
-    except Exception as e:
-        logger.error(f"UNEXPECTED_ERROR: Failed to load birthdays: {e}")
-
-    return birthdays
-
-
-def load_birthdays():
-    """
-    Load birthdays from storage (JSON or legacy CSV).
-
-    Returns:
-        Dictionary mapping user_id to birthday data.
-        For JSON: Full data with preferences
-        For CSV: {'date': 'DD/MM', 'year': YYYY or None}
-    """
-    if _use_json_storage():
-        return _load_json_birthdays()
-    else:
-        return _load_csv_birthdays()
-
-
-def _save_json_birthdays(birthdays):
-    """
-    Save birthdays dictionary to JSON file.
+    Save birthdays dictionary to JSON storage.
 
     Args:
         birthdays: Dictionary mapping user_id to birthday data with preferences
@@ -352,45 +273,6 @@ def _save_json_birthdays(birthdays):
         logger.error(f"PERMISSION_ERROR: Cannot write to {BIRTHDAYS_JSON_FILE}: {e}")
     except Exception as e:
         logger.error(f"UNEXPECTED_ERROR: Failed to save birthdays: {e}")
-
-
-def _save_csv_birthdays(birthdays):
-    """
-    Save birthdays dictionary to legacy CSV file.
-
-    Args:
-        birthdays: Dictionary mapping user_id to {'date': 'DD/MM', 'year': YYYY or None}
-    """
-    lock = FileLock(BIRTHDAYS_FILE + ".lock")
-
-    try:
-        with lock:
-            with open(BIRTHDAYS_FILE, "w") as f:
-                for user, data in birthdays.items():
-                    year = data.get("year")
-                    year_part = f",{year}" if year else ""
-                    f.write(f"{user},{data['date']}{year_part}\n")
-
-            logger.info(f"STORAGE: Saved {len(birthdays)} birthdays to CSV")
-            create_backup()
-
-    except PermissionError as e:
-        logger.error(f"PERMISSION_ERROR: Cannot write to {BIRTHDAYS_FILE}: {e}")
-    except Exception as e:
-        logger.error(f"UNEXPECTED_ERROR: Failed to save birthdays: {e}")
-
-
-def save_birthdays(birthdays):
-    """
-    Save birthdays dictionary to storage.
-
-    Args:
-        birthdays: Dictionary of birthday data
-    """
-    if _use_json_storage():
-        _save_json_birthdays(birthdays)
-    else:
-        _save_csv_birthdays(birthdays)
 
 
 def save_birthday(
@@ -418,30 +300,27 @@ def save_birthday(
         action = "Updated" if updated else "Added new"
         username_log = username or user
 
-        if _use_json_storage():
-            # Preserve existing preferences if updating
-            existing_prefs = {}
-            if updated and "preferences" in birthdays[user]:
-                existing_prefs = birthdays[user]["preferences"]
+        # Preserve existing preferences if updating
+        existing_prefs = {}
+        if updated and "preferences" in birthdays[user]:
+            existing_prefs = birthdays[user]["preferences"]
 
-            # Merge with provided preferences or defaults
-            merged_prefs = {**DEFAULT_PREFERENCES, **existing_prefs}
-            if preferences:
-                merged_prefs.update(preferences)
+        # Merge with provided preferences or defaults
+        merged_prefs = {**DEFAULT_PREFERENCES, **existing_prefs}
+        if preferences:
+            merged_prefs.update(preferences)
 
-            # Set show_age based on year if not explicitly set
-            if "show_age" not in (preferences or {}):
-                merged_prefs["show_age"] = year is not None
+        # Set show_age based on year if not explicitly set
+        if "show_age" not in (preferences or {}):
+            merged_prefs["show_age"] = year is not None
 
-            birthdays[user] = {
-                "date": date,
-                "year": year,
-                "preferences": merged_prefs,
-                "created_at": birthdays.get(user, {}).get("created_at", now),
-                "updated_at": now,
-            }
-        else:
-            birthdays[user] = {"date": date, "year": year}
+        birthdays[user] = {
+            "date": date,
+            "year": year,
+            "preferences": merged_prefs,
+            "created_at": birthdays.get(user, {}).get("created_at", now),
+            "updated_at": now,
+        }
 
         save_birthdays(birthdays)
         logger.info(
@@ -498,17 +377,13 @@ def get_user_preferences(user: str) -> dict:
         user: User ID
 
     Returns:
-        Preferences dict (with defaults if not set)
+        Preferences dict (with defaults if not set), or None if user not found
     """
     birthday_data = get_birthday(user)
     if not birthday_data:
         return None
 
-    if _use_json_storage():
-        return {**DEFAULT_PREFERENCES, **birthday_data.get("preferences", {})}
-    else:
-        # For CSV, return defaults
-        return DEFAULT_PREFERENCES.copy()
+    return {**DEFAULT_PREFERENCES, **birthday_data.get("preferences", {})}
 
 
 def update_user_preferences(user: str, preferences: dict) -> bool:
@@ -522,10 +397,6 @@ def update_user_preferences(user: str, preferences: dict) -> bool:
     Returns:
         True if updated, False if user not found
     """
-    if not _use_json_storage():
-        logger.warning("PREFERENCES: Cannot update preferences in CSV mode. Migrate to JSON first.")
-        return False
-
     # Use thread lock for atomic read-modify-write
     with _birthdays_thread_lock:
         birthdays = load_birthdays()
@@ -570,9 +441,6 @@ def get_all_active_birthdays() -> dict:
         Dictionary of active birthday entries
     """
     birthdays = load_birthdays()
-
-    if not _use_json_storage():
-        return birthdays
 
     return {
         user_id: data

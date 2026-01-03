@@ -29,7 +29,11 @@ from config import (
 from integrations.openai import complete
 from integrations.web_search import get_birthday_facts
 from slack.client import fix_slack_formatting, get_user_mention
-from storage.settings import get_current_personality_name
+from storage.settings import (
+    get_current_personality_name,
+    load_recent_personalities,
+    save_recent_personalities,
+)
 from utils.date import get_star_sign
 
 logger = get_logger("llm")
@@ -40,6 +44,9 @@ logger = get_logger("llm")
 _recent_personalities_lock = threading.Lock()
 _recent_personalities = []
 _MAX_RECENT_PERSONALITIES = 3  # With 10 personalities, this leaves 7 choices (70%)
+
+# Load persisted recent personalities from file on module initialization
+_recent_personalities = load_recent_personalities()
 
 
 # Import centralized model configuration function
@@ -183,6 +190,9 @@ def get_random_personality_name():
             if len(_recent_personalities) > _MAX_RECENT_PERSONALITIES:
                 removed = _recent_personalities.pop(0)
                 logger.debug(f"RANDOM: Removed '{removed}' from recency list")
+
+            # Persist to file for restart survival
+            save_recent_personalities(_recent_personalities.copy())
 
             avoided = _recent_personalities[:-1] or []
             logger.info(f"RANDOM: Selected '{selected}' (avoided: {avoided or 'none'})")

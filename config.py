@@ -133,8 +133,7 @@ CUSTOM_SLACK_EMOJIS = {}
 # ----- FILE PATHS -----
 
 # Core data files
-BIRTHDAYS_FILE = os.path.join(STORAGE_DIR, "birthdays.txt")  # Legacy CSV format
-BIRTHDAYS_JSON_FILE = os.path.join(STORAGE_DIR, "birthdays.json")  # New JSON format
+BIRTHDAYS_JSON_FILE = os.path.join(STORAGE_DIR, "birthdays.json")
 ADMINS_FILE = os.path.join(STORAGE_DIR, "admins.json")
 PERSONALITY_FILE = os.path.join(STORAGE_DIR, "personality.json")
 PERMISSIONS_FILE = os.path.join(STORAGE_DIR, "permissions.json")
