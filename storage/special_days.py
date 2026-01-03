@@ -5,7 +5,6 @@ Manages special days/holidays tracking, loading, and announcement logic.
 Integrates with the existing birthday infrastructure for consistent user experience.
 """
 
-import csv
 import json
 import os
 import shutil
@@ -24,7 +23,7 @@ from config import (
     SPECIAL_DAYS_CATEGORIES,
     SPECIAL_DAYS_CONFIG_FILE,
     SPECIAL_DAYS_ENABLED,
-    SPECIAL_DAYS_FILE,
+    SPECIAL_DAYS_JSON_FILE,
     SPECIAL_DAYS_PERSONALITY,
     TIMEOUTS,
     TRACKING_DIR,
@@ -84,49 +83,123 @@ class SpecialDay:
             f"SpecialDay({self.date}: {self.name} [{self.category}] - {self.source or 'No source'})"
         )
 
+    def to_dict(self) -> dict:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "date": self.date,
+            "name": self.name,
+            "category": self.category,
+            "description": self.description,
+            "emoji": self.emoji,
+            "enabled": self.enabled,
+            "source": self.source,
+            "url": self.url,
+        }
 
-def load_special_days() -> List[SpecialDay]:
+    @classmethod
+    def from_dict(cls, data: dict) -> "SpecialDay":
+        """Create SpecialDay from dictionary."""
+        return cls(
+            date=data.get("date", ""),
+            name=data.get("name", ""),
+            category=data.get("category", ""),
+            description=data.get("description", ""),
+            emoji=data.get("emoji", ""),
+            enabled=data.get("enabled", True),
+            source=data.get("source", ""),
+            url=data.get("url", ""),
+        )
+
+
+# Lock file for JSON operations
+SPECIAL_DAYS_LOCK_FILE = SPECIAL_DAYS_JSON_FILE + ".lock"
+
+
+def _load_json_special_days() -> List[SpecialDay]:
     """
-    Load special days from the CSV file.
+    Load special days from JSON file.
 
     Returns:
         List of SpecialDay objects
     """
-    special_days = []
-
-    if not os.path.exists(SPECIAL_DAYS_FILE):
-        logger.warning(f"Special days file not found: {SPECIAL_DAYS_FILE}")
-        return special_days
-
     try:
-        lock_file = f"{SPECIAL_DAYS_FILE}.lock"
-        with FileLock(lock_file, timeout=TIMEOUTS["file_lock"]):
-            with open(SPECIAL_DAYS_FILE, "r", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    try:
-                        special_day = SpecialDay(
-                            date=row["date"],
-                            name=row["name"],
-                            category=row["category"],
-                            description=row.get("description", ""),
-                            emoji=row.get("emoji", ""),
-                            enabled=row.get("enabled", "true").lower() == "true",
-                            source=row.get("source", ""),
-                            url=row.get("url", ""),
-                        )
-                        special_days.append(special_day)
-                    except KeyError as e:
-                        logger.error(f"Missing required field in special days CSV: {e}")
-                    except Exception as e:
-                        logger.error(f"Error parsing special day row: {e}")
+        lock = FileLock(SPECIAL_DAYS_LOCK_FILE, timeout=TIMEOUTS["file_lock"])
+        with lock:
+            with open(SPECIAL_DAYS_JSON_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                days = [SpecialDay.from_dict(d) for d in data.get("days", [])]
+                logger.info(f"Loaded {len(days)} special days from JSON")
+                return days
+    except FileNotFoundError:
+        logger.warning(f"Special days JSON file not found: {SPECIAL_DAYS_JSON_FILE}")
+        return []
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON parse error in special days file: {e}")
+        return []
+    except Exception as e:
+        logger.error(f"Error loading special days from JSON: {e}")
+        return []
 
-        logger.info(f"Loaded {len(special_days)} special days from file")
-        return special_days
+
+def _save_json_special_days(special_days: List[SpecialDay]) -> bool:
+    """
+    Save special days to JSON file.
+
+    Args:
+        special_days: List of SpecialDay objects
+
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        # Load existing config to preserve it
+        config = load_special_days_config()
+
+        # Sort by date
+        def get_date_sort_key(d):
+            try:
+                date_obj = datetime.strptime(d.date, DATE_FORMAT)
+                return (date_obj.month, date_obj.day)
+            except ValueError:
+                return (0, 0)
+
+        sorted_days = sorted(special_days, key=get_date_sort_key)
+
+        data = {
+            "version": 1,
+            "last_updated": datetime.now().isoformat(),
+            "config": {
+                "enabled": config.get("enabled", SPECIAL_DAYS_ENABLED),
+                "personality": config.get("personality", SPECIAL_DAYS_PERSONALITY),
+                "categories_enabled": config.get(
+                    "categories_enabled", {cat: True for cat in SPECIAL_DAYS_CATEGORIES}
+                ),
+                "announcement_time": config.get("announcement_time", DEFAULT_ANNOUNCEMENT_TIME),
+            },
+            "days": [d.to_dict() for d in sorted_days],
+        }
+
+        lock = FileLock(SPECIAL_DAYS_LOCK_FILE, timeout=TIMEOUTS["file_lock"])
+        with lock:
+            with open(SPECIAL_DAYS_JSON_FILE, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+
+        logger.info(f"Saved {len(sorted_days)} special days to JSON")
+        return True
 
     except Exception as e:
-        logger.error(f"Error loading special days: {e}")
-        return []
+        logger.error(f"Error saving special days to JSON: {e}")
+        return False
+
+
+def load_special_days() -> List[SpecialDay]:
+    """
+    Load special days from JSON storage.
+
+    Returns:
+        List of SpecialDay objects
+    """
+    return _load_json_special_days()
 
 
 def load_all_special_days() -> List[SpecialDay]:
@@ -141,9 +214,9 @@ def load_all_special_days() -> List[SpecialDay]:
     """
     all_days = []
 
-    # 1. Load CSV entries
-    csv_days = load_special_days()
-    all_days.extend(csv_days)
+    # 1. Load custom entries from JSON
+    custom_days = load_special_days()
+    all_days.extend(custom_days)
 
     # 2. Load observances from all scraped caches (UN, UNESCO, WHO)
     cache_sources = [
@@ -209,7 +282,7 @@ def load_all_special_days() -> List[SpecialDay]:
 
     logger.info(
         f"Loaded {len(unique_days)} unique special days from all sources "
-        f"(CSV: {len(csv_days)}, total before dedup: {len(all_days)})"
+        f"(custom: {len(custom_days)}, total before dedup: {len(all_days)})"
     )
 
     return unique_days
@@ -217,7 +290,7 @@ def load_all_special_days() -> List[SpecialDay]:
 
 def save_special_day(special_day: SpecialDay, app=None, username=None) -> bool:
     """
-    Add or update a special day in the CSV file with backup.
+    Add or update a special day in the JSON file with backup.
 
     Args:
         special_day: SpecialDay object to save
@@ -242,46 +315,10 @@ def save_special_day(special_day: SpecialDay, app=None, username=None) -> bool:
         if not updated:
             existing_days.append(special_day)
 
-        # Sort by date using datetime parsing
-        def get_date_sort_key(d):
-            try:
-                date_obj = datetime.strptime(d.date, DATE_FORMAT)
-                return (date_obj.month, date_obj.day)
-            except ValueError:
-                return (0, 0)  # Put invalid dates first
-
-        existing_days.sort(key=get_date_sort_key)
-
-        # Write back to file
-        lock_file = f"{SPECIAL_DAYS_FILE}.lock"
-        with FileLock(lock_file, timeout=TIMEOUTS["file_lock"]):
-            with open(SPECIAL_DAYS_FILE, "w", encoding="utf-8", newline="") as f:
-                fieldnames = [
-                    "date",
-                    "name",
-                    "category",
-                    "description",
-                    "emoji",
-                    "enabled",
-                    "source",
-                    "url",
-                ]
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-
-                for day in existing_days:
-                    writer.writerow(
-                        {
-                            "date": day.date,
-                            "name": day.name,
-                            "category": day.category,
-                            "description": day.description,
-                            "emoji": day.emoji,
-                            "enabled": str(day.enabled).lower(),
-                            "source": getattr(day, "source", ""),
-                            "url": getattr(day, "url", ""),
-                        }
-                    )
+        # Save to JSON (sorting is handled by _save_json_special_days)
+        if not _save_json_special_days(existing_days):
+            logger.error("Failed to save special days to JSON")
+            return False
 
         logger.info(f"{'Updated' if updated else 'Added'} special day: {special_day}")
 
@@ -304,7 +341,7 @@ def save_special_day(special_day: SpecialDay, app=None, username=None) -> bool:
 
 def remove_special_day(date: str, name: Optional[str] = None, app=None, username=None) -> bool:
     """
-    Remove a special day from the CSV file with backup.
+    Remove a special day from the JSON file with backup.
 
     Args:
         date: Date in DD/MM format
@@ -331,36 +368,10 @@ def remove_special_day(date: str, name: Optional[str] = None, app=None, username
             )
             return False
 
-        # Write back to file
-        lock_file = f"{SPECIAL_DAYS_FILE}.lock"
-        with FileLock(lock_file, timeout=TIMEOUTS["file_lock"]):
-            with open(SPECIAL_DAYS_FILE, "w", encoding="utf-8", newline="") as f:
-                fieldnames = [
-                    "date",
-                    "name",
-                    "category",
-                    "description",
-                    "emoji",
-                    "enabled",
-                    "source",
-                    "url",
-                ]
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-
-                for day in existing_days:
-                    writer.writerow(
-                        {
-                            "date": day.date,
-                            "name": day.name,
-                            "category": day.category,
-                            "description": day.description,
-                            "emoji": day.emoji,
-                            "enabled": str(day.enabled).lower(),
-                            "source": getattr(day, "source", ""),
-                            "url": getattr(day, "url", ""),
-                        }
-                    )
+        # Save to JSON
+        if not _save_json_special_days(existing_days):
+            logger.error("Failed to save special days to JSON after removal")
+            return False
 
         removed_count = original_count - len(existing_days)
         logger.info(f"Removed {removed_count} special day(s) for date {date}")
@@ -655,21 +666,21 @@ def get_special_days_for_date(date: datetime) -> List[SpecialDay]:
         except Exception as e:
             logger.error(f"CALENDARIFIC: Failed to fetch for {date_str}: {e}")
 
-    # Source 5: CSV for Company days (always load)
-    csv_days = load_special_days()
-    company_days = [d for d in csv_days if d.date == date_str and d.category == "Company"]
+    # Source 5: Custom Company days from JSON (always load)
+    custom_days = load_special_days()
+    company_days = [d for d in custom_days if d.date == date_str and d.category == "Company"]
     special_days.extend(company_days)
 
-    # If no external sources provided data, fall back to full CSV
+    # If no external sources provided data, fall back to full JSON
     if (
         not UN_OBSERVANCES_ENABLED
         and not UNESCO_OBSERVANCES_ENABLED
         and not WHO_OBSERVANCES_ENABLED
         and not (CALENDARIFIC_ENABLED and CALENDARIFIC_API_KEY)
     ):
-        # Legacy mode: use CSV for everything
-        all_csv_days = [d for d in csv_days if d.date == date_str]
-        special_days = all_csv_days
+        # Legacy mode: use custom JSON for everything
+        all_custom_days = [d for d in custom_days if d.date == date_str]
+        special_days = all_custom_days
 
     # Filter by enabled status and enabled categories
     filtered_days = [
@@ -984,7 +995,7 @@ def verify_special_days() -> Dict[str, List[str]]:
 
 def create_special_days_backup() -> Optional[str]:
     """
-    Create a timestamped backup of the special days file.
+    Create a timestamped backup of the special days JSON file.
 
     Returns:
         str: Path to created backup file, or None if backup failed
@@ -997,17 +1008,21 @@ def create_special_days_backup() -> Optional[str]:
 
         # Create timestamped filename
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_filename = f"special_days_{timestamp}.csv"
+        backup_filename = f"special_days_{timestamp}.json"
         backup_path = os.path.join(BACKUP_DIR, backup_filename)
 
         # Copy the file
-        shutil.copy2(SPECIAL_DAYS_FILE, backup_path)
-        logger.info(f"Created special days backup: {backup_filename}")
+        if os.path.exists(SPECIAL_DAYS_JSON_FILE):
+            shutil.copy2(SPECIAL_DAYS_JSON_FILE, backup_path)
+            logger.info(f"Created special days backup: {backup_filename}")
 
-        # Clean up old backups
-        cleanup_old_special_days_backups()
+            # Clean up old backups
+            cleanup_old_special_days_backups()
 
-        return backup_path
+            return backup_path
+        else:
+            logger.warning("No special days JSON file to backup")
+            return None
 
     except Exception as e:
         logger.error(f"Failed to create special days backup: {e}")
@@ -1021,7 +1036,7 @@ def cleanup_old_special_days_backups():
         backup_files = [
             f
             for f in os.listdir(BACKUP_DIR)
-            if f.startswith("special_days_") and f.endswith(".csv")
+            if f.startswith("special_days_") and f.endswith(".json")
         ]
 
         # Sort by modification time (newest first)
@@ -1050,7 +1065,7 @@ def restore_latest_special_days_backup() -> bool:
         backup_files = [
             f
             for f in os.listdir(BACKUP_DIR)
-            if f.startswith("special_days_") and f.endswith(".csv")
+            if f.startswith("special_days_") and f.endswith(".json")
         ]
 
         if not backup_files:
@@ -1065,11 +1080,12 @@ def restore_latest_special_days_backup() -> bool:
 
         # Create a backup of current file before restoring
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        pre_restore_backup = os.path.join(BACKUP_DIR, f"special_days_pre_restore_{timestamp}.csv")
-        shutil.copy2(SPECIAL_DAYS_FILE, pre_restore_backup)
+        pre_restore_backup = os.path.join(BACKUP_DIR, f"special_days_pre_restore_{timestamp}.json")
+        if os.path.exists(SPECIAL_DAYS_JSON_FILE):
+            shutil.copy2(SPECIAL_DAYS_JSON_FILE, pre_restore_backup)
 
         # Restore from backup
-        shutil.copy2(backup_path, SPECIAL_DAYS_FILE)
+        shutil.copy2(backup_path, SPECIAL_DAYS_JSON_FILE)
 
         logger.info(f"Restored special days from backup: {latest_backup}")
         return True

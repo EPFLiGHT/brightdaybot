@@ -13,14 +13,14 @@ from config import (
     ADMINS_FILE,
     BACKUP_DIR,
     BIRTHDAY_CHANNEL,
-    BIRTHDAYS_FILE,
+    BIRTHDAYS_JSON_FILE,
     CACHE_DIR,
     DATA_DIR,
     DEFAULT_PERSONALITY,
     LOGS_DIR,
     PERSONALITY_FILE,
     SPECIAL_DAYS_ENABLED,
-    SPECIAL_DAYS_FILE,
+    SPECIAL_DAYS_JSON_FILE,
     STORAGE_DIR,
     TRACKING_DIR,
     get_logger,
@@ -122,7 +122,7 @@ def check_environment():
     }
 
     missing = []
-    for var, description in required_vars.items():
+    for var, _description in required_vars.items():
         value = os.environ.get(var)
         if value:
             # Mask the value for security
@@ -139,18 +139,17 @@ def check_environment():
 
 
 def check_birthdays_file():
-    """Check birthdays file and count entries."""
-    file_status = check_file(BIRTHDAYS_FILE)
+    """Check birthdays JSON file and count entries."""
+    import json
+
+    file_status = check_file(BIRTHDAYS_JSON_FILE)
     if file_status["status"] != STATUS_OK:
         return file_status
 
     try:
-        count = 0
-        with open(BIRTHDAYS_FILE, "r") as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith("#"):
-                    count += 1
+        with open(BIRTHDAYS_JSON_FILE, "r") as f:
+            data = json.load(f)
+            count = len(data)
         file_status["birthday_count"] = count
         return file_status
     except Exception as e:
@@ -195,19 +194,19 @@ def check_personality_config():
 
 def check_special_days():
     """Check special days configuration."""
+    import json
+
     if not SPECIAL_DAYS_ENABLED:
         return {"status": STATUS_OK, "enabled": False, "note": "Feature disabled"}
 
-    file_status = check_file(SPECIAL_DAYS_FILE)
+    file_status = check_file(SPECIAL_DAYS_JSON_FILE)
     if file_status["status"] != STATUS_OK:
         return file_status
 
     try:
-        count = 0
-        with open(SPECIAL_DAYS_FILE, "r") as f:
-            for line in f:
-                if line.strip() and not line.startswith("#") and not line.startswith("date,"):
-                    count += 1
+        with open(SPECIAL_DAYS_JSON_FILE, "r") as f:
+            data = json.load(f)
+            count = len(data.get("days", []))
         file_status["enabled"] = True
         file_status["observance_count"] = count
         return file_status

@@ -322,7 +322,7 @@ SPECIAL_DAYS_CATEGORIES = [
 ]
 
 # File paths for special days data
-SPECIAL_DAYS_FILE = os.path.join(STORAGE_DIR, "special_days.csv")
+SPECIAL_DAYS_JSON_FILE = os.path.join(STORAGE_DIR, "special_days.json")
 SPECIAL_DAYS_CONFIG_FILE = os.path.join(STORAGE_DIR, "special_days_config.json")
 
 # Enable AI image generation for special days
