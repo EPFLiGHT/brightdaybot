@@ -26,7 +26,6 @@ from config import (
     SPECIAL_DAYS_JSON_FILE,
     SPECIAL_DAYS_PERSONALITY,
     TIMEOUTS,
-    TRACKING_DIR,
     UN_OBSERVANCES_CACHE_FILE,
     UN_OBSERVANCES_ENABLED,
     UNESCO_OBSERVANCES_CACHE_FILE,
@@ -813,23 +812,30 @@ def has_announced_special_day_today(date: Optional[datetime] = None) -> bool:
     """
     Check if we've already announced special days for today.
 
+    Uses consolidated JSON tracking via storage/birthdays.py.
+
     Args:
         date: Optional date to check (defaults to today)
 
     Returns:
         True if already announced, False otherwise
     """
+    from storage.birthdays import _load_announcements
+
     if date is None:
         date = datetime.now()
 
-    tracking_file = os.path.join(TRACKING_DIR, f"special_days_{date.strftime('%Y-%m-%d')}.txt")
+    date_str = date.strftime("%Y-%m-%d")
+    data = _load_announcements()
 
-    return os.path.exists(tracking_file)
+    return date_str in data.get("special_days", {})
 
 
 def mark_special_day_announced(date: Optional[datetime] = None) -> bool:
     """
     Mark that we've announced special days for today.
+
+    Uses consolidated JSON tracking via storage/birthdays.py.
 
     Args:
         date: Optional date to mark (defaults to today)
@@ -837,21 +843,24 @@ def mark_special_day_announced(date: Optional[datetime] = None) -> bool:
     Returns:
         True if successful, False otherwise
     """
+    from storage.birthdays import _load_announcements, _save_announcements
+
     if date is None:
         date = datetime.now()
 
-    tracking_file = os.path.join(TRACKING_DIR, f"special_days_{date.strftime('%Y-%m-%d')}.txt")
+    date_str = date.strftime("%Y-%m-%d")
+    data = _load_announcements()
 
-    try:
-        os.makedirs(TRACKING_DIR, exist_ok=True)
-        with open(tracking_file, "w") as f:
-            f.write(f"Special days announced at {datetime.now().isoformat()}\n")
+    if "special_days" not in data:
+        data["special_days"] = {}
 
-        logger.info(f"Marked special days as announced for {date.strftime('%Y-%m-%d')}")
+    data["special_days"][date_str] = datetime.now().isoformat()
+
+    if _save_announcements(data):
+        logger.info(f"Marked special days as announced for {date_str}")
         return True
-
-    except Exception as e:
-        logger.error(f"Error marking special days as announced: {e}")
+    else:
+        logger.error(f"Error marking special days as announced for {date_str}")
         return False
 
 

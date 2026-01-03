@@ -31,6 +31,7 @@ from datetime import datetime, timezone
 from filelock import FileLock
 
 from config import (
+    ANNOUNCEMENTS_FILE,
     BACKUP_CHANNEL_ID,
     BACKUP_DIR,
     BACKUP_TO_ADMINS,
@@ -47,6 +48,12 @@ logger = get_logger("storage")
 
 # File lock for birthday data operations (cross-process)
 BIRTHDAYS_LOCK_FILE = BIRTHDAYS_JSON_FILE + ".lock"
+
+# File lock for announcements tracking
+ANNOUNCEMENTS_LOCK_FILE = ANNOUNCEMENTS_FILE + ".lock"
+
+# Retention period for announcement tracking (days)
+ANNOUNCEMENT_RETENTION_DAYS = 60
 
 # Thread lock for atomic read-modify-write operations (same process)
 _birthdays_thread_lock = threading.Lock()
@@ -449,7 +456,93 @@ def get_all_active_birthdays() -> dict:
     }
 
 
-# ==================== ANNOUNCEMENT TRACKING ====================
+# ==================== ANNOUNCEMENT TRACKING (Consolidated JSON) ====================
+
+
+def _load_announcements() -> dict:
+    """
+    Load announcements tracking data from JSON file.
+
+    Returns:
+        Dictionary with structure:
+        {
+            "birthdays": {"YYYY-MM-DD": ["user_id1", "user_id2"]},
+            "timezone_birthdays": {"YYYY-MM-DD": {"user_id": "timezone"}},
+            "special_days": {"YYYY-MM-DD": "ISO timestamp"},
+            "last_cleanup": "ISO timestamp"
+        }
+    """
+    try:
+        lock = FileLock(ANNOUNCEMENTS_LOCK_FILE, timeout=10)
+        with lock:
+            if os.path.exists(ANNOUNCEMENTS_FILE):
+                with open(ANNOUNCEMENTS_FILE, "r") as f:
+                    return json.load(f)
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        logger.error(f"FILE_ERROR: Failed to load announcements: {e}")
+
+    # Return default structure
+    return {
+        "birthdays": {},
+        "timezone_birthdays": {},
+        "special_days": {},
+        "last_cleanup": None,
+    }
+
+
+def _save_announcements(data: dict) -> bool:
+    """
+    Save announcements tracking data to JSON file.
+
+    Args:
+        data: Dictionary with announcements tracking data
+
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        lock = FileLock(ANNOUNCEMENTS_LOCK_FILE, timeout=10)
+        with lock:
+            with open(ANNOUNCEMENTS_FILE, "w") as f:
+                json.dump(data, f, indent=2)
+        return True
+    except Exception as e:
+        logger.error(f"FILE_ERROR: Failed to save announcements: {e}")
+        return False
+
+
+def _cleanup_old_announcements(data: dict) -> dict:
+    """
+    Remove announcement entries older than ANNOUNCEMENT_RETENTION_DAYS.
+
+    Args:
+        data: Announcements data dictionary
+
+    Returns:
+        Cleaned data dictionary
+    """
+    from datetime import timedelta
+
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=ANNOUNCEMENT_RETENTION_DAYS)).strftime(
+        "%Y-%m-%d"
+    )
+
+    # Clean birthdays
+    data["birthdays"] = {k: v for k, v in data.get("birthdays", {}).items() if k >= cutoff}
+
+    # Clean timezone birthdays
+    data["timezone_birthdays"] = {
+        k: v for k, v in data.get("timezone_birthdays", {}).items() if k >= cutoff
+    }
+
+    # Clean special days
+    data["special_days"] = {k: v for k, v in data.get("special_days", {}).items() if k >= cutoff}
+
+    data["last_cleanup"] = datetime.now(timezone.utc).isoformat()
+
+    return data
 
 
 def get_announced_birthdays_today():
@@ -460,17 +553,8 @@ def get_announced_birthdays_today():
         List of user IDs
     """
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    announced_file = os.path.join(TRACKING_DIR, f"announced_{today}.txt")
-
-    try:
-        if os.path.exists(announced_file):
-            with open(announced_file, "r") as f:
-                return [line.strip() for line in f if line.strip()]
-        else:
-            return []
-    except OSError as e:
-        logger.error(f"FILE_ERROR: Failed to read announced birthdays: {e}")
-        return []
+    data = _load_announcements()
+    return data.get("birthdays", {}).get(today, [])
 
 
 def mark_birthday_announced(user_id):
@@ -481,30 +565,113 @@ def mark_birthday_announced(user_id):
         user_id: User ID whose birthday was announced
     """
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    announced_file = os.path.join(TRACKING_DIR, f"announced_{today}.txt")
+    data = _load_announcements()
 
-    try:
-        with open(announced_file, "a") as f:
-            f.write(f"{user_id}\n")
-        logger.info(f"BIRTHDAY: Marked {user_id}'s birthday as announced")
-    except OSError as e:
-        logger.error(f"FILE_ERROR: Failed to mark birthday as announced: {e}")
+    if "birthdays" not in data:
+        data["birthdays"] = {}
+
+    if today not in data["birthdays"]:
+        data["birthdays"][today] = []
+
+    if user_id not in data["birthdays"][today]:
+        data["birthdays"][today].append(user_id)
+        if _save_announcements(data):
+            logger.info(f"BIRTHDAY: Marked {user_id}'s birthday as announced")
+        else:
+            logger.error(f"FILE_ERROR: Failed to mark birthday as announced for {user_id}")
 
 
 def cleanup_old_announcement_files():
     """
-    Remove announcement tracking files older than today.
+    Clean up old announcement entries and migrate legacy text files.
     """
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    data = _load_announcements()
 
+    # Migrate legacy text files if they exist
+    _migrate_legacy_tracking_files(data)
+
+    # Clean up old entries
+    data = _cleanup_old_announcements(data)
+    _save_announcements(data)
+
+    logger.info("CLEANUP: Cleaned old announcement entries")
+
+
+def _migrate_legacy_tracking_files(data: dict) -> None:
+    """
+    Migrate legacy text tracking files to JSON format.
+
+    Args:
+        data: Announcements data dictionary to update
+    """
+    if not os.path.exists(TRACKING_DIR):
+        return
+
+    migrated = 0
     try:
         for filename in os.listdir(TRACKING_DIR):
-            if filename.startswith("announced_") and filename != f"announced_{today}.txt":
-                file_path = os.path.join(TRACKING_DIR, filename)
-                os.remove(file_path)
-                logger.info(f"CLEANUP: Removed old announcement file {filename}")
-    except OSError as e:
-        logger.error(f"FILE_ERROR: Failed to clean up old announcement files: {e}")
+            file_path = os.path.join(TRACKING_DIR, filename)
+
+            # Migrate announced_YYYY-MM-DD.txt files
+            if filename.startswith("announced_") and filename.endswith(".txt"):
+                date_str = filename[10:-4]  # Extract YYYY-MM-DD
+                try:
+                    with open(file_path, "r") as f:
+                        user_ids = [line.strip() for line in f if line.strip()]
+                    if user_ids and date_str not in data.get("birthdays", {}):
+                        if "birthdays" not in data:
+                            data["birthdays"] = {}
+                        data["birthdays"][date_str] = user_ids
+                        migrated += 1
+                    os.remove(file_path)
+                except Exception as e:
+                    logger.warning(f"Failed to migrate {filename}: {e}")
+
+            # Migrate timezone_announced_YYYY-MM-DD.txt files
+            elif filename.startswith("timezone_announced_") and filename.endswith(".txt"):
+                date_str = filename[19:-4]  # Extract YYYY-MM-DD
+                try:
+                    with open(file_path, "r") as f:
+                        entries = {}
+                        for line in f:
+                            line = line.strip()
+                            if ":" in line:
+                                parts = line.split(":", 1)
+                                entries[parts[0]] = parts[1]
+                    if entries and date_str not in data.get("timezone_birthdays", {}):
+                        if "timezone_birthdays" not in data:
+                            data["timezone_birthdays"] = {}
+                        data["timezone_birthdays"][date_str] = entries
+                        migrated += 1
+                    os.remove(file_path)
+                except Exception as e:
+                    logger.warning(f"Failed to migrate {filename}: {e}")
+
+            # Migrate special_days_YYYY-MM-DD.txt files
+            elif filename.startswith("special_days_") and filename.endswith(".txt"):
+                date_str = filename[13:-4]  # Extract YYYY-MM-DD
+                try:
+                    with open(file_path, "r") as f:
+                        content = f.read().strip()
+                    if content and date_str not in data.get("special_days", {}):
+                        if "special_days" not in data:
+                            data["special_days"] = {}
+                        # Extract timestamp from content like "Special days announced at ISO"
+                        if "at " in content:
+                            timestamp = content.split("at ", 1)[1]
+                        else:
+                            timestamp = datetime.now(timezone.utc).isoformat()
+                        data["special_days"][date_str] = timestamp
+                        migrated += 1
+                    os.remove(file_path)
+                except Exception as e:
+                    logger.warning(f"Failed to migrate {filename}: {e}")
+
+        if migrated > 0:
+            logger.info(f"MIGRATION: Migrated {migrated} legacy tracking files to JSON")
+
+    except Exception as e:
+        logger.error(f"FILE_ERROR: Failed to migrate legacy tracking files: {e}")
 
 
 def get_timezone_announced_birthdays_today():
@@ -512,20 +679,14 @@ def get_timezone_announced_birthdays_today():
     Get list of user IDs who have been announced today via timezone-aware celebrations.
 
     Returns:
-        List of user IDs who have been announced today
+        List of entries in format "user_id:timezone"
     """
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    announced_file = os.path.join(TRACKING_DIR, f"timezone_announced_{today}.txt")
+    data = _load_announcements()
+    tz_data = data.get("timezone_birthdays", {}).get(today, {})
 
-    try:
-        if os.path.exists(announced_file):
-            with open(announced_file, "r") as f:
-                return [line.strip() for line in f if line.strip()]
-        else:
-            return []
-    except OSError as e:
-        logger.error(f"FILE_ERROR: Failed to read timezone announced birthdays: {e}")
-        return []
+    # Return in legacy format for backwards compatibility
+    return [f"{user_id}:{tz}" for user_id, tz in tz_data.items()]
 
 
 def mark_timezone_birthday_announced(user_id, user_timezone):
@@ -544,35 +705,28 @@ def mark_timezone_birthday_announced(user_id, user_timezone):
         user_timezone = DEFAULT_TIMEZONE
 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    announced_file = os.path.join(TRACKING_DIR, f"timezone_announced_{today}.txt")
+    data = _load_announcements()
 
-    try:
-        os.makedirs(TRACKING_DIR, exist_ok=True)
+    if "timezone_birthdays" not in data:
+        data["timezone_birthdays"] = {}
 
-        with open(announced_file, "a") as f:
-            f.write(f"{user_id}:{user_timezone}\n")
+    if today not in data["timezone_birthdays"]:
+        data["timezone_birthdays"][today] = {}
+
+    data["timezone_birthdays"][today][user_id] = user_timezone
+
+    if _save_announcements(data):
         logger.info(f"TIMEZONE: Marked {user_id}'s birthday as announced in {user_timezone}")
-    except OSError as e:
-        logger.error(f"FILE_ERROR: Failed to mark timezone birthday as announced: {e}")
+    else:
+        logger.error(f"FILE_ERROR: Failed to mark timezone birthday as announced for {user_id}")
 
 
 def cleanup_timezone_announcement_files():
     """
-    Remove timezone announcement tracking files older than today.
+    Clean up old timezone announcement entries.
+    Delegates to cleanup_old_announcement_files() which handles all cleanup.
     """
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-
-    try:
-        for filename in os.listdir(TRACKING_DIR):
-            if (
-                filename.startswith("timezone_announced_")
-                and filename != f"timezone_announced_{today}.txt"
-            ):
-                file_path = os.path.join(TRACKING_DIR, filename)
-                os.remove(file_path)
-                logger.info(f"CLEANUP: Removed old timezone announcement file {filename}")
-    except OSError as e:
-        logger.error(f"FILE_ERROR: Failed to clean up old timezone announcement files: {e}")
+    cleanup_old_announcement_files()
 
 
 def is_user_celebrated_today(user_id):
@@ -585,10 +739,15 @@ def is_user_celebrated_today(user_id):
     Returns:
         True if user has been celebrated today, False otherwise
     """
-    legacy_announced = get_announced_birthdays_today()
-    timezone_announced_raw = get_timezone_announced_birthdays_today()
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    data = _load_announcements()
 
-    # Extract user IDs from timezone tracking (format: "user_id:timezone")
-    timezone_announced = [entry.split(":")[0] for entry in timezone_announced_raw if ":" in entry]
+    # Check regular birthdays
+    if user_id in data.get("birthdays", {}).get(today, []):
+        return True
 
-    return user_id in legacy_announced or user_id in timezone_announced
+    # Check timezone birthdays
+    if user_id in data.get("timezone_birthdays", {}).get(today, {}):
+        return True
+
+    return False
