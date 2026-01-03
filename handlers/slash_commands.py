@@ -5,6 +5,8 @@ Handles /birthday and /special-day slash commands with immediate ack()
 responses and delegation to existing handler functions.
 """
 
+import re
+
 from config import get_logger
 
 logger = get_logger("commands")
@@ -106,16 +108,47 @@ def _handle_slash_check(text, user_id, respond, app):
     from storage.birthdays import load_birthdays
     from utils.date import calculate_age, date_to_words, get_star_sign
 
-    parts = text.split()
+    # Extract target user using regex to handle mentions with spaces in display names
+    # Slack format: <@U12345678|Display Name> or <@U12345678>
+    mention_match = re.search(r"<@([^|>]+)(?:\|[^>]*)?>", text)
 
-    # Extract target user (default to self)
-    if len(parts) > 1:
-        target = parts[1].strip("<@>").upper()
-        # Handle format like <@U123|name>
-        if "|" in target:
-            target = target.split("|")[0]
-    else:
+    if mention_match:
+        # Found a proper Slack mention
+        target = mention_match.group(1)
+        logger.debug(f"SLASH_CHECK: Extracted user ID from mention: '{target}'")
+
+        # Validate it's a proper Slack user ID (starts with U or W)
+        if not (target.startswith("U") or target.startswith("W")):
+            logger.warning(f"SLASH_CHECK: Non-standard user format in mention: '{target}'")
+            respond(
+                text=f"Could not find user. The extracted ID `{target}` is not a standard Slack user ID format."
+            )
+            return
+    elif text.strip().lower() == "check":
+        # No mention provided, check self
         target = user_id
+    else:
+        # Check if there's a raw @mention or other text after "check"
+        parts = text.split()
+        if len(parts) > 1:
+            arg = parts[1]
+            if arg.startswith("@"):
+                respond(
+                    text=f"Could not find user `{arg}`. Please use Slack's autocomplete by typing `@` and selecting the user from the dropdown."
+                )
+                return
+            elif arg.startswith("U") or arg.startswith("W"):
+                # Raw user ID provided
+                target = arg.upper()
+            else:
+                respond(
+                    text="Invalid user format. Please use `@username` (with autocomplete) or a valid user ID."
+                )
+                return
+        else:
+            target = user_id
+
+    logger.debug(f"SLASH_CHECK: Resolved target user ID: '{target}'")
 
     birthdays = load_birthdays()
 

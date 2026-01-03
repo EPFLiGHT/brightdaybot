@@ -27,10 +27,12 @@ STORAGE_DIR = os.path.join(DATA_DIR, "storage")
 TRACKING_DIR = os.path.join(DATA_DIR, "tracking")
 TRACKED_THREADS_FILE = os.path.join(STORAGE_DIR, "tracked_threads.json")
 ANNOUNCEMENTS_FILE = os.path.join(STORAGE_DIR, "announcements.json")
+SCHEDULER_STATS_FILE = os.path.join(STORAGE_DIR, "scheduler_stats.json")
 THREAD_TRACKING_TTL_DAYS = int(os.getenv("THREAD_TRACKING_TTL_DAYS", "7"))
 BACKUP_DIR = os.path.join(DATA_DIR, "backups")
 MAX_BACKUPS = int(os.getenv("MAX_BACKUPS", "10"))
 CACHE_DIR = os.path.join(DATA_DIR, "cache")
+CLEANUP_LOG_FILE = os.path.join(CACHE_DIR, "cleanup_log.json")
 MESSAGES_CACHE_DIR = os.path.join(CACHE_DIR, "messages")
 
 # ----- FEATURE FLAGS -----

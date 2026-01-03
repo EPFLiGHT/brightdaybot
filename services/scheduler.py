@@ -14,17 +14,22 @@ Key functions:
 Uses schedule library and threading for non-blocking execution.
 """
 
+import json
+import os
 import threading
 import time
 from datetime import datetime, timezone
 
 import schedule
+from filelock import FileLock
 
 from config import (
     CACHE_REFRESH_TIME,
     DAILY_CHECK_TIME,
     HEARTBEAT_STALE_THRESHOLD_SECONDS,
     SCHEDULER_CHECK_INTERVAL_SECONDS,
+    SCHEDULER_STATS_FILE,
+    TIMEOUTS,
     get_logger,
 )
 from services.birthday import celebrate_missed_birthdays
@@ -44,6 +49,83 @@ _last_heartbeat = None
 _total_executions = 0
 _failed_executions = 0
 _scheduler_running = False
+
+# Persistence configuration
+SCHEDULER_STATS_LOCK_FILE = SCHEDULER_STATS_FILE + ".lock"
+STATS_SAVE_INTERVAL = 10  # Save stats every N executions
+
+
+def load_scheduler_stats() -> dict:
+    """
+    Load scheduler statistics from persistent storage.
+
+    Returns:
+        dict: Scheduler statistics with keys:
+            - total_executions: int
+            - failed_executions: int
+            - last_heartbeat: ISO timestamp string or None
+            - started_at: ISO timestamp of first run
+            - last_saved: ISO timestamp of last save
+    """
+    try:
+        lock = FileLock(SCHEDULER_STATS_LOCK_FILE, timeout=TIMEOUTS["file_lock"])
+        with lock:
+            if os.path.exists(SCHEDULER_STATS_FILE):
+                with open(SCHEDULER_STATS_FILE, "r") as f:
+                    return json.load(f)
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        logger.warning(f"SCHEDULER_STATS: Failed to load stats: {e}")
+    return {
+        "total_executions": 0,
+        "failed_executions": 0,
+        "last_heartbeat": None,
+        "started_at": None,
+        "last_saved": None,
+    }
+
+
+def save_scheduler_stats(
+    total_executions: int, failed_executions: int, last_heartbeat: datetime | None
+) -> bool:
+    """
+    Save scheduler statistics to persistent storage.
+
+    Args:
+        total_executions: Total number of scheduler loop executions
+        failed_executions: Number of failed executions
+        last_heartbeat: Last heartbeat datetime
+
+    Returns:
+        bool: True if save successful, False otherwise
+    """
+    try:
+        # Load existing to preserve started_at
+        existing = load_scheduler_stats()
+        started_at = existing.get("started_at")
+        if not started_at:
+            started_at = datetime.now(timezone.utc).isoformat()
+
+        data = {
+            "total_executions": total_executions,
+            "failed_executions": failed_executions,
+            "last_heartbeat": last_heartbeat.isoformat() if last_heartbeat else None,
+            "started_at": started_at,
+            "last_saved": datetime.now(timezone.utc).isoformat(),
+        }
+
+        lock = FileLock(SCHEDULER_STATS_LOCK_FILE, timeout=TIMEOUTS["file_lock"])
+        with lock:
+            with open(SCHEDULER_STATS_FILE, "w") as f:
+                json.dump(data, f, indent=2)
+        logger.debug(
+            f"SCHEDULER_STATS: Saved stats - {total_executions} total, {failed_executions} failed"
+        )
+        return True
+    except Exception as e:
+        logger.error(f"SCHEDULER_STATS: Failed to save stats: {e}")
+        return False
 
 
 def hourly_task():
@@ -153,11 +235,21 @@ def monthly_observances_refresh_task():
 
 
 def run_scheduler():
-    """Run the scheduler in a separate thread with health monitoring"""
+    """Run the scheduler in a separate thread with health monitoring and stats persistence"""
     global _last_heartbeat, _total_executions, _failed_executions, _scheduler_running
+
+    # Load persisted stats on startup
+    persisted_stats = load_scheduler_stats()
+    _total_executions = persisted_stats.get("total_executions", 0)
+    _failed_executions = persisted_stats.get("failed_executions", 0)
+    logger.info(
+        f"SCHEDULER_HEALTH: Loaded persisted stats - {_total_executions} total, {_failed_executions} failed"
+    )
 
     _scheduler_running = True
     logger.info("SCHEDULER_HEALTH: Scheduler thread started and running")
+
+    last_save_count = _total_executions
 
     while True:
         try:
@@ -170,11 +262,19 @@ def run_scheduler():
                 _total_executions += 1
 
             schedule.run_pending()
+
+            # Save stats periodically
+            if _total_executions - last_save_count >= STATS_SAVE_INTERVAL:
+                save_scheduler_stats(_total_executions, _failed_executions, _last_heartbeat)
+                last_save_count = _total_executions
+
             time.sleep(SCHEDULER_CHECK_INTERVAL_SECONDS)
 
         except Exception as e:
             _failed_executions += 1
             logger.error(f"SCHEDULER_HEALTH: Error in scheduler loop: {e}")
+            # Save stats on error to persist failure count
+            save_scheduler_stats(_total_executions, _failed_executions, _last_heartbeat)
             time.sleep(SCHEDULER_CHECK_INTERVAL_SECONDS)  # Continue running even after errors
 
 
@@ -276,9 +376,11 @@ def startup_birthday_catchup(app, current_time):
 
     Args:
         app: Slack app instance
-        current_time: Current datetime (passed for logging purposes)
+        current_time: Current datetime (for logging)
     """
-    logger.info("STARTUP: Checking for missed birthday celebrations due to server downtime")
+    logger.info(
+        f"STARTUP: Checking for missed birthday celebrations due to server downtime at {current_time}"
+    )
 
     # Use the dedicated missed birthday function that bypasses time checks
     # and celebrates all uncelebrated birthdays for today
@@ -290,7 +392,7 @@ def get_scheduler_health():
     Get scheduler health status for monitoring
 
     Returns:
-        dict: Scheduler health information
+        dict: Scheduler health information including persisted stats
     """
     global _scheduler_thread, _last_heartbeat, _total_executions, _failed_executions, _scheduler_running
 
@@ -314,6 +416,9 @@ def get_scheduler_health():
 
     health_status = "ok" if (thread_alive and heartbeat_fresh and _scheduler_running) else "error"
 
+    # Get persisted stats for additional info
+    persisted_stats = load_scheduler_stats()
+
     return {
         "status": health_status,
         "thread_alive": thread_alive,
@@ -327,6 +432,8 @@ def get_scheduler_health():
         "scheduled_jobs": len(schedule.jobs),
         "timezone_enabled": _timezone_enabled,
         "check_interval_hours": _check_interval,
+        "started_at": persisted_stats.get("started_at"),
+        "last_saved": persisted_stats.get("last_saved"),
     }
 
 

@@ -13,6 +13,7 @@ import glob
 import io
 import os
 import random
+import re
 from datetime import datetime, timedelta
 
 import requests
@@ -504,11 +505,12 @@ def download_image(image_url):
 
 def download_and_prepare_profile_photo(user_profile, name):
     """
-    Download user's profile photo and prepare it for OpenAI image API reference
+    Download user's profile photo and prepare it for OpenAI image API reference.
+    Uses user_id-based caching with TTL to avoid duplicate downloads.
 
     Args:
         user_profile: User profile dictionary with photo URLs
-        name: User's name for file naming
+        name: User's name for logging
 
     Returns:
         File path to prepared profile photo, or None if failed
@@ -526,6 +528,41 @@ def download_and_prepare_profile_photo(user_profile, name):
         if not photo_url:
             logger.info(f"PROFILE_PHOTO: No profile photo available for {name}")
             return None
+
+        # Use user_id for cache key to avoid duplicates
+        user_id = user_profile.get("user_id", "")
+        if not user_id:
+            # Fallback to name-based key if no user_id
+            safe_name = "".join(c for c in name if c.isalnum() or c in (" ", "-", "_")).rstrip()
+            cache_key = safe_name.replace(" ", "_")
+        else:
+            cache_key = user_id
+
+        # Ensure profile photos directory exists
+        profiles_dir = os.path.join(CACHE_DIR, "profiles")
+        os.makedirs(profiles_dir, exist_ok=True)
+
+        # Check for existing cached file with TTL
+        filename = f"profile_{cache_key}.png"
+        file_path = os.path.join(profiles_dir, filename)
+        ttl_days = CACHE_RETENTION_DAYS["profile_photos"]
+
+        if os.path.exists(file_path):
+            # Check if file is still valid (within TTL)
+            file_mtime = datetime.fromtimestamp(os.path.getmtime(file_path))
+            age_days = (datetime.now() - file_mtime).days
+
+            if age_days < ttl_days:
+                logger.info(
+                    f"PROFILE_PHOTO: Using cached profile photo for {name} "
+                    f"(age: {age_days} days, TTL: {ttl_days} days)"
+                )
+                return file_path
+            else:
+                logger.info(
+                    f"PROFILE_PHOTO: Cached photo for {name} expired "
+                    f"(age: {age_days} days > TTL: {ttl_days} days), refreshing"
+                )
 
         logger.info(f"PROFILE_PHOTO: Downloading profile photo for {name} from {photo_url}")
 
@@ -554,18 +591,6 @@ def download_and_prepare_profile_photo(user_profile, name):
         if image.width > max_size or image.height > max_size:
             image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
             logger.info(f"PROFILE_PHOTO: Resized profile photo to {image.size}")
-
-        # Save the processed image
-        safe_name = "".join(c for c in name if c.isalnum() or c in (" ", "-", "_")).rstrip()
-        safe_name = safe_name.replace(" ", "_")
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"profile_{safe_name}_{timestamp}.png"
-
-        # Ensure profile photos directory exists
-        profiles_dir = os.path.join(CACHE_DIR, "profiles")
-        os.makedirs(profiles_dir, exist_ok=True)
-
-        file_path = os.path.join(profiles_dir, filename)
 
         # Save as PNG for best quality
         image.save(file_path, "PNG", quality=95)
@@ -740,7 +765,8 @@ def cleanup_old_images(days_to_keep=None):
 
 def cleanup_old_profile_photos(days_to_keep=None):
     """
-    Clean up old downloaded profile photos to save disk space
+    Clean up old downloaded profile photos to save disk space.
+    Also removes legacy duplicate profile photos with timestamps.
 
     Args:
         days_to_keep: Number of days to keep profile photos (default: from config)
@@ -766,26 +792,37 @@ def cleanup_old_profile_photos(days_to_keep=None):
         deleted_count = 0
         for file_path in profile_files:
             try:
-                # Get file modification time
-                file_mtime = datetime.fromtimestamp(os.path.getmtime(file_path))
+                filename = os.path.basename(file_path)
 
-                # Delete if older than cutoff
-                if file_mtime < cutoff_date:
+                # Check if this is a legacy file with timestamp (e.g., profile_Annie_20251120_123456.png)
+                # New format: profile_U12345678.png (no timestamp)
+                # Legacy format: profile_Name_YYYYMMDD_HHMMSS.png (name may contain underscores)
+                legacy_pattern = r"^profile_.+_\d{8}_\d{6}\.png$"
+                is_legacy = bool(re.match(legacy_pattern, filename))
+
+                if is_legacy:
+                    # Delete all legacy timestamp-based files (duplicates)
                     os.remove(file_path)
                     deleted_count += 1
-                    logger.info(
-                        f"PROFILE_CLEANUP: Deleted old profile photo {os.path.basename(file_path)}"
-                    )
+                    logger.info(f"PROFILE_CLEANUP: Deleted legacy duplicate {filename}")
+                else:
+                    # For new user_id-based files, use TTL-based cleanup
+                    file_mtime = datetime.fromtimestamp(os.path.getmtime(file_path))
+                    if file_mtime < cutoff_date:
+                        os.remove(file_path)
+                        deleted_count += 1
+                        logger.info(f"PROFILE_CLEANUP: Deleted expired profile photo {filename}")
 
             except Exception as e:
                 logger.error(f"PROFILE_CLEANUP_ERROR: Failed to delete {file_path}: {e}")
 
         if deleted_count > 0:
             logger.info(
-                f"PROFILE_CLEANUP: Deleted {deleted_count} old profile photos (older than {days_to_keep} days)"
+                f"PROFILE_CLEANUP: Deleted {deleted_count} profile photos "
+                f"(legacy duplicates + expired > {days_to_keep} days)"
             )
         else:
-            logger.debug("PROFILE_CLEANUP: No old profile photos found to delete")
+            logger.debug("PROFILE_CLEANUP: No profile photos found to delete")
 
         return deleted_count
 

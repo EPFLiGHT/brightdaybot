@@ -17,6 +17,7 @@ from openai import APIConnectionError, APIError, APITimeoutError, RateLimitError
 
 from config import (
     CACHE_DIR,
+    CLEANUP_LOG_FILE,
     DATE_FORMAT,
     DEFAULT_IMAGE_PERSONALITY,
     DEFAULT_OPENAI_MODEL,
@@ -125,17 +126,35 @@ def get_birthday_facts(date_str, personality=DEFAULT_IMAGE_PERSONALITY):
 
     # Periodically clean up old cache files (only once per day)
     if WEB_SEARCH_CACHE_ENABLED:
-        cleanup_marker = os.path.join(CACHE_DIR, f"cleanup_{datetime.now().strftime('%Y_%m_%d')}")
-        if not os.path.exists(cleanup_marker):
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        should_cleanup = True
+
+        # Check cleanup log to see if we already cleaned today
+        try:
+            if os.path.exists(CLEANUP_LOG_FILE):
+                with open(CLEANUP_LOG_FILE, "r") as f:
+                    cleanup_log = json.load(f)
+                    last_cleanup = cleanup_log.get("last_cleanup", "")
+                    if last_cleanup.startswith(today_str):
+                        should_cleanup = False
+        except (OSError, json.JSONDecodeError):
+            pass  # If we can't read the log, proceed with cleanup
+
+        if should_cleanup:
             cleared = clear_old_cache_files()
             if cleared > 0:
                 logger.info(f"CACHE: Auto-cleanup removed {cleared} old cache files")
-            # Create marker file to prevent multiple cleanups per day
+            # Update cleanup log
             try:
+                cleanup_log = {
+                    "last_cleanup": datetime.now().isoformat(),
+                    "files_cleared": cleared,
+                }
                 os.makedirs(CACHE_DIR, exist_ok=True)
-                open(cleanup_marker, "a").close()
+                with open(CLEANUP_LOG_FILE, "w") as f:
+                    json.dump(cleanup_log, f, indent=2)
             except OSError:
-                pass  # Ignore cleanup marker creation errors
+                pass  # Ignore cleanup log errors
 
     # Check cache first if caching is enabled
     if WEB_SEARCH_CACHE_ENABLED and os.path.exists(cache_file):
