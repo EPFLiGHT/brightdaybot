@@ -22,6 +22,7 @@ from config import (
     BOT_BIRTHDAY,
     DAILY_CHECK_TIME,
     IMAGE_GENERATION_PARAMS,
+    TIMEOUTS,
     TIMEZONE_CELEBRATION_TIME,
     TRACKING_DIR,
     get_logger,
@@ -80,7 +81,7 @@ def celebrate_bot_birthday(app, moment):
         TRACKING_DIR, f"bot_birthday_{moment.strftime('%Y-%m-%d')}.txt"
     )
     lock_file = celebration_tracking_file + ".lock"
-    lock = FileLock(lock_file)
+    lock = FileLock(lock_file, timeout=TIMEOUTS["file_lock"])
 
     # Atomic check-and-reserve pattern
     with lock:

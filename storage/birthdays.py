@@ -38,6 +38,7 @@ from config import (
     BIRTHDAYS_JSON_FILE,
     EXTERNAL_BACKUP_ENABLED,
     MAX_BACKUPS,
+    TIMEOUTS,
     TRACKING_DIR,
     get_logger,
 )
@@ -237,7 +238,7 @@ def load_birthdays():
     Returns:
         Dictionary mapping user_id to birthday data with preferences
     """
-    lock = FileLock(BIRTHDAYS_LOCK_FILE)
+    lock = FileLock(BIRTHDAYS_LOCK_FILE, timeout=TIMEOUTS["file_lock"])
 
     try:
         with lock:
@@ -266,7 +267,7 @@ def save_birthdays(birthdays):
     Args:
         birthdays: Dictionary mapping user_id to birthday data with preferences
     """
-    lock = FileLock(BIRTHDAYS_LOCK_FILE)
+    lock = FileLock(BIRTHDAYS_LOCK_FILE, timeout=TIMEOUTS["file_lock"])
 
     try:
         with lock:
@@ -473,7 +474,7 @@ def _load_announcements() -> dict:
         }
     """
     try:
-        lock = FileLock(ANNOUNCEMENTS_LOCK_FILE, timeout=10)
+        lock = FileLock(ANNOUNCEMENTS_LOCK_FILE, timeout=TIMEOUTS["file_lock"])
         with lock:
             if os.path.exists(ANNOUNCEMENTS_FILE):
                 with open(ANNOUNCEMENTS_FILE, "r") as f:
@@ -503,7 +504,7 @@ def _save_announcements(data: dict) -> bool:
         True if successful, False otherwise
     """
     try:
-        lock = FileLock(ANNOUNCEMENTS_LOCK_FILE, timeout=10)
+        lock = FileLock(ANNOUNCEMENTS_LOCK_FILE, timeout=TIMEOUTS["file_lock"])
         with lock:
             with open(ANNOUNCEMENTS_FILE, "w") as f:
                 json.dump(data, f, indent=2)
