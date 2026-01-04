@@ -203,11 +203,11 @@ def _build_home_view(user_id, app):
         birthday_lines = []
         for bday in upcoming:
             if bday["days_until"] == 0:
-                days_text = "Today! 🎂"
+                days_text = "_Today!_ 🎂"
             elif bday["days_until"] == 1:
-                days_text = "Tomorrow"
+                days_text = "_Tomorrow_"
             else:
-                days_text = f"in {bday['days_until']} days"
+                days_text = f"_in {bday['days_until']} days_"
 
             birthday_lines.append(f"• <@{bday['user_id']}> ({bday['date']}) - {days_text}")
 
@@ -257,11 +257,11 @@ def _build_home_view(user_id, app):
             days_until = (special_date - today).days
 
             if days_until == 0:
-                days_text = "Today! 🎉"
+                days_text = "_Today!_ 🎉"
             elif days_until == 1:
-                days_text = "Tomorrow"
+                days_text = "_Tomorrow_"
             else:
-                days_text = f"in {days_until} days"
+                days_text = f"_in {days_until} days_"
 
             # Show up to 2 special days per date to avoid clutter
             day_names = [d.name for d in days_list[:2]]
