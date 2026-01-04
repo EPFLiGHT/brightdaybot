@@ -643,7 +643,11 @@ def build_welcome_blocks(
             "fields": [
                 {
                     "type": "mrkdwn",
-                    "text": "*📅 Add Your Birthday:*\nSend me a DM with your date:\n• DD/MM (e.g., 25/12)\n• DD/MM/YYYY (e.g., 25/12/1990)",
+                    "text": "*📅 Add Your Birthday:*\nUse `/birthday` to open the form\nor DM me: `25/12` or `25/12/1990`",
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": "*🏠 App Home:*\nVisit my Home tab to view your status, preferences, and upcoming events.",
                 },
                 {
                     "type": "mrkdwn",
@@ -662,7 +666,9 @@ def build_welcome_blocks(
         },
     ]
 
-    fallback_text = f"🎉 Welcome to {channel_mention}, {user_mention}! Send me a DM with your birthday in DD/MM format."
+    fallback_text = (
+        f"🎉 Welcome to {channel_mention}, {user_mention}! Use `/birthday` to add your birthday."
+    )
 
     return blocks, fallback_text
 
