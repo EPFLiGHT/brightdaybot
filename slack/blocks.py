@@ -1043,9 +1043,9 @@ def build_health_status_blocks(
         )
 
         # System Paths
-        from config import BIRTHDAYS_FILE, CACHE_DIR, DATA_DIR, STORAGE_DIR
+        from config import BIRTHDAYS_JSON_FILE, CACHE_DIR, DATA_DIR, STORAGE_DIR
 
-        paths_text = f"*System Paths:*\n• Data Directory: `{DATA_DIR}`\n• Storage Directory: `{STORAGE_DIR}`\n• Birthdays File: `{BIRTHDAYS_FILE}`\n• Cache Directory: `{CACHE_DIR}`"
+        paths_text = f"*System Paths:*\n• Data Directory: `{DATA_DIR}`\n• Storage Directory: `{STORAGE_DIR}`\n• Birthdays File: `{BIRTHDAYS_JSON_FILE}`\n• Cache Directory: `{CACHE_DIR}`"
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": paths_text}})
 
         # Scheduler Health
