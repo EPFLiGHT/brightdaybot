@@ -2084,19 +2084,48 @@ def build_unrecognized_input_blocks() -> tuple[List[Dict[str, Any]], str]:
 # =============================================================================
 
 
-def build_birthday_modal(_user_id: str) -> Dict[str, Any]:
+def build_birthday_modal(user_id: str) -> Dict[str, Any]:
     """
     Build the birthday input modal with month/day dropdowns.
 
+    Prefills existing birthday data if the user already has one registered.
+
     Args:
-        _user_id: User ID (reserved for future use, e.g., prefilling existing data)
+        user_id: User ID to check for existing birthday data
 
     Returns:
         Modal view definition
     """
-    # Month options using calendar module
     from calendar import month_name
 
+    from storage.birthdays import load_birthdays
+
+    # Check for existing birthday data
+    birthdays = load_birthdays()
+    existing_data = birthdays.get(user_id)
+
+    # Parse existing date if available
+    existing_month = None
+    existing_day = None
+    existing_year = None
+    existing_prefs = {"image_enabled": True, "show_age": True}  # Defaults
+
+    if existing_data:
+        try:
+            date_parts = existing_data.get("date", "").split("/")
+            if len(date_parts) == 2:
+                existing_day = date_parts[0].zfill(2)
+                existing_month = date_parts[1].zfill(2)
+            existing_year = existing_data.get("year")
+            prefs = existing_data.get("preferences", {})
+            existing_prefs = {
+                "image_enabled": prefs.get("image_enabled", True),
+                "show_age": prefs.get("show_age", True),
+            }
+        except (ValueError, AttributeError):
+            pass
+
+    # Month options using calendar module
     month_options = [
         {"text": {"type": "plain_text", "text": month_name[i]}, "value": f"{i:02d}"}
         for i in range(1, 13)
@@ -2107,52 +2136,106 @@ def build_birthday_modal(_user_id: str) -> Dict[str, Any]:
         {"text": {"type": "plain_text", "text": str(d)}, "value": f"{d:02d}"} for d in range(1, 32)
     ]
 
+    # Build month select element with initial value if exists
+    month_element = {
+        "type": "static_select",
+        "action_id": "birthday_month",
+        "placeholder": {"type": "plain_text", "text": "Select month"},
+        "options": month_options,
+    }
+    if existing_month:
+        month_idx = int(existing_month)
+        month_element["initial_option"] = {
+            "text": {"type": "plain_text", "text": month_name[month_idx]},
+            "value": existing_month,
+        }
+
+    # Build day select element with initial value if exists
+    day_element = {
+        "type": "static_select",
+        "action_id": "birthday_day",
+        "placeholder": {"type": "plain_text", "text": "Select day"},
+        "options": day_options,
+    }
+    if existing_day:
+        day_element["initial_option"] = {
+            "text": {"type": "plain_text", "text": str(int(existing_day))},
+            "value": existing_day,
+        }
+
+    # Build year input element with initial value if exists
+    year_element = {
+        "type": "plain_text_input",
+        "action_id": "birth_year",
+        "placeholder": {"type": "plain_text", "text": "e.g., 1990"},
+    }
+    if existing_year:
+        year_element["initial_value"] = str(existing_year)
+
+    # Build preference options and initial selections
+    pref_options = [
+        {
+            "text": {"type": "plain_text", "text": "Generate AI image for my birthday"},
+            "value": "image_enabled",
+        },
+        {
+            "text": {"type": "plain_text", "text": "Show my age in celebration messages"},
+            "value": "show_age",
+        },
+    ]
+
+    initial_pref_options = []
+    if existing_prefs.get("image_enabled", True):
+        initial_pref_options.append(pref_options[0])
+    if existing_prefs.get("show_age", True):
+        initial_pref_options.append(pref_options[1])
+
+    # Determine title based on whether editing or adding
+    modal_title = "Edit Your Birthday" if existing_data else "Add Your Birthday"
+    intro_text = (
+        "Update your birthday details below."
+        if existing_data
+        else "Enter your birthday to receive personalized celebrations!"
+    )
+
+    # Build preferences element
+    preferences_element = {
+        "type": "checkboxes",
+        "action_id": "preferences",
+        "options": pref_options,
+    }
+    if initial_pref_options:
+        preferences_element["initial_options"] = initial_pref_options
+
     return {
         "type": "modal",
         "callback_id": "birthday_modal",
-        "title": {"type": "plain_text", "text": "Add Your Birthday"},
+        "title": {"type": "plain_text", "text": modal_title},
         "submit": {"type": "plain_text", "text": "Save"},
         "close": {"type": "plain_text", "text": "Cancel"},
         "blocks": [
             {
                 "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": "Enter your birthday to receive personalized celebrations!",
-                },
+                "text": {"type": "mrkdwn", "text": intro_text},
             },
             {
                 "type": "input",
                 "block_id": "birthday_month_block",
-                "element": {
-                    "type": "static_select",
-                    "action_id": "birthday_month",
-                    "placeholder": {"type": "plain_text", "text": "Select month"},
-                    "options": month_options,
-                },
+                "element": month_element,
                 "label": {"type": "plain_text", "text": "Birthday Month"},
             },
             {
                 "type": "input",
                 "block_id": "birthday_day_block",
-                "element": {
-                    "type": "static_select",
-                    "action_id": "birthday_day",
-                    "placeholder": {"type": "plain_text", "text": "Select day"},
-                    "options": day_options,
-                },
+                "element": day_element,
                 "label": {"type": "plain_text", "text": "Birthday Day"},
             },
             {
                 "type": "input",
                 "block_id": "birth_year_block",
                 "optional": True,
-                "element": {
-                    "type": "plain_text_input",
-                    "action_id": "birth_year",
-                    "placeholder": {"type": "plain_text", "text": "e.g., 1990"},
-                },
-                "label": {"type": "plain_text", "text": "Birth Year (Optional)"},
+                "element": year_element,
+                "label": {"type": "plain_text", "text": "Birth Year"},
                 "hint": {
                     "type": "plain_text",
                     "text": "Add your birth year to show your age on celebrations",
@@ -2161,51 +2244,13 @@ def build_birthday_modal(_user_id: str) -> Dict[str, Any]:
             {"type": "divider"},
             {
                 "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": "*Celebration Preferences*",
-                },
+                "text": {"type": "mrkdwn", "text": "*Celebration Preferences*"},
             },
             {
                 "type": "input",
                 "block_id": "preferences_block",
                 "optional": True,
-                "element": {
-                    "type": "checkboxes",
-                    "action_id": "preferences",
-                    "options": [
-                        {
-                            "text": {
-                                "type": "plain_text",
-                                "text": "Generate AI image for my birthday",
-                            },
-                            "value": "image_enabled",
-                        },
-                        {
-                            "text": {
-                                "type": "plain_text",
-                                "text": "Show my age in celebration messages",
-                            },
-                            "value": "show_age",
-                        },
-                    ],
-                    "initial_options": [
-                        {
-                            "text": {
-                                "type": "plain_text",
-                                "text": "Generate AI image for my birthday",
-                            },
-                            "value": "image_enabled",
-                        },
-                        {
-                            "text": {
-                                "type": "plain_text",
-                                "text": "Show my age in celebration messages",
-                            },
-                            "value": "show_age",
-                        },
-                    ],
-                },
+                "element": preferences_element,
                 "label": {"type": "plain_text", "text": "Options"},
             },
         ],

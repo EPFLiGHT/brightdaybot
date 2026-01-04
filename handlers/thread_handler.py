@@ -165,7 +165,7 @@ def handle_special_day_thread_reply(
     Returns:
         Dict with results: {"response_sent": bool, "error": str or None}
     """
-    from config import SPECIAL_DAY_THREAD_ENABLED, SPECIAL_DAY_THREAD_MAX_RESPONSES
+    from config import SPECIAL_DAY_THREAD_ENABLED, SPECIAL_DAY_THREAD_MAX_RESPONSES_PER_USER
     from utils.thread_tracking import get_thread_tracker
 
     result = {"response_sent": False, "error": None}
@@ -175,10 +175,11 @@ def handle_special_day_thread_reply(
         logger.debug("SPECIAL_DAY_THREAD: Thread engagement is disabled")
         return result
 
-    # Check response limit
-    if tracked_thread.responses_sent >= SPECIAL_DAY_THREAD_MAX_RESPONSES:
+    # Check per-user response limit
+    user_response_count = tracked_thread.get_user_response_count(user_id)
+    if user_response_count >= SPECIAL_DAY_THREAD_MAX_RESPONSES_PER_USER:
         logger.info(
-            f"SPECIAL_DAY_THREAD: Thread {thread_ts} reached max responses ({SPECIAL_DAY_THREAD_MAX_RESPONSES})"
+            f"SPECIAL_DAY_THREAD: User {user_id} reached max responses ({SPECIAL_DAY_THREAD_MAX_RESPONSES_PER_USER}) in thread {thread_ts}"
         )
         return result
 
@@ -200,21 +201,24 @@ def handle_special_day_thread_reply(
             logger.warning("SPECIAL_DAY_THREAD: Failed to generate response")
             return result
 
+        # Add user mention to make it clear who we're responding to
+        response_with_mention = f"<@{user_id}> {response}"
+
         # Send as threaded reply
         send_result = app.client.chat_postMessage(
             channel=channel,
             thread_ts=thread_ts,
-            text=response,
+            text=response_with_mention,
         )
 
         if send_result.get("ok"):
-            # Increment response count
+            # Increment per-user response count
             tracker = get_thread_tracker()
-            tracker.increment_responses(channel, thread_ts)
+            new_count = tracker.increment_responses(channel, thread_ts, user_id)
             result["response_sent"] = True
             logger.info(
-                f"SPECIAL_DAY_THREAD: Sent response in thread {thread_ts} "
-                f"({tracked_thread.responses_sent + 1}/{SPECIAL_DAY_THREAD_MAX_RESPONSES})"
+                f"SPECIAL_DAY_THREAD: Sent response to user {user_id} in thread {thread_ts} "
+                f"(user count: {new_count}/{SPECIAL_DAY_THREAD_MAX_RESPONSES_PER_USER})"
             )
         else:
             result["error"] = "Failed to send message"

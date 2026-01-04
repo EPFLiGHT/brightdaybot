@@ -9,9 +9,14 @@ from datetime import datetime, timezone
 
 from slack_sdk.errors import SlackApiError
 
-from config import APP_HOME_UPCOMING_LIMIT, get_logger
+from config import (
+    APP_HOME_UPCOMING_BIRTHDAYS_LIMIT,
+    APP_HOME_UPCOMING_SPECIAL_DAYS,
+    get_logger,
+)
 from slack.client import get_username
 from storage.birthdays import get_user_preferences, load_birthdays
+from storage.special_days import get_upcoming_special_days
 from utils.date import calculate_days_until_birthday
 
 logger = get_logger("events")
@@ -65,7 +70,7 @@ def _build_home_view(user_id, app):
     user_birthday = birthdays.get(user_id)
 
     # Get upcoming birthdays
-    upcoming = _get_upcoming_birthdays(birthdays, app, limit=APP_HOME_UPCOMING_LIMIT)
+    upcoming = _get_upcoming_birthdays(birthdays, app, limit=APP_HOME_UPCOMING_BIRTHDAYS_LIMIT)
 
     blocks = []
 
@@ -228,6 +233,64 @@ def _build_home_view(user_id, app):
 
     blocks.append({"type": "divider"})
 
+    # Upcoming Special Days
+    blocks.append(
+        {
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": "*Upcoming Special Days*"},
+        }
+    )
+
+    upcoming_special = get_upcoming_special_days(days_ahead=APP_HOME_UPCOMING_SPECIAL_DAYS)
+
+    if upcoming_special:
+        special_lines = []
+        today = datetime.now(timezone.utc).date()
+
+        for date_str, days_list in upcoming_special.items():
+            # Parse date and calculate days until
+            day, month = map(int, date_str.split("/"))
+            special_date = today.replace(month=month, day=day)
+            # Handle year rollover
+            if special_date < today:
+                special_date = special_date.replace(year=today.year + 1)
+            days_until = (special_date - today).days
+
+            if days_until == 0:
+                days_text = "Today! 🎉"
+            elif days_until == 1:
+                days_text = "Tomorrow"
+            else:
+                days_text = f"in {days_until} days"
+
+            # Show up to 2 special days per date to avoid clutter
+            day_names = [d.name for d in days_list[:2]]
+            if len(days_list) > 2:
+                day_names.append(f"+{len(days_list) - 2} more")
+            special_lines.append(f"• {', '.join(day_names)} ({date_str}) - {days_text}")
+
+        blocks.append(
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "\n".join(special_lines),
+                },
+            }
+        )
+    else:
+        blocks.append(
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "_No special days in the next week._",
+                },
+            }
+        )
+
+    blocks.append({"type": "divider"})
+
     # Quick Commands
     blocks.append(
         {
@@ -266,7 +329,7 @@ def _build_home_view(user_id, app):
     return {"type": "home", "blocks": blocks}
 
 
-def _get_upcoming_birthdays(birthdays, app, limit=APP_HOME_UPCOMING_LIMIT):
+def _get_upcoming_birthdays(birthdays, app, limit=APP_HOME_UPCOMING_BIRTHDAYS_LIMIT):
     """Get list of upcoming birthdays."""
     reference_date = datetime.now(timezone.utc)
     upcoming = []

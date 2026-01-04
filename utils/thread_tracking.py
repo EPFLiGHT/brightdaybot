@@ -31,7 +31,7 @@ class TrackedThread:
     personality: str
     created_at: datetime = field(default_factory=datetime.now)
     reactions_count: int = 0
-    responses_sent: int = 0  # For special day thread responses
+    user_responses: Dict[str, int] = field(default_factory=dict)  # Per-user response counts
     # Birthday-specific fields
     birthday_people: List[str] = field(default_factory=list)
     # Special day-specific fields
@@ -53,6 +53,19 @@ class TrackedThread:
         """Check if this is a special day thread."""
         return self.thread_type == "special_day"
 
+    def get_user_response_count(self, user_id: str) -> int:
+        """Get the number of responses sent to a specific user."""
+        return self.user_responses.get(user_id, 0)
+
+    def increment_user_responses(self, user_id: str) -> int:
+        """Increment and return the response count for a user."""
+        self.user_responses[user_id] = self.user_responses.get(user_id, 0) + 1
+        return self.user_responses[user_id]
+
+    def get_total_responses(self) -> int:
+        """Get total responses across all users."""
+        return sum(self.user_responses.values())
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
@@ -62,7 +75,7 @@ class TrackedThread:
             "personality": self.personality,
             "created_at": self.created_at.isoformat(),
             "reactions_count": self.reactions_count,
-            "responses_sent": self.responses_sent,
+            "user_responses": self.user_responses,
             "birthday_people": self.birthday_people,
             "special_day_info": self.special_day_info,
         }
@@ -77,7 +90,7 @@ class TrackedThread:
             personality=data["personality"],
             created_at=datetime.fromisoformat(data["created_at"]),
             reactions_count=data.get("reactions_count", 0),
-            responses_sent=data.get("responses_sent", 0),
+            user_responses=data.get("user_responses", {}),
             birthday_people=data.get("birthday_people", []),
             special_day_info=data.get("special_day_info"),
         )
@@ -278,26 +291,27 @@ class ThreadTracker:
 
         return thread
 
-    def increment_responses(self, channel: str, thread_ts: str) -> bool:
+    def increment_responses(self, channel: str, thread_ts: str, user_id: str) -> int:
         """
-        Increment response count for a thread.
+        Increment response count for a specific user in a thread.
 
         Args:
             channel: Slack channel ID
             thread_ts: Message timestamp
+            user_id: User ID to increment count for
 
         Returns:
-            True if incremented, False if thread not found
+            New response count for this user, or 0 if thread not found
         """
         key = f"{channel}_{thread_ts}"
 
         with self._threads_lock:
             thread = self._threads.get(key)
             if thread and not thread.is_expired(self._ttl_hours):
-                thread.responses_sent += 1
+                count = thread.increment_user_responses(user_id)
                 self._save_to_file()
-                return True
-            return False
+                return count
+            return 0
 
     def get_thread(self, channel: str, thread_ts: str) -> Optional[TrackedThread]:
         """
@@ -370,7 +384,8 @@ class ThreadTracker:
             "personality": thread.personality,
             "created_at": thread.created_at.isoformat(),
             "reactions_count": thread.reactions_count,
-            "responses_sent": thread.responses_sent,
+            "total_responses": thread.get_total_responses(),
+            "user_responses": thread.user_responses,
             "age_minutes": (datetime.now() - thread.created_at).total_seconds() / 60,
         }
 

@@ -28,7 +28,7 @@ TRACKING_DIR = os.path.join(DATA_DIR, "tracking")
 TRACKED_THREADS_FILE = os.path.join(STORAGE_DIR, "tracked_threads.json")
 ANNOUNCEMENTS_FILE = os.path.join(STORAGE_DIR, "announcements.json")
 SCHEDULER_STATS_FILE = os.path.join(STORAGE_DIR, "scheduler_stats.json")
-THREAD_TRACKING_TTL_DAYS = int(os.getenv("THREAD_TRACKING_TTL_DAYS", "7"))
+THREAD_TRACKING_TTL_DAYS = int(os.getenv("THREAD_TRACKING_TTL_DAYS", "60"))
 BACKUP_DIR = os.path.join(DATA_DIR, "backups")
 MAX_BACKUPS = int(os.getenv("MAX_BACKUPS", "10"))
 CACHE_DIR = os.path.join(DATA_DIR, "cache")
@@ -385,8 +385,10 @@ THREAD_ENGAGEMENT_ENABLED = os.getenv("THREAD_ENGAGEMENT_ENABLED", "true").lower
 # Enable intelligent responses to special day thread replies
 SPECIAL_DAY_THREAD_ENABLED = os.getenv("SPECIAL_DAY_THREAD_ENABLED", "true").lower() == "true"
 
-# Maximum responses per special day thread (prevent spam)
-SPECIAL_DAY_THREAD_MAX_RESPONSES = int(os.getenv("SPECIAL_DAY_THREAD_MAX_RESPONSES", "5"))
+# Maximum responses per user per special day thread (prevent spam)
+SPECIAL_DAY_THREAD_MAX_RESPONSES_PER_USER = int(
+    os.getenv("SPECIAL_DAY_THREAD_MAX_RESPONSES_PER_USER", "3")
+)
 
 # ----- @-MENTION Q&A CONFIGURATION -----
 
@@ -421,7 +423,8 @@ DEFAULT_ANNOUNCEMENT_TIME = "09:00"
 MIN_BIRTH_YEAR = 1900
 
 # App Home settings
-APP_HOME_UPCOMING_LIMIT = 5  # Number of upcoming birthdays to show
+APP_HOME_UPCOMING_BIRTHDAYS_LIMIT = 5  # Number of upcoming birthdays to show
+APP_HOME_UPCOMING_SPECIAL_DAYS = 7  # Days to look ahead for special days
 
 # Thread engagement settings
 THREAD_MIN_TEXT_LENGTH = 15  # Minimum text length for thank you detection

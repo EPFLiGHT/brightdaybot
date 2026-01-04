@@ -113,8 +113,8 @@ def _handle_slash_check(text, user_id, respond, app):
     mention_match = re.search(r"<@([^|>]+)(?:\|[^>]*)?>", text)
 
     if mention_match:
-        # Found a proper Slack mention
-        target = mention_match.group(1)
+        # Found a proper Slack mention - uppercase to normalize
+        target = mention_match.group(1).upper()
         logger.debug(f"SLASH_CHECK: Extracted user ID from mention: '{target}'")
 
         # Validate it's a proper Slack user ID (starts with U or W)

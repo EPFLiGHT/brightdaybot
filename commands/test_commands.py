@@ -280,8 +280,8 @@ def handle_test_block_command(user_id, args, say, app):
             # Test single birthday block
             target_user_id = None
             if len(args) > 1 and args[1].startswith("<@"):
-                # Extract user ID from mention
-                target_user_id = args[1].strip("<@>").split("|")[0]
+                # Extract user ID from mention - uppercase to normalize
+                target_user_id = args[1].strip("<@>").split("|")[0].upper()
             else:
                 target_user_id = user_id
 
@@ -327,7 +327,7 @@ def handle_test_block_command(user_id, args, say, app):
             # Extract user IDs and build birthday people data
             birthday_people = []
             for mention in user_mentions[:5]:  # Limit to 5 for testing
-                test_user_id = mention.strip("<@>").split("|")[0]
+                test_user_id = mention.strip("<@>").split("|")[0].upper()
                 test_username = get_username(app, test_user_id)
                 birthday_people.append(
                     {
