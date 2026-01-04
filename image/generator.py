@@ -24,6 +24,7 @@ from config import (
     CACHE_RETENTION_DAYS,
     DEFAULT_IMAGE_MODEL,
     DEFAULT_IMAGE_PERSONALITY,
+    IMAGE_CLEANUP_PROBABILITY,
     IMAGE_GENERATION_PARAMS,
     RETRY_LIMITS,
     TIMEOUTS,
@@ -253,6 +254,10 @@ def generate_birthday_image(
             )
 
         # Handle both base64 and URL responses
+        if not response.data:
+            logger.error("IMAGE_GEN_ERROR: API returned empty data array")
+            return None
+
         if hasattr(response.data[0], "b64_json") and response.data[0].b64_json:
             # Base64 format response
             image_base64 = response.data[0].b64_json
@@ -288,8 +293,8 @@ def generate_birthday_image(
         # Automatically save image to file if requested and image data is available
         if save_to_file and image_data:
             try:
-                # Occasionally clean up old images and profile photos (10% chance on each generation)
-                if random.random() < 0.1:  # 10% chance
+                # Occasionally clean up old images and profile photos
+                if random.random() < IMAGE_CLEANUP_PROBABILITY:
                     cleanup_old_images(days_to_keep=CACHE_RETENTION_DAYS["images_generated"])
                     cleanup_old_profile_photos(days_to_keep=CACHE_RETENTION_DAYS["profile_photos"])
 

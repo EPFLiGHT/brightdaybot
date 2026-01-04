@@ -21,6 +21,8 @@ from config import (
     BOT_BIRTHDAY,
     DEFAULT_PERSONALITY,
     DEFAULT_TIMEZONE,
+    MESSAGE_REGENERATION_THRESHOLD,
+    SLACK_FILE_TITLE_MAX_LENGTH,
     TEMPERATURE_SETTINGS,
     TOKEN_LIMITS,
     get_logger,
@@ -271,7 +273,9 @@ class BirthdayCelebrationPipeline:
             return final_message, final_images, actual_personality
 
         # Some people became invalid - decide action
-        if should_regenerate_message(validation_result, regeneration_threshold=0.3):
+        if should_regenerate_message(
+            validation_result, regeneration_threshold=MESSAGE_REGENERATION_THRESHOLD
+        ):
             # Significant changes (>30% invalid) - regenerate message
             logger.info(
                 f"{self.mode}: Regenerating message for {len(valid_people)} valid people "
@@ -679,7 +683,9 @@ def validate_birthday_people_for_posting(app, birthday_people, birthday_channel_
     }
 
 
-def should_regenerate_message(validation_result, regeneration_threshold=0.3):
+def should_regenerate_message(
+    validation_result, regeneration_threshold=MESSAGE_REGENERATION_THRESHOLD
+):
     """
     Determine if the birthday message should be regenerated due to significant changes.
 
@@ -1130,13 +1136,13 @@ def get_bot_celebration_image_title():
             formatted_title = fix_slack_formatting(generated_title)
             # Ensure fix_slack_formatting didn't return None or empty string
             if formatted_title and formatted_title.strip():
-                # Validate title length (Slack file title limit ~200 chars, keep <=100 for readability)
-                if len(formatted_title) > 100:
+                # Validate title length (Slack file title limit ~200 chars, use config for readability)
+                if len(formatted_title) > SLACK_FILE_TITLE_MAX_LENGTH:
                     logger.warning(
                         f"BOT_CELEBRATION: Title too long ({len(formatted_title)} chars), truncating"
                     )
                     # Truncate and add ellipsis
-                    formatted_title = formatted_title[:97] + "..."
+                    formatted_title = formatted_title[: SLACK_FILE_TITLE_MAX_LENGTH - 3] + "..."
                 logger.info(
                     f"BOT_CELEBRATION: Successfully generated AI title ({len(formatted_title)} chars)"
                 )

@@ -7,17 +7,25 @@ Integrates with the existing birthday infrastructure for consistent user experie
 
 import json
 import os
+import re
 import shutil
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
 from filelock import FileLock
 
+# Pre-compiled regex patterns for deduplication (performance optimization)
+_PUNCTUATION_PATTERN = re.compile(r"[^\w\s]")
+_WHITESPACE_PATTERN = re.compile(r"\s+")
+
 from config import (
     BACKUP_DIR,
     CALENDARIFIC_API_KEY,
     CALENDARIFIC_ENABLED,
     DATE_FORMAT,
+    DEDUP_CONTAINMENT_THRESHOLD,
+    DEDUP_PREFIX_SUFFIX_MIN_LENGTH,
+    DEDUP_SIGNIFICANT_WORD_MIN_LENGTH,
     DEFAULT_ANNOUNCEMENT_TIME,
     MAX_BACKUPS,
     SPECIAL_DAYS_CATEGORIES,
@@ -415,8 +423,6 @@ def _normalize_name(name: str) -> str:
         "International Women's Day" -> "women"
         "World TB Day" -> "tuberculosis"
     """
-    import re
-
     name = name.lower().strip()
 
     # Expand common abbreviations (before other processing)
@@ -473,9 +479,9 @@ def _normalize_name(name: str) -> str:
     # This ensures "no-tobacco" → "no tobacco" not "notobacco"
     name = name.replace("-", " ")
 
-    # Remove other punctuation and extra whitespace
-    name = re.sub(r"[^\w\s]", "", name)
-    name = re.sub(r"\s+", " ", name).strip()
+    # Remove other punctuation and extra whitespace (using pre-compiled patterns)
+    name = _PUNCTUATION_PATTERN.sub("", name)
+    name = _WHITESPACE_PATTERN.sub(" ", name).strip()
 
     return name
 
@@ -508,15 +514,18 @@ def _names_match(name1: str, name2: str) -> bool:
         return True
 
     # Containment match - shorter name is contained in longer
-    if len(norm1) >= 4 and len(norm2) >= 4:
+    if (
+        len(norm1) >= DEDUP_SIGNIFICANT_WORD_MIN_LENGTH
+        and len(norm2) >= DEDUP_SIGNIFICANT_WORD_MIN_LENGTH
+    ):
         shorter, longer = (norm1, norm2) if len(norm1) <= len(norm2) else (norm2, norm1)
-        # Match if shorter is at least 40% of longer (e.g., "girl" vs "girl child")
-        if shorter in longer and len(shorter) >= len(longer) * 0.4:
+        # Match if shorter is at least DEDUP_CONTAINMENT_THRESHOLD of longer (e.g., "girl" vs "girl child")
+        if shorter in longer and len(shorter) >= len(longer) * DEDUP_CONTAINMENT_THRESHOLD:
             return True
 
     # Check word overlap - if 2+ significant words match
-    words1 = set(w for w in norm1.split() if len(w) >= 4)
-    words2 = set(w for w in norm2.split() if len(w) >= 4)
+    words1 = set(w for w in norm1.split() if len(w) >= DEDUP_SIGNIFICANT_WORD_MIN_LENGTH)
+    words2 = set(w for w in norm2.split() if len(w) >= DEDUP_SIGNIFICANT_WORD_MIN_LENGTH)
     common_words = words1 & words2
 
     if len(common_words) >= 2:
@@ -536,7 +545,10 @@ def _names_match(name1: str, name2: str) -> bool:
 
     # Prefix/suffix variations after normalization
     # E.g., "universal health coverage" vs "health coverage"
-    if len(norm1) >= 6 and len(norm2) >= 6:
+    if (
+        len(norm1) >= DEDUP_PREFIX_SUFFIX_MIN_LENGTH
+        and len(norm2) >= DEDUP_PREFIX_SUFFIX_MIN_LENGTH
+    ):
         shorter, longer = (norm1, norm2) if len(norm1) <= len(norm2) else (norm2, norm1)
         # Check if shorter is a prefix or suffix of longer (with some tolerance)
         if longer.startswith(shorter) or longer.endswith(shorter):
@@ -545,9 +557,18 @@ def _names_match(name1: str, name2: str) -> bool:
     return False
 
 
+def _get_significant_words(normalized_name: str) -> set:
+    """Extract significant words from a normalized name."""
+    return set(w for w in normalized_name.split() if len(w) >= DEDUP_SIGNIFICANT_WORD_MIN_LENGTH)
+
+
 def _deduplicate_special_days(special_days: List[SpecialDay]) -> List[SpecialDay]:
     """
-    Deduplicate special days using smart matching.
+    Deduplicate special days using smart matching with O(n) optimization.
+
+    Uses set-based lookups for exact matches and an inverted word index
+    to reduce fuzzy matching comparisons from O(n²) to O(n * k) where k
+    is the average number of items sharing significant words.
 
     Handles:
     - Case differences: "World Health Day" vs "world health day"
@@ -575,16 +596,59 @@ def _deduplicate_special_days(special_days: List[SpecialDay]) -> List[SpecialDay
     sorted_days = sorted(special_days, key=get_priority)
 
     unique_days = []
+    # Set of normalized names for O(1) exact match lookup
+    seen_normalized: set = set()
+    # Set of lowercase names for O(1) case-insensitive exact match
+    seen_lowercase: set = set()
+    # Inverted index: significant word -> set of indices in unique_days
+    word_index: Dict[str, set] = {}
+
     for day in sorted_days:
+        name_lower = day.name.lower().strip()
+        norm_name = _normalize_name(day.name)
+
+        # Fast path: exact case-insensitive match
+        if name_lower in seen_lowercase:
+            logger.debug(f"DEDUP: Skipping '{day.name}' (exact match)")
+            continue
+
+        # Fast path: exact normalized match
+        if norm_name in seen_normalized:
+            logger.debug(f"DEDUP: Skipping '{day.name}' (normalized match)")
+            continue
+
+        # Get significant words for this day
+        sig_words = _get_significant_words(norm_name)
+
+        # Find candidate indices to check (items sharing at least one significant word)
+        candidate_indices: set = set()
+        for word in sig_words:
+            if word in word_index:
+                candidate_indices.update(word_index[word])
+
+        # Check fuzzy matches only against candidates (not all unique_days)
         is_duplicate = False
-        for existing in unique_days:
+        for idx in candidate_indices:
+            existing = unique_days[idx]
             if _names_match(day.name, existing.name):
                 is_duplicate = True
                 logger.debug(f"DEDUP: Skipping '{day.name}' (matches '{existing.name}')")
                 break
 
         if not is_duplicate:
+            # Add to unique list
+            new_idx = len(unique_days)
             unique_days.append(day)
+
+            # Update lookup structures
+            seen_lowercase.add(name_lower)
+            seen_normalized.add(norm_name)
+
+            # Update inverted index
+            for word in sig_words:
+                if word not in word_index:
+                    word_index[word] = set()
+                word_index[word].add(new_idx)
 
     if len(special_days) != len(unique_days):
         logger.info(f"DEDUP: Reduced {len(special_days)} entries to {len(unique_days)} unique")

@@ -31,6 +31,7 @@ from datetime import datetime, timezone
 from filelock import FileLock
 
 from config import (
+    ANNOUNCEMENT_RETENTION_DAYS,
     ANNOUNCEMENTS_FILE,
     BACKUP_CHANNEL_ID,
     BACKUP_DIR,
@@ -52,9 +53,6 @@ BIRTHDAYS_LOCK_FILE = BIRTHDAYS_JSON_FILE + ".lock"
 
 # File lock for announcements tracking
 ANNOUNCEMENTS_LOCK_FILE = ANNOUNCEMENTS_FILE + ".lock"
-
-# Retention period for announcement tracking (days)
-ANNOUNCEMENT_RETENTION_DAYS = 60
 
 # Thread lock for atomic read-modify-write operations (same process)
 _birthdays_thread_lock = threading.Lock()

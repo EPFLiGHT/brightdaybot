@@ -2,7 +2,7 @@
 Thread Tracker for BrightDayBot
 
 Tracks birthday and special day announcement threads for engagement features.
-Threads are tracked for 24 hours after posting, allowing the bot to:
+Threads are tracked for THREAD_TTL_HOURS (default 24) after posting, allowing the bot to:
 - Add reactions to thread replies
 - Respond intelligently to questions about the announcement
 
@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from config import THREAD_TRACKING_TTL_DAYS, TRACKED_THREADS_FILE, get_logger
+from config import THREAD_TRACKING_TTL_DAYS, THREAD_TTL_HOURS, TRACKED_THREADS_FILE, get_logger
 
 logger = get_logger("events")
 
@@ -37,7 +37,7 @@ class TrackedThread:
     # Special day-specific fields
     special_day_info: Optional[Dict[str, Any]] = None
 
-    def is_expired(self, ttl_hours: int = 24) -> bool:
+    def is_expired(self, ttl_hours: int = THREAD_TTL_HOURS) -> bool:
         """Check if thread tracking has expired."""
         return datetime.now() > self.created_at + timedelta(hours=ttl_hours)
 

@@ -20,7 +20,10 @@ from datetime import datetime
 from config import (
     BOT_PERSONALITIES,
     DATE_FORMAT,
+    MAX_RECENT_PERSONALITIES,
     RETRY_LIMITS,
+    SLACK_FILE_TITLE_MAX_LENGTH,
+    SLACK_FILE_TITLE_MIN_LENGTH,
     TEAM_NAME,
     TEMPERATURE_SETTINGS,
     TOKEN_LIMITS,
@@ -43,7 +46,6 @@ logger = get_logger("llm")
 # When "random" mode is active, we avoid repeating recent selections
 _recent_personalities_lock = threading.Lock()
 _recent_personalities = []
-_MAX_RECENT_PERSONALITIES = 3  # With 10 personalities, this leaves 7 choices (70%)
 
 # Load persisted recent personalities from file on module initialization
 _recent_personalities = load_recent_personalities()
@@ -187,7 +189,7 @@ def get_random_personality_name():
 
             # Update recency tracking
             _recent_personalities.append(selected)
-            if len(_recent_personalities) > _MAX_RECENT_PERSONALITIES:
+            if len(_recent_personalities) > MAX_RECENT_PERSONALITIES:
                 removed = _recent_personalities.pop(0)
                 logger.debug(f"RANDOM: Removed '{removed}' from recency list")
 
@@ -1381,7 +1383,10 @@ def generate_birthday_image_title(
                 ai_title = ai_title.strip("\"'").rstrip(".!?")
 
                 # Validate title length
-                if len(ai_title) > 100 or len(ai_title) < 3:
+                if (
+                    len(ai_title) > SLACK_FILE_TITLE_MAX_LENGTH
+                    or len(ai_title) < SLACK_FILE_TITLE_MIN_LENGTH
+                ):
                     if attempt < max_retries:
                         logger.warning(
                             f"TITLE_GEN: Title length invalid ({len(ai_title)} chars), retrying..."

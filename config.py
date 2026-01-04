@@ -425,9 +425,30 @@ APP_HOME_UPCOMING_LIMIT = 5  # Number of upcoming birthdays to show
 
 # Thread engagement settings
 THREAD_MIN_TEXT_LENGTH = 15  # Minimum text length for thank you detection
+THREAD_TTL_HOURS = 24  # Hours to track birthday/special day threads for engagement
 
 # Slack API limits
 SLACK_MAX_BLOCKS = 50  # Maximum blocks per message (Slack API limit)
+SLACK_FILE_TITLE_MAX_LENGTH = 100  # Max chars for readable Slack file titles
+
+# Announcement tracking
+ANNOUNCEMENT_RETENTION_DAYS = 60  # Days to keep announcement history
+
+# AI/LLM settings
+MESSAGE_REGENERATION_THRESHOLD = 0.3  # Threshold for regenerating invalid messages
+IMAGE_CLEANUP_PROBABILITY = 0.1  # Probability (10%) to run cleanup on each image generation
+SLACK_FILE_TITLE_MIN_LENGTH = 3  # Minimum chars for Slack file titles
+
+# Personality selection
+MAX_RECENT_PERSONALITIES = 3  # Track this many recent personalities to avoid repetition
+
+# Scheduler settings
+SCHEDULER_STATS_SAVE_INTERVAL = 10  # Save stats every N scheduler loop executions
+
+# Deduplication settings (for special days matching)
+DEDUP_SIGNIFICANT_WORD_MIN_LENGTH = 4  # Minimum word length to consider significant
+DEDUP_CONTAINMENT_THRESHOLD = 0.4  # Minimum ratio for containment matching (40%)
+DEDUP_PREFIX_SUFFIX_MIN_LENGTH = 6  # Minimum length for prefix/suffix variation matching
 
 # ----- PERSONALITY CONFIGURATION -----
 

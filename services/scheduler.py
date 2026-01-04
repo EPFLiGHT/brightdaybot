@@ -29,6 +29,7 @@ from config import (
     HEARTBEAT_STALE_THRESHOLD_SECONDS,
     SCHEDULER_CHECK_INTERVAL_SECONDS,
     SCHEDULER_STATS_FILE,
+    SCHEDULER_STATS_SAVE_INTERVAL,
     TIMEOUTS,
     get_logger,
 )
@@ -52,7 +53,6 @@ _scheduler_running = False
 
 # Persistence configuration
 SCHEDULER_STATS_LOCK_FILE = SCHEDULER_STATS_FILE + ".lock"
-STATS_SAVE_INTERVAL = 10  # Save stats every N executions
 
 
 def load_scheduler_stats() -> dict:
@@ -264,7 +264,7 @@ def run_scheduler():
             schedule.run_pending()
 
             # Save stats periodically
-            if _total_executions - last_save_count >= STATS_SAVE_INTERVAL:
+            if _total_executions - last_save_count >= SCHEDULER_STATS_SAVE_INTERVAL:
                 save_scheduler_stats(_total_executions, _failed_executions, _last_heartbeat)
                 last_save_count = _total_executions
 
