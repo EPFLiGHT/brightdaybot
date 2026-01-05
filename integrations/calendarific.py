@@ -25,6 +25,7 @@ from config import (
     CACHE_RETENTION_DAYS,
     CALENDARIFIC_API_KEY,
     CALENDARIFIC_CACHE_DIR,
+    CALENDARIFIC_CACHE_FILE,
     CALENDARIFIC_CACHE_TTL_DAYS,
     CALENDARIFIC_COUNTRY,
     CALENDARIFIC_ENABLED,
@@ -32,6 +33,7 @@ from config import (
     CALENDARIFIC_RATE_LIMIT_MONTHLY,
     CALENDARIFIC_RATE_WARNING_THRESHOLD,
     CALENDARIFIC_STATE,
+    CALENDARIFIC_STATS_FILE,
     TIMEOUTS,
 )
 from utils.keywords import HEALTH_KEYWORDS, TECH_KEYWORDS
@@ -360,77 +362,178 @@ class CalendarificClient:
 
         return "Calendarific"
 
-    def _get_cache_path(self, date: datetime) -> str:
-        """Get cache file path for a date."""
-        return os.path.join(self.cache_dir, f"{date.strftime('%Y_%m_%d')}.json")
+    def _load_consolidated_cache(self) -> Dict:
+        """Load the consolidated cache file."""
+        # Migrate legacy per-date files on first access
+        self._migrate_legacy_cache()
+
+        if not os.path.exists(CALENDARIFIC_CACHE_FILE):
+            return {"entries": {}, "last_saved": None}
+
+        try:
+            with open(CALENDARIFIC_CACHE_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                # Ensure entries key exists
+                if "entries" not in data:
+                    data["entries"] = {}
+                return data
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(f"CALENDARIFIC: Failed to load consolidated cache: {e}")
+            return {"entries": {}, "last_saved": None}
+
+    def _save_consolidated_cache(self, cache_data: Dict):
+        """Save the consolidated cache file."""
+        cache_data["last_saved"] = datetime.now().isoformat()
+        try:
+            os.makedirs(os.path.dirname(CALENDARIFIC_CACHE_FILE), exist_ok=True)
+            with open(CALENDARIFIC_CACHE_FILE, "w", encoding="utf-8") as f:
+                json.dump(cache_data, f, indent=2, ensure_ascii=False)
+        except OSError as e:
+            logger.warning(f"CALENDARIFIC: Failed to save consolidated cache: {e}")
+
+    def _migrate_legacy_cache(self):
+        """Migrate legacy per-date cache files to consolidated format."""
+        # Check for legacy files (YYYY_MM_DD.json pattern)
+        legacy_files = [
+            f
+            for f in os.listdir(self.cache_dir)
+            if f.endswith(".json") and f != "holidays_cache.json"
+        ]
+
+        if not legacy_files:
+            return
+
+        logger.info(f"CALENDARIFIC: Migrating {len(legacy_files)} legacy cache files...")
+
+        # Load existing consolidated cache or create new
+        if os.path.exists(CALENDARIFIC_CACHE_FILE):
+            try:
+                with open(CALENDARIFIC_CACHE_FILE, "r", encoding="utf-8") as f:
+                    cache_data = json.load(f)
+                    if "entries" not in cache_data:
+                        cache_data["entries"] = {}
+            except (json.JSONDecodeError, OSError):
+                cache_data = {"entries": {}}
+        else:
+            cache_data = {"entries": {}}
+
+        migrated = 0
+        for filename in legacy_files:
+            # Parse date from filename (YYYY_MM_DD.json -> YYYY-MM-DD)
+            try:
+                date_part = filename.replace(".json", "")
+                date_key = date_part.replace("_", "-")
+                filepath = os.path.join(self.cache_dir, filename)
+
+                # Get file modification time for cached_at
+                mtime = datetime.fromtimestamp(os.path.getmtime(filepath))
+
+                with open(filepath, "r", encoding="utf-8") as f:
+                    holidays = json.load(f)
+
+                cache_data["entries"][date_key] = {
+                    "holidays": holidays,
+                    "cached_at": mtime.isoformat(),
+                }
+
+                # Remove legacy file after migration
+                os.remove(filepath)
+                migrated += 1
+
+            except (json.JSONDecodeError, OSError, ValueError) as e:
+                logger.warning(f"CALENDARIFIC: Failed to migrate {filename}: {e}")
+                continue
+
+        if migrated > 0:
+            cache_data["last_saved"] = datetime.now().isoformat()
+            try:
+                with open(CALENDARIFIC_CACHE_FILE, "w", encoding="utf-8") as f:
+                    json.dump(cache_data, f, indent=2, ensure_ascii=False)
+                logger.info(f"CALENDARIFIC: Migrated {migrated} legacy cache files")
+            except OSError as e:
+                logger.warning(f"CALENDARIFIC: Failed to save migrated cache: {e}")
 
     def _load_from_cache(self, date: datetime) -> Optional[List[Dict]]:
-        """Load holidays from cache file."""
-        cache_path = self._get_cache_path(date)
+        """Load holidays from consolidated cache."""
+        cache_data = self._load_consolidated_cache()
+        date_key = date.strftime("%Y-%m-%d")
 
-        if not os.path.exists(cache_path):
+        entry = cache_data.get("entries", {}).get(date_key)
+        if entry is None:
             return None
 
-        try:
-            with open(cache_path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, OSError) as e:
-            logger.warning(f"CALENDARIFIC: Failed to load cache {cache_path}: {e}")
-            return None
+        return entry.get("holidays")
 
     def _save_to_cache(self, date: datetime, holidays: List[Dict]):
-        """Save holidays to cache file."""
-        cache_path = self._get_cache_path(date)
+        """Save holidays to consolidated cache."""
+        cache_data = self._load_consolidated_cache()
+        date_key = date.strftime("%Y-%m-%d")
 
-        try:
-            with open(cache_path, "w", encoding="utf-8") as f:
-                json.dump(holidays, f, indent=2, ensure_ascii=False)
-            logger.debug(f"CALENDARIFIC: Saved {len(holidays)} holidays to cache")
-        except OSError as e:
-            logger.warning(f"CALENDARIFIC: Failed to save cache {cache_path}: {e}")
+        cache_data["entries"][date_key] = {
+            "holidays": holidays,
+            "cached_at": datetime.now().isoformat(),
+        }
+
+        self._save_consolidated_cache(cache_data)
+        logger.debug(f"CALENDARIFIC: Saved {len(holidays)} holidays to cache for {date_key}")
 
     def _is_cache_fresh(self, date: datetime) -> bool:
         """Check if cache for date is within TTL (CALENDARIFIC_CACHE_TTL_DAYS)."""
-        cache_path = self._get_cache_path(date)
+        cache_data = self._load_consolidated_cache()
+        date_key = date.strftime("%Y-%m-%d")
 
-        if not os.path.exists(cache_path):
+        entry = cache_data.get("entries", {}).get(date_key)
+        if entry is None:
+            return False
+
+        cached_at = entry.get("cached_at")
+        if not cached_at:
             return False
 
         try:
-            mtime = os.path.getmtime(cache_path)
-            cache_age_days = (datetime.now().timestamp() - mtime) / 86400
+            cache_time = datetime.fromisoformat(cached_at)
+            cache_age_days = (datetime.now() - cache_time).total_seconds() / 86400
             return cache_age_days < self.cache_ttl_days
-        except OSError:
+        except (ValueError, TypeError):
             return False
 
-    def _get_rate_counter_path(self) -> str:
-        """Get path to this month's rate counter file."""
-        month = datetime.now().strftime("%Y-%m")
-        return os.path.join(self.cache_dir, f"calls_{month}.txt")
+    def _load_stats(self) -> Dict:
+        """Load calendarific stats from consolidated JSON file."""
+        if not os.path.exists(CALENDARIFIC_STATS_FILE):
+            return {"monthly_calls": {}, "last_prefetch": None, "last_saved": None}
+
+        try:
+            with open(CALENDARIFIC_STATS_FILE, "r") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return {"monthly_calls": {}, "last_prefetch": None, "last_saved": None}
+
+    def _save_stats(self, stats: Dict):
+        """Save calendarific stats to consolidated JSON file."""
+        stats["last_saved"] = datetime.now().isoformat()
+        try:
+            os.makedirs(os.path.dirname(CALENDARIFIC_STATS_FILE), exist_ok=True)
+            with open(CALENDARIFIC_STATS_FILE, "w") as f:
+                json.dump(stats, f, indent=2)
+        except OSError as e:
+            logger.warning(f"CALENDARIFIC: Failed to save stats: {e}")
 
     def _get_rate_count(self) -> int:
         """Get current monthly API call count."""
-        counter_path = self._get_rate_counter_path()
-
-        if not os.path.exists(counter_path):
-            return 0
-
-        try:
-            with open(counter_path, "r") as f:
-                return int(f.read().strip() or 0)
-        except (ValueError, OSError):
-            return 0
+        stats = self._load_stats()
+        month = datetime.now().strftime("%Y-%m")
+        return stats.get("monthly_calls", {}).get(month, 0)
 
     def _increment_rate_counter(self):
         """Increment monthly API call counter."""
-        counter_path = self._get_rate_counter_path()
-        count = self._get_rate_count() + 1
+        stats = self._load_stats()
+        month = datetime.now().strftime("%Y-%m")
 
-        try:
-            with open(counter_path, "w") as f:
-                f.write(str(count))
-        except OSError as e:
-            logger.warning(f"CALENDARIFIC: Failed to update rate counter: {e}")
+        if "monthly_calls" not in stats:
+            stats["monthly_calls"] = {}
+
+        stats["monthly_calls"][month] = stats["monthly_calls"].get(month, 0) + 1
+        self._save_stats(stats)
 
     def _check_rate_limit(self):
         """Check if we're approaching or have hit monthly rate limit."""
@@ -446,29 +549,23 @@ class CalendarificClient:
                 f"CALENDARIFIC: {count}/{CALENDARIFIC_RATE_LIMIT_MONTHLY} API calls this month"
             )
 
-    def _get_last_prefetch_path(self) -> str:
-        """Get path to last prefetch timestamp file."""
-        return os.path.join(self.cache_dir, "last_prefetch.txt")
-
     def _update_last_prefetch(self):
         """Update last prefetch timestamp."""
-        try:
-            with open(self._get_last_prefetch_path(), "w") as f:
-                f.write(datetime.now().isoformat())
-        except OSError:
-            pass
+        stats = self._load_stats()
+        stats["last_prefetch"] = datetime.now().isoformat()
+        self._save_stats(stats)
 
     def get_last_prefetch(self) -> Optional[datetime]:
         """Get timestamp of last prefetch."""
-        path = self._get_last_prefetch_path()
+        stats = self._load_stats()
+        last_prefetch = stats.get("last_prefetch")
 
-        if not os.path.exists(path):
+        if not last_prefetch:
             return None
 
         try:
-            with open(path, "r") as f:
-                return datetime.fromisoformat(f.read().strip())
-        except (ValueError, OSError):
+            return datetime.fromisoformat(last_prefetch)
+        except (ValueError, TypeError):
             return None
 
     def needs_prefetch(self) -> bool:
@@ -484,20 +581,23 @@ class CalendarificClient:
     def clear_cache(self, date: datetime = None):
         """Clear cache for a specific date or all cache."""
         if date:
-            cache_path = self._get_cache_path(date)
-            if os.path.exists(cache_path):
-                os.remove(cache_path)
-                logger.info(f"CALENDARIFIC: Cleared cache for {date.strftime('%Y-%m-%d')}")
+            cache_data = self._load_consolidated_cache()
+            date_key = date.strftime("%Y-%m-%d")
+            if date_key in cache_data.get("entries", {}):
+                del cache_data["entries"][date_key]
+                self._save_consolidated_cache(cache_data)
+                logger.info(f"CALENDARIFIC: Cleared cache for {date_key}")
         else:
-            for filename in os.listdir(self.cache_dir):
-                if filename.endswith(".json"):
-                    os.remove(os.path.join(self.cache_dir, filename))
+            # Clear entire consolidated cache
+            if os.path.exists(CALENDARIFIC_CACHE_FILE):
+                os.remove(CALENDARIFIC_CACHE_FILE)
             logger.info("CALENDARIFIC: Cleared all cache")
 
     def get_api_status(self) -> Dict:
         """Get current API status and statistics."""
         month_calls = self._get_rate_count()
-        cache_files = [f for f in os.listdir(self.cache_dir) if f.endswith(".json")]
+        cache_data = self._load_consolidated_cache()
+        cached_dates = len(cache_data.get("entries", {}))
         last_prefetch = self.get_last_prefetch()
 
         return {
@@ -509,32 +609,42 @@ class CalendarificClient:
             "month_calls": month_calls,
             "monthly_limit": CALENDARIFIC_RATE_LIMIT_MONTHLY,
             "calls_remaining": CALENDARIFIC_RATE_LIMIT_MONTHLY - month_calls,
-            "cache_files": len(cache_files),
+            "cached_dates": cached_dates,
             "cache_ttl_days": self.cache_ttl_days,
             "last_prefetch": last_prefetch.isoformat() if last_prefetch else None,
             "needs_prefetch": self.needs_prefetch(),
         }
 
     def cleanup_old_cache(self, max_age_days: int = None):
-        """Remove cache files older than specified days (default from CACHE_RETENTION_DAYS)."""
+        """Remove cache entries older than specified days (default from CACHE_RETENTION_DAYS)."""
         if max_age_days is None:
             max_age_days = CACHE_RETENTION_DAYS.get("calendarific", 30)
+
+        cache_data = self._load_consolidated_cache()
+        entries = cache_data.get("entries", {})
         cutoff = datetime.now() - timedelta(days=max_age_days)
         removed = 0
 
-        for filename in os.listdir(self.cache_dir):
-            filepath = os.path.join(self.cache_dir, filename)
+        # Find entries to remove based on cached_at timestamp
+        dates_to_remove = []
+        for date_key, entry in entries.items():
+            cached_at = entry.get("cached_at")
+            if cached_at:
+                try:
+                    cache_time = datetime.fromisoformat(cached_at)
+                    if cache_time < cutoff:
+                        dates_to_remove.append(date_key)
+                except (ValueError, TypeError):
+                    continue
 
-            try:
-                mtime = datetime.fromtimestamp(os.path.getmtime(filepath))
-                if mtime < cutoff:
-                    os.remove(filepath)
-                    removed += 1
-            except OSError:
-                continue
+        # Remove old entries
+        for date_key in dates_to_remove:
+            del entries[date_key]
+            removed += 1
 
         if removed:
-            logger.info(f"CALENDARIFIC: Removed {removed} old cache files")
+            self._save_consolidated_cache(cache_data)
+            logger.info(f"CALENDARIFIC: Removed {removed} old cache entries")
 
 
 class RateLimitExceeded(Exception):

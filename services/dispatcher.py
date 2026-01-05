@@ -415,7 +415,7 @@ def _send_external_backup_if_enabled(updated, username, app, change_type=None):
             backup_files = [
                 os.path.join(BACKUP_DIR, f)
                 for f in os.listdir(BACKUP_DIR)
-                if f.startswith("birthdays_") and f.endswith(".txt")
+                if f.startswith("birthdays_") and f.endswith(".json")
             ]
             if backup_files:
                 latest_backup = max(backup_files, key=lambda x: os.path.getmtime(x))

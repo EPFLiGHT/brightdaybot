@@ -40,7 +40,6 @@ from config import (
     EXTERNAL_BACKUP_ENABLED,
     MAX_BACKUPS,
     TIMEOUTS,
-    TRACKING_DIR,
     get_logger,
 )
 from slack.client import send_message_with_file
@@ -587,95 +586,15 @@ def mark_birthday_announced(user_id):
 
 def cleanup_old_announcement_files():
     """
-    Clean up old announcement entries and migrate legacy text files.
+    Clean up old announcement entries.
     """
     data = _load_announcements()
-
-    # Migrate legacy text files if they exist
-    _migrate_legacy_tracking_files(data)
 
     # Clean up old entries
     data = _cleanup_old_announcements(data)
     _save_announcements(data)
 
     logger.info("CLEANUP: Cleaned old announcement entries")
-
-
-def _migrate_legacy_tracking_files(data: dict) -> None:
-    """
-    Migrate legacy text tracking files to JSON format.
-
-    Args:
-        data: Announcements data dictionary to update
-    """
-    if not os.path.exists(TRACKING_DIR):
-        return
-
-    migrated = 0
-    try:
-        for filename in os.listdir(TRACKING_DIR):
-            file_path = os.path.join(TRACKING_DIR, filename)
-
-            # Migrate announced_YYYY-MM-DD.txt files
-            if filename.startswith("announced_") and filename.endswith(".txt"):
-                date_str = filename[10:-4]  # Extract YYYY-MM-DD
-                try:
-                    with open(file_path, "r") as f:
-                        user_ids = [line.strip() for line in f if line.strip()]
-                    if user_ids and date_str not in data.get("birthdays", {}):
-                        if "birthdays" not in data:
-                            data["birthdays"] = {}
-                        data["birthdays"][date_str] = user_ids
-                        migrated += 1
-                    os.remove(file_path)
-                except Exception as e:
-                    logger.warning(f"Failed to migrate {filename}: {e}")
-
-            # Migrate timezone_announced_YYYY-MM-DD.txt files
-            elif filename.startswith("timezone_announced_") and filename.endswith(".txt"):
-                date_str = filename[19:-4]  # Extract YYYY-MM-DD
-                try:
-                    with open(file_path, "r") as f:
-                        entries = {}
-                        for line in f:
-                            line = line.strip()
-                            if ":" in line:
-                                parts = line.split(":", 1)
-                                entries[parts[0]] = parts[1]
-                    if entries and date_str not in data.get("timezone_birthdays", {}):
-                        if "timezone_birthdays" not in data:
-                            data["timezone_birthdays"] = {}
-                        data["timezone_birthdays"][date_str] = entries
-                        migrated += 1
-                    os.remove(file_path)
-                except Exception as e:
-                    logger.warning(f"Failed to migrate {filename}: {e}")
-
-            # Migrate special_days_YYYY-MM-DD.txt files
-            elif filename.startswith("special_days_") and filename.endswith(".txt"):
-                date_str = filename[13:-4]  # Extract YYYY-MM-DD
-                try:
-                    with open(file_path, "r") as f:
-                        content = f.read().strip()
-                    if content and date_str not in data.get("special_days", {}):
-                        if "special_days" not in data:
-                            data["special_days"] = {}
-                        # Extract timestamp from content like "Special days announced at ISO"
-                        if "at " in content:
-                            timestamp = content.split("at ", 1)[1]
-                        else:
-                            timestamp = datetime.now(timezone.utc).isoformat()
-                        data["special_days"][date_str] = timestamp
-                        migrated += 1
-                    os.remove(file_path)
-                except Exception as e:
-                    logger.warning(f"Failed to migrate {filename}: {e}")
-
-        if migrated > 0:
-            logger.info(f"MIGRATION: Migrated {migrated} legacy tracking files to JSON")
-
-    except Exception as e:
-        logger.error(f"FILE_ERROR: Failed to migrate legacy tracking files: {e}")
 
 
 def get_timezone_announced_birthdays_today():

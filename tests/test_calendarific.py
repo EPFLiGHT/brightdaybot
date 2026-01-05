@@ -42,8 +42,9 @@ class TestCalendarificClient:
         assert client._extract_source("United Nations observance") == "UN"
         assert client._extract_source("Some random event") == "Calendarific"
 
-    def test_cache_path_format(self, client):
-        """Cache path uses correct format"""
+    def test_cache_key_format(self, client):
+        """Cache key uses correct YYYY-MM-DD format"""
         date = datetime(2025, 8, 1)
-        path = client._get_cache_path(date)
-        assert "2025_08_01.json" in path
+        # Consolidated cache uses YYYY-MM-DD format for date keys
+        expected_key = date.strftime("%Y-%m-%d")
+        assert expected_key == "2025-08-01"

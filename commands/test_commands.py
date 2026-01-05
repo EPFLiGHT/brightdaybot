@@ -767,7 +767,7 @@ def handle_test_external_backup_command(user_id, say, app):
         return
 
     # Find the latest backup file
-    backup_files = glob.glob(os.path.join(BACKUP_DIR, "birthdays_*.txt"))
+    backup_files = glob.glob(os.path.join(BACKUP_DIR, "birthdays_*.json"))
 
     if not backup_files:
         say("❌ *No backup files found!* Try creating a backup first with `admin backup`.")

@@ -8,11 +8,9 @@ integration, and smart consolidation for multiple same-day birthdays.
 Main functions: timezone_aware_check(), simple_daily_check(), send_reminder_to_users().
 """
 
-import os
 import random
 from datetime import datetime, timezone
 
-from filelock import FileLock
 from slack_sdk.errors import SlackApiError
 
 from config import (
@@ -20,11 +18,10 @@ from config import (
     BIRTHDAY_CHANNEL,
     BOT_BIRTH_YEAR,
     BOT_BIRTHDAY,
+    BOT_USER_ID,
     DAILY_CHECK_TIME,
     IMAGE_GENERATION_PARAMS,
-    TIMEOUTS,
     TIMEZONE_CELEBRATION_TIME,
-    TRACKING_DIR,
     get_logger,
 )
 from image.generator import generate_birthday_image
@@ -47,6 +44,7 @@ from storage.birthdays import (
     is_user_active,
     is_user_celebrated_today,
     load_birthdays,
+    mark_birthday_announced,
 )
 from utils.date import (
     check_if_birthday_today,
@@ -75,24 +73,13 @@ def celebrate_bot_birthday(app, moment):
     if not check_if_birthday_today(BOT_BIRTHDAY, moment):
         return False
 
-    # Check if we already celebrated today to prevent duplicates
-    # Use FileLock for atomic check-and-create to prevent race conditions
-    celebration_tracking_file = os.path.join(
-        TRACKING_DIR, f"bot_birthday_{moment.strftime('%Y-%m-%d')}.txt"
-    )
-    lock_file = celebration_tracking_file + ".lock"
-    lock = FileLock(lock_file, timeout=TIMEOUTS["file_lock"])
+    # Check if we already celebrated today using the standard tracking system
+    if is_user_celebrated_today(BOT_USER_ID):
+        logger.debug("BOT_BIRTHDAY: Already celebrated today, skipping")
+        return False
 
-    # Atomic check-and-reserve pattern
-    with lock:
-        if os.path.exists(celebration_tracking_file):
-            logger.debug("BOT_BIRTHDAY: Already celebrated today, skipping")
-            return False
-
-        # Reserve the celebration slot immediately to prevent race conditions
-        os.makedirs(TRACKING_DIR, exist_ok=True)
-        with open(celebration_tracking_file, "w") as f:
-            f.write(f"BrightDayBot birthday celebration started on {moment.strftime('%Y-%m-%d')}")
+    # Mark as celebrated immediately to prevent race conditions
+    mark_birthday_announced(BOT_USER_ID)
 
     try:
         logger.info(
@@ -300,12 +287,6 @@ def celebrate_bot_birthday(app, moment):
             send_message(app, BIRTHDAY_CHANNEL, fallback_text, blocks)
             logger.info(
                 "BOT_BIRTHDAY: Sent celebration message with Block Kit formatting (images disabled)"
-            )
-
-        # Update tracking file to indicate successful completion
-        with open(celebration_tracking_file, "w") as f:
-            f.write(
-                f"BrightDayBot birthday celebrated on {moment.strftime('%Y-%m-%d')} - COMPLETED"
             )
 
         logger.info(

@@ -28,6 +28,7 @@ TRACKING_DIR = os.path.join(DATA_DIR, "tracking")
 TRACKED_THREADS_FILE = os.path.join(STORAGE_DIR, "tracked_threads.json")
 ANNOUNCEMENTS_FILE = os.path.join(STORAGE_DIR, "announcements.json")
 SCHEDULER_STATS_FILE = os.path.join(STORAGE_DIR, "scheduler_stats.json")
+CALENDARIFIC_STATS_FILE = os.path.join(STORAGE_DIR, "calendarific_stats.json")
 THREAD_TRACKING_TTL_DAYS = int(os.getenv("THREAD_TRACKING_TTL_DAYS", "60"))
 BACKUP_DIR = os.path.join(DATA_DIR, "backups")
 MAX_BACKUPS = int(os.getenv("MAX_BACKUPS", "10"))
@@ -342,6 +343,7 @@ CALENDARIFIC_ENABLED = os.getenv("CALENDARIFIC_ENABLED", "false").lower() == "tr
 CALENDARIFIC_COUNTRY = os.getenv("CALENDARIFIC_COUNTRY", "CH")  # Switzerland
 CALENDARIFIC_STATE = os.getenv("CALENDARIFIC_STATE", "VD")  # Vaud canton
 CALENDARIFIC_CACHE_DIR = os.path.join(CACHE_DIR, "calendarific")
+CALENDARIFIC_CACHE_FILE = os.path.join(CALENDARIFIC_CACHE_DIR, "holidays_cache.json")
 CALENDARIFIC_CACHE_TTL_DAYS = int(os.getenv("CALENDARIFIC_CACHE_TTL_DAYS", "7"))
 CALENDARIFIC_PREFETCH_DAYS = int(os.getenv("CALENDARIFIC_PREFETCH_DAYS", "7"))
 CALENDARIFIC_RATE_LIMIT_MONTHLY = 500  # Free tier: 500 calls/month

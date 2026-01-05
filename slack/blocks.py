@@ -1114,15 +1114,16 @@ def build_health_status_blocks(
                 except Exception:
                     sd_text += "\n• WHO observances: cache error"
 
-            # Check Calendarific cache (uses per-date files in a directory)
-            from config import CALENDARIFIC_CACHE_DIR, CALENDARIFIC_ENABLED
+            # Check Calendarific cache (uses consolidated cache file)
+            from config import CALENDARIFIC_ENABLED
 
-            if CALENDARIFIC_ENABLED and os.path.exists(CALENDARIFIC_CACHE_DIR):
+            if CALENDARIFIC_ENABLED:
                 try:
-                    cache_files = [
-                        f for f in os.listdir(CALENDARIFIC_CACHE_DIR) if f.endswith(".json")
-                    ]
-                    sd_text += f"\n• Calendarific: {len(cache_files)} cached dates"
+                    from integrations.calendarific import get_calendarific_client
+
+                    calendarific_status = get_calendarific_client().get_api_status()
+                    cached_dates = calendarific_status.get("cached_dates", 0)
+                    sd_text += f"\n• Calendarific: {cached_dates} cached dates"
                 except Exception:
                     sd_text += "\n• Calendarific: cache error"
 

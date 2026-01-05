@@ -253,33 +253,30 @@ def load_all_special_days() -> List[SpecialDay]:
         except Exception as e:
             logger.warning(f"Failed to load {source_name} observances cache: {e}")
 
-    # 3. Load Calendarific from cache using proper conversion
+    # 3. Load Calendarific from consolidated cache
     # Uses the same _dict_to_special_day() method as get_holidays_for_date()
     if CALENDARIFIC_ENABLED and CALENDARIFIC_API_KEY:
         try:
-            from config import CALENDARIFIC_CACHE_DIR
+            from config import CALENDARIFIC_CACHE_FILE
             from integrations.calendarific import get_calendarific_client
 
             client = get_calendarific_client()
 
-            if os.path.exists(CALENDARIFIC_CACHE_DIR):
-                for filename in os.listdir(CALENDARIFIC_CACHE_DIR):
-                    # Skip non-date files (rate counter, prefetch timestamp)
-                    if not filename.endswith(".json") or not filename[0].isdigit():
-                        continue
-
-                    filepath = os.path.join(CALENDARIFIC_CACHE_DIR, filename)
-                    try:
-                        with open(filepath, "r") as f:
-                            holidays = json.load(f)
+            if os.path.exists(CALENDARIFIC_CACHE_FILE):
+                try:
+                    with open(CALENDARIFIC_CACHE_FILE, "r") as f:
+                        cache_data = json.load(f)
+                        entries = cache_data.get("entries", {})
+                        # Iterate through all cached dates
+                        for date_key, entry in entries.items():
+                            holidays = entry.get("holidays", [])
                             # Use client's conversion method for proper field mapping
                             for h in holidays:
                                 special_day = client._dict_to_special_day(h)
                                 if special_day.date:  # Only add if date is valid
                                     all_days.append(special_day)
-                    except (json.JSONDecodeError, IOError) as e:
-                        logger.debug(f"Failed to read cache file {filename}: {e}")
-                        continue
+                except (json.JSONDecodeError, IOError) as e:
+                    logger.debug(f"Failed to read Calendarific cache: {e}")
 
         except Exception as e:
             logger.warning(f"Failed to load Calendarific cache: {e}")

@@ -768,7 +768,7 @@ _Cache refreshes monthly. Use `admin special who-refresh` to force update._"""
 • Remaining: {status['calls_remaining']}
 
 *Cache:*
-• Cached days: {status['cache_files']}
+• Cached dates: {status['cached_dates']}
 • Cache TTL: {status['cache_ttl_days']} days
 • Last prefetch: {last_str}
 • Needs refresh: {'⚠️ Yes' if status['needs_prefetch'] else '✅ No'}
