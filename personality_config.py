@@ -96,7 +96,13 @@ PERSONALITIES = {
         # Message generation
         "template_extension": "",  # No additional instructions for standard
         # Consolidated message prompts
-        "consolidated_prompt": "",  # Uses base prompt only
+        "consolidated_prompt": """
+
+BRIGHTDAY'S GROUP CELEBRATION TIPS:
+- Celebrate the fun coincidence of shared birthdays
+- Give each person equal attention and recognition
+- Create an inclusive, energetic atmosphere
+- Encourage team participation and birthday wishes""",
         # Birthday facts integration
         "birthday_facts_text": "You MUST include at least 1-2 specific historical facts (with years and names) from these events in your message: {facts}",
         # Image generation prompts

@@ -306,9 +306,10 @@ def create_birthday_announcement(
 
 
 # Backup birthday messages for fallback if the API fails
+# Use {mention} placeholder for consistency with personality_config.py
 BACKUP_MESSAGES = [
     """
-:birthday: HAPPY BIRTHDAY {name}!!! :tada:
+:birthday: HAPPY BIRTHDAY {mention}!!! :tada:
 
 <!here> We've got a birthday to celebrate!
 
@@ -329,7 +330,7 @@ Any special celebration plans for your big day? :sparkles:
     """
 :rotating_light: ATTENTION <!here> :rotating_light:
 
-IT'S {name}'s BIRTHDAY!!! :birthday:
+IT'S {mention}'s BIRTHDAY!!! :birthday:
 
 :star2: :star2: :star2: :star2: :star2:
 
@@ -349,7 +350,7 @@ So... how are you planning to celebrate? :thinking_face:
 
 <!here> Everyone drop what you're doing because...
 
-{name} is having a BIRTHDAY today! :birthday:
+{mention} is having a BIRTHDAY today! :birthday:
 
 :cake: :gift: :balloon: :confetti_ball: :cake: :gift: :balloon:
 
@@ -367,7 +368,7 @@ Whoop whoop! :tada:
 
 :loudspeaker: <!here> Announcement! :loudspeaker:
 
-It's {name}'s special day! :birthday:
+It's {mention}'s special day! :birthday:
 
 :sparkles: :sparkles: :sparkles: :sparkles: :sparkles:
 
@@ -386,7 +387,7 @@ How are you celebrating this year? :cake:
 <!here> HEY EVERYONE!
 
 :arrow_down: :arrow_down: :arrow_down:
-It's {name}'s birthday!
+It's {mention}'s birthday!
 :arrow_up: :arrow_up: :arrow_up:
 
 :birthday: :confetti_ball: :birthday: :confetti_ball:
