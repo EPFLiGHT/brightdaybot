@@ -190,7 +190,7 @@ class ThreadTracker:
             os.makedirs(os.path.dirname(TRACKED_THREADS_FILE), exist_ok=True)
 
             with open(TRACKED_THREADS_FILE, "w") as f:
-                json.dump(data, f, indent=2)
+                json.dump(data, f, indent=2, sort_keys=True)
 
             logger.debug(f"THREAD_TRACKER: Saved {len(threads_data)} threads to file")
 

@@ -387,7 +387,7 @@ class CalendarificClient:
         try:
             os.makedirs(os.path.dirname(CALENDARIFIC_CACHE_FILE), exist_ok=True)
             with open(CALENDARIFIC_CACHE_FILE, "w", encoding="utf-8") as f:
-                json.dump(cache_data, f, indent=2, ensure_ascii=False)
+                json.dump(cache_data, f, indent=2, ensure_ascii=False, sort_keys=True)
         except OSError as e:
             logger.warning(f"CALENDARIFIC: Failed to save consolidated cache: {e}")
 
@@ -448,7 +448,7 @@ class CalendarificClient:
             cache_data["last_saved"] = datetime.now().isoformat()
             try:
                 with open(CALENDARIFIC_CACHE_FILE, "w", encoding="utf-8") as f:
-                    json.dump(cache_data, f, indent=2, ensure_ascii=False)
+                    json.dump(cache_data, f, indent=2, ensure_ascii=False, sort_keys=True)
                 logger.info(f"CALENDARIFIC: Migrated {migrated} legacy cache files")
             except OSError as e:
                 logger.warning(f"CALENDARIFIC: Failed to save migrated cache: {e}")
@@ -514,7 +514,7 @@ class CalendarificClient:
         try:
             os.makedirs(os.path.dirname(CALENDARIFIC_STATS_FILE), exist_ok=True)
             with open(CALENDARIFIC_STATS_FILE, "w") as f:
-                json.dump(stats, f, indent=2)
+                json.dump(stats, f, indent=2, sort_keys=True)
         except OSError as e:
             logger.warning(f"CALENDARIFIC: Failed to save stats: {e}")
 

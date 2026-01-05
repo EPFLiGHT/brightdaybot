@@ -269,7 +269,7 @@ def save_birthdays(birthdays):
     try:
         with lock:
             with open(BIRTHDAYS_JSON_FILE, "w") as f:
-                json.dump(birthdays, f, indent=2)
+                json.dump(birthdays, f, indent=2, sort_keys=True)
 
             logger.info(f"STORAGE: Saved {len(birthdays)} birthdays to JSON")
             create_backup()
@@ -509,7 +509,7 @@ def _save_announcements(data: dict) -> bool:
         lock = FileLock(ANNOUNCEMENTS_LOCK_FILE, timeout=TIMEOUTS["file_lock"])
         with lock:
             with open(ANNOUNCEMENTS_FILE, "w") as f:
-                json.dump(data, f, indent=2)
+                json.dump(data, f, indent=2, sort_keys=True)
         return True
     except Exception as e:
         logger.error(f"FILE_ERROR: Failed to save announcements: {e}")

@@ -152,7 +152,7 @@ def get_birthday_facts(date_str, personality=DEFAULT_IMAGE_PERSONALITY):
                 }
                 os.makedirs(CACHE_DIR, exist_ok=True)
                 with open(CLEANUP_LOG_FILE, "w") as f:
-                    json.dump(cleanup_log, f, indent=2)
+                    json.dump(cleanup_log, f, indent=2, sort_keys=True)
             except OSError:
                 pass  # Ignore cleanup log errors
 
@@ -230,7 +230,7 @@ def get_birthday_facts(date_str, personality=DEFAULT_IMAGE_PERSONALITY):
                 os.makedirs(CACHE_DIR, exist_ok=True)
 
                 with open(cache_file, "w") as f:
-                    json.dump(results, f)
+                    json.dump(results, f, indent=2, sort_keys=True)
                     logger.info(f"WEB_SEARCH: Cached results for {date_str} ({personality})")
             except (OSError, TypeError) as e:
                 logger.error(f"CACHE_ERROR: Failed to write to cache: {e}")

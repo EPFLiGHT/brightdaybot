@@ -298,7 +298,7 @@ def save_admins_to_file(admin_list):
         os.makedirs(os.path.dirname(ADMINS_FILE), exist_ok=True)
 
         with open(ADMINS_FILE, "w") as f:
-            json.dump({"admins": admin_list}, f, indent=2)
+            json.dump({"admins": admin_list}, f, indent=2, sort_keys=True)
         logger.info(f"CONFIG: Saved {len(admin_list)} admins to {ADMINS_FILE}")
         return True
     except Exception as e:
@@ -351,7 +351,7 @@ def save_personality_setting(personality_name, custom_settings=None):
             data["custom_settings"] = custom_settings
 
         with open(PERSONALITY_FILE, "w") as f:
-            json.dump(data, f, indent=2)
+            json.dump(data, f, indent=2, sort_keys=True)
 
         logger.info(f"CONFIG: Saved personality setting '{personality_name}' to {PERSONALITY_FILE}")
         return True
@@ -415,7 +415,7 @@ def save_recent_personalities(recent_list):
         data["recent_personalities"] = recent_list
 
         with open(PERSONALITY_FILE, "w") as f:
-            json.dump(data, f, indent=2)
+            json.dump(data, f, indent=2, sort_keys=True)
 
         logger.debug(f"CONFIG: Saved {len(recent_list)} recent personalities")
         return True
@@ -478,7 +478,7 @@ def save_permissions_to_file(permissions):
     """
     try:
         with open(PERMISSIONS_FILE, "w") as f:
-            json.dump(permissions, f, indent=2)
+            json.dump(permissions, f, indent=2, sort_keys=True)
             logger.info("CONFIG: Saved permissions to file")
             return True
     except Exception as e:
@@ -520,7 +520,7 @@ def save_timezone_settings(enabled=True, check_interval_hours=1):
         }
 
         with open(TIMEZONE_SETTINGS_FILE, "w") as f:
-            json.dump(data, f, indent=2)
+            json.dump(data, f, indent=2, sort_keys=True)
 
         logger.info(
             f"CONFIG: Saved timezone settings - enabled: {enabled}, "
@@ -582,7 +582,7 @@ def save_openai_model_setting(model_name):
         }
 
         with open(OPENAI_MODEL_SETTINGS_FILE, "w") as f:
-            json.dump(data, f, indent=2)
+            json.dump(data, f, indent=2, sort_keys=True)
 
         logger.info(f"CONFIG: Saved OpenAI model setting '{model_name}'")
         return True

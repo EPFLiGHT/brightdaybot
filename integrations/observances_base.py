@@ -565,7 +565,7 @@ class ObservanceScraperBase(ABC):
         """Save observances to cache."""
         try:
             with open(self.CACHE_FILE, "w") as f:
-                json.dump(data, f, indent=2)
+                json.dump(data, f, indent=2, sort_keys=True)
         except IOError as e:
             logger.error(f"{self.SOURCE_NAME}_OBSERVANCES: Failed to save cache: {e}")
 

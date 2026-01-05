@@ -118,7 +118,7 @@ def save_scheduler_stats(
         lock = FileLock(SCHEDULER_STATS_LOCK_FILE, timeout=TIMEOUTS["file_lock"])
         with lock:
             with open(SCHEDULER_STATS_FILE, "w") as f:
-                json.dump(data, f, indent=2)
+                json.dump(data, f, indent=2, sort_keys=True)
         logger.debug(
             f"SCHEDULER_STATS: Saved stats - {total_executions} total, {failed_executions} failed"
         )

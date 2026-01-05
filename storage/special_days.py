@@ -189,7 +189,7 @@ def _save_json_special_days(special_days: List[SpecialDay]) -> bool:
         lock = FileLock(SPECIAL_DAYS_LOCK_FILE, timeout=TIMEOUTS["file_lock"])
         with lock:
             with open(SPECIAL_DAYS_JSON_FILE, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+                json.dump(data, f, indent=2, ensure_ascii=False, sort_keys=True)
 
         logger.info(f"Saved {len(sorted_days)} special days to JSON")
         return True
@@ -834,7 +834,7 @@ def save_special_days_config(config: dict) -> bool:
         config["last_modified"] = datetime.now().isoformat()
 
         with open(SPECIAL_DAYS_CONFIG_FILE, "w") as f:
-            json.dump(config, f, indent=4)
+            json.dump(config, f, indent=2, sort_keys=True)
 
         logger.info("Special days configuration saved")
         return True
