@@ -283,12 +283,14 @@ def register_event_handlers(app):
 
         try:
             from slack.client import get_username
-            from storage.birthdays import remove_birthday
+            from storage.birthdays import remove_birthday, trigger_external_backup
 
             username = get_username(app, user_id)
             removed = remove_birthday(user_id, username)
 
             if removed:
+                # Send external backup for removal
+                trigger_external_backup(False, username, app, change_type="remove")
                 events_logger.info(f"APP_HOME: Removed birthday for {username} ({user_id})")
                 client.chat_postMessage(
                     channel=user_id,

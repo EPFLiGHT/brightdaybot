@@ -653,7 +653,9 @@ def _deduplicate_special_days(special_days: List[SpecialDay]) -> List[SpecialDay
     return unique_days
 
 
-def get_special_days_for_date(date: datetime) -> List[SpecialDay]:
+def get_special_days_for_date(
+    date: datetime, custom_days: List[SpecialDay] = None
+) -> List[SpecialDay]:
     """
     Get all special days for a specific date from multiple sources.
 
@@ -664,6 +666,7 @@ def get_special_days_for_date(date: datetime) -> List[SpecialDay]:
 
     Args:
         date: datetime object to check
+        custom_days: Optional pre-loaded custom days to avoid repeated file reads
 
     Returns:
         List of SpecialDay objects for that date
@@ -726,8 +729,9 @@ def get_special_days_for_date(date: datetime) -> List[SpecialDay]:
         except Exception as e:
             logger.error(f"CALENDARIFIC: Failed to fetch for {date_str}: {e}")
 
-    # Source 5: Custom Company days from JSON (always load)
-    custom_days = load_special_days()
+    # Source 5: Custom Company days from JSON (use pre-loaded if available)
+    if custom_days is None:
+        custom_days = load_special_days()
     company_days = [d for d in custom_days if d.date == date_str and d.category == "Company"]
     special_days.extend(company_days)
 
@@ -774,10 +778,13 @@ def get_upcoming_special_days(
     upcoming = {}
     today = datetime.now()
 
+    # Pre-load custom days once to avoid O(n²) repeated file reads
+    custom_days = load_special_days()
+
     for i in range(days_ahead):
         check_date = today + timedelta(days=i)
         date_str = check_date.strftime("%d/%m")
-        special_days = get_special_days_for_date(check_date)
+        special_days = get_special_days_for_date(check_date, custom_days=custom_days)
 
         if special_days:
             upcoming[date_str] = special_days

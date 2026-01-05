@@ -15,7 +15,6 @@ Main function: handle_command(). Routes to:
 from datetime import datetime, timezone
 
 from config import (
-    EXTERNAL_BACKUP_ENABLED,
     TIMEOUTS,
     get_logger,
 )
@@ -405,25 +404,9 @@ def _send_external_backup_if_enabled(updated, username, app, change_type=None):
         app: Slack app instance for sending backup
         change_type: Optional override for change type ("add", "update", "remove")
     """
-    try:
-        import os
+    from storage.birthdays import trigger_external_backup
 
-        from config import BACKUP_DIR, BACKUP_ON_EVERY_CHANGE
-        from storage.birthdays import send_external_backup
-
-        if EXTERNAL_BACKUP_ENABLED and BACKUP_ON_EVERY_CHANGE:
-            backup_files = [
-                os.path.join(BACKUP_DIR, f)
-                for f in os.listdir(BACKUP_DIR)
-                if f.startswith("birthdays_") and f.endswith(".json")
-            ]
-            if backup_files:
-                latest_backup = max(backup_files, key=lambda x: os.path.getmtime(x))
-                if change_type is None:
-                    change_type = "update" if updated else "add"
-                send_external_backup(latest_backup, change_type, username, app)
-    except Exception as backup_error:
-        logger.error(f"EXTERNAL_BACKUP_ERROR: Failed to send external backup: {backup_error}")
+    trigger_external_backup(updated, username, app, change_type)
 
 
 def handle_command(text, user_id, say, app):

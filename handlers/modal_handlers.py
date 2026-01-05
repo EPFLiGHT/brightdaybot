@@ -10,7 +10,7 @@ from datetime import datetime
 
 from config import MIN_BIRTH_YEAR, get_logger
 from slack.client import get_username
-from storage.birthdays import save_birthday
+from storage.birthdays import save_birthday, trigger_external_backup
 from utils.date import check_if_birthday_today
 
 logger = get_logger("commands")
@@ -126,6 +126,9 @@ def register_modal_handlers(app):
 
             # Save birthday with preferences using existing function
             updated = save_birthday(date_ddmm, user_id, birth_year, username, preferences)
+
+            # Send external backup
+            trigger_external_backup(updated, username, app)
 
             # Check if birthday is today
             if check_if_birthday_today(date_ddmm):

@@ -198,6 +198,38 @@ This backup was automatically created to protect your birthday data."""
         logger.error(f"BACKUP: Failed to send external backup: {e}")
 
 
+def trigger_external_backup(updated, username, app, change_type=None):
+    """
+    Trigger external backup after birthday changes if enabled.
+
+    Finds the latest backup file and sends it to admins/backup channel.
+
+    Args:
+        updated: Whether this was an update (True) or new addition (False)
+        username: Username of the person whose birthday changed
+        app: Slack app instance for sending backup
+        change_type: Optional override for change type ("add", "update", "remove")
+    """
+    from config import BACKUP_ON_EVERY_CHANGE
+
+    try:
+        if not EXTERNAL_BACKUP_ENABLED or not BACKUP_ON_EVERY_CHANGE:
+            return
+
+        backup_files = [
+            os.path.join(BACKUP_DIR, f)
+            for f in os.listdir(BACKUP_DIR)
+            if f.startswith("birthdays_") and f.endswith(".json")
+        ]
+        if backup_files:
+            latest_backup = max(backup_files, key=lambda x: os.path.getmtime(x))
+            if change_type is None:
+                change_type = "update" if updated else "add"
+            send_external_backup(latest_backup, change_type, username, app)
+    except Exception as e:
+        logger.error(f"BACKUP: Failed to trigger external backup: {e}")
+
+
 def restore_latest_backup():
     """
     Restore the most recent JSON backup file.
