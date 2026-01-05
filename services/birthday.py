@@ -489,24 +489,15 @@ def send_reminder_to_users(app, users, custom_message=None, reminder_type="new")
                     f"Hello {get_user_mention(user_id)}! 😊",
                 ]
 
-                instructions = [
-                    "Just send me your birthday as DD/MM (like `14/02`) or DD/MM/YYYY (like `14/02/1990`).",
-                    "Reply with your birthday in DD/MM format (example: `25/12`) or DD/MM/YYYY (example: `25/12/1995`).",
-                ]
-
-                outros = [
-                    "Thanks! 🎉",
-                    "Looking forward to celebrating with you! 🎂",
-                ]
-
                 message = (
                     f"{random.choice(greetings)}\n\n"
-                    f"We'd love to celebrate your birthday! 🎂\n"
-                    f"{random.choice(instructions)}\n\n"
-                    f"{random.choice(outros)}\n\n"
-                    f"*Not interested in birthday celebrations?*\n"
-                    f"No worries! If you'd prefer to opt out, simply leave {get_channel_mention(BIRTHDAY_CHANNEL)}. "
-                    f"This applies whether you have your birthday registered or not."
+                    f"We'd love to celebrate your birthday! 🎂\n\n"
+                    f"*How to add your birthday:*\n"
+                    f"• Use `/birthday` to open the form\n"
+                    f"• Or DM me: `25/12` or `25/12/1990`\n"
+                    f"• Or visit my *Home* tab for preferences\n\n"
+                    f"*Not interested?*\n"
+                    f"No worries! Simply leave {get_channel_mention(BIRTHDAY_CHANNEL)} to opt out."
                 )
 
             elif reminder_type == "update":
