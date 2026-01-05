@@ -423,19 +423,24 @@ def update_user_preferences(user: str, preferences: dict) -> bool:
         return True
 
 
-def is_user_active(user: str) -> bool:
+def is_user_active(user: str, birthday_data: dict = None) -> bool:
     """
     Check if user's birthday celebrations are active.
 
     Args:
         user: User ID
+        birthday_data: Optional pre-loaded birthday data to avoid re-fetching
 
     Returns:
         True if active (or not set), False if paused
     """
-    prefs = get_user_preferences(user)
-    if prefs is None:
-        return True  # No birthday = default active
+    if birthday_data is not None:
+        # Use provided data directly to avoid reloading all birthdays
+        prefs = {**DEFAULT_PREFERENCES, **birthday_data.get("preferences", {})}
+    else:
+        prefs = get_user_preferences(user)
+        if prefs is None:
+            return True  # No birthday = default active
     return prefs.get("active", True)
 
 

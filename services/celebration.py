@@ -223,10 +223,12 @@ class BirthdayCelebrationPipeline:
         except Exception as e:
             logger.error(f"{self.mode}_ERROR: Failed to celebrate birthdays: {e}")
 
-            # Fallback: mark as celebrated to prevent retry loops
-            # Use valid_people if validation succeeded, otherwise all birthday_people
-            people_to_mark = valid_people if valid_people is not None else birthday_people
-            self._mark_as_celebrated(people_to_mark)
+            # DO NOT mark as celebrated on failure - let celebrate_missed_birthdays retry
+            # The missed birthday check exists specifically to handle celebration failures
+            logger.info(
+                f"{self.mode}: NOT marking as celebrated due to failure - "
+                f"celebrate_missed_birthdays will retry"
+            )
 
             return {
                 "success": False,

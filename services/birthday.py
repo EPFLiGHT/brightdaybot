@@ -776,7 +776,7 @@ def timezone_aware_check(app, moment):
             continue
 
         # Skip users who have paused their celebrations
-        if not is_user_active(user_id):
+        if not is_user_active(user_id, birthday_data):
             logger.debug(
                 f"SKIP: User {user_id} ({username}) has paused celebrations, skipping birthday check"
             )
@@ -943,7 +943,7 @@ def simple_daily_check(app, moment):
             continue
 
         # Skip users who have paused their celebrations
-        if not is_user_active(user_id):
+        if not is_user_active(user_id, birthday_data):
             logger.debug(
                 f"SKIP: User {user_id} ({username}) has paused celebrations, skipping birthday check"
             )
@@ -1061,7 +1061,7 @@ def celebrate_missed_birthdays(app):
                         continue
 
                     # Skip users who have paused their celebrations
-                    if not is_user_active(user_id):
+                    if not is_user_active(user_id, birthday_data):
                         logger.info(
                             f"MISSED_BIRTHDAYS: User {user_id} ({username}) has paused celebrations, skipping"
                         )
