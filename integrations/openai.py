@@ -8,9 +8,11 @@ Key functions:
 - get_openai_client(): Get configured OpenAI client singleton
 - complete(): Generate completion using Responses API
 - complete_with_usage(): Generate completion with usage stats
+- analyze_image(): Analyze image using Vision capabilities
 - log_*_usage(): Usage logging for different API operations
 """
 
+import base64
 import os
 import threading
 from datetime import datetime
@@ -252,6 +254,99 @@ def complete_with_usage(
         )
 
     return response.output_text, usage_dict
+
+
+# =============================================================================
+# Vision API Wrapper
+# =============================================================================
+
+
+def analyze_image(
+    image_path: str,
+    prompt: str,
+    max_tokens: int = 100,
+    context: str = "IMAGE_ANALYSIS",
+) -> str | None:
+    """
+    Analyze an image using Responses API with vision capabilities.
+
+    Centralized in integrations/openai.py following existing patterns.
+    Uses the same model as text completions (gpt-4.1 supports vision).
+
+    Args:
+        image_path: Path to the image file to analyze
+        prompt: Text prompt describing what to analyze/extract
+        max_tokens: Maximum tokens in response (default: 100)
+        context: Optional context string for logging
+
+    Returns:
+        str: The analysis result text, or None if analysis fails
+    """
+    client = get_openai_client()
+    model = get_configured_openai_model()
+
+    try:
+        # Read and encode image to base64
+        with open(image_path, "rb") as f:
+            image_data = base64.b64encode(f.read()).decode("utf-8")
+
+        # Determine image type from extension
+        ext = image_path.lower().split(".")[-1]
+        mime_type = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg"}.get(
+            ext, "image/png"
+        )
+
+        logger.info(f"AI_{context}: Calling Responses API with vision, model={model}")
+
+        # Use Responses API with multimodal input
+        # Format verified from OpenAI docs: input_image with base64 image_url
+        response = client.responses.create(
+            model=model,
+            input=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "input_text", "text": prompt},
+                        {
+                            "type": "input_image",
+                            "image_url": f"data:{mime_type};base64,{image_data}",
+                            "detail": "low",  # 512x512, 85 tokens - efficient for analysis
+                        },
+                    ],
+                }
+            ],
+            max_output_tokens=max_tokens,
+        )
+
+        # Log usage
+        if hasattr(response, "usage") and response.usage:
+            usage = response.usage
+            logger.info(
+                f"AI_{context}_USAGE: "
+                f"input={getattr(usage, 'input_tokens', 'N/A')}, "
+                f"output={getattr(usage, 'output_tokens', 'N/A')}"
+            )
+
+        return response.output_text
+
+    except FileNotFoundError:
+        logger.error(f"AI_{context}_ERROR: Image file not found: {image_path}")
+        return None
+    except RateLimitError as e:
+        logger.error(f"AI_{context}_ERROR: Rate limit exceeded: {e}")
+        return None
+    except APITimeoutError as e:
+        logger.error(f"AI_{context}_ERROR: API request timed out: {e}")
+        return None
+    except APIConnectionError as e:
+        logger.error(f"AI_{context}_ERROR: Connection failed: {e}")
+        return None
+    except APIError as e:
+        logger.error(f"AI_{context}_ERROR: API error: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"AI_{context}_ERROR: Unexpected error analyzing image: {e}")
+        return None
 
 
 # =============================================================================

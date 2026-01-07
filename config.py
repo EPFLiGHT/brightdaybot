@@ -224,6 +224,8 @@ TOKEN_LIMITS = {
     "mention_response": 300,  # Responses to @-mentions
     "special_day_thread_response": 400,  # Responses to special day thread replies
     "date_parsing": 100,  # NLP date extraction from natural language
+    # Vision analysis
+    "profile_analysis": 100,  # Vision API profile photo element extraction
 }
 
 # Temperature settings for creativity control
@@ -406,6 +408,12 @@ MENTION_RATE_LIMIT_MAX = int(os.getenv("MENTION_RATE_LIMIT_MAX", "5"))  # reques
 # Enable LLM-based date parsing for natural language birthday input
 # Falls back to regex parsing first, uses LLM only when regex fails
 NLP_DATE_PARSING_ENABLED = os.getenv("NLP_DATE_PARSING_ENABLED", "false").lower() == "true"
+
+# ----- PROFILE ANALYSIS CONFIGURATION -----
+
+# Enable Vision API analysis of profile photos to extract visual elements
+# (bicycles, pets, logos, themes) for incorporation into birthday images
+PROFILE_ANALYSIS_ENABLED = os.getenv("PROFILE_ANALYSIS_ENABLED", "true").lower() == "true"
 
 # ----- DEFAULT VALUES -----
 

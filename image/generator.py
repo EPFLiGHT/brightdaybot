@@ -10,7 +10,9 @@ Uses OpenAI API, PIL for processing, with automatic cache management.
 
 import base64
 import glob
+import hashlib
 import io
+import json
 import os
 import random
 import re
@@ -26,11 +28,13 @@ from config import (
     DEFAULT_IMAGE_PERSONALITY,
     IMAGE_CLEANUP_PROBABILITY,
     IMAGE_GENERATION_PARAMS,
+    PROFILE_ANALYSIS_ENABLED,
     RETRY_LIMITS,
     TIMEOUTS,
+    TOKEN_LIMITS,
     get_logger,
 )
-from integrations.openai import get_openai_client, log_image_generation_usage
+from integrations.openai import analyze_image, get_openai_client, log_image_generation_usage
 
 logger = get_logger("image_generator")
 
@@ -120,6 +124,7 @@ def generate_birthday_image(
             use_reference_mode,
             date_str=date_str,
             birth_year=birth_year,
+            profile_photo_path=profile_photo_path,
         )
 
         # Determine quality and fidelity - allow override via quality parameter
@@ -203,6 +208,7 @@ def generate_birthday_image(
                             use_reference_mode=True,
                             date_str=date_str,
                             birth_year=birth_year,
+                            profile_photo_path=profile_photo_path,
                         )
                         continue  # Retry with modified prompt
                     else:
@@ -223,6 +229,7 @@ def generate_birthday_image(
                             False,
                             date_str=date_str,
                             birth_year=birth_year,
+                            profile_photo_path=None,  # No profile photo for text-only
                         )
                         break  # Exit retry loop
 
@@ -330,6 +337,7 @@ def create_image_prompt(
     use_reference_mode=False,
     date_str=None,
     birth_year=None,
+    profile_photo_path=None,
 ):
     """
     Create personality-specific prompts for OpenAI image generation with randomness for creativity
@@ -343,6 +351,7 @@ def create_image_prompt(
         use_reference_mode: Whether using reference photo (changes prompt style)
         date_str: Date string in DD/MM format for text overlay
         birth_year: Birth year for age calculation and display
+        profile_photo_path: Path to downloaded profile photo (for Vision analysis)
 
     Returns:
         String prompt for OpenAI image API (either edit or generate mode)
@@ -417,6 +426,16 @@ def create_image_prompt(
         message_context = " Incorporate elements that reflect the birthday announcement message's themes and personality."
         logger.info(f"IMAGE_PROMPT: Including message context for {name}")
 
+    # Analyze profile photo to extract visual elements for incorporation
+    profile_elements = ""
+    if use_reference_mode and profile_photo_path and user_profile:
+        analyzed_elements = _analyze_profile_photo(profile_photo_path, user_profile, name)
+        if analyzed_elements:
+            profile_elements = (
+                f" Incorporate visual elements from their profile: {analyzed_elements}."
+            )
+            logger.info(f"IMAGE_PROMPT: Including profile elements for {name}")
+
     # Get image prompt from centralized configuration
     from personality_config import get_personality_config
 
@@ -466,6 +485,7 @@ def create_image_prompt(
             date_display=date_display,
             age_display=age_display,
             date_age_text=date_age_text,
+            profile_elements=profile_elements,
         )
     except KeyError as e:
         logger.warning(f"IMAGE_PROMPT: Template formatting issue for {name}: {e}")
@@ -540,6 +560,117 @@ def _is_default_avatar(user_profile, photo_url):
         return True
 
     return False
+
+
+def _get_profile_analysis_cache_path(user_id: str) -> str:
+    """Get the cache file path for profile analysis results."""
+    profiles_dir = os.path.join(CACHE_DIR, "profiles")
+    os.makedirs(profiles_dir, exist_ok=True)
+    return os.path.join(profiles_dir, f"analysis_{user_id}.json")
+
+
+def _analyze_profile_photo(photo_path: str, user_profile: dict, name: str) -> str:
+    """
+    Analyze profile photo using Vision API to extract visual elements.
+
+    Uses caching based on photo URL hash to avoid re-analyzing unchanged photos.
+
+    Args:
+        photo_path: Path to the downloaded profile photo
+        user_profile: User profile dictionary (contains user_id and photo URLs)
+        name: User's name for logging
+
+    Returns:
+        Comma-separated string of visual elements, or empty string if analysis fails/disabled
+    """
+    if not PROFILE_ANALYSIS_ENABLED:
+        logger.debug(f"PROFILE_ANALYSIS: Disabled, skipping for {name}")
+        return ""
+
+    if not photo_path or not os.path.exists(photo_path):
+        logger.debug(f"PROFILE_ANALYSIS: No photo path for {name}")
+        return ""
+
+    user_id = user_profile.get("user_id", "")
+    if not user_id:
+        logger.warning(f"PROFILE_ANALYSIS: No user_id for {name}, skipping cache")
+        user_id = hashlib.md5(name.encode()).hexdigest()[:8]
+
+    # Get photo URL for cache invalidation
+    photo_url = (
+        user_profile.get("photo_original")
+        or user_profile.get("photo_512")
+        or user_profile.get("photo_192")
+        or ""
+    )
+    url_hash = hashlib.md5(photo_url.encode()).hexdigest()[:12] if photo_url else ""
+
+    # Check cache
+    cache_path = _get_profile_analysis_cache_path(user_id)
+    if os.path.exists(cache_path):
+        try:
+            with open(cache_path, "r") as f:
+                cached = json.load(f)
+            # Validate cache by URL hash
+            if cached.get("url_hash") == url_hash and cached.get("elements"):
+                logger.info(
+                    f"PROFILE_ANALYSIS: Using cached analysis for {name}: {cached['elements'][:50]}..."
+                )
+                return cached["elements"]
+            else:
+                logger.info(
+                    f"PROFILE_ANALYSIS: Cache invalid for {name} (photo changed), re-analyzing"
+                )
+        except Exception as e:
+            logger.warning(f"PROFILE_ANALYSIS: Failed to read cache for {name}: {e}")
+
+    # Perform Vision API analysis
+    try:
+        prompt = (
+            "Briefly describe the main visual elements in this image in 2-3 phrases. "
+            "Focus on: objects, animals, themes, colors, activities. "
+            "If it's a person, mention distinctive features (glasses, hat, etc). "
+            "Format: comma-separated list. Example: 'golden retriever, beach setting, sunset colors'. "
+            "Keep it under 50 words."
+        )
+
+        logger.info(f"PROFILE_ANALYSIS: Analyzing profile photo for {name}")
+
+        elements = analyze_image(
+            image_path=photo_path,
+            prompt=prompt,
+            max_tokens=TOKEN_LIMITS.get("profile_analysis", 100),
+            context="PROFILE_ANALYSIS",
+        )
+
+        if elements:
+            # Clean up the response (remove quotes, extra whitespace)
+            elements = elements.strip().strip("\"'")
+            logger.info(f"PROFILE_ANALYSIS: Extracted elements for {name}: {elements[:80]}...")
+
+            # Cache the result
+            try:
+                cache_data = {
+                    "url_hash": url_hash,
+                    "elements": elements,
+                    "analyzed_at": datetime.now().isoformat(),
+                }
+                with open(cache_path, "w") as f:
+                    json.dump(cache_data, f)
+                logger.debug(f"PROFILE_ANALYSIS: Cached analysis for {name}")
+            except Exception as cache_error:
+                logger.warning(
+                    f"PROFILE_ANALYSIS: Failed to cache analysis for {name}: {cache_error}"
+                )
+
+            return elements
+        else:
+            logger.warning(f"PROFILE_ANALYSIS: Vision API returned empty result for {name}")
+            return ""
+
+    except Exception as e:
+        logger.error(f"PROFILE_ANALYSIS_ERROR: Failed to analyze photo for {name}: {e}")
+        return ""
 
 
 def download_and_prepare_profile_photo(user_profile, name):
