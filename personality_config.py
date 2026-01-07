@@ -106,7 +106,7 @@ BRIGHTDAY'S GROUP CELEBRATION TIPS:
         # Birthday facts integration
         "birthday_facts_text": "You MUST include at least 1-2 specific historical facts (with years and names) from these events in your message: {facts}",
         # Image generation prompts
-        "image_prompt": "A vibrant, dynamic birthday celebration scene in colorful digital illustration style. {name}{title_context}{multiple_context} celebrates with "
+        "image_prompt": "A vibrant, dynamic birthday celebration scene in colorful digital illustration style. {name}{title_context} celebrates with "
         + LUDO_DESCRIPTION
         + " wearing a colorful party hat with streamers.{face_context}\n\n"
         + 'VISUAL TEXT: Include "{name}\'s Birthday" in playful, colorful balloon-letter typography floating above the scene{date_age_text}. The text should be festive and eye-catching.\n\n'
@@ -174,7 +174,7 @@ LUDO'S SPECIAL CONSOLIDATED POWERS:
         # Birthday facts integration
         "birthday_facts_text": "You MUST include at least 1-2 specific cosmic/scientific discoveries (with years and names) from these events in your mystical message: {facts}",
         # Image generation prompts
-        "image_prompt": "A mystical cosmic birthday celebration scene in ethereal fantasy art style. {name}{title_context}{multiple_context} celebrates with "
+        "image_prompt": "A mystical cosmic birthday celebration scene in ethereal fantasy art style. {name}{title_context} celebrates with "
         + LUDO_DESCRIPTION
         + " wearing an ornate starry wizard hat adorned with glowing crystals.{face_context}\n\n"
         + 'VISUAL TEXT: Include "{name}\'s Birthday" in glowing mystical golden runes floating ethereally above the scene{date_age_text}. The text should shimmer with cosmic energy and stardust particles.\n\n'
@@ -266,7 +266,7 @@ THE VERSE-ATILE'S COMPOSITION GUIDELINES:
         # Birthday facts integration
         "birthday_facts_text": "You MUST weave at least 1-2 specific literary/artistic events (with years and names) from these facts into your poem: {facts}",
         # Image generation prompts
-        "image_prompt": "An elegant literary birthday celebration scene in romantic watercolor illustration style. {name}{title_context}{multiple_context} celebrates with "
+        "image_prompt": "An elegant literary birthday celebration scene in romantic watercolor illustration style. {name}{title_context} celebrates with "
         + LUDO_DESCRIPTION
         + " wearing a stylish velvet beret and a silk scarf.{face_context}\n\n"
         + 'VISUAL TEXT: Include "{name}\'s Birthday" in elegant flowing calligraphy script, as if written by a quill pen{date_age_text}. The text should appear on a floating parchment ribbon with flourishes and ink splatters.\n\n'
@@ -337,7 +337,7 @@ TECHBOT 3000'S SYSTEM ARCHITECTURE:
         # Birthday facts integration
         "birthday_facts_text": "You MUST include at least 1-2 specific tech breakthroughs (with years and names) from these events in your message: {facts}",
         # Image generation prompts
-        "image_prompt": "A high-tech cyberpunk birthday celebration scene in neon-lit digital art style. {name}{title_context}{multiple_context} celebrates with "
+        "image_prompt": "A high-tech cyberpunk birthday celebration scene in neon-lit digital art style. {name}{title_context} celebrates with "
         + LUDO_DESCRIPTION
         + " wearing sleek futuristic VR goggles with holographic displays.{face_context}\n\n"
         + 'VISUAL TEXT: Include "{name}\'s Birthday" as a holographic neon display floating in 3D space, with code-like glowing characters{date_age_text}. The text should flicker with digital effects and matrix-style trailing characters.\n\n'
@@ -405,7 +405,7 @@ CHEF CONFETTI'S KITCHEN COORDINATION:
         # Birthday facts integration
         "birthday_facts_text": "You MUST include at least 1-2 specific culinary events (with years and names) from these facts in your message: {facts}",
         # Image generation prompts
-        "image_prompt": "A gourmet culinary birthday celebration scene in rich food photography style. {name}{title_context}{multiple_context} celebrates with "
+        "image_prompt": "A gourmet culinary birthday celebration scene in rich food photography style. {name}{title_context} celebrates with "
         + LUDO_DESCRIPTION
         + " wearing a tall white chef's toque and a flour-dusted apron.{face_context}\n\n"
         + 'VISUAL TEXT: Include "{name}\'s Birthday" written in elegant piped frosting or chocolate script on a decorative cake layer or pastry banner{date_age_text}. The text should look delicious and edible with sugar pearls or gold leaf accents.\n\n'
@@ -475,7 +475,7 @@ CAPTAIN CELEBRATION'S TEAM PROTOCOLS:
         # Birthday facts integration
         "birthday_facts_text": "You MUST include at least 1-2 specific heroic achievements (with years and names) from these events in your message: {facts}",
         # Image generation prompts
-        "image_prompt": "An epic superhero birthday celebration scene in dynamic comic book art style. {name}{title_context}{multiple_context} celebrates with "
+        "image_prompt": "An epic superhero birthday celebration scene in dynamic comic book art style. {name}{title_context} celebrates with "
         + LUDO_DESCRIPTION
         + " wearing a flowing red cape with golden trim and a heroic mask.{face_context}\n\n"
         + 'VISUAL TEXT: Include "{name}\'s Birthday" in bold comic book action lettering with 3D depth and explosive effects{date_age_text}. The text should burst with energy like a POW! or KAPOW! effect, with speed lines radiating outward.\n\n'
@@ -545,7 +545,7 @@ CHRONO'S TIMELINE ANALYSIS:
         # Birthday facts integration
         "birthday_facts_text": "You MUST include at least 1-2 specific historical events (with years and names) from these facts in your temporal message: {facts}",
         # Image generation prompts
-        "image_prompt": "A mind-bending time-travel birthday celebration scene in stunning sci-fi concept art style. {name}{title_context}{multiple_context} celebrates with "
+        "image_prompt": "A mind-bending time-travel birthday celebration scene in stunning sci-fi concept art style. {name}{title_context} celebrates with "
         + LUDO_DESCRIPTION
         + " wearing ornate steampunk goggles pushed up on head and a collar with glowing time circuits and spinning gears.{face_context}\n\n"
         + 'VISUAL TEXT: Include "{name}\'s Birthday" in futuristic holographic text or time-portal energy letters{date_age_text}. The text should shimmer with temporal distortion effects, partially phasing between different time periods.\n\n'
@@ -615,7 +615,7 @@ CAPTAIN BIRTHDAYBEARD'S CREW INSTRUCTIONS:
         # Birthday facts integration
         "birthday_facts_text": "You MUST include at least 1-2 specific maritime/exploration events (with years and names) from these facts in your message: {facts}",
         # Image generation prompts
-        "image_prompt": "A swashbuckling pirate birthday adventure scene in rich adventure illustration style. {name}{title_context}{multiple_context} celebrates with "
+        "image_prompt": "A swashbuckling pirate birthday adventure scene in rich adventure illustration style. {name}{title_context} celebrates with "
         + LUDO_DESCRIPTION
         + " wearing a weathered black tricorn hat with a birthday feather, an eyepatch, and a tiny golden earring.{face_context}\n\n"
         + 'VISUAL TEXT: Include "{name}\'s Birthday" written on a weathered treasure map banner or carved into driftwood{date_age_text}. The text should look hand-drawn with nautical flourishes, skull motifs, and crossed bones as decorations.\n\n'
@@ -684,7 +684,7 @@ BLOOM'S GARDEN GATHERING:
         # Birthday facts integration
         "birthday_facts_text": "You MUST include at least 1-2 specific botanical/environmental events (with years and names) from these facts in your message: {facts}",
         # Image generation prompts
-        "image_prompt": "An enchanting garden birthday celebration scene in lush botanical illustration style. {name}{title_context}{multiple_context} celebrates with "
+        "image_prompt": "An enchanting garden birthday celebration scene in lush botanical illustration style. {name}{title_context} celebrates with "
         + LUDO_DESCRIPTION
         + " wearing a wide-brimmed straw sun hat adorned with fresh flowers and gardening gloves.{face_context}\n\n"
         + 'VISUAL TEXT: Include "{name}\'s Birthday" in elegant floral vine typography, with letters formed from intertwining stems, leaves, and blooming flowers{date_age_text}. The text should look organically grown with tiny butterflies and bees around it.\n\n'
@@ -753,7 +753,7 @@ THE SAGE'S SYMPOSIUM:
         # Birthday facts integration
         "birthday_facts_text": "You MUST include at least 1-2 specific philosophical/intellectual events (with years and names) from these facts in your message: {facts}",
         # Image generation prompts
-        "image_prompt": "A contemplative birthday celebration scene in classical art style. {name}{title_context}{multiple_context} celebrates with "
+        "image_prompt": "A contemplative birthday celebration scene in classical art style. {name}{title_context} celebrates with "
         + LUDO_DESCRIPTION
         + " wearing scholarly robes and perhaps small spectacles, with an expression of gentle wisdom.{face_context}\n\n"
         + 'VISUAL TEXT: Include "{name}\'s Birthday" in elegant classical serif typography, perhaps on a floating scroll or ancient book{date_age_text}. The text should appear as if inscribed in gold leaf or written by candlelight.\n\n'
@@ -1006,9 +1006,9 @@ CHRONICLER'S MULTI-DAY WEAVING:
         # Birthday facts integration (keeping for compatibility, though Chronicler is for special days)
         "birthday_facts_text": "You MUST include at least 1-2 specific historical events (with years and names) from these facts in your message: {facts}",
         # Image generation prompts (dual-purpose: birthdays and special days)
-        # For birthdays: uses {name}, {title_context}, {multiple_context}, {face_context}, {message_context}
+        # For birthdays: uses {name}, {title_context}, {face_context}, {message_context}
         # For special days: uses {day_name}, {category}
-        "image_prompt": "A dignified historical birthday commemoration scene in classic illuminated manuscript art style. {name}{title_context}{multiple_context} celebrates a birthday milestone with "
+        "image_prompt": "A dignified historical birthday commemoration scene in classic illuminated manuscript art style. {name}{title_context} celebrates a birthday milestone with "
         + LUDO_DESCRIPTION
         + " wearing small round reading glasses and a scholar's cap.{face_context}\n\n"
         + 'VISUAL TEXT: Include "{name}\'s Birthday" in illuminated manuscript lettering with gold leaf and decorative borders{date_age_text}. The text should appear on an ornate scroll or within an elaborate initial letter, with medieval-style flourishes.\n\n'
@@ -1040,7 +1040,7 @@ CHRONICLER'S MULTI-DAY WEAVING:
         "template_extension": "Create a personalized birthday message with your own style and format.",
         "consolidated_prompt": "",
         "birthday_facts_text": "You MUST include at least 1-2 specific historical facts (with years and names) from these events in your message: {facts}",
-        "image_prompt": "A personalized birthday celebration where {name}{title_context}{multiple_context} celebrates with "
+        "image_prompt": "A personalized birthday celebration where {name}{title_context} celebrates with "
         + LUDO_DESCRIPTION
         + ".{face_context} Custom celebration scene with birthday cake, decorations, and festive atmosphere tailored to the custom personality style. Ludo participates in the celebration with joy and enthusiasm. Add creative party elements.{message_context} Bright, celebratory colors.",
         "image_title_prompt": "Create a personalized, creative title for {name}'s{title_context} unique birthday celebration. IMPORTANT: Always include {name} prominently in the title. Make it fun and memorable.{multiple_context} Examples: '{name}'s Amazing Birthday Adventure', 'Special Day for {name}', '{name} Unlocks Another Year of Awesome'",

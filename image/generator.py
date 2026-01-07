@@ -350,12 +350,6 @@ def create_image_prompt(
     # Include job title context if available
     title_context = f", who works as a {title}" if title else ""
 
-    # Handle multiple birthday people in prompts
-    if " and " in name or " , " in name:
-        multiple_context = " This is a special shared birthday celebration with multiple people celebrating together."
-    else:
-        multiple_context = ""
-
     # Create date and age display text for image overlays
     date_display = ""
     age_display = ""
@@ -467,7 +461,6 @@ def create_image_prompt(
         formatted_prompt = prompt_template.format(
             name=name,
             title_context=title_context,
-            multiple_context=multiple_context,
             face_context=face_context,
             message_context=message_context,
             date_display=date_display,
