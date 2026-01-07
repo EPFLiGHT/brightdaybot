@@ -276,7 +276,8 @@ class TestAppHomeViewBuilding:
 
         with patch("handlers.app_home.load_birthdays", return_value={}):
             with patch("handlers.app_home.get_username", return_value="TestUser"):
-                view = _build_home_view("U123", mock_app)
+                with patch("slack.client.get_channel_members", return_value=["U123"]):
+                    view = _build_home_view("U123", mock_app)
 
         assert view["type"] == "home"
         assert "blocks" in view
@@ -289,7 +290,8 @@ class TestAppHomeViewBuilding:
 
         with patch("handlers.app_home.load_birthdays", return_value={}):
             with patch("handlers.app_home.get_username", return_value="TestUser"):
-                view = _build_home_view("U123", mock_app)
+                with patch("slack.client.get_channel_members", return_value=["U123"]):
+                    view = _build_home_view("U123", mock_app)
 
         header_blocks = [b for b in view["blocks"] if b.get("type") == "header"]
         assert len(header_blocks) >= 1
@@ -302,7 +304,8 @@ class TestAppHomeViewBuilding:
 
         with patch("handlers.app_home.load_birthdays", return_value={}):
             with patch("handlers.app_home.get_username", return_value="TestUser"):
-                view = _build_home_view("U123", mock_app)
+                with patch("slack.client.get_channel_members", return_value=["U123"]):
+                    view = _build_home_view("U123", mock_app)
 
         action_blocks = [b for b in view["blocks"] if b.get("type") == "actions"]
         assert len(action_blocks) >= 1
@@ -327,7 +330,8 @@ class TestAppHomeViewBuilding:
                 return_value={"active": True, "image_enabled": True, "show_age": True},
             ):
                 with patch("handlers.app_home.get_username", return_value="TestUser"):
-                    view = _build_home_view("U123", mock_app)
+                    with patch("slack.client.get_channel_members", return_value=["U123"]):
+                        view = _build_home_view("U123", mock_app)
 
         action_blocks = [b for b in view["blocks"] if b.get("type") == "actions"]
         assert len(action_blocks) >= 1
@@ -353,12 +357,17 @@ class TestUpcomingBirthdaysFiltering:
             f"U{i}": mock_birthday_data(date=f"{10+i:02d}/01", year=1990) for i in range(10)
         }
 
+        # Mock channel members to include all test users
+        channel_members = [f"U{i}" for i in range(10)]
+
         with patch("handlers.app_home.get_username", return_value="User"):
-            with patch(
-                "handlers.app_home.calculate_days_until_birthday",
-                side_effect=lambda d, r: datetime.strptime(d, "%d/%m").day,
-            ):
-                result = _get_upcoming_birthdays(birthdays, mock_app, limit=5)
+            with patch("slack.client.get_channel_members", return_value=channel_members):
+                with patch("storage.birthdays.is_user_active", return_value=True):
+                    with patch(
+                        "handlers.app_home.calculate_days_until_birthday",
+                        side_effect=lambda d, r: datetime.strptime(d, "%d/%m").day,
+                    ):
+                        result = _get_upcoming_birthdays(birthdays, mock_app, limit=5)
 
         assert len(result) <= 5
 
@@ -374,12 +383,64 @@ class TestUpcomingBirthdaysFiltering:
         }
 
         with patch("handlers.app_home.get_username", return_value="User"):
-            with patch(
-                "handlers.app_home.calculate_days_until_birthday",
-                side_effect=[5, 40],
-            ):
-                result = _get_upcoming_birthdays(birthdays, mock_app, limit=10)
+            with patch("slack.client.get_channel_members", return_value=["U1", "U2"]):
+                with patch("storage.birthdays.is_user_active", return_value=True):
+                    with patch(
+                        "handlers.app_home.calculate_days_until_birthday",
+                        side_effect=[5, 40],
+                    ):
+                        result = _get_upcoming_birthdays(birthdays, mock_app, limit=10)
 
         assert len(result) == 2
         assert result[0]["user_id"] == "U1"  # Sorted by days_until
         assert result[1]["user_id"] == "U2"
+
+    def test_get_upcoming_birthdays_filters_non_channel_members(self, mock_birthday_data):
+        """Users not in channel are excluded from upcoming birthdays"""
+        from handlers.app_home import _get_upcoming_birthdays
+
+        mock_app = MagicMock()
+
+        birthdays = {
+            "U1": mock_birthday_data(date="01/01", year=1990),
+            "U2": mock_birthday_data(date="02/01", year=1985),  # Not in channel
+        }
+
+        # Only U1 is in the channel
+        with patch("handlers.app_home.get_username", return_value="User"):
+            with patch("slack.client.get_channel_members", return_value=["U1"]):
+                with patch("storage.birthdays.is_user_active", return_value=True):
+                    with patch(
+                        "handlers.app_home.calculate_days_until_birthday",
+                        return_value=5,
+                    ):
+                        result = _get_upcoming_birthdays(birthdays, mock_app, limit=10)
+
+        assert len(result) == 1
+        assert result[0]["user_id"] == "U1"
+
+    def test_get_upcoming_birthdays_filters_paused_users(self, mock_birthday_data):
+        """Users with paused celebrations are excluded from upcoming birthdays"""
+        from handlers.app_home import _get_upcoming_birthdays
+
+        mock_app = MagicMock()
+
+        birthdays = {
+            "U1": mock_birthday_data(date="01/01", year=1990, active=True),
+            "U2": mock_birthday_data(date="02/01", year=1985, active=False),  # Paused
+        }
+
+        def is_active_side_effect(user_id, data):
+            return data.get("preferences", {}).get("active", True)
+
+        with patch("handlers.app_home.get_username", return_value="User"):
+            with patch("slack.client.get_channel_members", return_value=["U1", "U2"]):
+                with patch("storage.birthdays.is_user_active", side_effect=is_active_side_effect):
+                    with patch(
+                        "handlers.app_home.calculate_days_until_birthday",
+                        return_value=5,
+                    ):
+                        result = _get_upcoming_birthdays(birthdays, mock_app, limit=10)
+
+        assert len(result) == 1
+        assert result[0]["user_id"] == "U1"
