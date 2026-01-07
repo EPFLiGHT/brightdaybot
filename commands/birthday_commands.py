@@ -27,7 +27,7 @@ from slack.client import (
     get_username,
     send_message,
 )
-from storage.birthdays import load_birthdays, mark_birthday_announced
+from storage.birthdays import is_user_active, load_birthdays, mark_birthday_announced
 from utils.date import (
     calculate_age,
     calculate_days_until_birthday,
@@ -179,6 +179,23 @@ def handle_list_command(parts, user_id, say, app):
         say("No birthdays saved yet!")
         return
 
+    # Get channel members for validation (only show users in birthday channel with active celebrations)
+    channel_members = get_channel_members(app, BIRTHDAY_CHANNEL)
+    channel_member_set = set(channel_members) if channel_members else set()
+
+    # Filter to only validated users
+    validated_birthdays = {
+        uid: data
+        for uid, data in birthdays.items()
+        if uid in channel_member_set and is_user_active(uid, data)
+    }
+
+    if not validated_birthdays:
+        say(
+            "No active birthdays to display. Users may have paused celebrations or left the channel."
+        )
+        return
+
     # Use consistent UTC reference date for all calculations
     reference_date = datetime.now(timezone.utc)
     logger.info(f"LIST: Using reference date {reference_date.strftime('%Y-%m-%d')} (UTC)")
@@ -189,7 +206,7 @@ def handle_list_command(parts, user_id, say, app):
     # Convert to list for formatting
     birthday_list = []
 
-    for bday_user_id, data in birthdays.items():
+    for bday_user_id, data in validated_birthdays.items():
         bdate = data["date"]
         birth_year = data.get("year")
 
@@ -340,7 +357,7 @@ def handle_list_command(parts, user_id, say, app):
         blocks, fallback = build_birthday_list_blocks(
             birthdays=formatted_birthdays,
             list_type="all",
-            total_count=len(birthdays),  # Total birthdays loaded from file
+            total_count=len(validated_birthdays),  # Total validated birthdays
         )
     else:
         # For "list" command, format as (user_mention, date_words, age_text, days_text)
@@ -362,7 +379,7 @@ def handle_list_command(parts, user_id, say, app):
         blocks, fallback = build_birthday_list_blocks(
             birthdays=formatted_birthdays,
             list_type="upcoming",
-            total_count=len(birthdays),  # Total birthdays loaded from file
+            total_count=len(validated_birthdays),  # Total validated birthdays
             current_utc=current_utc,
         )
 

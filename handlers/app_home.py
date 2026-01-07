@@ -330,11 +330,27 @@ def _build_home_view(user_id, app):
 
 
 def _get_upcoming_birthdays(birthdays, app, limit=APP_HOME_UPCOMING_BIRTHDAYS_LIMIT):
-    """Get list of upcoming birthdays."""
+    """Get list of upcoming birthdays for validated users only."""
+    from config import BIRTHDAY_CHANNEL
+    from slack.client import get_channel_members
+    from storage.birthdays import is_user_active
+
     reference_date = datetime.now(timezone.utc)
     upcoming = []
 
+    # Get channel members once for validation
+    channel_members = get_channel_members(app, BIRTHDAY_CHANNEL)
+    channel_member_set = set(channel_members) if channel_members else set()
+
     for user_id, data in birthdays.items():
+        # Skip users not in birthday channel
+        if user_id not in channel_member_set:
+            continue
+
+        # Skip users with paused celebrations
+        if not is_user_active(user_id, data):
+            continue
+
         days = calculate_days_until_birthday(data["date"], reference_date)
         if days is not None:
             upcoming.append(
