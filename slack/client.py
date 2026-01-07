@@ -73,6 +73,9 @@ def get_user_profile(app, user_id):
             "photo_192": profile.get("image_192", ""),
             "photo_512": profile.get("image_512", ""),  # High resolution
             "photo_original": profile.get("image_original", ""),
+            "is_custom_image": profile.get(
+                "is_custom_image", False
+            ),  # True if user has custom photo
             "status_text": profile.get("status_text", ""),
             "status_emoji": profile.get("status_emoji", ""),
             "pronouns": profile.get("pronouns", ""),

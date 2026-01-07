@@ -501,6 +501,47 @@ def download_image(image_url):
         return None
 
 
+def _is_default_avatar(user_profile, photo_url):
+    """
+    Check if a user has a default/placeholder avatar (not a custom photo).
+
+    Uses Slack's is_custom_image field first, falls back to URL pattern matching.
+
+    Args:
+        user_profile: User profile dictionary (may contain is_custom_image)
+        photo_url: URL to check as fallback
+
+    Returns:
+        True if using default avatar, False if user has custom photo
+    """
+    # Primary check: Slack API's is_custom_image field (most reliable)
+    if user_profile and "is_custom_image" in user_profile:
+        is_custom = user_profile.get("is_custom_image", False)
+        if not is_custom:
+            return True  # Default avatar
+        return False  # Custom photo
+
+    # Fallback: URL pattern matching (for cached profiles without the field)
+    if not photo_url:
+        return True
+
+    url_lower = photo_url.lower()
+
+    # Slack default avatar pattern: contains /avatars/ava_
+    if "/avatars/ava_" in url_lower:
+        return True
+
+    # Gravatar with Slack default fallback in d= parameter
+    if "gravatar.com" in url_lower and "slack-edge.com" in url_lower:
+        return True
+
+    # URL encoded version
+    if "gravatar.com" in url_lower and "slack-edge.com" in photo_url:
+        return True
+
+    return False
+
+
 def download_and_prepare_profile_photo(user_profile, name):
     """
     Download user's profile photo and prepare it for OpenAI image API reference.
@@ -525,6 +566,13 @@ def download_and_prepare_profile_photo(user_profile, name):
 
         if not photo_url:
             logger.info(f"PROFILE_PHOTO: No profile photo available for {name}")
+            return None
+
+        # Check if this is a default avatar (not a real profile photo)
+        if _is_default_avatar(user_profile, photo_url):
+            logger.info(
+                f"PROFILE_PHOTO: Detected default avatar for {name}, skipping reference mode"
+            )
             return None
 
         # Use user_id for cache key to avoid duplicates
