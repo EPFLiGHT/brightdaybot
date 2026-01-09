@@ -233,7 +233,7 @@ def handle_list_command(parts, user_id, say, app):
         # Adjust for year boundary (approximate)
         current_month = reference_date.month
         current_day = reference_date.day
-        if month < current_month or (month == current_month and day <= current_day):
+        if month < current_month or (month == current_month and day < current_day):
             approximate_sort_key += 1300  # Push to next year approximation
 
         birthday_list.append(
