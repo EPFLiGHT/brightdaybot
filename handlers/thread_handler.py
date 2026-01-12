@@ -105,12 +105,6 @@ def handle_thread_reply(
         logger.debug(f"THREAD_HANDLER: Thread {thread_ts} not tracked, ignoring")
         return result
 
-    # Don't react to birthday person's own messages (let others celebrate them)
-    # Only applies to birthday threads
-    if tracked.is_birthday_thread() and user_id in tracked.birthday_people:
-        logger.debug(f"THREAD_HANDLER: Ignoring message from birthday person {user_id}")
-        return result
-
     # Add reaction to the reply
     reaction = get_reaction_for_message(text)
     try:

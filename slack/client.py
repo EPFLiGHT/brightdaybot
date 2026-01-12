@@ -58,6 +58,7 @@ def get_user_profile(app, user_id):
 
         # Extract comprehensive profile data
         user_profile = {
+            "user_id": user_id,
             "display_name": profile.get("display_name", ""),
             "real_name": profile.get("real_name", ""),
             "title": profile.get("title", ""),  # Job title
