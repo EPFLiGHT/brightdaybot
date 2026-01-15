@@ -79,6 +79,7 @@ class BirthdayCelebrationPipeline:
         self.app = app
         self.birthday_channel = birthday_channel or BIRTHDAY_CHANNEL
         self.mode = mode.upper()
+        logger.debug(f"CELEBRATION_PIPELINE: Initialized in {self.mode} mode")
 
     def celebrate(
         self,

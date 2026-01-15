@@ -75,10 +75,10 @@ def register_modal_handlers(app):
         selected_values = [opt.get("value") for opt in selected_options]
 
         # Preserve existing pause state if user has one
-        from storage.birthdays import get_user_preferences
+        from storage.birthdays import DEFAULT_PREFERENCES, get_user_preferences
 
         existing_prefs = get_user_preferences(user_id) or {}
-        existing_active = existing_prefs.get("active", True)
+        existing_active = existing_prefs.get("active", DEFAULT_PREFERENCES["active"])
 
         # Build preferences dict (preserve active state from pause/resume commands)
         preferences = {

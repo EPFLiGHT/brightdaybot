@@ -112,11 +112,13 @@ def _build_home_view(user_id, app):
 
         blocks.append({"type": "section", "fields": fields})
 
-        # Get and display preferences
+        # Get and display preferences (use centralized defaults)
+        from storage.birthdays import DEFAULT_PREFERENCES
+
         prefs = get_user_preferences(user_id) or {}
-        is_active = prefs.get("active", True)
-        image_enabled = prefs.get("image_enabled", True)
-        show_age = prefs.get("show_age", True)
+        is_active = prefs.get("active", DEFAULT_PREFERENCES["active"])
+        image_enabled = prefs.get("image_enabled", DEFAULT_PREFERENCES["image_enabled"])
+        show_age = prefs.get("show_age", DEFAULT_PREFERENCES["show_age"])
 
         pref_items = []
         if is_active:

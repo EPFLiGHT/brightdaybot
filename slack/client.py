@@ -262,6 +262,9 @@ def get_user_status_and_info(app, user_id):
                         entries_to_remove = sorted_entries[: USERNAME_CACHE_MAX_SIZE // 4]
                         for key, _ in entries_to_remove:
                             del username_cache[key]
+                        logger.info(
+                            f"CACHE: Cleaned up {len(entries_to_remove)} old username cache entries"
+                        )
                     username_cache[user_id] = (username, datetime.now())
 
             return is_active, is_bot, is_deleted, username

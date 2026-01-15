@@ -32,6 +32,7 @@ from config import (
 from integrations.openai import complete
 from integrations.web_search import get_birthday_facts
 from slack.client import fix_slack_formatting, get_user_mention
+from storage.birthdays import DEFAULT_PREFERENCES
 from storage.settings import (
     get_current_personality_name,
     load_recent_personalities,
@@ -610,7 +611,7 @@ def _generate_birthday_message(
                 """Generate image for a single person (used in parallel execution)."""
                 # Check user preference for image generation
                 prefs = person.get("preferences", {})
-                if not prefs.get("image_enabled", True):
+                if not prefs.get("image_enabled", DEFAULT_PREFERENCES["image_enabled"]):
                     logger.info(
                         f"IMAGE: Skipping image for {person['username']} - user has disabled images"
                     )
@@ -727,7 +728,7 @@ def _build_single_birthday_prompt(
 
     # Check user preferences for show_age
     prefs = person.get("preferences", {})
-    show_age = prefs.get("show_age", True)
+    show_age = prefs.get("show_age", DEFAULT_PREFERENCES["show_age"])
 
     # Star sign
     star_sign = get_star_sign(birth_date) if birth_date else None
@@ -814,7 +815,7 @@ def _build_consolidated_birthday_prompt(
 
         # Check user preferences for show_age
         prefs = person.get("preferences", {})
-        show_age = prefs.get("show_age", True)
+        show_age = prefs.get("show_age", DEFAULT_PREFERENCES["show_age"])
 
         age_info = ""
         if person.get("year") and show_age:

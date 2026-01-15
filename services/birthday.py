@@ -21,6 +21,7 @@ from config import (
     BOT_USER_ID,
     DAILY_CHECK_TIME,
     IMAGE_GENERATION_PARAMS,
+    SPECIAL_DAY_THREAD_ENABLED,
     TIMEZONE_CELEBRATION_TIME,
     get_logger,
 )
@@ -405,7 +406,7 @@ def check_and_announce_special_days(app, moment):
 
                         # Track thread for engagement (respond to replies)
                         message_ts = result.get("ts")
-                        if message_ts:
+                        if message_ts and SPECIAL_DAY_THREAD_ENABLED:
                             try:
                                 from utils.thread_tracking import get_thread_tracker
 
