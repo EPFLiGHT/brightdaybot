@@ -328,6 +328,30 @@ SPECIAL_DAYS_CATEGORIES = [
     "Company",
 ]
 
+# Keywords for category classification (minimal set covering ~90% of cases)
+HEALTH_CATEGORY_KEYWORDS = (
+    "health",
+    "disease",
+    "cancer",
+    "medical",
+    "vaccine",
+    "mental",
+    "aids",
+    "hiv",
+    "tuberculosis",
+    "diabetes",
+)
+TECH_CATEGORY_KEYWORDS = (
+    "internet",
+    "digital",
+    "cyber",
+    "technology",
+    "computer",
+    "telecom",
+    "science",
+    "space",
+)
+
 # File paths for special days data
 SPECIAL_DAYS_JSON_FILE = os.path.join(STORAGE_DIR, "special_days.json")
 SPECIAL_DAYS_CONFIG_FILE = os.path.join(STORAGE_DIR, "special_days_config.json")

@@ -21,8 +21,8 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
+from config import HEALTH_CATEGORY_KEYWORDS, TECH_CATEGORY_KEYWORDS
 from storage.special_days import SpecialDay
-from utils.keywords import HEALTH_KEYWORDS, TECH_KEYWORDS
 from utils.log_setup import get_logger
 
 logger = get_logger("special_days")
@@ -437,20 +437,19 @@ class ObservanceScraperBase(ABC):
         return observances
 
     def _map_category(self, name: str) -> str:
-        """Map observance name to category based on keywords."""
+        """Map observance name to category based on source and keywords."""
+        # WHO source is always health-related
+        if self.SOURCE_NAME == "WHO":
+            return "Global Health"
+
         name_lower = name.lower()
 
-        # Check health keywords (priority 1)
-        for keyword in HEALTH_KEYWORDS:
-            if keyword in name_lower:
-                return "Global Health"
+        if any(term in name_lower for term in HEALTH_CATEGORY_KEYWORDS):
+            return "Global Health"
 
-        # Check tech keywords (priority 2)
-        for keyword in TECH_KEYWORDS:
-            if keyword in name_lower:
-                return "Tech"
+        if any(term in name_lower for term in TECH_CATEGORY_KEYWORDS):
+            return "Tech"
 
-        # Default to Culture
         return "Culture"
 
     def _get_emoji_for_name(self, name: str) -> str:

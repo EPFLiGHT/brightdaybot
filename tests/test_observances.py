@@ -93,7 +93,7 @@ class TestUNESCOObservancesClient:
 
     def test_category_mapping(self, client):
         """Category keywords map correctly"""
-        assert client._map_category("World Logic Day") == "Tech"
+        assert client._map_category("Safer Internet Day") == "Tech"
         assert client._map_category("World Book Day") == "Culture"
         assert client._map_category("International Day of Education") == "Culture"
 

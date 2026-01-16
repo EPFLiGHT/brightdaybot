@@ -34,9 +34,10 @@ from config import (
     CALENDARIFIC_RATE_WARNING_THRESHOLD,
     CALENDARIFIC_STATE,
     CALENDARIFIC_STATS_FILE,
+    HEALTH_CATEGORY_KEYWORDS,
+    TECH_CATEGORY_KEYWORDS,
     TIMEOUTS,
 )
-from utils.keywords import HEALTH_KEYWORDS, TECH_KEYWORDS
 from utils.log_setup import get_logger
 
 logger = get_logger("calendarific")
@@ -331,13 +332,11 @@ class CalendarificClient:
         description = holiday.get("description", "").lower()
         combined = f"{name} {description}"
 
-        for keyword in HEALTH_KEYWORDS:
-            if keyword in combined:
-                return "Global Health"
+        if any(term in combined for term in HEALTH_CATEGORY_KEYWORDS):
+            return "Global Health"
 
-        for keyword in TECH_KEYWORDS:
-            if keyword in combined:
-                return "Tech"
+        if any(term in combined for term in TECH_CATEGORY_KEYWORDS):
+            return "Tech"
 
         return "Culture"
 
