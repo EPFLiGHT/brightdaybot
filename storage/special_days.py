@@ -9,7 +9,7 @@ import json
 import os
 import re
 import shutil
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
 from filelock import FileLock
@@ -403,7 +403,7 @@ def get_todays_special_days() -> List[SpecialDay]:
     Returns:
         List of SpecialDay objects for today
     """
-    today = datetime.now()
+    today = datetime.now(timezone.utc)
     return get_special_days_for_date(today)
 
 
@@ -776,7 +776,7 @@ def get_upcoming_special_days(
         Dictionary mapping date strings to lists of SpecialDay objects
     """
     upcoming = {}
-    today = datetime.now()
+    today = datetime.now(timezone.utc)
 
     # Pre-load custom days once to avoid O(n²) repeated file reads
     custom_days = load_special_days()

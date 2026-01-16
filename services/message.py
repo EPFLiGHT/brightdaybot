@@ -676,9 +676,15 @@ def _generate_birthday_message(
                         for person in birthday_people
                     }
                     for future in as_completed(future_to_person):
-                        result = future.result()
-                        if result:
-                            generated_images.append(result)
+                        try:
+                            result = future.result()
+                            if result:
+                                generated_images.append(result)
+                        except Exception as img_error:
+                            person = future_to_person[future]
+                            logger.warning(
+                                f"IMAGE: Generation failed for {person.get('username', 'unknown')}: {img_error}"
+                            )
             else:
                 # Single person - no need for thread pool overhead
                 result = _generate_image_for_person(birthday_people[0])

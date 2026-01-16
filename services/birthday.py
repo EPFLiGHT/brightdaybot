@@ -679,9 +679,7 @@ def timezone_aware_check(app, moment):
 
     # CRITICAL: Convert to UTC for server-independent date grouping
     # This ensures consistent behavior regardless of server location
-    import pytz
-
-    utc_moment = moment.astimezone(pytz.UTC)
+    utc_moment = moment.astimezone(timezone.utc)
 
     logger.info(
         f"TIMEZONE: Running timezone-aware birthday checks at {moment.strftime('%Y-%m-%d %H:%M')} → UTC: {utc_moment.strftime('%Y-%m-%d %H:%M')} (server-independent)"

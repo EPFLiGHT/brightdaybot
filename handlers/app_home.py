@@ -250,13 +250,17 @@ def _build_home_view(user_id, app):
         today = datetime.now(timezone.utc).date()
 
         for date_str, days_list in upcoming_special.items():
-            # Parse date and calculate days until
-            day, month = map(int, date_str.split("/"))
-            special_date = today.replace(month=month, day=day)
-            # Handle year rollover
-            if special_date < today:
-                special_date = special_date.replace(year=today.year + 1)
-            days_until = (special_date - today).days
+            # Parse date and calculate days until (with validation)
+            try:
+                day, month = map(int, date_str.split("/"))
+                special_date = today.replace(month=month, day=day)
+                # Handle year rollover
+                if special_date < today:
+                    special_date = special_date.replace(year=today.year + 1)
+                days_until = (special_date - today).days
+            except (ValueError, TypeError):
+                # Skip malformed date entries
+                continue
 
             if days_until == 0:
                 days_text = "_Today!_ 🎉"

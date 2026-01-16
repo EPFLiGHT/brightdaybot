@@ -258,6 +258,7 @@ RETRY_LIMITS = {
     "image_generation": 2,  # AI image generation retries
     "title_generation": 2,  # Image title generation retries
     "file_processing": 10,  # Slack file processing wait attempts
+    "date_resolution": 5,  # Years to search for valid date (Feb 29 handling)
 }
 
 # Timeout values in seconds

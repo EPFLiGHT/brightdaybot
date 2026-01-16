@@ -159,13 +159,13 @@ def register_event_handlers(app):
             # Extract the description from the button value
             description = action.get("value", "No description available")
 
-            # Get the observance name from the button text context
-            observance_name = (
-                body.get("message", {})
-                .get("blocks", [{}])[0]
-                .get("text", {})
-                .get("text", "Special Day")
-            )
+            # Get the observance name from the button text context (with safe access)
+            blocks = body.get("message", {}).get("blocks", [])
+            observance_name = "Special Day"
+            if blocks and len(blocks) > 0:
+                first_block = blocks[0]
+                if isinstance(first_block, dict):
+                    observance_name = first_block.get("text", {}).get("text", "Special Day")
 
             # Remove the emoji prefix if present
             if observance_name.startswith("🌍 "):

@@ -11,13 +11,13 @@ is_celebration_time_for_user(), format_timezone_schedule().
 import re
 from calendar import month_name
 from datetime import datetime, timezone
-
-import pytz
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from config import (
     DATE_FORMAT,
     DATE_WITH_YEAR_FORMAT,
     MIN_BIRTH_YEAR,
+    RETRY_LIMITS,
     TIMEZONE_CELEBRATION_TIME,
     get_logger,
 )
@@ -196,7 +196,7 @@ def check_if_birthday_today_in_user_timezone(date_str, user_timezone_str):
         # Use the timezone-aware birthday check logic
         return check_if_birthday_today(date_str, current_user_time)
 
-    except (ValueError, pytz.UnknownTimeZoneError) as e:
+    except (ValueError, ZoneInfoNotFoundError) as e:
         logger.error(
             f"TIMEZONE_BIRTHDAY_CHECK_ERROR: Failed to check birthday for timezone {user_timezone_str}: {e}"
         )
@@ -252,14 +252,19 @@ def calculate_days_until_birthday(date_str, reference_date=None):
         # Default to next valid occurrence
         logger.warning(f"Invalid date {date_str} for current year, calculating next occurrence")
 
-        # Try next year if this year doesn't work
+        # Try next year if this year doesn't work (limit iterations to prevent infinite loop)
         next_year = reference_date.year + 1
-        while True:
+        max_attempts = RETRY_LIMITS.get("date_resolution", 5)
+        for _ in range(max_attempts):
             try:
                 birthday_date = datetime(next_year, month, day, tzinfo=timezone.utc)
                 break
             except ValueError:
                 next_year += 1
+        else:
+            # If no valid date found, date is likely corrupted
+            logger.error(f"Invalid date {date_str} could not be resolved in {max_attempts} years")
+            return None
 
         days_until = (birthday_date - reference_date).days
         return days_until
@@ -398,15 +403,15 @@ def get_timezone_object(timezone_str):
         timezone_str: Timezone string (e.g., "America/New_York", "Europe/London")
 
     Returns:
-        pytz timezone object or None if invalid
+        zoneinfo.ZoneInfo object or timezone.utc if invalid
     """
     try:
         if not timezone_str:
-            return pytz.UTC
-        return pytz.timezone(timezone_str)
-    except pytz.UnknownTimeZoneError as e:
+            return timezone.utc
+        return ZoneInfo(timezone_str)
+    except ZoneInfoNotFoundError as e:
         logger.warning(f"TIMEZONE: Invalid timezone '{timezone_str}': {e}")
-        return pytz.UTC
+        return timezone.utc
 
 
 def is_celebration_time_for_user(user_timezone_str, target_time=None, utc_moment=None):
@@ -432,7 +437,7 @@ def is_celebration_time_for_user(user_timezone_str, target_time=None, utc_moment
             current_user_time = utc_moment.astimezone(user_tz)
         else:
             # Fallback to current time (backward compatibility)
-            utc_now = datetime.now(pytz.UTC)
+            utc_now = datetime.now(timezone.utc)
             current_user_time = utc_now.astimezone(user_tz)
 
         # Check both hour AND date
@@ -455,7 +460,7 @@ def is_celebration_time_for_user(user_timezone_str, target_time=None, utc_moment
 
         return is_celebration_time
 
-    except (ValueError, pytz.UnknownTimeZoneError) as e:
+    except (ValueError, ZoneInfoNotFoundError) as e:
         logger.error(
             f"TIMEZONE_ERROR: Failed to check celebration time for {user_timezone_str}: {e}"
         )
@@ -475,9 +480,9 @@ def get_user_current_time(user_timezone_str):
     try:
         user_tz = get_timezone_object(user_timezone_str)
         return datetime.now(user_tz)
-    except pytz.UnknownTimeZoneError as e:
+    except ZoneInfoNotFoundError as e:
         logger.error(f"TIMEZONE_ERROR: Failed to get time for {user_timezone_str}: {e}")
-        return datetime.now(pytz.UTC)
+        return datetime.now(timezone.utc)
 
 
 def format_timezone_schedule(app=None):
@@ -572,9 +577,9 @@ def format_timezone_schedule(app=None):
         # Sort by the actual celebration time (UTC time) to show chronological order
         def sort_key(item):
             offset_hours, data = item
-            utc_time = data["time"].astimezone(pytz.UTC)
+            utc_time = data["time"].astimezone(timezone.utc)
             # Get the hour (0-23) for sorting
-            return utc_time.hour + (utc_time.day - datetime.now(pytz.UTC).day) * 24
+            return utc_time.hour + (utc_time.day - datetime.now(timezone.utc).day) * 24
 
         sorted_times = sorted(celebration_times.items(), key=sort_key)
 
@@ -584,7 +589,7 @@ def format_timezone_schedule(app=None):
 
     for offset_hours, data in sorted_times:
         local_time = data["time"]
-        utc_time = local_time.astimezone(pytz.UTC)
+        utc_time = local_time.astimezone(timezone.utc)
 
         # Format the UTC offset display
         if offset_hours == int(offset_hours):

@@ -235,25 +235,30 @@ def complete_with_usage(
 
     logger.info(f"AI_{context}: Calling Responses API with model={model}")
 
-    response = client.responses.create(**params)
+    try:
+        response = client.responses.create(**params)
 
-    # Extract usage info
-    usage_dict = {}
-    if hasattr(response, "usage") and response.usage:
-        usage = response.usage
-        usage_dict = {
-            "input_tokens": getattr(usage, "input_tokens", 0),
-            "output_tokens": getattr(usage, "output_tokens", 0),
-            "total_tokens": getattr(usage, "total_tokens", 0),
-        }
-        logger.info(
-            f"AI_{context}_USAGE: "
-            f"input={usage_dict['input_tokens']}, "
-            f"output={usage_dict['output_tokens']}, "
-            f"total={usage_dict['total_tokens']}"
-        )
+        # Extract usage info
+        usage_dict = {}
+        if hasattr(response, "usage") and response.usage:
+            usage = response.usage
+            usage_dict = {
+                "input_tokens": getattr(usage, "input_tokens", 0),
+                "output_tokens": getattr(usage, "output_tokens", 0),
+                "total_tokens": getattr(usage, "total_tokens", 0),
+            }
+            logger.info(
+                f"AI_{context}_USAGE: "
+                f"input={usage_dict['input_tokens']}, "
+                f"output={usage_dict['output_tokens']}, "
+                f"total={usage_dict['total_tokens']}"
+            )
 
-    return response.output_text, usage_dict
+        return response.output_text, usage_dict
+
+    except Exception as e:
+        logger.error(f"AI_{context}_ERROR: Responses API call failed: {e}")
+        return None, {}
 
 
 # =============================================================================
