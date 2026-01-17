@@ -409,6 +409,47 @@ WHO_OBSERVANCES_CACHE_FILE = os.path.join(WHO_OBSERVANCES_CACHE_DIR, "who_days.j
 # Enable bot reactions to birthday thread replies
 THREAD_ENGAGEMENT_ENABLED = os.getenv("THREAD_ENGAGEMENT_ENABLED", "true").lower() == "true"
 
+# Thread reaction keyword mappings: (keywords, possible_reactions)
+THREAD_REACTION_KEYWORDS = (
+    (("congrat", "happy birthday", "feliz", "joyeux"), ("tada", "birthday", "partying_face")),
+    (("love", "heart", "adore", "<3"), ("heart", "hearts", "sparkling_heart")),
+    (("amazing", "awesome", "fantastic", "great", "wonderful"), ("star2", "dizzy", "sparkles")),
+    (("thank", "thanks", "thx", "gracias", "merci"), ("pray", "raised_hands", "blush")),
+    (("haha", "lol", "funny", "hilarious", ":joy:", ":laughing:"), ("joy", "smile")),
+    (("cake", "cupcake", "dessert", "sweet"), ("cake", "cupcake")),
+    (("party", "celebrate", "fiesta"), ("confetti_ball", "balloon", "champagne")),
+    (("wish", "hope", "dream"), ("star", "rainbow", "sparkles")),
+    (("best", "greatest", "legend"), ("trophy", "crown", "medal")),
+    (("cheers", "toast", "drink"), ("clinking_glasses", "champagne", "beers")),
+    (("gift", "present", "surprise"), ("gift", "ribbon", "gift_heart")),
+)
+
+# Default reactions when no keywords match
+THREAD_DEFAULT_REACTIONS = ("tada", "sparkles", "heart", "raised_hands", "clap")
+
+# ----- EPIC CELEBRATION CONFIGURATION -----
+
+# Guaranteed reactions for epic celebrations (standard Slack emojis)
+EPIC_GUARANTEED_REACTIONS = ("tada", "sparkles", "star2", "fire")
+
+# Fallback reactions if custom emoji fetch fails
+EPIC_FALLBACK_REACTIONS = ("rainbow", "trophy", "crown")
+
+# Number of random emojis to fetch from workspace for epic celebrations
+EPIC_RANDOM_EMOJI_FETCH_COUNT = 5
+
+# Number of extra random reactions to add (on top of guaranteed)
+EPIC_EXTRA_REACTIONS_COUNT = 3
+
+# Epic thread celebration messages (randomly selected)
+EPIC_THREAD_MESSAGES = (
+    ":tada: :tada: :tada: LET THE CELEBRATIONS BEGIN! :tada: :tada: :tada:\n\nDrop your birthday wishes below! Let's make this thread LEGENDARY!",
+    ":rotating_light: EPIC BIRTHDAY THREAD ACTIVATED :rotating_light:\n\n:point_down: Show some love in the replies! :point_down:",
+    ":star2: :sparkles: THE CELEBRATION CONTINUES HERE :sparkles: :star2:\n\nWho's got birthday wishes? Don't be shy - PILE ON THE LOVE!",
+    ":fire: :fire: :fire: THIS THREAD IS NOW A PARTY ZONE :fire: :fire: :fire:\n\nReact, reply, celebrate! Let's GOOO!",
+    ":confetti_ball: :balloon: PARTY IN THE THREAD! :balloon: :confetti_ball:\n\nJoin the celebration - drop your wishes, GIFs, and good vibes below!",
+)
+
 # ----- SPECIAL DAY THREAD ENGAGEMENT -----
 
 # Enable intelligent responses to special day thread replies
@@ -468,9 +509,15 @@ THREAD_TTL_HOURS = 24  # Hours to track birthday/special day threads for engagem
 # Slack API limits
 SLACK_MAX_BLOCKS = 50  # Maximum blocks per message (Slack API limit)
 SLACK_FILE_TITLE_MAX_LENGTH = 100  # Max chars for readable Slack file titles
+SLACK_BUTTON_VALUE_CHAR_LIMIT = 1950  # Slack button value max chars (2000 limit with safety buffer)
+SLACK_BUTTON_DISPLAY_CHAR_LIMIT = 1850  # Safe display limit for button content
 
 # Announcement tracking
 ANNOUNCEMENT_RETENTION_DAYS = 60  # Days to keep announcement history
+
+# Text truncation limits
+DESCRIPTION_TEASER_LENGTH = 150  # Characters for description teasers in special days
+LOG_PREVIEW_LENGTH = 200  # Characters for log preview snippets
 
 # AI/LLM settings
 MESSAGE_REGENERATION_THRESHOLD = 0.3  # Threshold for regenerating invalid messages

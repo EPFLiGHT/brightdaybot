@@ -14,6 +14,7 @@ from config import (
     BOT_BIRTHDAY,
     DEFAULT_IMAGE_PERSONALITY,
     MIN_BIRTH_YEAR,
+    SLACK_BUTTON_VALUE_CHAR_LIMIT,
     UPCOMING_DAYS_DEFAULT,
     UPCOMING_DAYS_EXTENDED,
 )
@@ -310,10 +311,9 @@ def build_special_day_blocks(
 
         # "View Details" button for detailed content
         if detailed_content:
-            # Slack limit: 2000 chars
-            char_limit = 1950
-            truncated_details = detailed_content[:char_limit]
-            if len(detailed_content) > char_limit:
+            # Slack button value limit: 2000 chars (using safety buffer)
+            truncated_details = detailed_content[:SLACK_BUTTON_VALUE_CHAR_LIMIT]
+            if len(detailed_content) > SLACK_BUTTON_VALUE_CHAR_LIMIT:
                 truncated_details += "...\n\nSee official source for complete information."
 
             actions.append(
@@ -1070,20 +1070,20 @@ def build_health_status_blocks(
             )
 
             # Check UN observances cache
+            import json
             import os
 
             from config import UN_OBSERVANCES_CACHE_FILE, UN_OBSERVANCES_ENABLED
 
             if UN_OBSERVANCES_ENABLED and os.path.exists(UN_OBSERVANCES_CACHE_FILE):
                 try:
-                    import json
-
                     with open(UN_OBSERVANCES_CACHE_FILE, "r") as f:
                         un_data = json.load(f)
                     un_count = len(un_data.get("observances", []))
-                    un_refreshed = un_data.get("last_updated", "unknown")[:10]
+                    un_refreshed_raw = un_data.get("last_updated", "unknown")
+                    un_refreshed = un_refreshed_raw[:10] if un_refreshed_raw else "unknown"
                     sd_text += f"\n• UN observances: {un_count} (updated: {un_refreshed})"
-                except Exception:
+                except (json.JSONDecodeError, OSError, KeyError, TypeError):
                     sd_text += "\n• UN observances: cache error"
 
             # Check UNESCO observances cache
@@ -1094,11 +1094,14 @@ def build_health_status_blocks(
                     with open(UNESCO_OBSERVANCES_CACHE_FILE, "r") as f:
                         unesco_data = json.load(f)
                     unesco_count = len(unesco_data.get("observances", []))
-                    unesco_refreshed = unesco_data.get("last_updated", "unknown")[:10]
+                    unesco_refreshed_raw = unesco_data.get("last_updated", "unknown")
+                    unesco_refreshed = (
+                        unesco_refreshed_raw[:10] if unesco_refreshed_raw else "unknown"
+                    )
                     sd_text += (
                         f"\n• UNESCO observances: {unesco_count} (updated: {unesco_refreshed})"
                     )
-                except Exception:
+                except (json.JSONDecodeError, OSError, KeyError, TypeError):
                     sd_text += "\n• UNESCO observances: cache error"
 
             # Check WHO observances cache
@@ -1109,9 +1112,10 @@ def build_health_status_blocks(
                     with open(WHO_OBSERVANCES_CACHE_FILE, "r") as f:
                         who_data = json.load(f)
                     who_count = len(who_data.get("observances", []))
-                    who_refreshed = who_data.get("last_updated", "unknown")[:10]
+                    who_refreshed_raw = who_data.get("last_updated", "unknown")
+                    who_refreshed = who_refreshed_raw[:10] if who_refreshed_raw else "unknown"
                     sd_text += f"\n• WHO observances: {who_count} (updated: {who_refreshed})"
-                except Exception:
+                except (json.JSONDecodeError, OSError, KeyError, TypeError):
                     sd_text += "\n• WHO observances: cache error"
 
             # Check Calendarific cache (uses consolidated cache file)
@@ -1124,7 +1128,7 @@ def build_health_status_blocks(
                     calendarific_status = get_calendarific_client().get_api_status()
                     cached_dates = calendarific_status.get("cached_dates", 0)
                     sd_text += f"\n• Calendarific: {cached_dates} cached dates"
-                except Exception:
+                except (ImportError, AttributeError, KeyError, TypeError):
                     sd_text += "\n• Calendarific: cache error"
 
             blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": sd_text}})
@@ -2128,6 +2132,7 @@ def build_birthday_modal(user_id: str) -> Dict[str, Any]:
             existing_prefs = {
                 "image_enabled": prefs.get("image_enabled", True),
                 "show_age": prefs.get("show_age", True),
+                "celebration_style": prefs.get("celebration_style", "standard"),
             }
         except (ValueError, AttributeError):
             pass
@@ -2214,6 +2219,39 @@ def build_birthday_modal(user_id: str) -> Dict[str, Any]:
     if initial_pref_options:
         preferences_element["initial_options"] = initial_pref_options
 
+    # Celebration style options
+    style_options = [
+        {
+            "text": {"type": "plain_text", "text": "Quiet - Message only, no image"},
+            "value": "quiet",
+        },
+        {
+            "text": {"type": "plain_text", "text": "Standard - Message + AI image"},
+            "value": "standard",
+        },
+        {
+            "text": {
+                "type": "plain_text",
+                "text": "Epic - Over-the-top message + image + reactions!",
+            },
+            "value": "epic",
+        },
+    ]
+
+    # Find initial style option
+    current_style = existing_prefs.get("celebration_style", "standard")
+    initial_style_option = next(
+        (opt for opt in style_options if opt["value"] == current_style),
+        style_options[1],  # Default to "standard"
+    )
+
+    style_element = {
+        "type": "static_select",
+        "action_id": "celebration_style",
+        "options": style_options,
+        "initial_option": initial_style_option,
+    }
+
     return {
         "type": "modal",
         "callback_id": "birthday_modal",
@@ -2250,15 +2288,21 @@ def build_birthday_modal(user_id: str) -> Dict[str, Any]:
             },
             {"type": "divider"},
             {
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": "*Celebration Preferences*"},
-            },
-            {
                 "type": "input",
                 "block_id": "preferences_block",
                 "optional": True,
                 "element": preferences_element,
-                "label": {"type": "plain_text", "text": "Options"},
+                "label": {"type": "plain_text", "text": "Celebration Preferences"},
+            },
+            {
+                "type": "input",
+                "block_id": "celebration_style_block",
+                "element": style_element,
+                "label": {"type": "plain_text", "text": "Celebration Style"},
+                "hint": {
+                    "type": "plain_text",
+                    "text": "Choose how you'd like your birthday to be celebrated",
+                },
             },
         ],
     }
@@ -2356,6 +2400,7 @@ def build_slash_help_blocks(
                     + "- `/birthday` or `/birthday add` - Open birthday form\n"
                     + "- `/birthday check [@user]` - Check birthday\n"
                     + "- `/birthday list` - List upcoming birthdays\n"
+                    + "- `/birthday export` - Export birthdays to calendar (ICS)\n"
                     + "- `/birthday pause` - Pause your celebrations\n"
                     + "- `/birthday resume` - Resume your celebrations\n"
                     + "- `/birthday help` - Show this help",

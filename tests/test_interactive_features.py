@@ -7,11 +7,9 @@ Tests pure functions with minimal mocking:
 - NLP date parser: LLM response parsing, date formatting
 """
 
+from config import THREAD_DEFAULT_REACTIONS
 from handlers.mention_handler import RateLimiter, classify_question
-from handlers.thread_handler import (
-    DEFAULT_REACTIONS,
-    get_reaction_for_message,
-)
+from handlers.thread_handler import get_reaction_for_message
 from utils.date_nlp import _parse_llm_response, format_parsed_date
 
 
@@ -46,7 +44,7 @@ class TestGetReactionForMessage:
     def test_no_keyword_match(self):
         """Messages without keywords get default reactions"""
         reaction = get_reaction_for_message("Just a random message")
-        assert reaction in DEFAULT_REACTIONS
+        assert reaction in THREAD_DEFAULT_REACTIONS
 
     def test_case_insensitive(self):
         """Keyword matching is case-insensitive"""
@@ -56,7 +54,7 @@ class TestGetReactionForMessage:
     def test_empty_message(self):
         """Empty message returns default reaction"""
         reaction = get_reaction_for_message("")
-        assert reaction in DEFAULT_REACTIONS
+        assert reaction in THREAD_DEFAULT_REACTIONS
 
 
 class TestClassifyQuestion:

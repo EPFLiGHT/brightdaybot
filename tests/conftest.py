@@ -101,6 +101,7 @@ def mock_birthday_data():
         active=True,
         image_enabled=True,
         show_age=True,
+        celebration_style="standard",
         created_at="2025-01-01T00:00:00+00:00",
         updated_at="2025-01-01T00:00:00+00:00",
     ):
@@ -111,6 +112,7 @@ def mock_birthday_data():
                 "active": active,
                 "image_enabled": image_enabled,
                 "show_age": show_age,
+                "celebration_style": celebration_style,
             },
             "created_at": created_at,
             "updated_at": updated_at,

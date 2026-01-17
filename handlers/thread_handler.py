@@ -9,38 +9,18 @@ Uses the ThreadTracker to identify active threads.
 """
 
 import random
-from typing import List, Optional, Tuple
+from typing import Optional
 
 from slack_sdk.errors import SlackApiError
 
-from config import THREAD_MIN_TEXT_LENGTH, get_logger
+from config import (
+    THREAD_DEFAULT_REACTIONS,
+    THREAD_MIN_TEXT_LENGTH,
+    THREAD_REACTION_KEYWORDS,
+    get_logger,
+)
 
 logger = get_logger("events")
-
-# Reaction mappings based on message content keywords
-REACTION_MAPPINGS: List[Tuple[List[str], List[str]]] = [
-    # (keywords, possible_reactions)
-    (
-        ["congrat", "happy birthday", "feliz", "joyeux"],
-        ["tada", "birthday", "partying_face"],
-    ),
-    (["love", "heart", "adore", "<3"], ["heart", "hearts", "sparkling_heart"]),
-    (
-        ["amazing", "awesome", "fantastic", "great", "wonderful"],
-        ["star2", "dizzy", "sparkles"],
-    ),
-    (["thank", "thanks", "thx", "gracias", "merci"], ["pray", "raised_hands", "blush"]),
-    (["haha", "lol", "funny", "hilarious", ":joy:", ":laughing:"], ["joy", "smile"]),
-    (["cake", "cupcake", "dessert", "sweet"], ["cake", "cupcake"]),
-    (["party", "celebrate", "fiesta"], ["confetti_ball", "balloon", "champagne"]),
-    (["wish", "hope", "dream"], ["star", "rainbow", "sparkles"]),
-    (["best", "greatest", "legend"], ["trophy", "crown", "medal"]),
-    (["cheers", "toast", "drink"], ["clinking_glasses", "champagne", "beers"]),
-    (["gift", "present", "surprise"], ["gift", "ribbon", "gift_heart"]),
-]
-
-# Default reactions when no keywords match
-DEFAULT_REACTIONS = ["tada", "sparkles", "heart", "raised_hands", "clap"]
 
 
 def get_reaction_for_message(text: str) -> str:
@@ -55,14 +35,14 @@ def get_reaction_for_message(text: str) -> str:
     """
     text_lower = text.lower()
 
-    # Check each keyword mapping
-    for keywords, reactions in REACTION_MAPPINGS:
+    # Check each keyword mapping from config
+    for keywords, reactions in THREAD_REACTION_KEYWORDS:
         for keyword in keywords:
             if keyword in text_lower:
                 return random.choice(reactions)
 
-    # No keyword match - use default reaction
-    return random.choice(DEFAULT_REACTIONS)
+    # No keyword match - use default reactions from config
+    return random.choice(THREAD_DEFAULT_REACTIONS)
 
 
 def handle_thread_reply(

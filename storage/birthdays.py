@@ -61,6 +61,14 @@ DEFAULT_PREFERENCES = {
     "active": True,
     "image_enabled": True,
     "show_age": True,
+    "celebration_style": "standard",  # Options: "quiet", "standard", "epic"
+}
+
+# Valid celebration styles with descriptions
+CELEBRATION_STYLES = {
+    "quiet": "Simple message only, no AI image",
+    "standard": "Message with AI-generated birthday image",
+    "epic": "Over-the-top message, AI image, and celebratory reactions",
 }
 
 

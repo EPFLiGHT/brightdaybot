@@ -39,6 +39,7 @@ from storage.settings import (
     save_recent_personalities,
 )
 from utils.date import get_star_sign
+from utils.sanitize import sanitize_profile_field, sanitize_status_text, sanitize_username
 
 logger = get_logger("llm")
 
@@ -463,7 +464,8 @@ def _generate_birthday_message(
         )
 
     # === SHARED: Get birthday facts for personalities that use web search ===
-    birthday_date = birthday_people[0]["date"]  # All share same date for consolidated
+    first_person = birthday_people[0]
+    birthday_date = first_person.get("date")  # All share same date for consolidated
     birthday_facts_text = ""
 
     # Check if personality has web search configured (dynamic check)
@@ -525,7 +527,7 @@ def _generate_birthday_message(
     while retry_count <= max_retries:
         try:
             log_prefix = "AI" if is_single else "CONSOLIDATED_AI"
-            name_desc = birthday_people[0]["username"] if is_single else f"{count} people"
+            name_desc = first_person.get("username", "Unknown") if is_single else f"{count} people"
             logger.info(
                 f"{log_prefix}: Requesting birthday message for {name_desc} using "
                 f"{selected_personality_name} personality"
@@ -591,9 +593,7 @@ def _generate_birthday_message(
             logger.error(f"{log_prefix}_ERROR: Failed to generate completion: {e}")
             # Use fallback message
             if is_single:
-                message = _get_fallback_single_message(
-                    birthday_people[0], selected_personality_name
-                )
+                message = _get_fallback_single_message(first_person, selected_personality_name)
             else:
                 message = _generate_fallback_consolidated_message(birthday_people)
             break
@@ -614,6 +614,16 @@ def _generate_birthday_message(
                 if not prefs.get("image_enabled", DEFAULT_PREFERENCES["image_enabled"]):
                     logger.info(
                         f"IMAGE: Skipping image for {person['username']} - user has disabled images"
+                    )
+                    return None
+
+                # Check celebration style - quiet style skips images
+                celebration_style = prefs.get(
+                    "celebration_style", DEFAULT_PREFERENCES["celebration_style"]
+                )
+                if celebration_style == "quiet":
+                    logger.info(
+                        f"IMAGE: Skipping image for {person['username']} - quiet celebration style"
                     )
                     return None
 
@@ -687,7 +697,7 @@ def _generate_birthday_message(
                             )
             else:
                 # Single person - no need for thread pool overhead
-                result = _generate_image_for_person(birthday_people[0])
+                result = _generate_image_for_person(first_person)
                 if result:
                     generated_images.append(result)
 
@@ -720,13 +730,15 @@ def _build_single_birthday_prompt(
     Returns:
         Tuple of (messages_list, required_mentions_list, user_mention_str)
     """
-    name = person.get("profile", {}).get("preferred_name") or person.get(
+    # Sanitize user-provided data to prevent prompt injection
+    raw_name = person.get("profile", {}).get("preferred_name") or person.get(
         "username", "Birthday Person"
     )
+    name = sanitize_username(raw_name)
     user_id = person.get("user_id")
     birth_date = person.get("date")
     birth_year = person.get("year")
-    date_words = person.get("date_words", "their birthday")
+    date_words = sanitize_profile_field(person.get("date_words", "their birthday"), max_length=50)
     user_profile = person.get("profile", {})
 
     user_mention = f"{get_user_mention(user_id)}" if user_id else name
@@ -746,19 +758,51 @@ def _build_single_birthday_prompt(
         age = datetime.now().year - birth_year
         age_text = f" They're turning {age} today!"
 
-    # Profile context
+    # Profile context (sanitize to prevent prompt injection)
     profile_context = ""
     if user_profile:
-        profile_details = user_profile.get("profile_details", [])
-        name_context = user_profile.get("name_context", "")
+        raw_details = user_profile.get("profile_details", [])
+        # Sanitize each profile detail
+        profile_details = [sanitize_profile_field(d, max_length=50) for d in raw_details if d]
+        raw_name_context = user_profile.get("name_context", "")
+        name_context = sanitize_profile_field(raw_name_context, max_length=100)
         if profile_details:
             profile_context = f"\n\nPersonalize the message using this information about them: {', '.join(profile_details)}."
         profile_context += name_context
 
-    # Image context
+    # Image context (only if user will actually receive an image)
     image_context = ""
-    if include_image and user_profile:
+    celebration_style = prefs.get("celebration_style", DEFAULT_PREFERENCES["celebration_style"])
+    image_enabled = prefs.get("image_enabled", DEFAULT_PREFERENCES["image_enabled"])
+    if include_image and user_profile and image_enabled and celebration_style != "quiet":
         image_context = f"\n\nNote: A personalized birthday image will be generated for them in {selected_personality_name} style. Do NOT mention the image in your message as it will be sent automatically with your text."
+
+    # Epic celebration style context
+    epic_context = ""
+    notification_type = "<!here>"  # Always use @here (not @channel - too annoying!)
+    if celebration_style == "epic":
+        epic_context = """
+
+:rotating_light: **EPIC CELEBRATION MODE ACTIVATED!** :rotating_light:
+
+This person has requested the ULTIMATE birthday experience! You must deliver a LEGENDARY celebration:
+
+**MESSAGE STYLE:**
+- Start with a DRAMATIC announcement/proclamation (e.g., "ATTENTION EVERYONE!", "HEAR YE, HEAR YE!", "STOP EVERYTHING!")
+- Use SIGNIFICANTLY more emojis than usual - go emoji crazy!
+- Be EXTREMELY enthusiastic, theatrical, and over-the-top dramatic
+- Use CAPS LIBERALLY for maximum emphasis and excitement
+- Include hyperbolic praise and grand declarations of their awesomeness
+- Make references to legends, myths, or epic tales
+- This should feel like announcing royalty or a superhero's arrival!
+
+**REQUIRED ELEMENTS:**
+- At least one dramatic pause or buildup (use "..." or line breaks)
+- Multiple exclamation marks!!!
+- Superlatives: "THE most", "THE greatest", "LEGENDARY", "UNSTOPPABLE"
+- Reference to the entire team/company celebrating together
+
+Remember: This is NOT just a birthday - this is an EPIC EVENT that will be remembered for ages!"""
 
     # Date inclusion requirement
     date_inclusion_req = ""
@@ -781,13 +825,13 @@ def _build_single_birthday_prompt(
 
         IMPORTANT REQUIREMENTS:
         1. Include their Slack mention "{user_mention}" somewhere in the message
-        2. Make sure to address active members with <!here> to notify those currently online{date_inclusion_req}
+        2. Make sure to address members with {notification_type} to notify them{date_inclusion_req}
         - Create a message that's lively and engaging with good structure and flow
         - {emoji_ctx['emoji_instruction']} like: {emoji_ctx['emoji_examples']}
         - {emoji_ctx['emoji_warning']}
         - Remember to use Slack emoji format with colons (e.g., :cake:), not Unicode emojis (e.g., 🎂)
         - Your name is {personality["name"]} and you are {personality["description"]}
-        {birthday_facts_text}{profile_context}{image_context}
+        {birthday_facts_text}{profile_context}{image_context}{epic_context}
 
         Today is {datetime.now().strftime('%Y-%m-%d')}.
     """
@@ -819,6 +863,9 @@ def _build_consolidated_birthday_prompt(
         user_mention = f"<@{person['user_id']}>"
         mentions.append(user_mention)
 
+        # Sanitize username to prevent prompt injection
+        username = sanitize_username(person.get("username", "Unknown"))
+
         # Check user preferences for show_age
         prefs = person.get("preferences", {})
         show_age = prefs.get("show_age", DEFAULT_PREFERENCES["show_age"])
@@ -828,28 +875,31 @@ def _build_consolidated_birthday_prompt(
             age = datetime.now().year - person["year"]
             age_info = f" (turning {age})"
 
-        # Profile information
+        # Profile information (sanitized to prevent prompt injection)
         profile_info = ""
         name_info = ""
         if person.get("profile"):
             profile = person["profile"]
             profile_details = []
 
-            display_name = profile.get("display_name", "")
-            real_name = profile.get("real_name", "")
+            # Sanitize display and real names
+            display_name = sanitize_username(profile.get("display_name", ""))
+            real_name = sanitize_username(profile.get("real_name", ""))
             if display_name and real_name and display_name != real_name:
                 name_info = f" [display name: '{display_name}', full name: '{real_name}']"
 
             if profile.get("pronouns"):
-                profile_details.append(f"pronouns: {profile['pronouns']}")
+                pronouns = sanitize_profile_field(profile["pronouns"], max_length=30)
+                profile_details.append(f"pronouns: {pronouns}")
             if profile.get("title"):
-                profile_details.append(f"job: {profile['title']}")
+                title = sanitize_profile_field(profile["title"], max_length=50)
+                profile_details.append(f"job: {title}")
             if profile.get("status_text"):
-                status_display = (
-                    f"{profile['status_emoji']} {profile['status_text']}"
-                    if profile.get("status_emoji")
-                    else profile["status_text"]
+                status_text = sanitize_status_text(profile["status_text"])
+                status_emoji = sanitize_profile_field(
+                    profile.get("status_emoji", ""), max_length=10
                 )
+                status_display = f"{status_emoji} {status_text}" if status_emoji else status_text
                 profile_details.append(f"status: {status_display}")
             if profile.get("start_date"):
                 try:
@@ -863,16 +913,17 @@ def _build_consolidated_birthday_prompt(
             custom_fields = profile.get("custom_fields", {})
             for label, value in custom_fields.items():
                 if value:
-                    label_short = label.split()[0] if " " in label else label
-                    value_short = value.split()[0] if " " in value else value
+                    # Sanitize custom field labels and values
+                    label_clean = sanitize_profile_field(label, max_length=20)
+                    value_clean = sanitize_profile_field(value, max_length=30)
+                    label_short = label_clean.split()[0] if " " in label_clean else label_clean
+                    value_short = value_clean.split()[0] if " " in value_clean else value_clean
                     profile_details.append(f"{label_short}: {value_short}")
 
             if profile_details:
                 profile_info = f" [{', '.join(profile_details)}]"
 
-        people_info.append(
-            f"{person['username']} ({user_mention}){age_info}{name_info}{profile_info}"
-        )
+        people_info.append(f"{username} ({user_mention}){age_info}{name_info}{profile_info}")
 
     # Format mentions
     if len(mentions) == 2:
@@ -889,7 +940,7 @@ def _build_consolidated_birthday_prompt(
         relationship = f"{len(mentions)}-way birthday celebration"
 
     # Format shared birthday date
-    shared_birthday_date = birthday_people[0]["date"]
+    shared_birthday_date = birthday_people[0].get("date", "")
     from utils.date import format_date_european_short
 
     date_obj = datetime.strptime(shared_birthday_date, DATE_FORMAT)

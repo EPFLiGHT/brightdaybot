@@ -9,7 +9,10 @@ from datetime import datetime
 from typing import List, Optional
 
 from config import (
+    DESCRIPTION_TEASER_LENGTH,
     IMAGE_GENERATION_PARAMS,
+    SLACK_BUTTON_DISPLAY_CHAR_LIMIT,
+    SLACK_BUTTON_VALUE_CHAR_LIMIT,
     SPECIAL_DAYS_CHANNEL,
     SPECIAL_DAYS_IMAGE_ENABLED,
     SPECIAL_DAYS_PERSONALITY,
@@ -116,7 +119,7 @@ def generate_special_day_message(
                 day_name=day.name,
                 category=day.category,
                 description=(
-                    day.description[:150] if use_teaser else day.description
+                    day.description[:DESCRIPTION_TEASER_LENGTH] if use_teaser else day.description
                 ),  # Truncate for teaser
                 emoji=day.emoji or "",
                 source=source_info if source_info else "UN/WHO observance",
@@ -414,7 +417,7 @@ EMOJI USAGE:
 OBSERVANCES TODAY:
 {observances_text}
 
-STRUCTURE (Concise - {length_guidance} total to fit 1850 character Slack button limit):
+STRUCTURE (Concise - {length_guidance} total to fit {SLACK_BUTTON_DISPLAY_CHAR_LIMIT} character Slack button limit):
 
 *_Brief Connection:_*
 [1 sentence connecting all {len(special_days)} observances thematically. NO emojis in paragraph.]
@@ -434,7 +437,7 @@ For EACH observance below, provide:
 🏢 *Organization:* [1 company-wide opportunity for policy/culture alignment]
 
 CRITICAL LENGTH REQUIREMENT:
-- MAXIMUM {length_guidance} total (approximately 1850 characters)
+- MAXIMUM {length_guidance} total (approximately {SLACK_BUTTON_DISPLAY_CHAR_LIMIT} characters)
 - Be CONCISE and TACTICAL - every line must add value
 - Prioritize actionable insights over background details
 
@@ -492,10 +495,15 @@ TONE & STYLE:
 
         logger.info("Successfully generated special day details")
 
-        # Truncate if too long for Slack button value (2000 char limit, using 1950 for safety buffer)
-        if len(details) > 1950:
-            logger.warning(f"Details too long ({len(details)} chars), truncating to 1950")
-            details = details[:1950] + "...\n\nSee official source for complete information."
+        # Truncate if too long for Slack button value (2000 char limit, using safety buffer)
+        if len(details) > SLACK_BUTTON_VALUE_CHAR_LIMIT:
+            logger.warning(
+                f"Details too long ({len(details)} chars), truncating to {SLACK_BUTTON_VALUE_CHAR_LIMIT}"
+            )
+            details = (
+                details[:SLACK_BUTTON_VALUE_CHAR_LIMIT]
+                + "...\n\nSee official source for complete information."
+            )
 
         return details
 

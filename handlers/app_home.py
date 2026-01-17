@@ -69,8 +69,18 @@ def _build_home_view(user_id, app):
     birthdays = load_birthdays()
     user_birthday = birthdays.get(user_id)
 
+    # Get channel members for filtering (used by multiple sections)
+    from config import BIRTHDAY_CHANNEL
+    from slack.client import get_channel_members
+
+    channel_members = get_channel_members(app, BIRTHDAY_CHANNEL)
+    channel_member_set = set(channel_members) if channel_members else set()
+
     # Get upcoming birthdays
     upcoming = _get_upcoming_birthdays(birthdays, app, limit=APP_HOME_UPCOMING_BIRTHDAYS_LIMIT)
+
+    # Get birthday statistics
+    stats = _get_birthday_statistics(birthdays, channel_member_set)
 
     blocks = []
 
@@ -119,6 +129,7 @@ def _build_home_view(user_id, app):
         is_active = prefs.get("active", DEFAULT_PREFERENCES["active"])
         image_enabled = prefs.get("image_enabled", DEFAULT_PREFERENCES["image_enabled"])
         show_age = prefs.get("show_age", DEFAULT_PREFERENCES["show_age"])
+        celebration_style = prefs.get("celebration_style", DEFAULT_PREFERENCES["celebration_style"])
 
         pref_items = []
         if is_active:
@@ -127,6 +138,7 @@ def _build_home_view(user_id, app):
             pref_items.append("Celebrations: Paused")
         pref_items.append(f"AI Images: {'On' if image_enabled else 'Off'}")
         pref_items.append(f"Show Age: {'Yes' if show_age else 'No'}")
+        pref_items.append(f"Style: {celebration_style.title()}")
 
         blocks.append(
             {
@@ -233,6 +245,48 @@ def _build_home_view(user_id, app):
             }
         )
 
+    # Birthday Statistics Section
+    if stats:
+        blocks.append({"type": "divider"})
+
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*Birthday Statistics*"},
+            }
+        )
+
+        # Build stats text
+        stats_lines = []
+        stats_lines.append(f"*{stats['total']}* birthdays registered")
+
+        if stats["this_week"] > 0:
+            stats_lines.append(f"*{stats['this_week']}* birthday(s) this week")
+        if stats["this_month"] > 0:
+            stats_lines.append(f"*{stats['this_month']}* birthday(s) in next 30 days")
+
+        if stats["most_common_month"]:
+            stats_lines.append(
+                f"Most popular month: *{stats['most_common_month']}* ({stats['most_common_count']} birthdays)"
+            )
+
+        # Fun fact about empty months
+        if stats["empty_months"]:
+            if len(stats["empty_months"]) == 1:
+                stats_lines.append(f"No one born in {stats['empty_months'][0]} yet!")
+            elif len(stats["empty_months"]) <= 3:
+                stats_lines.append(f"No birthdays in: {', '.join(stats['empty_months'])}")
+
+        blocks.append(
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "\n".join(f"• {line}" for line in stats_lines),
+                },
+            }
+        )
+
     blocks.append({"type": "divider"})
 
     # Upcoming Special Days
@@ -314,6 +368,7 @@ def _build_home_view(user_id, app):
                 + "- `/birthday` - Add or edit your birthday\n"
                 + "- `/birthday check` - Check your birthday\n"
                 + "- `/birthday list` - See upcoming birthdays\n"
+                + "- `/birthday export` - Export to calendar\n"
                 + "- `/special-day` - View today's special days",
             },
         }
@@ -372,6 +427,86 @@ def _get_upcoming_birthdays(birthdays, app, limit=APP_HOME_UPCOMING_BIRTHDAYS_LI
     # Sort by days until and limit
     upcoming.sort(key=lambda x: x["days_until"])
     return upcoming[:limit]
+
+
+def _get_birthday_statistics(birthdays, channel_member_set):
+    """
+    Calculate fun birthday statistics for the team.
+
+    Args:
+        birthdays: Dict of user_id -> birthday_data
+        channel_member_set: Set of user IDs in the birthday channel
+
+    Returns:
+        Dict with various statistics
+    """
+    from calendar import month_name
+    from collections import Counter
+
+    # Filter to only active channel members
+    active_birthdays = {
+        uid: data
+        for uid, data in birthdays.items()
+        if uid in channel_member_set and isinstance(data, dict) and "date" in data
+    }
+
+    if not active_birthdays:
+        return None
+
+    # Count birthdays by month
+    month_counts = Counter()
+    for data in active_birthdays.values():
+        try:
+            day, month = data["date"].split("/")
+            month_counts[int(month)] += 1
+        except (ValueError, KeyError):
+            continue
+
+    if not month_counts:
+        return None
+
+    # Find most common month
+    most_common_month = month_counts.most_common(1)[0] if month_counts else None
+
+    # Find months with no birthdays
+    all_months = set(range(1, 13))
+    months_with_birthdays = set(month_counts.keys())
+    empty_months = all_months - months_with_birthdays
+
+    # Count birthdays this week (next 7 days)
+    from datetime import datetime, timedelta, timezone
+
+    today = datetime.now(timezone.utc).date()
+    week_end = today + timedelta(days=7)
+    month_end = today + timedelta(days=30)
+
+    birthdays_this_week = 0
+    birthdays_this_month = 0
+
+    for data in active_birthdays.values():
+        try:
+            day, month = map(int, data["date"].split("/"))
+            # Create date for this year
+            bday_this_year = today.replace(month=month, day=day)
+            # Handle year rollover
+            if bday_this_year < today:
+                bday_this_year = bday_this_year.replace(year=today.year + 1)
+
+            if today <= bday_this_year <= week_end:
+                birthdays_this_week += 1
+            if today <= bday_this_year <= month_end:
+                birthdays_this_month += 1
+        except (ValueError, TypeError):
+            continue
+
+    return {
+        "total": len(active_birthdays),
+        "most_common_month": month_name[most_common_month[0]] if most_common_month else None,
+        "most_common_count": most_common_month[1] if most_common_month else 0,
+        "empty_months": [month_name[m] for m in sorted(empty_months)],
+        "this_week": birthdays_this_week,
+        "this_month": birthdays_this_month,
+    }
 
 
 def _publish_fallback_view(client, user_id):

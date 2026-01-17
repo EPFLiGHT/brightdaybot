@@ -202,6 +202,12 @@ class BirthdayCelebrationPipeline:
             if post_result["message_sent"] and message_ts:
                 self._track_thread_for_engagement(message_ts, valid_people, actual_personality)
 
+                # Step 7b: Add epic celebration reactions if any user has epic style
+                self._add_epic_reactions(message_ts, valid_people)
+
+                # Step 7c: Add epic thread celebration message
+                self._add_epic_thread_message(message_ts, valid_people)
+
             # Step 8: Mark validated people as celebrated
             self._mark_as_celebrated(valid_people)
 
@@ -508,6 +514,137 @@ class BirthdayCelebrationPipeline:
         except Exception as e:
             # Don't let tracking failures affect the celebration
             logger.warning(f"{self.mode}: Failed to track thread for engagement: {e}")
+
+    def _add_epic_reactions(self, message_ts, birthday_people):
+        """
+        Add celebratory reactions to birthday messages for users with epic celebration style.
+
+        Epic style users get extra flair with multiple celebratory emoji reactions
+        automatically added to their birthday announcement. Uses a mix of guaranteed
+        epic emojis plus random emojis from the workspace (including custom ones).
+
+        Args:
+            message_ts: Message timestamp to add reactions to
+            birthday_people: List of birthday person dicts
+        """
+        from slack.client import get_random_emojis
+        from storage.birthdays import DEFAULT_PREFERENCES
+
+        # Check if any birthday person has epic celebration style
+        has_epic = any(
+            person.get("preferences", {}).get(
+                "celebration_style", DEFAULT_PREFERENCES["celebration_style"]
+            )
+            == "epic"
+            for person in birthday_people
+        )
+
+        if not has_epic:
+            return
+
+        from config import (
+            EPIC_EXTRA_REACTIONS_COUNT,
+            EPIC_FALLBACK_REACTIONS,
+            EPIC_GUARANTEED_REACTIONS,
+            EPIC_RANDOM_EMOJI_FETCH_COUNT,
+        )
+
+        # Guaranteed epic reactions (these are standard Slack emojis)
+        guaranteed_reactions = list(EPIC_GUARANTEED_REACTIONS)
+
+        # Get random emojis from workspace (includes custom emojis!)
+        try:
+            random_emojis = get_random_emojis(
+                self.app, count=EPIC_RANDOM_EMOJI_FETCH_COUNT, include_custom=True
+            )
+            # Filter out any that are already in guaranteed list
+            extra_reactions = [e for e in random_emojis if e not in guaranteed_reactions]
+        except Exception as e:
+            logger.debug(f"{self.mode}: Could not fetch random emojis: {e}")
+            extra_reactions = list(EPIC_FALLBACK_REACTIONS)
+
+        # Combine: guaranteed + extra random reactions
+        epic_reactions = guaranteed_reactions + extra_reactions[:EPIC_EXTRA_REACTIONS_COUNT]
+
+        try:
+            added_count = 0
+            added_emojis = []
+            for emoji in epic_reactions:
+                try:
+                    self.app.client.reactions_add(
+                        channel=self.birthday_channel,
+                        timestamp=message_ts,
+                        name=emoji,
+                    )
+                    added_count += 1
+                    added_emojis.append(f":{emoji}:")
+                except Exception as reaction_error:
+                    # Some emojis might not exist in workspace - continue with others
+                    if "already_reacted" not in str(reaction_error):
+                        logger.debug(
+                            f"{self.mode}: Could not add reaction :{emoji}: - {reaction_error}"
+                        )
+
+            if added_count > 0:
+                epic_names = [
+                    p["username"]
+                    for p in birthday_people
+                    if p.get("preferences", {}).get("celebration_style") == "epic"
+                ]
+                logger.info(
+                    f"{self.mode}: Added {added_count} epic reactions "
+                    f"({', '.join(added_emojis)}) for: {', '.join(epic_names)}"
+                )
+
+        except Exception as e:
+            # Don't let reaction failures affect the celebration
+            logger.warning(f"{self.mode}: Failed to add epic reactions: {e}")
+
+    def _add_epic_thread_message(self, message_ts, birthday_people):
+        """
+        Add a celebratory thread message for epic style celebrations.
+
+        Posts an enthusiastic party message in the thread to kick off
+        the celebration and encourage others to join in.
+
+        Args:
+            message_ts: Parent message timestamp to reply to
+            birthday_people: List of birthday person dicts
+        """
+        import random
+
+        from storage.birthdays import DEFAULT_PREFERENCES
+
+        # Check if any birthday person has epic celebration style
+        epic_people = [
+            p
+            for p in birthday_people
+            if p.get("preferences", {}).get(
+                "celebration_style", DEFAULT_PREFERENCES["celebration_style"]
+            )
+            == "epic"
+        ]
+
+        if not epic_people:
+            return
+
+        from config import EPIC_THREAD_MESSAGES
+
+        try:
+            thread_message = random.choice(EPIC_THREAD_MESSAGES)
+
+            self.app.client.chat_postMessage(
+                channel=self.birthday_channel,
+                thread_ts=message_ts,
+                text=thread_message,
+            )
+
+            epic_names = [p["username"] for p in epic_people]
+            logger.info(f"{self.mode}: Posted epic thread celebration for: {', '.join(epic_names)}")
+
+        except Exception as e:
+            # Don't let thread message failures affect the celebration
+            logger.warning(f"{self.mode}: Failed to post epic thread message: {e}")
 
     def _mark_as_celebrated(self, people):
         """

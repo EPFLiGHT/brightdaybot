@@ -171,8 +171,15 @@ def register_event_handlers(app):
             if observance_name.startswith("🌍 "):
                 observance_name = observance_name[3:]
 
-            channel_id = body["channel"]["id"]
-            user_id = body["user"]["id"]
+            # Safely extract channel and user IDs with None checks
+            channel_id = body.get("channel", {}).get("id")
+            user_id = body.get("user", {}).get("id")
+
+            if not channel_id or not user_id:
+                events_logger.error(
+                    f"SPECIAL_DAY_DETAILS_ERROR: Missing channel_id ({channel_id}) or user_id ({user_id})"
+                )
+                return
 
             events_logger.info(
                 f"SPECIAL_DAY_DETAILS: User {user_id} clicked View Details for {observance_name} in channel {channel_id}"
@@ -226,6 +233,16 @@ def register_event_handlers(app):
 
             # Try to send error message to user
             try:
+                # Safely extract IDs for error recovery
+                error_channel_id = body.get("channel", {}).get("id")
+                error_user_id = body.get("user", {}).get("id")
+
+                if not error_channel_id:
+                    events_logger.error(
+                        "SPECIAL_DAY_DETAILS_ERROR: Cannot send error - no channel_id"
+                    )
+                    return
+
                 error_blocks = [
                     {
                         "type": "section",
@@ -239,23 +256,26 @@ def register_event_handlers(app):
                 if channel_type == "im":
                     # For DMs, send regular message
                     client.chat_postMessage(
-                        channel=body["channel"]["id"],
+                        channel=error_channel_id,
+                        blocks=error_blocks,
+                        text="⚠️ Error loading details",  # Fallback
+                    )
+                elif error_user_id:
+                    # For channels, send ephemeral (requires user_id)
+                    client.chat_postEphemeral(
+                        channel=error_channel_id,
+                        user=error_user_id,
                         blocks=error_blocks,
                         text="⚠️ Error loading details",  # Fallback
                     )
                 else:
-                    # For channels, send ephemeral
-                    client.chat_postEphemeral(
-                        channel=body["channel"]["id"],
-                        user=body["user"]["id"],
-                        blocks=error_blocks,
-                        text="⚠️ Error loading details",  # Fallback
+                    events_logger.error(
+                        "SPECIAL_DAY_DETAILS_ERROR: Cannot send ephemeral - no user_id"
                     )
             except Exception as error_send_error:
                 events_logger.error(
                     f"SPECIAL_DAY_DETAILS_ERROR: Could not send error message: {error_send_error}"
                 )
-                pass  # Silently fail if we can't even send error message
 
     events_logger.info("EVENT_HANDLER: Button action handler registered successfully")
 
@@ -279,7 +299,10 @@ def register_event_handlers(app):
         Handle remove birthday button click from App Home.
         """
         ack()
-        user_id = body["user"]["id"]
+        user_id = body.get("user", {}).get("id")
+        if not user_id:
+            events_logger.error("REMOVE_BIRTHDAY_ERROR: Missing user_id in body")
+            return
 
         try:
             from slack.client import get_username

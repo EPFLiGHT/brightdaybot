@@ -11,7 +11,9 @@ A Slack bot that celebrates birthdays with AI-generated personalized messages an
 - **Special Days**: UN/WHO/UNESCO observances with AI-generated content
 - **Smart Consolidation**: Single message for multiple same-day birthdays
 - **Slash Commands**: `/birthday` and `/special-day` with modal forms
-- **App Home**: Dashboard with birthday status and upcoming birthdays
+- **App Home**: Dashboard with birthday status, statistics, and upcoming birthdays
+- **Calendar Export**: Export team birthdays to ICS format for calendar apps
+- **Celebration Styles**: Choose quiet, standard, or epic celebration intensity
 - **Block Kit UI**: Professional Slack message layouts
 - **Thread Engagement**: Reacts to birthday thread replies with contextual emojis
 - **@-Mention Q&A**: Ask the bot about special days, birthdays, and capabilities
@@ -94,17 +96,18 @@ docker compose up -d
 
 ### Slash Commands (Use Anywhere)
 
-| Command                   | Description                  |
-| ------------------------- | ---------------------------- |
-| `/birthday`               | Open birthday form           |
-| `/birthday add`           | Open birthday form           |
-| `/birthday check [@user]` | Check birthday               |
-| `/birthday list`          | List upcoming birthdays      |
-| `/birthday pause`         | Pause birthday celebrations  |
-| `/birthday resume`        | Resume birthday celebrations |
-| `/special-day`            | Today's special days         |
-| `/special-day week`       | Next 7 days                  |
-| `/special-day month`      | Next 30 days                 |
+| Command                   | Description                      |
+| ------------------------- | -------------------------------- |
+| `/birthday`               | Open birthday form               |
+| `/birthday add`           | Open birthday form               |
+| `/birthday check [@user]` | Check birthday                   |
+| `/birthday list`          | List upcoming birthdays          |
+| `/birthday export`        | Export birthdays to ICS calendar |
+| `/birthday pause`         | Pause birthday celebrations      |
+| `/birthday resume`        | Resume birthday celebrations     |
+| `/special-day`            | Today's special days             |
+| `/special-day week`       | Next 7 days                      |
+| `/special-day month`      | Next 30 days                     |
 
 ### User Commands (DM the bot)
 

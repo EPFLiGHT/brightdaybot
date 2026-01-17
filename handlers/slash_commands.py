@@ -45,6 +45,8 @@ def register_slash_commands(app):
             _handle_slash_pause(user_id, respond)
         elif text == "resume":
             _handle_slash_resume(user_id, respond)
+        elif text == "export":
+            _handle_slash_export(user_id, respond, app)
         elif text == "help":
             _send_birthday_help(respond)
         else:
@@ -296,3 +298,148 @@ def _handle_slash_resume(user_id, respond):
         )
     else:
         respond(text="Unable to resume celebrations. Please try again.")
+
+
+def _handle_slash_export(user_id, respond, app):
+    """
+    Handle /birthday export command.
+
+    Generates an ICS calendar file with upcoming birthdays that users can import
+    into their calendar application.
+
+    Args:
+        user_id: Slack user ID who invoked the command
+        respond: Slack respond function for ephemeral messages
+        app: Slack app instance for username lookups
+    """
+    from config import BIRTHDAY_CHANNEL
+    from slack.client import get_channel_members, get_username
+    from storage.birthdays import is_user_active, load_birthdays
+
+    birthdays = load_birthdays()
+
+    if not birthdays:
+        respond(text="No birthdays to export. No one has added their birthday yet!")
+        return
+
+    # Get channel members to filter only active users in birthday channel
+    channel_members = get_channel_members(app, BIRTHDAY_CHANNEL)
+    channel_member_set = set(channel_members) if channel_members else set()
+
+    # Filter to active users in the birthday channel
+    exportable_birthdays = []
+    for uid, data in birthdays.items():
+        # Skip users not in birthday channel
+        if channel_member_set and uid not in channel_member_set:
+            continue
+        # Skip users with paused celebrations
+        if not is_user_active(uid, data):
+            continue
+        # Get username for calendar events
+        username = get_username(app, uid)
+        exportable_birthdays.append(
+            {
+                "user_id": uid,
+                "username": username,
+                "date": data["date"],
+                "year": data.get("year"),
+            }
+        )
+
+    if not exportable_birthdays:
+        respond(
+            text="No active birthdays to export. Users may have paused celebrations or left the channel."
+        )
+        return
+
+    # Generate ICS content
+    ics_content = _generate_ics_calendar(exportable_birthdays)
+
+    # Since Slack doesn't support file attachments in ephemeral responses,
+    # we'll send the ICS content as a code block that users can copy
+    logger.info(
+        f"EXPORT: Generated calendar with {len(exportable_birthdays)} birthdays for {user_id}"
+    )
+
+    # Create a helpful message with the ICS content
+    respond(
+        text=f"*Birthday Calendar Export* - {len(exportable_birthdays)} birthdays\n\n"
+        f"Copy the content below and save it as `birthdays.ics`, then import into your calendar app:\n\n"
+        f"```\n{ics_content}\n```\n\n"
+        f"_Tip: Most calendar apps (Google Calendar, Outlook, Apple Calendar) can import .ics files._"
+    )
+
+
+def _generate_ics_calendar(birthdays):
+    """
+    Generate ICS calendar format content for birthdays.
+
+    Creates a VCALENDAR with VEVENT entries for each birthday,
+    configured as yearly recurring all-day events.
+
+    Args:
+        birthdays: List of birthday dicts with user_id, username, date, year
+
+    Returns:
+        str: ICS format calendar content
+    """
+    from datetime import datetime
+
+    # ICS header
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//BrightDayBot//Birthday Calendar//EN",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        "X-WR-CALNAME:Team Birthdays",
+    ]
+
+    for bday in birthdays:
+        username = bday["username"]
+        date_str = bday["date"]  # DD/MM format
+        user_id = bday["user_id"]
+        year = bday.get("year")
+
+        # Parse date
+        try:
+            day, month = date_str.split("/")
+            day = int(day)
+            month = int(month)
+        except (ValueError, AttributeError):
+            continue
+
+        # Use current year for the event start
+        current_year = datetime.now().year
+        event_date = f"{current_year}{month:02d}{day:02d}"
+
+        # Create unique ID for the event
+        uid = f"birthday-{user_id}@brightdaybot"
+
+        # Event summary
+        summary = f"🎂 {username}'s Birthday"
+        if year:
+            # Calculate age they'll be turning this year
+            turning_age = current_year - year
+            summary = f"🎂 {username}'s Birthday (turning {turning_age})"
+
+        # Generate creation timestamp
+        dtstamp = datetime.now().strftime("%Y%m%dT%H%M%SZ")
+
+        # VEVENT for birthday (all-day event with yearly recurrence)
+        lines.extend(
+            [
+                "BEGIN:VEVENT",
+                f"UID:{uid}",
+                f"DTSTAMP:{dtstamp}",
+                f"DTSTART;VALUE=DATE:{event_date}",
+                f"SUMMARY:{summary}",
+                "RRULE:FREQ=YEARLY",
+                "TRANSP:TRANSPARENT",
+                "END:VEVENT",
+            ]
+        )
+
+    lines.append("END:VCALENDAR")
+
+    return "\n".join(lines)

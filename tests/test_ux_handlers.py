@@ -327,7 +327,12 @@ class TestAppHomeViewBuilding:
         ):
             with patch(
                 "handlers.app_home.get_user_preferences",
-                return_value={"active": True, "image_enabled": True, "show_age": True},
+                return_value={
+                    "active": True,
+                    "image_enabled": True,
+                    "show_age": True,
+                    "celebration_style": "standard",
+                },
             ):
                 with patch("handlers.app_home.get_username", return_value="TestUser"):
                     with patch("slack.client.get_channel_members", return_value=["U123"]):

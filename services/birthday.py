@@ -56,6 +56,122 @@ from utils.date import (
 logger = get_logger("birthday")
 
 
+# ----- SHARED BIRTHDAY DETECTION HELPERS -----
+
+
+def _find_birthdays_today(
+    app,
+    birthdays: dict,
+    channel_member_set: set,
+    reference_moment,
+    profile_cache: dict = None,
+    check_already_celebrated: bool = False,
+    log_prefix: str = "BIRTHDAY",
+):
+    """
+    Find all users whose birthday is today and who are eligible for celebration.
+
+    This shared helper extracts the common birthday detection logic used by:
+    - timezone_aware_check()
+    - simple_daily_check()
+    - celebrate_missed_birthdays()
+
+    Args:
+        app: Slack app instance
+        birthdays: Dict of user_id -> birthday_data
+        channel_member_set: Set of user IDs in the birthday channel
+        reference_moment: Datetime to check birthdays against
+        profile_cache: Optional dict to cache user profiles (will be populated)
+        check_already_celebrated: If True, skip users already celebrated today
+        log_prefix: Prefix for log messages (e.g., "TIMEZONE", "SIMPLE_DAILY")
+
+    Returns:
+        List of birthday_person dicts with keys:
+        - user_id, username, date, year, date_words, profile, preferences
+        - timezone (only if profile_cache is provided)
+    """
+    if profile_cache is None:
+        profile_cache = {}
+
+    birthday_people = []
+    total_checked = 0
+    found_today = 0
+
+    for user_id, birthday_data in birthdays.items():
+        total_checked += 1
+
+        # Skip malformed entries without "date" key
+        if not isinstance(birthday_data, dict) or "date" not in birthday_data:
+            logger.warning(f"SKIP: Malformed birthday data for {user_id}, missing 'date' key")
+            continue
+
+        date_str = birthday_data["date"]
+
+        # Check if it's their birthday today
+        if not check_if_birthday_today(date_str, reference_moment):
+            continue
+
+        found_today += 1
+
+        # Check if already celebrated (optional)
+        if check_already_celebrated and is_user_celebrated_today(user_id):
+            logger.debug(f"{log_prefix}: {user_id} already celebrated today, skipping")
+            continue
+
+        # Get user status and profile info
+        _, is_bot, is_deleted, username = get_user_status_and_info(app, user_id)
+
+        # Skip deleted/deactivated users or bots
+        if is_deleted or is_bot:
+            logger.debug(
+                f"SKIP: User {user_id} is {'deleted' if is_deleted else 'a bot'}, skipping birthday check"
+            )
+            continue
+
+        # Skip users who are not in the birthday channel (opted out)
+        if user_id not in channel_member_set:
+            logger.debug(
+                f"SKIP: User {user_id} ({username}) is not in birthday channel (opted out), skipping"
+            )
+            continue
+
+        # Skip users who have paused their celebrations
+        if not is_user_active(user_id, birthday_data):
+            logger.debug(f"SKIP: User {user_id} ({username}) has paused celebrations, skipping")
+            continue
+
+        # Get user profile (with caching)
+        if user_id not in profile_cache:
+            profile_cache[user_id] = get_user_profile(app, user_id)
+        user_profile = profile_cache[user_id]
+
+        # Build birthday person dict
+        date_words = date_to_words(date_str, birthday_data.get("year"))
+        birthday_person = {
+            "user_id": user_id,
+            "username": username,
+            "date": date_str,
+            "year": birthday_data.get("year"),
+            "date_words": date_words,
+            "profile": user_profile,
+            "preferences": get_user_preferences(user_id) or {},
+        }
+
+        # Add timezone if we have profile
+        if user_profile:
+            birthday_person["timezone"] = user_profile.get("timezone", "UTC")
+
+        birthday_people.append(birthday_person)
+        logger.debug(f"{log_prefix}: Found birthday for {username} (date: {date_str})")
+
+    logger.info(
+        f"{log_prefix}: Birthday detection - checked: {total_checked}, "
+        f"found today: {found_today}, eligible: {len(birthday_people)}"
+    )
+
+    return birthday_people
+
+
 def celebrate_bot_birthday(app, moment):
     """
     Check if today is BrightDayBot's birthday and celebrate if so.
@@ -710,102 +826,39 @@ def timezone_aware_check(app, moment):
     # Clean up old timezone announcement files
     cleanup_timezone_announcement_files()
 
-    # Note: We don't exit early if some birthdays were celebrated today
-    # We need to process each person individually to catch any missed celebrations
+    # Use shared helper to find all birthday people today (with already-celebrated check)
+    all_birthday_people_today = _find_birthdays_today(
+        app=app,
+        birthdays=birthdays,
+        channel_member_set=channel_member_set,
+        reference_moment=utc_moment,
+        profile_cache=profile_cache,
+        check_already_celebrated=True,
+        log_prefix="TIMEZONE",
+    )
 
     # Find who's hitting celebration time right now (the trigger)
     trigger_people = []
-    all_birthday_people_today = []
+    from utils.date import get_user_current_time
 
-    # Enhanced logging: Track all birthday processing
-    total_birthdays_checked = 0
-    birthdays_found_today = 0
+    for person in all_birthday_people_today:
+        user_timezone = person.get("timezone", "UTC")
+        username = person.get("username", "Unknown")
 
-    for user_id, birthday_data in birthdays.items():
-        total_birthdays_checked += 1
-
-        # Skip malformed entries without "date" key
-        if not isinstance(birthday_data, dict) or "date" not in birthday_data:
-            logger.warning(f"SKIP: Malformed birthday data for {user_id}, missing 'date' key")
-            continue
-
-        # Get user status and profile info efficiently FIRST (moved up to get timezone)
-        _, is_bot, is_deleted, username = get_user_status_and_info(app, user_id)
-
-        # Skip deleted/deactivated users or bots early
-        if is_deleted or is_bot:
-            logger.debug(
-                f"SKIP: User {user_id} is {'deleted' if is_deleted else 'a bot'}, skipping birthday check"
+        # Check if this person is hitting celebration time right now (the trigger)
+        if is_celebration_time_for_user(user_timezone, TIMEZONE_CELEBRATION_TIME, utc_moment):
+            trigger_people.append(person)
+            user_current_time = get_user_current_time(user_timezone)
+            logger.info(
+                f"TIMEZONE: It's {user_current_time.strftime('%H:%M')} in {user_timezone} for {username} - triggering celebration!"
             )
-            continue
-
-        # Skip users who are not in the birthday channel (opted out) early
-        if user_id not in channel_member_set:
+        else:
             logger.debug(
-                f"SKIP: User {user_id} ({username}) is not in birthday channel (opted out), skipping birthday check"
+                f"TIMEZONE: Not celebration time for {username} in {user_timezone} (waiting for {TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')})"
             )
-            continue
 
-        # Skip users who have paused their celebrations
-        if not is_user_active(user_id, birthday_data):
-            logger.debug(
-                f"SKIP: User {user_id} ({username}) has paused celebrations, skipping birthday check"
-            )
-            continue
-
-        # Get full user profile for timezone info (with caching) - moved up
-        if user_id not in profile_cache:
-            profile_cache[user_id] = get_user_profile(app, user_id)
-        user_profile = profile_cache[user_id]
-        user_timezone = user_profile.get("timezone", "UTC") if user_profile else "UTC"
-
-        # UTC APPROACH: Check if it's their birthday today using UTC for server-independent grouping
-        # This allows people with same birthday DATE to be celebrated together
-        # while being completely independent of server location
-        if check_if_birthday_today(birthday_data["date"], utc_moment):
-            birthdays_found_today += 1
-            logger.debug(
-                f"TIMEZONE: Found birthday today for {user_id} (date: {birthday_data['date']}, UTC date: {utc_moment.strftime('%d/%m')})"
-            )
-            # Skip if this user was already celebrated today
-            if is_user_celebrated_today(user_id):
-                logger.debug(f"TIMEZONE: {user_id} already celebrated today, skipping")
-                continue
-
-            date_words = date_to_words(birthday_data["date"], birthday_data.get("year"))
-
-            birthday_person = {
-                "user_id": user_id,
-                "username": username,
-                "date": birthday_data["date"],
-                "year": birthday_data.get("year"),
-                "date_words": date_words,
-                "profile": user_profile,
-                "timezone": user_timezone,
-                "preferences": get_user_preferences(user_id) or {},
-            }
-
-            # Add to all birthday people for today
-            all_birthday_people_today.append(birthday_person)
-
-            # Check if this person is hitting celebration time right now (the trigger)
-            if is_celebration_time_for_user(user_timezone, TIMEZONE_CELEBRATION_TIME, utc_moment):
-                trigger_people.append(birthday_person)
-                # Get actual current time in user's timezone for accurate logging
-                from utils.date import get_user_current_time
-
-                user_current_time = get_user_current_time(user_timezone)
-                logger.info(
-                    f"TIMEZONE: It's {user_current_time.strftime('%H:%M')} in {user_timezone} for {username} - triggering celebration for all today's birthdays!"
-                )
-            else:
-                logger.debug(
-                    f"TIMEZONE: Not celebration time for {username} in {user_timezone} (waiting for {TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')} trigger)"
-                )
-
-    # Enhanced logging: Summary of birthday detection results
     logger.info(
-        f"TIMEZONE: Birthday detection summary - checked: {total_birthdays_checked}, found today: {birthdays_found_today}, triggers: {len(trigger_people)}, celebrating: {len(all_birthday_people_today)}"
+        f"TIMEZONE: Trigger check - {len(trigger_people)} trigger(s) from {len(all_birthday_people_today)} birthday people"
     )
 
     # If someone is hitting celebration time, celebrate EVERYONE with birthdays today
@@ -887,61 +940,15 @@ def simple_daily_check(app, moment):
         return
 
     birthdays = load_birthdays()
-    birthday_people_today = []
 
-    # Find all birthdays for today
-    for user_id, birthday_data in birthdays.items():
-        # Skip malformed entries without "date" key
-        if not isinstance(birthday_data, dict) or "date" not in birthday_data:
-            logger.warning(f"SKIP: Malformed birthday data for {user_id}, missing 'date' key")
-            continue
-
-        # Get user status and profile info efficiently FIRST (moved up to get timezone)
-        _, is_bot, is_deleted, username = get_user_status_and_info(app, user_id)
-
-        # Skip deleted/deactivated users or bots early
-        if is_deleted or is_bot:
-            logger.debug(
-                f"SKIP: User {user_id} is {'deleted' if is_deleted else 'a bot'}, skipping birthday check"
-            )
-            continue
-
-        # Skip users who are not in the birthday channel (opted out) early
-        if user_id not in channel_member_set:
-            logger.debug(
-                f"SKIP: User {user_id} ({username}) is not in birthday channel (opted out), skipping birthday check"
-            )
-            continue
-
-        # Skip users who have paused their celebrations
-        if not is_user_active(user_id, birthday_data):
-            logger.debug(
-                f"SKIP: User {user_id} ({username}) has paused celebrations, skipping birthday check"
-            )
-            continue
-
-        # SIMPLE MODE: Check if it's their birthday today using SERVER timezone
-        # In simple mode, we don't care about user timezones - just same calendar date
-        if check_if_birthday_today(birthday_data["date"], moment):
-            logger.debug(
-                f"SIMPLE_DAILY: Found birthday today for {user_id} (date: {birthday_data['date']}, server date: {moment.strftime('%d/%m')})"
-            )
-            date_words = date_to_words(birthday_data["date"], birthday_data.get("year"))
-
-            # Get user profile for image generation
-            user_profile = get_user_profile(app, user_id)
-
-            birthday_person = {
-                "user_id": user_id,
-                "username": username,
-                "date": birthday_data["date"],
-                "year": birthday_data.get("year"),
-                "date_words": date_words,
-                "profile": user_profile,
-                "preferences": get_user_preferences(user_id) or {},
-            }
-
-            birthday_people_today.append(birthday_person)
+    # Use shared helper for birthday detection
+    birthday_people_today = _find_birthdays_today(
+        app=app,
+        birthdays=birthdays,
+        channel_member_set=channel_member_set,
+        reference_moment=moment,
+        log_prefix="SIMPLE_DAILY",
+    )
 
     if birthday_people_today:
         logger.info(
@@ -993,73 +1000,23 @@ def celebrate_missed_birthdays(app):
             return
         channel_member_set = set(channel_members)
         logger.info(f"MISSED_BIRTHDAYS: Birthday channel has {len(channel_members)} members")
+
         # Load all birthdays
         birthdays = load_birthdays()
         if not birthdays:
             logger.info("MISSED_BIRTHDAYS: No birthdays stored in system")
             return
 
-        # Find all people with birthdays today who haven't been announced
-        birthday_people_today = []
-
-        for user_id, birthday_data in birthdays.items():
-            # Skip malformed entries without "date" key
-            if not isinstance(birthday_data, dict) or "date" not in birthday_data:
-                logger.warning(f"SKIP: Malformed birthday data for {user_id}, missing 'date' key")
-                continue
-
-            date_str = birthday_data["date"]
-
-            # Check if it's their birthday today
-            if check_if_birthday_today(date_str):
-                # Check if they've already been celebrated today
-                if not is_user_celebrated_today(user_id):
-                    # Get user status and profile info efficiently (same as timezone_aware_check)
-                    _, is_bot, is_deleted, username = get_user_status_and_info(app, user_id)
-
-                    # Skip deleted/deactivated users or bots
-                    if is_deleted or is_bot:
-                        logger.info(
-                            f"MISSED_BIRTHDAYS: User {user_id} is {'deleted' if is_deleted else 'a bot'}, skipping"
-                        )
-                        continue
-
-                    # Skip users who are not in the birthday channel (opted out)
-                    if user_id not in channel_member_set:
-                        logger.info(
-                            f"MISSED_BIRTHDAYS: User {user_id} ({username}) is not in birthday channel (opted out), skipping"
-                        )
-                        continue
-
-                    # Skip users who have paused their celebrations
-                    if not is_user_active(user_id, birthday_data):
-                        logger.info(
-                            f"MISSED_BIRTHDAYS: User {user_id} ({username}) has paused celebrations, skipping"
-                        )
-                        continue
-
-                    # Get full user profile for additional data (with caching)
-                    if user_id not in profile_cache:
-                        profile_cache[user_id] = get_user_profile(app, user_id)
-                    user_profile = profile_cache[user_id]
-
-                    # Parse year if available
-                    year = birthday_data.get("year")
-                    date_words = date_to_words(date_str, year)
-
-                    birthday_people_today.append(
-                        {
-                            "user_id": user_id,
-                            "username": username,
-                            "date": date_str,
-                            "year": year,
-                            "date_words": date_words,
-                            "profile": user_profile,
-                            "preferences": get_user_preferences(user_id) or {},
-                        }
-                    )
-
-                    logger.info(f"MISSED_BIRTHDAYS: Found missed celebration for {username}")
+        # Use shared helper - check_already_celebrated=True to skip already announced
+        birthday_people_today = _find_birthdays_today(
+            app=app,
+            birthdays=birthdays,
+            channel_member_set=channel_member_set,
+            reference_moment=datetime.now(),
+            profile_cache=profile_cache,
+            check_already_celebrated=True,
+            log_prefix="MISSED_BIRTHDAYS",
+        )
 
         # If we found missed birthdays, celebrate them now
         if birthday_people_today:

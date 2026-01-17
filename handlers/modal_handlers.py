@@ -72,7 +72,14 @@ def register_modal_handlers(app):
         prefs_block = values.get("preferences_block", {})
         prefs_input = prefs_block.get("preferences", {})
         selected_options = prefs_input.get("selected_options", [])
-        selected_values = [opt.get("value") for opt in selected_options]
+        # Safely extract values from options, handling non-dict items
+        selected_values = [opt.get("value") for opt in selected_options if isinstance(opt, dict)]
+
+        # Get celebration style from dropdown
+        style_block = values.get("celebration_style_block", {})
+        style_input = style_block.get("celebration_style", {})
+        style_option = style_input.get("selected_option", {})
+        celebration_style = style_option.get("value", "standard") if style_option else "standard"
 
         # Preserve existing pause state if user has one
         from storage.birthdays import DEFAULT_PREFERENCES, get_user_preferences
@@ -85,6 +92,7 @@ def register_modal_handlers(app):
             "image_enabled": "image_enabled" in selected_values,
             "show_age": "show_age" in selected_values,
             "active": existing_active,  # Preserve pause state from /birthday pause
+            "celebration_style": celebration_style,
         }
 
         logger.info(
