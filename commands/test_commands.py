@@ -1274,7 +1274,7 @@ def handle_test_join_command(args, user_id, say, app):
 
 Here I celebrate everyone's birthdays with personalized messages and AI-generated images!
 
-📅 *To add your birthday:* Send me a DM with your date in DD/MM format (e.g., 25/12) or DD/MM/YYYY format (e.g., 25/12/1990)
+📅 *To add your birthday:* Use `/birthday` anywhere in Slack, or visit my *App Home* tab
 
 💡 *Commands:* Type `help` in a DM to see all available options
 

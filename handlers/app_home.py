@@ -404,7 +404,7 @@ def _build_home_view(user_id, app):
             "elements": [
                 {
                     "type": "mrkdwn",
-                    "text": "💡 Tip: Send me a DM with your date (e.g., 25/12) to quickly add your birthday!",
+                    "text": "💡 Tip: Use `/birthday` or click *Add My Birthday* above to get started!",
                 }
             ],
         }

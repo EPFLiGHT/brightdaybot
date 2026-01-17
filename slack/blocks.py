@@ -643,7 +643,7 @@ def build_welcome_blocks(
             "fields": [
                 {
                     "type": "mrkdwn",
-                    "text": "*📅 Add Your Birthday:*\nUse `/birthday` to open the form\nor DM me: `25/12` or `25/12/1990`",
+                    "text": "*📅 Add Your Birthday:*\nUse `/birthday` to open the form\nor visit my *App Home* tab",
                 },
                 {
                     "type": "mrkdwn",
@@ -707,7 +707,7 @@ def build_hello_blocks(
             "fields": [
                 {
                     "type": "mrkdwn",
-                    "text": "*📅 Get Started:*\nSend your birthday:\n• DD/MM (e.g., 25/12)\n• DD/MM/YYYY (e.g., 25/12/1990)",
+                    "text": "*📅 Get Started:*\nUse `/birthday` to add yours!\nOr visit my *App Home* tab.",
                 },
                 {
                     "type": "mrkdwn",
@@ -721,7 +721,7 @@ def build_hello_blocks(
         },
     ]
 
-    fallback_text = f"{greeting}\n\nI'm {personality_name}, your birthday bot! Send me your birthday in DD/MM format or type 'help' for more info."
+    fallback_text = f"{greeting}\n\nI'm {personality_name}, your birthday bot! Use /birthday to add yours, or type 'help' for more info."
 
     return blocks, fallback_text
 
@@ -2036,7 +2036,7 @@ def build_birthday_not_found_blocks(
     message = f"{possessive} have a birthday saved in our records."
 
     if is_self:
-        message += "\n\nTo add your birthday, send me a message in the format `DD/MM` (e.g., `25/12`) or `DD/MM/YYYY` (e.g., `25/12/1990`)."
+        message += "\n\nTo add your birthday, use `/birthday` or visit my *App Home* tab."
 
     blocks = [
         {

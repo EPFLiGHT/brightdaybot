@@ -241,7 +241,7 @@ Your capabilities:
 
     if question_type == "help":
         prompt += """If asked about your capabilities, explain:
-- Users can DM you to set their birthday
+- Users can use /birthday or visit your App Home to set their birthday
 - You announce birthdays with personalized messages and AI images
 - You share information about special days and observances
 - You can answer questions about upcoming events
@@ -281,6 +281,6 @@ def _get_fallback_response(question_type: str, context: Dict[str, Any]) -> Optio
             return ":birthday: No upcoming birthdays in the next week. Stay tuned!"
 
     if question_type == "help":
-        return f":wave: Hi! I'm {BOT_NAME}. I track birthdays and announce special days. DM me to set your birthday, or ask me about upcoming events!"
+        return f":wave: Hi! I'm {BOT_NAME}. I track birthdays and announce special days. Use `/birthday` to add yours, or ask me about upcoming events!"
 
     return ":thinking_face: I'm not quite sure how to answer that. Try asking about birthdays, special days, or what I can do!"

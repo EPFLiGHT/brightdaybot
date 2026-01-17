@@ -160,11 +160,11 @@ class TestBuildBirthdayNotFoundBlocks:
     def test_self_includes_instructions(self):
         """Self not found includes add instructions"""
         blocks, _ = build_birthday_not_found_blocks("Alice", is_self=True)
-        # Check section text includes instructions
+        # Check section text includes instructions (now promotes /birthday command)
         section_texts = [
             b.get("text", {}).get("text", "") for b in blocks if b.get("type") == "section"
         ]
-        any_has_instructions = any("DD/MM" in t for t in section_texts)
+        any_has_instructions = any("/birthday" in t for t in section_texts)
         assert any_has_instructions
 
 
