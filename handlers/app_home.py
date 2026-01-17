@@ -85,7 +85,7 @@ def _build_home_view(user_id, app):
     blocks = []
 
     # Header
-    blocks.append({"type": "header", "text": {"type": "plain_text", "text": "BrightDayBot"}})
+    blocks.append({"type": "header", "text": {"type": "plain_text", "text": "🎉 BrightDayBot"}})
 
     blocks.append(
         {
@@ -103,7 +103,7 @@ def _build_home_view(user_id, app):
     blocks.append(
         {
             "type": "section",
-            "text": {"type": "mrkdwn", "text": "*Your Birthday Status*"},
+            "text": {"type": "mrkdwn", "text": "*🎂 Your Birthday Status*"},
         }
     )
 
@@ -113,12 +113,12 @@ def _build_home_view(user_id, app):
         age = calculate_age(user_birthday["year"]) if user_birthday.get("year") else None
 
         fields = [
-            {"type": "mrkdwn", "text": f"*Birthday:*\n{date_words}"},
-            {"type": "mrkdwn", "text": f"*Star Sign:*\n{star_sign}"},
+            {"type": "mrkdwn", "text": f"📅 *Birthday*\n{date_words}"},
+            {"type": "mrkdwn", "text": f"⭐ *Star Sign*\n{star_sign}"},
         ]
 
         if age:
-            fields.append({"type": "mrkdwn", "text": f"*Age:*\n{age} years"})
+            fields.append({"type": "mrkdwn", "text": f"🎈 *Age*\n{age} years"})
 
         blocks.append({"type": "section", "fields": fields})
 
@@ -133,12 +133,17 @@ def _build_home_view(user_id, app):
 
         pref_items = []
         if is_active:
-            pref_items.append("Celebrations: Active")
+            pref_items.append("✅ Active")
         else:
-            pref_items.append("Celebrations: Paused")
-        pref_items.append(f"AI Images: {'On' if image_enabled else 'Off'}")
-        pref_items.append(f"Show Age: {'Yes' if show_age else 'No'}")
-        pref_items.append(f"Style: {celebration_style.title()}")
+            pref_items.append("⏸️ Paused")
+        pref_items.append(
+            f"{'🖼️' if image_enabled else '📝'} {'Images On' if image_enabled else 'Text Only'}"
+        )
+        pref_items.append(
+            f"{'🎂' if show_age else '🤫'} {'Age Shown' if show_age else 'Age Hidden'}"
+        )
+        style_emoji = {"quiet": "🤫", "standard": "🎊", "epic": "🚀"}.get(celebration_style, "🎊")
+        pref_items.append(f"{style_emoji} {celebration_style.title()}")
 
         blocks.append(
             {
@@ -154,13 +159,13 @@ def _build_home_view(user_id, app):
                 "elements": [
                     {
                         "type": "button",
-                        "text": {"type": "plain_text", "text": "Edit Birthday"},
+                        "text": {"type": "plain_text", "text": "✏️ Edit Birthday", "emoji": True},
                         "action_id": "open_birthday_modal",
                         "style": "primary",
                     },
                     {
                         "type": "button",
-                        "text": {"type": "plain_text", "text": "Remove Birthday"},
+                        "text": {"type": "plain_text", "text": "🗑️ Remove", "emoji": True},
                         "action_id": "remove_birthday_confirm",
                         "style": "danger",
                         "confirm": {
@@ -182,7 +187,7 @@ def _build_home_view(user_id, app):
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": "You haven't added your birthday yet!",
+                    "text": "🎈 You haven't added your birthday yet! Add it now to receive personalized celebrations.",
                 },
             }
         )
@@ -194,7 +199,7 @@ def _build_home_view(user_id, app):
                 "elements": [
                     {
                         "type": "button",
-                        "text": {"type": "plain_text", "text": "Add My Birthday"},
+                        "text": {"type": "plain_text", "text": "➕ Add My Birthday", "emoji": True},
                         "action_id": "open_birthday_modal",
                         "style": "primary",
                     }
@@ -208,7 +213,7 @@ def _build_home_view(user_id, app):
     blocks.append(
         {
             "type": "section",
-            "text": {"type": "mrkdwn", "text": "*Upcoming Birthdays*"},
+            "text": {"type": "mrkdwn", "text": "*🗓️ Upcoming Birthdays*"},
         }
     )
 
@@ -217,13 +222,13 @@ def _build_home_view(user_id, app):
         birthday_lines = []
         for bday in upcoming:
             if bday["days_until"] == 0:
-                days_text = "_Today!_ 🎂"
+                days_text = "🎂 _Today!_"
             elif bday["days_until"] == 1:
-                days_text = "_Tomorrow_"
+                days_text = "🔜 _Tomorrow_"
             else:
                 days_text = f"_in {bday['days_until']} days_"
 
-            birthday_lines.append(f"• <@{bday['user_id']}> ({bday['date']}) - {days_text}")
+            birthday_lines.append(f"• <@{bday['user_id']}> ({bday['date']}) — {days_text}")
 
         blocks.append(
             {
@@ -240,7 +245,7 @@ def _build_home_view(user_id, app):
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": "_No birthdays registered yet._",
+                    "text": "_No upcoming birthdays in the next few days._",
                 },
             }
         )
@@ -252,40 +257,58 @@ def _build_home_view(user_id, app):
         blocks.append(
             {
                 "type": "section",
-                "text": {"type": "mrkdwn", "text": "*Birthday Statistics*"},
+                "text": {"type": "mrkdwn", "text": "*📊 Birthday Statistics*"},
             }
         )
 
-        # Build stats text
-        stats_lines = []
-        stats_lines.append(f"*{stats['total']}* birthdays registered")
+        # Build stats fields for 2-column layout
+        stats_fields = [
+            {
+                "type": "mrkdwn",
+                "text": f"🎂 *Total Registered*\n{stats['total']} birthdays",
+            }
+        ]
 
         if stats["this_week"] > 0:
-            stats_lines.append(f"*{stats['this_week']}* birthday(s) this week")
+            week_text = (
+                "1 celebration" if stats["this_week"] == 1 else f"{stats['this_week']} celebrations"
+            )
+            stats_fields.append({"type": "mrkdwn", "text": f"📅 *This Week*\n{week_text}"})
+
         if stats["this_month"] > 0:
-            stats_lines.append(f"*{stats['this_month']}* birthday(s) in next 30 days")
+            month_text = (
+                "1 upcoming" if stats["this_month"] == 1 else f"{stats['this_month']} upcoming"
+            )
+            stats_fields.append({"type": "mrkdwn", "text": f"🗓️ *Next 30 Days*\n{month_text}"})
 
         if stats["most_common_month"]:
-            stats_lines.append(
-                f"Most popular month: *{stats['most_common_month']}* ({stats['most_common_count']} birthdays)"
+            count = stats["most_common_count"]
+            count_text = "1 birthday" if count == 1 else f"{count} birthdays"
+            stats_fields.append(
+                {
+                    "type": "mrkdwn",
+                    "text": f"⭐ *Most Popular*\n{stats['most_common_month']} ({count_text})",
+                }
             )
 
-        # Fun fact about empty months
+        blocks.append({"type": "section", "fields": stats_fields})
+
+        # Fun fact about empty months as context
         if stats["empty_months"]:
             if len(stats["empty_months"]) == 1:
-                stats_lines.append(f"No one born in {stats['empty_months'][0]} yet!")
+                fun_fact = f"💡 No one born in {stats['empty_months'][0]} yet — be the first!"
             elif len(stats["empty_months"]) <= 3:
-                stats_lines.append(f"No birthdays in: {', '.join(stats['empty_months'])}")
+                fun_fact = f"💡 Missing birthdays in: {', '.join(stats['empty_months'])}"
+            else:
+                fun_fact = None
 
-        blocks.append(
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": "\n".join(f"• {line}" for line in stats_lines),
-                },
-            }
-        )
+            if fun_fact:
+                blocks.append(
+                    {
+                        "type": "context",
+                        "elements": [{"type": "mrkdwn", "text": fun_fact}],
+                    }
+                )
 
     blocks.append({"type": "divider"})
 
@@ -293,7 +316,7 @@ def _build_home_view(user_id, app):
     blocks.append(
         {
             "type": "section",
-            "text": {"type": "mrkdwn", "text": "*Upcoming Special Days*"},
+            "text": {"type": "mrkdwn", "text": "*✨ Upcoming Special Days*"},
         }
     )
 
@@ -344,7 +367,7 @@ def _build_home_view(user_id, app):
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": "_No special days in the next week._",
+                    "text": "_No special days coming up this week._",
                 },
             }
         )
@@ -355,7 +378,7 @@ def _build_home_view(user_id, app):
     blocks.append(
         {
             "type": "section",
-            "text": {"type": "mrkdwn", "text": "*Quick Commands*"},
+            "text": {"type": "mrkdwn", "text": "*⌨️ Quick Commands*"},
         }
     )
 
@@ -365,11 +388,11 @@ def _build_home_view(user_id, app):
             "text": {
                 "type": "mrkdwn",
                 "text": "Use these slash commands anywhere:\n"
-                + "- `/birthday` - Add or edit your birthday\n"
-                + "- `/birthday check` - Check your birthday\n"
-                + "- `/birthday list` - See upcoming birthdays\n"
-                + "- `/birthday export` - Export to calendar\n"
-                + "- `/special-day` - View today's special days",
+                + "• `/birthday` — Add or edit your birthday\n"
+                + "• `/birthday check` — Check your birthday\n"
+                + "• `/birthday list` — See upcoming birthdays\n"
+                + "• `/birthday export` — Export to calendar\n"
+                + "• `/special-day` — View today's special days",
             },
         }
     )
@@ -381,7 +404,7 @@ def _build_home_view(user_id, app):
             "elements": [
                 {
                     "type": "mrkdwn",
-                    "text": "Tip: Send me a DM with your date (e.g., 25/12) to quickly add your birthday!",
+                    "text": "💡 Tip: Send me a DM with your date (e.g., 25/12) to quickly add your birthday!",
                 }
             ],
         }
