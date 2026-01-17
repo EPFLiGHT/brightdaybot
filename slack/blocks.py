@@ -660,7 +660,7 @@ def build_welcome_blocks(
             "elements": [
                 {
                     "type": "mrkdwn",
-                    "text": f"🎂 Hope to celebrate your special day soon! Not interested? Simply leave {channel_mention}.",
+                    "text": "🎂 Hope to celebrate your special day soon! Not interested? Use `/birthday pause` to opt out.",
                 }
             ],
         },

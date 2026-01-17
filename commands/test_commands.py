@@ -1281,7 +1281,7 @@ Here I celebrate everyone's birthdays with personalized messages and AI-generate
 Hope to celebrate your special day soon! 🎂
 
 *Not interested in birthday celebrations?*
-No worries! If you'd prefer to opt out, simply leave {get_channel_mention(BIRTHDAY_CHANNEL)}. This applies whether you have your birthday registered or not."""
+No worries! Use `/birthday pause` or visit my *App Home* to disable celebrations."""
 
                 send_message(app, event_user, welcome_msg)
                 logger.info(

@@ -33,7 +33,6 @@ from services.celebration import (
 )
 from slack.client import (
     get_channel_members,
-    get_channel_mention,
     get_user_mention,
     get_user_profile,
     get_user_status_and_info,
@@ -611,10 +610,9 @@ def send_reminder_to_users(app, users, custom_message=None, reminder_type="new")
                     f"We'd love to celebrate your birthday! 🎂\n\n"
                     f"*How to add your birthday:*\n"
                     f"• Use `/birthday` to open the form\n"
-                    f"• Or DM me: `25/12` or `25/12/1990`\n"
-                    f"• Or visit my *Home* tab for preferences\n\n"
+                    f"• Or visit my *App Home* tab\n\n"
                     f"*Not interested?*\n"
-                    f"No worries! Simply leave {get_channel_mention(BIRTHDAY_CHANNEL)} to opt out."
+                    f"No worries! Use `/birthday pause` or visit my *App Home* to disable celebrations."
                 )
 
             elif reminder_type == "update":
@@ -631,8 +629,7 @@ def send_reminder_to_users(app, users, custom_message=None, reminder_type="new")
                         f"• Add your job title → More personalized messages\n\n"
                         f"You can update these in your Slack profile settings. Thanks! 🎨\n\n"
                         f"*Not interested in birthday celebrations?*\n"
-                        f"No worries! If you'd prefer to opt out, simply leave {get_channel_mention(BIRTHDAY_CHANNEL)}. "
-                        f"This applies whether you have your birthday registered or not."
+                        f"No worries! Use `/birthday pause` or visit my *App Home* to disable celebrations."
                     )
                 else:
                     # Check what's missing
@@ -655,8 +652,7 @@ def send_reminder_to_users(app, users, custom_message=None, reminder_type="new")
                             f"{missing_text}\n\n"
                             f"You can update these in your Slack profile settings. Thanks! 🎨\n\n"
                             f"*Not interested in birthday celebrations?*\n"
-                            f"No worries! If you'd prefer to opt out, simply leave {get_channel_mention(BIRTHDAY_CHANNEL)}. "
-                            f"This applies whether you have your birthday registered or not."
+                            f"No worries! Use `/birthday pause` or visit my *App Home* to disable celebrations."
                         )
                     else:
                         # Profile is complete
@@ -665,8 +661,7 @@ def send_reminder_to_users(app, users, custom_message=None, reminder_type="new")
                             f"Great news - your profile is complete! 🎉\n"
                             f"You're all set for amazing birthday celebrations. Thanks!\n\n"
                             f"*Not interested in birthday celebrations?*\n"
-                            f"No worries! If you'd prefer to opt out, simply leave {get_channel_mention(BIRTHDAY_CHANNEL)}. "
-                            f"This applies whether you have your birthday registered or not."
+                            f"No worries! Use `/birthday pause` or visit my *App Home* to disable celebrations."
                         )
 
             else:
@@ -674,11 +669,10 @@ def send_reminder_to_users(app, users, custom_message=None, reminder_type="new")
                 message = (
                     f"Hey {get_user_mention(user_id)}! 👋\n\n"
                     f"We'd love to celebrate your birthday! 🎂\n"
-                    f"Just send me your birthday as DD/MM (like `14/02`) or DD/MM/YYYY (like `14/02/1990`).\n\n"
+                    f"Use `/birthday` to add yours, or visit my *App Home* tab.\n\n"
                     f"Thanks! 🎉\n\n"
                     f"*Not interested in birthday celebrations?*\n"
-                    f"No worries! If you'd prefer to opt out, simply leave {get_channel_mention(BIRTHDAY_CHANNEL)}. "
-                    f"This applies whether you have your birthday registered or not."
+                    f"No worries! Use `/birthday pause` or visit my *App Home* to disable celebrations."
                 )
         else:
             # Use custom message but ensure it includes the user's mention
@@ -731,10 +725,9 @@ def send_channel_announcement(app, announcement_type="general", custom_message=N
                 "• Add your job title → More personalized birthday messages\n\n"
                 "Just update your Slack profile and you're all set! "
                 "Your next birthday celebration will be even more special. 🎂\n\n"
-                "Try it out with the `test` command in DM!\n\n"
+                "Try it out with the `test` command!\n\n"
                 "*Not interested in birthday celebrations?*\n"
-                f"No worries! If you'd prefer to opt out, simply leave this channel ({get_channel_mention(BIRTHDAY_CHANNEL)}). "
-                "This applies whether you have your birthday registered or not."
+                "No worries! Use `/birthday pause` or visit my *App Home* to disable celebrations."
             ),
             "general": (
                 "📢 *BrightDayBot Update* 📢\n\n"
