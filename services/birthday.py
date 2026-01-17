@@ -732,7 +732,7 @@ def send_channel_announcement(app, announcement_type="general", custom_message=N
             "general": (
                 "📢 *BrightDayBot Update* 📢\n\n"
                 "<!here> {message}\n\n"
-                "Questions? Feel free to DM me. Thanks! 🎉"
+                "Questions? Visit my *App Home* or use `/birthday help`. Thanks! 🎉"
             ),
         }
 

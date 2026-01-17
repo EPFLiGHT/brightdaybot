@@ -111,6 +111,9 @@ docker compose up -d
 
 ### User Commands (DM the bot)
 
+> [!TIP]
+> Slash commands (`/birthday`) and App Home are the recommended ways to interact. DM commands are available as an alternative.
+
 | Command              | Description                  |
 | -------------------- | ---------------------------- |
 | `add DD/MM [YYYY]`   | Set your birthday            |
