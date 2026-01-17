@@ -2288,21 +2288,21 @@ def build_birthday_modal(user_id: str) -> Dict[str, Any]:
             },
             {"type": "divider"},
             {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*🎉 Celebration Preferences*"},
+            },
+            {
                 "type": "input",
                 "block_id": "preferences_block",
                 "optional": True,
                 "element": preferences_element,
-                "label": {"type": "plain_text", "text": "Celebration Preferences"},
+                "label": {"type": "plain_text", "text": "Options"},
             },
             {
                 "type": "input",
                 "block_id": "celebration_style_block",
                 "element": style_element,
-                "label": {"type": "plain_text", "text": "Celebration Style"},
-                "hint": {
-                    "type": "plain_text",
-                    "text": "Choose how you'd like your birthday to be celebrated",
-                },
+                "label": {"type": "plain_text", "text": "Style"},
             },
         ],
     }
