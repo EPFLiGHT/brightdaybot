@@ -202,10 +202,13 @@ class BirthdayCelebrationPipeline:
             if post_result["message_sent"] and message_ts:
                 self._track_thread_for_engagement(message_ts, valid_people, actual_personality)
 
-                # Step 7b: Add epic celebration reactions if any user has epic style
+                # Step 7b: Add basic reactions to all birthday messages
+                self._add_basic_reactions(message_ts)
+
+                # Step 7c: Add epic celebration reactions if any user has epic style
                 self._add_epic_reactions(message_ts, valid_people)
 
-                # Step 7c: Add epic thread celebration message
+                # Step 7d: Add epic thread celebration message
                 self._add_epic_thread_message(message_ts, valid_people)
 
             # Step 8: Mark validated people as celebrated
@@ -514,6 +517,28 @@ class BirthdayCelebrationPipeline:
         except Exception as e:
             # Don't let tracking failures affect the celebration
             logger.warning(f"{self.mode}: Failed to track thread for engagement: {e}")
+
+    def _add_basic_reactions(self, message_ts):
+        """
+        Add basic celebratory reactions to all birthday messages.
+
+        Adds a simple cake emoji reaction to every birthday announcement,
+        regardless of celebration style. This provides a consistent visual
+        acknowledgment of the celebration.
+
+        Args:
+            message_ts: Message timestamp to add reactions to
+        """
+        try:
+            self.app.client.reactions_add(
+                channel=self.birthday_channel,
+                timestamp=message_ts,
+                name="birthday",  # 🎂
+            )
+            logger.debug(f"{self.mode}: Added basic :birthday: reaction")
+        except Exception as e:
+            if "already_reacted" not in str(e):
+                logger.debug(f"{self.mode}: Could not add basic reaction: {e}")
 
     def _add_epic_reactions(self, message_ts, birthday_people):
         """

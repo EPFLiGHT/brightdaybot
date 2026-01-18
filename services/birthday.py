@@ -521,21 +521,36 @@ def check_and_announce_special_days(app, moment):
 
                         # Track thread for engagement (respond to replies)
                         message_ts = result.get("ts")
-                        if message_ts and SPECIAL_DAY_THREAD_ENABLED:
+                        if message_ts:
+                            # Add reaction to special day announcement
                             try:
-                                from utils.thread_tracking import get_thread_tracker
-
-                                tracker = get_thread_tracker()
-                                tracker.track_special_day_thread(
+                                app.client.reactions_add(
                                     channel=channel,
-                                    thread_ts=message_ts,
-                                    special_days=[special_day],
-                                    personality=SPECIAL_DAYS_PERSONALITY,
+                                    timestamp=message_ts,
+                                    name="sparkles",  # ✨
                                 )
-                            except Exception as track_error:
-                                logger.warning(
-                                    f"SPECIAL_DAYS: Failed to track thread: {track_error}"
-                                )
+                            except Exception as react_error:
+                                if "already_reacted" not in str(react_error):
+                                    logger.debug(
+                                        f"SPECIAL_DAYS: Could not add reaction: {react_error}"
+                                    )
+
+                            # Track thread if enabled
+                            if SPECIAL_DAY_THREAD_ENABLED:
+                                try:
+                                    from utils.thread_tracking import get_thread_tracker
+
+                                    tracker = get_thread_tracker()
+                                    tracker.track_special_day_thread(
+                                        channel=channel,
+                                        thread_ts=message_ts,
+                                        special_days=[special_day],
+                                        personality=SPECIAL_DAYS_PERSONALITY,
+                                    )
+                                except Exception as track_error:
+                                    logger.warning(
+                                        f"SPECIAL_DAYS: Failed to track thread: {track_error}"
+                                    )
                     else:
                         logger.error(
                             f"SPECIAL_DAYS: Failed to send announcement for {special_day.name}"
