@@ -132,6 +132,72 @@ def _handle_thread_reply(app, event, channel, thread_ts):
         events_logger.warning(f"THREAD_REPLY: Error handling thread reply: {e}")
 
 
+def _handle_channel_message(app, event, channel):
+    """
+    Handle top-level messages in the birthday channel.
+
+    Adds reactions to positive/celebratory messages from users.
+
+    Args:
+        app: Slack app instance
+        event: The message event
+        channel: Channel ID
+    """
+    try:
+        from config import BIRTHDAY_CHANNEL, THREAD_ENGAGEMENT_ENABLED
+
+        # Only react to messages in the birthday channel
+        if channel != BIRTHDAY_CHANNEL:
+            return
+
+        if not THREAD_ENGAGEMENT_ENABLED:
+            return
+
+        text = event.get("text", "").lower()
+        message_ts = event.get("ts")
+        user_id = event.get("user")
+
+        if not text or not message_ts or not user_id:
+            return
+
+        # Check if message contains birthday/celebration keywords
+        celebration_keywords = (
+            "happy birthday",
+            "birthday",
+            "congrat",
+            "celebrate",
+            "🎂",
+            "🎉",
+            "🎈",
+            "🥳",
+            "wish",
+        )
+
+        if any(keyword in text for keyword in celebration_keywords):
+            # Select appropriate reaction
+            from handlers.thread_handler import get_reaction_for_message
+
+            reaction = get_reaction_for_message(text)
+
+            try:
+                app.client.reactions_add(
+                    channel=channel,
+                    timestamp=message_ts,
+                    name=reaction,
+                )
+                events_logger.debug(
+                    f"CHANNEL_MESSAGE: Added :{reaction}: to celebratory message from {user_id}"
+                )
+            except Exception as react_error:
+                if "already_reacted" not in str(react_error):
+                    events_logger.debug(f"CHANNEL_MESSAGE: Could not add reaction: {react_error}")
+
+    except ImportError:
+        pass
+    except Exception as e:
+        events_logger.debug(f"CHANNEL_MESSAGE: Error handling channel message: {e}")
+
+
 def register_event_handlers(app):
     events_logger.info("EVENT_HANDLER: Registering event handlers including button actions")
 
@@ -354,6 +420,11 @@ def register_event_handlers(app):
         if thread_ts and channel_type != "im":
             # This is a thread reply in a channel - check if it's a tracked birthday thread
             _handle_thread_reply(app, event, channel, thread_ts)
+            return
+
+        # Handle top-level messages in birthday channel (not thread replies)
+        if channel_type != "im" and not thread_ts:
+            _handle_channel_message(app, event, channel)
             return
 
         # Only respond to direct messages for command/date processing
