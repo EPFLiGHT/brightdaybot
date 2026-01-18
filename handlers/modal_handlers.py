@@ -175,35 +175,52 @@ def register_modal_handlers(app):
 
 def _send_modal_confirmation(client, user_id, date_ddmm, birth_year, updated):
     """Send confirmation after modal submission."""
+    from storage.birthdays import CELEBRATION_STYLES, get_user_preferences
     from utils.date import calculate_age, date_to_words, get_star_sign
 
     date_words = date_to_words(date_ddmm, birth_year)
     star_sign = get_star_sign(date_ddmm)
     age = calculate_age(birth_year) if birth_year else None
 
+    # Get current preferences to show celebration style
+    prefs = get_user_preferences(user_id) or {}
+    celebration_style = prefs.get("celebration_style", "standard")
+    style_description = CELEBRATION_STYLES.get(celebration_style, "Standard celebration")
+
+    # Style emoji mapping
+    style_emoji = {"quiet": "🤫", "standard": "🎊", "epic": "🚀"}.get(celebration_style, "🎊")
+
     action = "updated" if updated else "saved"
 
     blocks = [
         {
             "type": "header",
-            "text": {"type": "plain_text", "text": f"Birthday {action.title()}!"},
+            "text": {"type": "plain_text", "text": f"🎉 Birthday {action.title()}!"},
         },
         {
             "type": "section",
             "fields": [
-                {"type": "mrkdwn", "text": f"*Birthday:*\n{date_words}"},
-                {"type": "mrkdwn", "text": f"*Star Sign:*\n{star_sign}"},
+                {"type": "mrkdwn", "text": f"*📅 Birthday:*\n{date_words}"},
+                {"type": "mrkdwn", "text": f"*⭐ Star Sign:*\n{star_sign}"},
             ],
         },
     ]
 
     if age:
-        blocks.append(
-            {
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": f"*Age:* {age} years"},
-            }
+        blocks[1]["fields"].append(
+            {"type": "mrkdwn", "text": f"*🎈 Age:*\n{age} years"}
         )
+
+    # Add celebration style info
+    blocks.append(
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"*{style_emoji} Celebration Style:* {celebration_style.title()}\n_{style_description}_",
+            },
+        }
+    )
 
     blocks.append(
         {
@@ -211,7 +228,7 @@ def _send_modal_confirmation(client, user_id, date_ddmm, birth_year, updated):
             "elements": [
                 {
                     "type": "mrkdwn",
-                    "text": "You'll receive a celebration on your birthday!",
+                    "text": "You'll receive a celebration on your birthday! Use `/birthday` to change preferences anytime.",
                 }
             ],
         }
