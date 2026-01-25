@@ -419,6 +419,7 @@ def _generate_birthday_message(
     quality=None,
     image_size=None,
     max_retries=2,
+    skip_mention=False,
 ):
     """
     Unified internal function to generate birthday messages for one or more people.
@@ -435,6 +436,7 @@ def _generate_birthday_message(
         quality: Override image quality ("low", "medium", "high", "auto")
         image_size: Override image size ("auto", "1024x1024", "1536x1024", "1024x1536")
         max_retries: Maximum number of retries if validation fails
+        skip_mention: If True, skip <!here> mention (for quiet celebration style)
 
     Returns:
         Tuple of (message, images_list_or_none, actual_personality_name)
@@ -508,6 +510,7 @@ def _generate_birthday_message(
             birthday_facts_text,
             emoji_ctx,
             include_image,
+            skip_mention=skip_mention,
         )
         token_limit = TOKEN_LIMITS["single_birthday"]
     else:
@@ -517,6 +520,7 @@ def _generate_birthday_message(
             selected_personality_name,
             birthday_facts_text,
             emoji_ctx,
+            skip_mention=skip_mention,
         )
         token_limit = TOKEN_LIMITS["consolidated_birthday"]
 
@@ -723,9 +727,13 @@ def _build_single_birthday_prompt(
     birthday_facts_text,
     emoji_ctx,
     include_image,
+    skip_mention=False,
 ):
     """
     Build the prompt messages for a single birthday person.
+
+    Args:
+        skip_mention: If True, skip <!here> mention (for quiet celebration style)
 
     Returns:
         Tuple of (messages_list, required_mentions_list, user_mention_str)
@@ -779,7 +787,8 @@ def _build_single_birthday_prompt(
 
     # Epic celebration style context
     epic_context = ""
-    notification_type = "<!here>"  # Always use @here (not @channel - too annoying!)
+    # Use @here only if not in quiet mode (skip_mention=True means quiet style)
+    notification_type = "<!here>" if not skip_mention else ""
     if celebration_style == "epic":
         epic_context = """
 
@@ -825,7 +834,7 @@ Remember: This is NOT just a birthday - this is an EPIC EVENT that will be remem
 
         IMPORTANT REQUIREMENTS:
         1. Include their Slack mention "{user_mention}" somewhere in the message
-        2. Make sure to address members with {notification_type} to notify them{date_inclusion_req}
+        2. {f'Make sure to address members with {notification_type} to notify them' if notification_type else 'Do NOT include any channel mention like <!here> or <!channel>'}{date_inclusion_req}
         - Create a message that's lively and engaging with good structure and flow
         - {emoji_ctx['emoji_instruction']} like: {emoji_ctx['emoji_examples']}
         - {emoji_ctx['emoji_warning']}
@@ -848,9 +857,13 @@ def _build_consolidated_birthday_prompt(
     selected_personality_name,
     birthday_facts_text,
     emoji_ctx,
+    skip_mention=False,
 ):
     """
     Build the prompt messages for multiple birthday people.
+
+    Args:
+        skip_mention: If True, skip <!here> mention (for quiet celebration style)
 
     Returns:
         Tuple of (messages_list, required_mentions_list, formatted_mention_text)
@@ -960,7 +973,7 @@ CRITICAL FORMATTING REQUIREMENTS (MUST FOLLOW EXACTLY):
    - Do NOT change, paraphrase, or modify these mentions
    - Do NOT replace with names or other text
    - These EXACT strings must appear in your response: {mention_text}
-2. **NOTIFICATION**: Include <!here> exactly as written to notify active members
+2. **NOTIFICATION**: {'Include <!here> exactly as written to notify active members' if not skip_mention else 'Do NOT include any channel mention like <!here> or <!channel>'}
 3. **LENGTH**: Keep the message to 8-12 lines maximum
 4. **EMOJIS**: {emoji_ctx['emoji_instruction']}
 5. **AVAILABLE EMOJIS**: {emoji_ctx['emoji_examples']}
@@ -1116,6 +1129,7 @@ def create_consolidated_birthday_announcement(
     test_mode=False,
     quality=None,
     image_size=None,
+    skip_mention=False,
 ):
     """
     Create a single AI-powered consolidated birthday announcement for one or more people.
@@ -1130,6 +1144,7 @@ def create_consolidated_birthday_announcement(
         test_mode: If True, uses lower quality/smaller size to reduce costs for testing
         quality: Override image quality ("low", "medium", "high", or "auto")
         image_size: Override image size ("auto", "1024x1024", "1536x1024", "1024x1536")
+        skip_mention: If True, skip <!here> mention (for quiet celebration style)
 
     Returns:
         Always returns a 3-tuple: (message, images_list_or_none, actual_personality_name)
@@ -1148,6 +1163,7 @@ def create_consolidated_birthday_announcement(
         test_mode=test_mode,
         quality=quality,
         image_size=image_size,
+        skip_mention=skip_mention,
     )
 
 

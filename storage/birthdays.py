@@ -646,6 +646,64 @@ def mark_birthday_announced(user_id):
             logger.error(f"FILE_ERROR: Failed to mark birthday as announced for {user_id}")
 
 
+def try_mark_birthday_announced(user_id):
+    """
+    Atomically check if user was celebrated today and mark if not.
+
+    This is a race-condition-safe version that holds the file lock throughout
+    the entire check-and-mark operation.
+
+    Args:
+        user_id: User ID whose birthday to check and mark
+
+    Returns:
+        True if successfully marked (was not already celebrated)
+        False if already celebrated today (no action taken)
+    """
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    try:
+        lock = FileLock(ANNOUNCEMENTS_LOCK_FILE, timeout=TIMEOUTS["file_lock"])
+        with lock:
+            # Load within lock
+            if os.path.exists(ANNOUNCEMENTS_FILE):
+                with open(ANNOUNCEMENTS_FILE, "r") as f:
+                    data = json.load(f)
+            else:
+                data = {"birthdays": {}, "timezone_birthdays": {}, "special_days": {}}
+
+            # Check if already celebrated (within lock)
+            if user_id in data.get("birthdays", {}).get(today, []):
+                logger.debug(f"BIRTHDAY: {user_id} already celebrated today (atomic check)")
+                return False
+
+            # Also check timezone birthdays
+            if user_id in data.get("timezone_birthdays", {}).get(today, {}):
+                logger.debug(
+                    f"BIRTHDAY: {user_id} already celebrated today via timezone (atomic check)"
+                )
+                return False
+
+            # Mark as celebrated (within same lock)
+            if "birthdays" not in data:
+                data["birthdays"] = {}
+            if today not in data["birthdays"]:
+                data["birthdays"][today] = []
+
+            data["birthdays"][today].append(user_id)
+
+            # Save within lock
+            with open(ANNOUNCEMENTS_FILE, "w") as f:
+                json.dump(data, f, indent=2, sort_keys=True)
+
+            logger.info(f"BIRTHDAY: Atomically marked {user_id}'s birthday as announced")
+            return True
+
+    except Exception as e:
+        logger.error(f"FILE_ERROR: Failed atomic check-and-mark for {user_id}: {e}")
+        return False
+
+
 def cleanup_old_announcement_files():
     """
     Clean up old announcement entries.

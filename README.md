@@ -186,6 +186,10 @@ MENTION_RATE_LIMIT_MAX="5"          # Max requests per window
 
 # NLP Date Parsing - Natural language birthday input
 NLP_DATE_PARSING_ENABLED="false"    # Enable NLP parsing (default: false)
+
+# Special Day Announcements
+SPECIAL_DAY_MENTION_ENABLED="true"  # Include @-here in announcements (default: true)
+SPECIAL_DAY_TOPIC_UPDATE_ENABLED="false"  # Update channel topic (default: false)
 ```
 
 ### Special Days Setup (Optional)

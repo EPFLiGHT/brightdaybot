@@ -705,7 +705,7 @@ def _handle_pause_command(user_id, say):
 
     birthday = get_birthday(user_id)
     if not birthday:
-        say("You haven't added your birthday yet. Use `add DD/MM` to add it first.")
+        say("🎈 You haven't added your birthday yet! Use `add DD/MM` to add it.")
         return
 
     # Update preferences to pause
@@ -734,7 +734,7 @@ def _handle_resume_command(user_id, say):
 
     birthday = get_birthday(user_id)
     if not birthday:
-        say("You haven't added your birthday yet. Use `add DD/MM` to add it first.")
+        say("🎈 You haven't added your birthday yet! Use `add DD/MM` to add it.")
         return
 
     # Update preferences to resume

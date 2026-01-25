@@ -44,7 +44,6 @@ from storage.birthdays import (
     is_user_active,
     is_user_celebrated_today,
     load_birthdays,
-    mark_birthday_announced,
 )
 from utils.date import (
     check_if_birthday_today,
@@ -189,13 +188,13 @@ def celebrate_bot_birthday(app, moment):
     if not check_if_birthday_today(BOT_BIRTHDAY, moment):
         return False
 
-    # Check if we already celebrated today using the standard tracking system
-    if is_user_celebrated_today(BOT_USER_ID):
-        logger.debug("BOT_BIRTHDAY: Already celebrated today, skipping")
-        return False
+    # Atomically check and mark to prevent race conditions
+    # This holds a file lock throughout check-and-mark to prevent duplicates
+    from storage.birthdays import try_mark_birthday_announced
 
-    # Mark as celebrated immediately to prevent race conditions
-    mark_birthday_announced(BOT_USER_ID)
+    if not try_mark_birthday_announced(BOT_USER_ID):
+        logger.debug("BOT_BIRTHDAY: Already celebrated today (atomic check), skipping")
+        return False
 
     try:
         logger.info(
@@ -415,6 +414,48 @@ def celebrate_bot_birthday(app, moment):
         return False
 
 
+def _update_channel_topic_with_special_days(app, special_days, channel):
+    """
+    Update channel topic with today's special days if enabled.
+
+    Args:
+        app: Slack app instance
+        special_days: List of SpecialDay objects announced today
+        channel: Channel ID to update topic for
+    """
+    from datetime import datetime
+
+    from config import SPECIAL_DAY_TOPIC_UPDATE_ENABLED
+
+    if not SPECIAL_DAY_TOPIC_UPDATE_ENABLED:
+        return
+
+    if not special_days or not channel:
+        return
+
+    try:
+        # Build topic string with day names (max ~250 chars for Slack topic)
+        day_names = [f"{d.emoji} {d.name}" if d.emoji else d.name for d in special_days[:3]]
+        if len(special_days) > 3:
+            day_names.append(f"+{len(special_days) - 3} more")
+
+        today_str = datetime.now().strftime("%b %d")
+        topic = f"Today ({today_str}): {', '.join(day_names)}"
+
+        # Truncate if too long (Slack topic limit is ~250 chars)
+        if len(topic) > 250:
+            topic = topic[:247] + "..."
+
+        # Update channel topic
+        app.client.conversations_setTopic(channel=channel, topic=topic)
+
+        logger.info(f"SPECIAL_DAYS: Updated channel topic to: {topic}")
+
+    except Exception as e:
+        # Don't let topic update failures affect the main flow
+        logger.warning(f"SPECIAL_DAYS: Failed to update channel topic: {e}")
+
+
 def check_and_announce_special_days(app, moment):
     """
     Check for special days/holidays and announce them if enabled
@@ -565,6 +606,10 @@ def check_and_announce_special_days(app, moment):
                 logger.info(
                     f"SPECIAL_DAYS: Successfully sent {announcements_sent}/{len(special_days)} announcement(s)"
                 )
+
+                # Update channel topic if enabled
+                _update_channel_topic_with_special_days(app, special_days, channel)
+
                 return True
             else:
                 logger.error("SPECIAL_DAYS: Failed to send any announcements")

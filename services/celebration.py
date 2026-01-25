@@ -81,6 +81,49 @@ class BirthdayCelebrationPipeline:
         self.mode = mode.upper()
         logger.debug(f"CELEBRATION_PIPELINE: Initialized in {self.mode} mode")
 
+    def _analyze_celebration_styles(self, birthday_people):
+        """
+        Analyze celebration styles of all birthday people.
+
+        Returns:
+            dict: {
+                "all_quiet": bool - True if ALL people have quiet style,
+                "has_quiet": bool - True if ANY person has quiet style,
+                "has_epic": bool - True if ANY person has epic style,
+                "styles": dict - Count of each style
+            }
+        """
+        from storage.birthdays import DEFAULT_PREFERENCES
+
+        styles = {"quiet": 0, "standard": 0, "epic": 0}
+
+        for person in birthday_people:
+            style = person.get("preferences", {}).get(
+                "celebration_style", DEFAULT_PREFERENCES.get("celebration_style", "standard")
+            )
+            if style in styles:
+                styles[style] += 1
+            else:
+                styles["standard"] += 1  # Unknown styles default to standard
+
+        total = len(birthday_people)
+        result = {
+            "all_quiet": styles["quiet"] == total and total > 0,
+            "has_quiet": styles["quiet"] > 0,
+            "has_epic": styles["epic"] > 0,
+            "styles": styles,
+        }
+
+        if result["all_quiet"]:
+            logger.info(f"{self.mode}: All {total} birthday people have 'quiet' celebration style")
+        elif result["has_quiet"]:
+            logger.info(
+                f"{self.mode}: Mixed celebration styles - {styles['quiet']} quiet, "
+                f"{styles['standard']} standard, {styles['epic']} epic"
+            )
+
+        return result
+
     def celebrate(
         self,
         birthday_people,
@@ -131,14 +174,29 @@ class BirthdayCelebrationPipeline:
             # Track timing if not provided
             processing_start = datetime.now(tz.utc)
 
+            # Analyze celebration styles to determine image and mention behavior
+            style_summary = self._analyze_celebration_styles(birthday_people)
+
+            # Determine if images should be generated based on celebration styles
+            # Skip images if ALL users have "quiet" style
+            should_include_images = (
+                include_image and AI_IMAGE_GENERATION_ENABLED and not style_summary["all_quiet"]
+            )
+
+            if style_summary["all_quiet"]:
+                logger.info(
+                    f"{self.mode}: All birthday people have 'quiet' style - skipping AI images"
+                )
+
             # Step 1: Generate consolidated message and images
             result = create_consolidated_birthday_announcement(
                 birthday_people,
                 app=self.app,
-                include_image=include_image and AI_IMAGE_GENERATION_ENABLED,
+                include_image=should_include_images,
                 test_mode=test_mode,
                 quality=quality,
                 image_size=image_size,
+                skip_mention=style_summary["all_quiet"],  # Skip <!here> if all quiet
             )
 
             # Calculate processing duration if not provided
@@ -180,17 +238,18 @@ class BirthdayCelebrationPipeline:
             final_message, final_images, actual_personality = self._handle_validation_results(
                 result,
                 validation_result,
-                include_image and AI_IMAGE_GENERATION_ENABLED,
+                should_include_images,
                 test_mode,
                 quality,
                 image_size,
+                skip_mention=style_summary["all_quiet"],
             )
 
             # Step 6: Post the validated message and images
             post_result = self._post_celebration(
                 final_message,
                 final_images,
-                include_image and AI_IMAGE_GENERATION_ENABLED,
+                should_include_images,
                 valid_people,
                 invalid_people,
                 validation_summary,
@@ -257,9 +316,13 @@ class BirthdayCelebrationPipeline:
         test_mode,
         quality,
         image_size,
+        skip_mention=False,
     ):
         """
         Handle validation results - decide whether to regenerate message or filter images.
+
+        Args:
+            skip_mention: If True, skip <!here> mention in regenerated messages
 
         Returns:
             tuple: (final_message, final_images, actual_personality)
@@ -301,6 +364,7 @@ class BirthdayCelebrationPipeline:
                 test_mode=test_mode,
                 quality=quality,
                 image_size=image_size,
+                skip_mention=skip_mention,
             )
 
             if isinstance(regenerated_result, tuple) and len(regenerated_result) == 3:

@@ -177,7 +177,7 @@ def _handle_slash_check(text, user_id, respond, app):
     else:
         username = get_username(app, target)
         if target == user_id:
-            respond(text="You haven't added your birthday yet! Use `/birthday add` to add it.")
+            respond(text="🎈 You haven't added your birthday yet! Use `/birthday` to add it.")
         else:
             respond(text=f"{username} hasn't added their birthday yet.")
 
@@ -220,8 +220,10 @@ def _handle_slash_list(respond, app):
     # Sort by days until birthday
     upcoming.sort(key=lambda x: x["days_until"])
 
-    # Limit to next 10
-    upcoming = upcoming[:10]
+    # Limit to configured number
+    from config import SLASH_UPCOMING_BIRTHDAYS_LIMIT
+
+    upcoming = upcoming[:SLASH_UPCOMING_BIRTHDAYS_LIMIT]
 
     blocks, fallback = build_upcoming_birthdays_blocks(upcoming)
     respond(blocks=blocks, text=fallback)
@@ -256,7 +258,7 @@ def _handle_slash_pause(user_id, respond):
 
     birthday = get_birthday(user_id)
     if not birthday:
-        respond(text="You haven't added your birthday yet. Use `/birthday` to add it first.")
+        respond(text="🎈 You haven't added your birthday yet! Use `/birthday` to add it.")
         return
 
     # Update preferences to pause
@@ -285,7 +287,7 @@ def _handle_slash_resume(user_id, respond):
 
     birthday = get_birthday(user_id)
     if not birthday:
-        respond(text="You haven't added your birthday yet. Use `/birthday` to add it first.")
+        respond(text="🎈 You haven't added your birthday yet! Use `/birthday` to add it.")
         return
 
     # Update preferences to resume
@@ -305,15 +307,18 @@ def _handle_slash_export(user_id, respond, app):
     Handle /birthday export command.
 
     Generates an ICS calendar file with upcoming birthdays that users can import
-    into their calendar application.
+    into their calendar application. Uploads the file directly to user's DM.
 
     Args:
         user_id: Slack user ID who invoked the command
         respond: Slack respond function for ephemeral messages
         app: Slack app instance for username lookups
     """
+    import os
+    import tempfile
+
     from config import BIRTHDAY_CHANNEL
-    from slack.client import get_channel_members, get_username
+    from slack.client import get_channel_members, get_username, send_message_with_file
     from storage.birthdays import is_user_active, load_birthdays
 
     birthdays = load_birthdays()
@@ -355,19 +360,61 @@ def _handle_slash_export(user_id, respond, app):
     # Generate ICS content
     ics_content = _generate_ics_calendar(exportable_birthdays)
 
-    # Since Slack doesn't support file attachments in ephemeral responses,
-    # we'll send the ICS content as a code block that users can copy
     logger.info(
         f"EXPORT: Generated calendar with {len(exportable_birthdays)} birthdays for {user_id}"
     )
 
-    # Create a helpful message with the ICS content
-    respond(
-        text=f"*Birthday Calendar Export* - {len(exportable_birthdays)} birthdays\n\n"
-        f"Copy the content below and save it as `birthdays.ics`, then import into your calendar app:\n\n"
-        f"```\n{ics_content}\n```\n\n"
-        f"_Tip: Most calendar apps (Google Calendar, Outlook, Apple Calendar) can import .ics files._"
-    )
+    # Create temp file and upload to user's DM
+    temp_file_path = None
+    try:
+        # Create temp file with .ics extension
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            suffix=".ics",
+            prefix="birthdays_",
+            delete=False,
+            encoding="utf-8",
+        ) as temp_file:
+            temp_file_path = temp_file.name
+            temp_file.write(ics_content)
+
+        # Send file to user's DM
+        message = (
+            f"📅 *Birthday Calendar Export* - {len(exportable_birthdays)} birthdays\n\n"
+            f"Import this `.ics` file into your calendar app "
+            f"(Google Calendar, Outlook, Apple Calendar)."
+        )
+
+        success = send_message_with_file(app, user_id, message, temp_file_path)
+
+        if success:
+            respond(
+                text=f"✅ Calendar exported! Check your DMs for the `.ics` file with {len(exportable_birthdays)} birthdays."
+            )
+        else:
+            # Fallback to code block if file upload fails
+            respond(
+                text=f"*Birthday Calendar Export* - {len(exportable_birthdays)} birthdays\n\n"
+                f"Copy the content below and save it as `birthdays.ics`:\n\n"
+                f"```\n{ics_content}\n```"
+            )
+
+    except Exception as e:
+        logger.error(f"EXPORT_ERROR: Failed to create/upload calendar file: {e}")
+        # Fallback to code block on error
+        respond(
+            text=f"*Birthday Calendar Export* - {len(exportable_birthdays)} birthdays\n\n"
+            f"Copy the content below and save it as `birthdays.ics`:\n\n"
+            f"```\n{ics_content}\n```"
+        )
+
+    finally:
+        # Clean up temp file
+        if temp_file_path and os.path.exists(temp_file_path):
+            try:
+                os.unlink(temp_file_path)
+            except Exception:
+                pass  # Best effort cleanup
 
 
 def _generate_ics_calendar(birthdays):

@@ -405,6 +405,60 @@ def register_event_handlers(app):
                 text="Sorry, there was an error removing your birthday. Please try again.",
             )
 
+    @app.action(re.compile(r"^set_celebration_style_(quiet|standard|epic)$"))
+    def handle_celebration_style_change(ack, body, action, client):
+        """
+        Handle celebration style button clicks from App Home.
+
+        Updates the user's celebration_style preference and refreshes App Home.
+        """
+        ack()
+        user_id = body.get("user", {}).get("id")
+        if not user_id:
+            events_logger.error("CELEBRATION_STYLE_ERROR: Missing user_id in body")
+            return
+
+        # Extract style from action_id (e.g., "set_celebration_style_quiet" -> "quiet")
+        action_id = action.get("action_id", "")
+        style = action_id.replace("set_celebration_style_", "")
+
+        if style not in ("quiet", "standard", "epic"):
+            events_logger.error(f"CELEBRATION_STYLE_ERROR: Invalid style '{style}'")
+            return
+
+        try:
+            from storage.birthdays import update_user_preferences
+
+            # Update the preference
+            success = update_user_preferences(user_id, {"celebration_style": style})
+
+            if success:
+                events_logger.info(
+                    f"CELEBRATION_STYLE: Updated {user_id} celebration style to '{style}'"
+                )
+            else:
+                events_logger.warning(
+                    f"CELEBRATION_STYLE: Could not update style for {user_id} - no birthday found"
+                )
+                client.chat_postMessage(
+                    channel=user_id,
+                    text="Please add your birthday first before setting celebration preferences.",
+                )
+                return
+
+            # Refresh the App Home view
+            from handlers.app_home import _build_home_view
+
+            view = _build_home_view(user_id, app)
+            client.views_publish(user_id=user_id, view=view)
+
+        except Exception as e:
+            events_logger.error(f"CELEBRATION_STYLE_ERROR: Failed to update style: {e}")
+            client.chat_postMessage(
+                channel=user_id,
+                text="Sorry, there was an error updating your celebration style. Please try again.",
+            )
+
     @app.event("message")
     def handle_message(event, say, client, logger):
         """Handle direct message events and thread replies"""

@@ -164,9 +164,6 @@ TIMEZONE_CELEBRATION_TIME = time(
     9, 0
 )  # Time to celebrate birthdays in timezone-aware mode (USER'S local time)
 
-# Message configuration
-DEFAULT_REMINDER_MESSAGE = None  # Set to None to use the dynamic message generator
-
 # ----- ACCESS CONTROL CONFIGURATION -----
 
 # Default admin users list - will be overridden by file-based storage
@@ -359,6 +356,14 @@ SPECIAL_DAYS_CONFIG_FILE = os.path.join(STORAGE_DIR, "special_days_config.json")
 # Enable AI image generation for special days
 SPECIAL_DAYS_IMAGE_ENABLED = os.getenv("SPECIAL_DAYS_IMAGE_ENABLED", "false").lower() == "true"
 
+# Enable @-here mention in special day announcements (default: True for backwards compat)
+SPECIAL_DAY_MENTION_ENABLED = os.getenv("SPECIAL_DAY_MENTION_ENABLED", "true").lower() == "true"
+
+# Enable channel topic update with today's special days (default: False)
+SPECIAL_DAY_TOPIC_UPDATE_ENABLED = (
+    os.getenv("SPECIAL_DAY_TOPIC_UPDATE_ENABLED", "false").lower() == "true"
+)
+
 # ----- CALENDARIFIC API CONFIGURATION -----
 
 # Calendarific API for national/local holidays (NOT UN observances)
@@ -501,6 +506,9 @@ MIN_BIRTH_YEAR = 1900
 # App Home settings
 APP_HOME_UPCOMING_BIRTHDAYS_LIMIT = 5  # Number of upcoming birthdays to show
 APP_HOME_UPCOMING_SPECIAL_DAYS = 7  # Days to look ahead for special days
+
+# Slash command settings
+SLASH_UPCOMING_BIRTHDAYS_LIMIT = 10  # Number of upcoming birthdays for /birthday list
 
 # Thread engagement settings
 THREAD_MIN_TEXT_LENGTH = 15  # Minimum text length for thank you detection

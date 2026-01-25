@@ -142,13 +142,61 @@ def _build_home_view(user_id, app):
         pref_items.append(
             f"{'🎂' if show_age else '🤫'} {'Age Shown' if show_age else 'Age Hidden'}"
         )
-        style_emoji = {"quiet": "🤫", "standard": "🎊", "epic": "🚀"}.get(celebration_style, "🎊")
+        from storage.birthdays import CELEBRATION_STYLE_EMOJIS
+
+        style_emoji = CELEBRATION_STYLE_EMOJIS.get(celebration_style, "🎊")
         pref_items.append(f"{style_emoji} {celebration_style.title()}")
 
         blocks.append(
             {
                 "type": "context",
                 "elements": [{"type": "mrkdwn", "text": " | ".join(pref_items)}],
+            }
+        )
+
+        # Celebration style selector
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*Celebration Style*"},
+            }
+        )
+
+        # Style buttons - highlight current selection
+        style_buttons = []
+        for style_id, style_label in [
+            ("quiet", "🤫 Quiet"),
+            ("standard", "🎊 Standard"),
+            ("epic", "🚀 Epic"),
+        ]:
+            button = {
+                "type": "button",
+                "text": {"type": "plain_text", "text": style_label, "emoji": True},
+                "action_id": f"set_celebration_style_{style_id}",
+                "value": style_id,
+            }
+            # Highlight current style with primary style
+            if celebration_style == style_id:
+                button["style"] = "primary"
+            style_buttons.append(button)
+
+        blocks.append({"type": "actions", "elements": style_buttons})
+
+        # Style descriptions
+        style_descriptions = {
+            "quiet": "_No @-here, no image, simple message_",
+            "standard": "_Message + AI image + @-here notification_",
+            "epic": "_Extra reactions, celebratory flair_",
+        }
+        blocks.append(
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": style_descriptions.get(celebration_style, ""),
+                    }
+                ],
             }
         )
 
@@ -347,7 +395,8 @@ def _build_home_view(user_id, app):
                 days_text = f"_in {days_until} days_"
 
             # Show up to 2 special days per date to avoid clutter
-            day_names = [d.name for d in days_list[:2]]
+            # Include emoji prefix if available
+            day_names = [f"{d.emoji} {d.name}" if d.emoji else d.name for d in days_list[:2]]
             if len(days_list) > 2:
                 day_names.append(f"+{len(days_list) - 2} more")
             special_lines.append(f"• {', '.join(day_names)} ({date_str}) - {days_text}")

@@ -195,8 +195,13 @@ def generate_special_day_message(
         if facts_text and not use_teaser:
             prompt += f"\n\nHistorical context for today: {facts_text}"
 
-        # Add channel mention
-        prompt += "\n\nInclude <!here> to notify the channel."
+        # Add channel mention (conditional based on config)
+        from config import SPECIAL_DAY_MENTION_ENABLED
+
+        if SPECIAL_DAY_MENTION_ENABLED:
+            prompt += "\n\nInclude <!here> to notify the channel."
+        else:
+            prompt += "\n\nDo NOT include <!here> or any channel mention."
 
         # Generate the message using Responses API
         # Use lower token limit for teasers (shorter messages)

@@ -82,10 +82,28 @@ def register_modal_handlers(app):
         celebration_style = style_option.get("value", "standard") if style_option else "standard"
 
         # Preserve existing pause state if user has one
-        from storage.birthdays import DEFAULT_PREFERENCES, get_user_preferences
+        # This is important: we don't want to accidentally un-pause a user who
+        # explicitly paused their celebrations via /birthday pause
+        from storage.birthdays import DEFAULT_PREFERENCES, get_user_preferences, load_birthdays
 
-        existing_prefs = get_user_preferences(user_id) or {}
-        existing_active = existing_prefs.get("active", DEFAULT_PREFERENCES["active"])
+        existing_prefs = get_user_preferences(user_id)
+
+        # Defensive check: if user has an existing birthday entry but get_user_preferences
+        # returned None/empty, log a warning - this might indicate data corruption
+        birthdays = load_birthdays()
+        user_has_existing_birthday = user_id in birthdays
+
+        if user_has_existing_birthday and not existing_prefs:
+            logger.warning(
+                f"MODAL_WARNING: User {user_id} has birthday entry but no preferences - "
+                f"data may be corrupted. Using defaults but preserving raw active state if present."
+            )
+            # Try to get active state directly from raw birthday data as fallback
+            raw_prefs = birthdays.get(user_id, {}).get("preferences", {})
+            existing_active = raw_prefs.get("active", DEFAULT_PREFERENCES["active"])
+        else:
+            existing_prefs = existing_prefs or {}
+            existing_active = existing_prefs.get("active", DEFAULT_PREFERENCES["active"])
 
         # Build preferences dict (preserve active state from pause/resume commands)
         preferences = {
