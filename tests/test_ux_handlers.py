@@ -341,10 +341,18 @@ class TestAppHomeViewBuilding:
         action_blocks = [b for b in view["blocks"] if b.get("type") == "actions"]
         assert len(action_blocks) >= 1
 
-        # Check button text
-        button = action_blocks[0]["elements"][0]
-        assert button["action_id"] == "open_birthday_modal"
-        assert "Edit" in button["text"]["text"]
+        # Find the edit button by action_id (may not be first due to celebration style selector)
+        edit_button = None
+        for block in action_blocks:
+            for element in block.get("elements", []):
+                if element.get("action_id") == "open_birthday_modal":
+                    edit_button = element
+                    break
+            if edit_button:
+                break
+
+        assert edit_button is not None, "open_birthday_modal button not found"
+        assert "Edit" in edit_button["text"]["text"]
 
 
 class TestUpcomingBirthdaysFiltering:
