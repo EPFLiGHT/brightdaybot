@@ -458,7 +458,7 @@ def _update_channel_topic_with_special_days(app, special_days, channel):
 
 def check_and_announce_special_days(app, moment):
     """
-    Check for special days/holidays and announce them if enabled
+    Check for special days/holidays and announce them if enabled (daily mode only)
 
     Args:
         app: Slack app instance
@@ -478,12 +478,18 @@ def check_and_announce_special_days(app, moment):
     from slack.client import send_message
     from storage.special_days import (
         get_special_days_for_date,
+        get_special_days_mode,
         has_announced_special_day_today,
         mark_special_day_announced,
     )
 
     # Check if feature is enabled
     if not SPECIAL_DAYS_ENABLED:
+        return False
+
+    # Check if we're in weekly mode - skip daily announcements
+    if get_special_days_mode() == "weekly":
+        logger.debug("SPECIAL_DAYS: Weekly mode enabled, skipping daily announcement")
         return False
 
     # Check if it's time to announce (must be at or after check time)
@@ -620,6 +626,139 @@ def check_and_announce_special_days(app, moment):
 
     except Exception as e:
         logger.error(f"SPECIAL_DAYS_ERROR: Failed to announce special days: {e}")
+        return False
+
+
+def check_and_announce_weekly_special_days(app, moment):
+    """
+    Check for special days and announce weekly digest if enabled (weekly mode only)
+
+    Args:
+        app: Slack app instance
+        moment: Current datetime with timezone info
+
+    Returns:
+        bool: True if weekly digest was announced, False otherwise
+    """
+    from config import (
+        BIRTHDAY_CHANNEL,
+        SPECIAL_DAYS_CHANNEL,
+        SPECIAL_DAYS_CHECK_TIME,
+        SPECIAL_DAYS_ENABLED,
+        SPECIAL_DAYS_PERSONALITY,
+        WEEKDAY_NAMES,
+    )
+    from services.special_day import generate_weekly_digest_message
+    from slack.blocks import build_weekly_special_days_blocks
+    from slack.client import send_message
+    from storage.special_days import (
+        get_special_days_mode,
+        get_upcoming_special_days,
+        get_weekly_day,
+        has_announced_weekly_digest,
+        mark_weekly_digest_announced,
+    )
+
+    # Check if feature is enabled
+    if not SPECIAL_DAYS_ENABLED:
+        return False
+
+    # Check if we're in weekly mode
+    if get_special_days_mode() != "weekly":
+        logger.debug("WEEKLY_SPECIAL_DAYS: Daily mode enabled, skipping weekly digest")
+        return False
+
+    # Check if today is the configured weekly day
+    configured_day = get_weekly_day()
+    # Python weekday(): Monday=0, Sunday=6 (same as our config)
+    current_weekday = moment.weekday() if hasattr(moment, "weekday") else datetime.now().weekday()
+
+    if current_weekday != configured_day:
+        day_name = WEEKDAY_NAMES[configured_day].capitalize()
+        logger.debug(
+            f"WEEKLY_SPECIAL_DAYS: Today is not {day_name} (day {configured_day}), skipping"
+        )
+        return False
+
+    # Check if it's time to announce (must be at or after check time)
+    local_time = datetime.now()
+    if local_time.hour < SPECIAL_DAYS_CHECK_TIME.hour:
+        logger.debug(
+            f"WEEKLY_SPECIAL_DAYS: Too early for announcement "
+            f"(current: {local_time.hour:02d}:00, required: {SPECIAL_DAYS_CHECK_TIME.hour:02d}:00)"
+        )
+        return False
+
+    # Check if we've already announced this week
+    if has_announced_weekly_digest(moment):
+        logger.debug("WEEKLY_SPECIAL_DAYS: Already announced this week, skipping")
+        return False
+
+    # Get special days for the next 7 days
+    upcoming_days = get_upcoming_special_days(7)
+
+    if not upcoming_days:
+        logger.info("WEEKLY_SPECIAL_DAYS: No special days in the next 7 days, skipping")
+        return False
+
+    try:
+        # Count total observances
+        total_observances = sum(len(days) for days in upcoming_days.values())
+        days_with_observances = len(upcoming_days)
+
+        logger.info(
+            f"WEEKLY_SPECIAL_DAYS: Found {total_observances} observance(s) across "
+            f"{days_with_observances} day(s) for weekly digest"
+        )
+
+        # Determine channel to use
+        channel = SPECIAL_DAYS_CHANNEL or BIRTHDAY_CHANNEL
+
+        if not channel:
+            logger.error("WEEKLY_SPECIAL_DAYS: No channel configured for announcements")
+            return False
+
+        # Generate intro message
+        intro_message = generate_weekly_digest_message(upcoming_days, app=app)
+
+        # Build Block Kit blocks
+        blocks, fallback_text = build_weekly_special_days_blocks(
+            upcoming_days,
+            intro_message,
+            personality=SPECIAL_DAYS_PERSONALITY,
+        )
+
+        # Send the digest
+        result = send_message(app, channel, fallback_text, blocks)
+
+        if result["success"]:
+            # Mark as announced for this week
+            mark_weekly_digest_announced(moment)
+
+            # Add reaction to the digest
+            message_ts = result.get("ts")
+            if message_ts:
+                try:
+                    app.client.reactions_add(
+                        channel=channel,
+                        timestamp=message_ts,
+                        name="calendar",
+                    )
+                except Exception as react_error:
+                    if "already_reacted" not in str(react_error):
+                        logger.debug(f"WEEKLY_SPECIAL_DAYS: Could not add reaction: {react_error}")
+
+            logger.info(
+                f"WEEKLY_SPECIAL_DAYS: Successfully sent weekly digest with "
+                f"{total_observances} observance(s)"
+            )
+            return True
+        else:
+            logger.error("WEEKLY_SPECIAL_DAYS: Failed to send weekly digest")
+            return False
+
+    except Exception as e:
+        logger.error(f"WEEKLY_SPECIAL_DAYS_ERROR: Failed to send weekly digest: {e}")
         return False
 
 

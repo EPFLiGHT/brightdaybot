@@ -266,6 +266,97 @@ def generate_fallback_special_day_message(special_days: List, personality_config
     return message
 
 
+def generate_weekly_digest_message(
+    upcoming_days: dict,
+    personality_name: Optional[str] = None,
+    app=None,
+) -> Optional[str]:
+    """
+    Generate an AI intro message for the weekly special days digest.
+
+    Args:
+        upcoming_days: Dict mapping date strings to lists of SpecialDay objects
+        personality_name: Optional personality override (defaults to SPECIAL_DAYS_PERSONALITY)
+        app: Optional Slack app instance for custom emoji support
+
+    Returns:
+        Generated intro message string or fallback if generation fails
+    """
+    # Get personality configuration
+    personality = personality_name or SPECIAL_DAYS_PERSONALITY
+    personality_config = get_personality_config(personality)
+
+    # Count observances
+    total_observances = sum(len(days) for days in upcoming_days.values())
+    days_with_observances = len(upcoming_days)
+
+    # Get emoji context for AI message generation
+    from slack.client import get_emoji_context_for_ai
+
+    emoji_ctx = get_emoji_context_for_ai(app)
+    emoji_examples = emoji_ctx["emoji_examples"]
+
+    # Build list of observance names for context
+    observance_names = []
+    for date_str, days in upcoming_days.items():
+        for day in days:
+            observance_names.append(day.name)
+
+    # Limit to first 10 for prompt brevity
+    if len(observance_names) > 10:
+        observance_preview = (
+            ", ".join(observance_names[:10]) + f" and {len(observance_names) - 10} more"
+        )
+    else:
+        observance_preview = ", ".join(observance_names)
+
+    try:
+        prompt = f"""Generate a BRIEF 2-3 line intro for a weekly special days digest announcement.
+
+This week features {total_observances} observance(s) across {days_with_observances} day(s):
+{observance_preview}
+
+REQUIREMENTS:
+- Start with <!here> to notify the channel
+- Be concise (2-3 lines max)
+- Mention it's the "weekly digest" or "week ahead"
+- Optional: briefly reference 1-2 notable observances from the list
+- End with something inviting people to review the full list below
+- Include 2-3 relevant emojis for visual appeal
+
+Available emojis: {emoji_examples}
+
+TONE: Informative but not overwhelming. This is a summary, not a detailed announcement."""
+
+        message = complete(
+            messages=[
+                {
+                    "role": "system",
+                    "content": f"You are {personality_config['name']}, {personality_config['description']} for the {TEAM_NAME} workspace.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=150,
+            temperature=TEMPERATURE_SETTINGS.get("default", 0.7),
+            context="WEEKLY_DIGEST_MESSAGE",
+        )
+
+        logger.info("Successfully generated weekly digest intro message")
+        return message.strip()
+
+    except Exception as e:
+        logger.error(f"Error generating weekly digest message: {e}")
+        # Return fallback message
+        from config import SPECIAL_DAY_MENTION_ENABLED
+
+        mention = "<!here> " if SPECIAL_DAY_MENTION_ENABLED else ""
+        return (
+            f"{mention}📅 *Weekly Special Days Digest*\n\n"
+            f"Here's what's coming up this week: {total_observances} observance(s) across {days_with_observances} day(s).\n\n"
+            f"- {personality_config.get('name', 'The Chronicler')}"
+        )
+
+
 def generate_special_day_details(
     special_days: List,
     personality_name: Optional[str] = None,

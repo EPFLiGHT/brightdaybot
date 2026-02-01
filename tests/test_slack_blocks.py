@@ -18,6 +18,7 @@ from slack.blocks import (
     build_special_day_blocks,
     build_unrecognized_input_blocks,
     build_upcoming_birthdays_blocks,
+    build_weekly_special_days_blocks,
 )
 
 
@@ -432,3 +433,94 @@ class TestBuildSlashHelpBlocks:
         assert "today" in section_texts.lower()
         assert "week" in section_texts.lower()
         assert "month" in section_texts.lower()
+
+
+class TestBuildWeeklySpecialDaysBlocks:
+    """Tests for build_weekly_special_days_blocks() structure"""
+
+    def test_returns_tuple(self):
+        """Function returns (blocks, fallback_text) tuple"""
+        upcoming_days = {
+            "01/02": [{"name": "Test Day", "emoji": "🎉", "source": "UN"}],
+        }
+        result = build_weekly_special_days_blocks(upcoming_days, "Weekly digest intro")
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+
+    def test_empty_dict_returns_empty_blocks(self):
+        """Empty upcoming_days returns empty blocks with message"""
+        blocks, fallback = build_weekly_special_days_blocks({}, "No days")
+        assert blocks == []
+        assert "No special days" in fallback
+
+    def test_blocks_is_list(self):
+        """First element is a list of blocks"""
+        upcoming_days = {
+            "01/02": [{"name": "Test Day", "emoji": "🎉", "source": "UN"}],
+        }
+        blocks, _ = build_weekly_special_days_blocks(upcoming_days, "Weekly digest intro")
+        assert isinstance(blocks, list)
+        assert len(blocks) > 0
+
+    def test_has_header_block(self):
+        """Blocks include a header with 'Weekly Special Days Digest'"""
+        upcoming_days = {
+            "01/02": [{"name": "Test Day", "emoji": "🎉", "source": "UN"}],
+        }
+        blocks, _ = build_weekly_special_days_blocks(upcoming_days, "Weekly digest intro")
+        header_blocks = [b for b in blocks if b.get("type") == "header"]
+        assert len(header_blocks) == 1
+        assert "Weekly" in header_blocks[0]["text"]["text"]
+
+    def test_includes_intro_message(self):
+        """Blocks include the intro message"""
+        upcoming_days = {
+            "01/02": [{"name": "Test Day", "emoji": "🎉", "source": "UN"}],
+        }
+        intro = "This is the weekly digest intro message"
+        blocks, _ = build_weekly_special_days_blocks(upcoming_days, intro)
+        section_texts = [
+            b.get("text", {}).get("text", "") for b in blocks if b.get("type") == "section"
+        ]
+        assert any(intro in t for t in section_texts)
+
+    def test_multiple_days_sorted(self):
+        """Multiple days appear in chronological order"""
+        upcoming_days = {
+            "05/02": [{"name": "Later Day", "emoji": "📅"}],
+            "01/02": [{"name": "First Day", "emoji": "🎉"}],
+            "03/02": [{"name": "Middle Day", "emoji": "⭐"}],
+        }
+        blocks, _ = build_weekly_special_days_blocks(upcoming_days, "Intro")
+        section_texts = [
+            b.get("text", {}).get("text", "") for b in blocks if b.get("type") == "section"
+        ]
+        # Find indices of day names in section texts
+        all_text = " ".join(section_texts)
+        first_idx = all_text.find("First Day")
+        middle_idx = all_text.find("Middle Day")
+        later_idx = all_text.find("Later Day")
+        # All should be found and in order
+        assert first_idx < middle_idx < later_idx
+
+    def test_fallback_text_has_count(self):
+        """Fallback text includes observance count"""
+        upcoming_days = {
+            "01/02": [{"name": "Day 1"}, {"name": "Day 2"}],
+            "02/02": [{"name": "Day 3"}],
+        }
+        _, fallback = build_weekly_special_days_blocks(upcoming_days, "Intro")
+        assert "3" in fallback  # 3 total observances
+
+    def test_has_footer_with_totals(self):
+        """Blocks include footer context with totals"""
+        upcoming_days = {
+            "01/02": [{"name": "Day 1"}],
+            "02/02": [{"name": "Day 2"}],
+        }
+        blocks, _ = build_weekly_special_days_blocks(upcoming_days, "Intro")
+        context_blocks = [b for b in blocks if b.get("type") == "context"]
+        assert len(context_blocks) >= 1
+        # Footer should mention observances and days
+        footer_text = str(context_blocks[-1])
+        assert "2" in footer_text  # 2 observances or 2 days

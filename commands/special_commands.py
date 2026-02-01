@@ -455,6 +455,85 @@ def handle_admin_special_command(args, user_id, say, app):
             else:
                 say("❌ Failed to save configuration")
 
+    elif subcommand == "mode":
+        # Switch between daily and weekly announcement modes
+        from config import WEEKDAY_NAMES
+        from storage.special_days import (
+            get_special_days_mode,
+            get_weekly_day,
+            set_special_days_mode,
+        )
+
+        current_mode = get_special_days_mode()
+        current_day = get_weekly_day()
+        current_day_name = WEEKDAY_NAMES[current_day].capitalize()
+
+        if len(args) == 1:
+            # Show current mode
+            if current_mode == "weekly":
+                message = f"""📅 *Special Days Announcement Mode*
+
+• Current mode: *Weekly*
+• Digest day: *{current_day_name}*
+
+In weekly mode, a single digest of all upcoming observances is posted once per week."""
+            else:
+                message = """📅 *Special Days Announcement Mode*
+
+• Current mode: *Daily*
+
+In daily mode, individual announcements are posted each day with observances."""
+            say(message)
+
+        elif args[1].lower() == "daily":
+            # Switch to daily mode
+            if set_special_days_mode("daily"):
+                say(
+                    "✅ Switched to *daily* mode. Individual announcements will be posted each day.\n\n"
+                    "Change takes effect immediately."
+                )
+                logger.info(f"ADMIN_SPECIAL: {username} switched to daily mode")
+            else:
+                say("❌ Failed to switch mode")
+
+        elif args[1].lower() == "weekly":
+            # Switch to weekly mode
+            # Check if a specific day was provided
+            if len(args) >= 3:
+                day_input = args[2].lower()
+                if day_input in WEEKDAY_NAMES:
+                    weekly_day = WEEKDAY_NAMES.index(day_input)
+                elif day_input.isdigit() and 0 <= int(day_input) <= 6:
+                    weekly_day = int(day_input)
+                else:
+                    say(
+                        f"❌ Invalid day: {day_input}\n"
+                        f"Use a day name (monday, tuesday, etc.) or number (0-6 where 0=Monday)"
+                    )
+                    return
+            else:
+                weekly_day = current_day  # Keep existing day
+
+            day_name = WEEKDAY_NAMES[weekly_day].capitalize()
+
+            if set_special_days_mode("weekly", weekly_day):
+                say(
+                    f"✅ Switched to *weekly* mode. Digest will be posted every *{day_name}*.\n\n"
+                    "Change takes effect immediately."
+                )
+                logger.info(f"ADMIN_SPECIAL: {username} switched to weekly mode on {day_name}")
+            else:
+                say("❌ Failed to switch mode")
+
+        else:
+            say(
+                "Usage:\n"
+                "• `admin special mode` - Show current mode\n"
+                "• `admin special mode daily` - Switch to daily mode\n"
+                "• `admin special mode weekly` - Switch to weekly (default Monday)\n"
+                "• `admin special mode weekly friday` - Switch to weekly on Friday"
+            )
+
     elif subcommand == "verify":
         # Verify special days data
         from storage.special_days import verify_special_days
@@ -791,6 +870,11 @@ _Run `admin special refresh` to update cache_"""
 • `admin special test [DD/MM]` - Test announcement for a date
 • `admin special config [setting value]` - View/update configuration
 • `admin special verify` - Verify CSV data accuracy
+
+*Announcement Mode:*
+• `admin special mode` - Show current mode (daily/weekly)
+• `admin special mode daily` - Switch to daily announcements
+• `admin special mode weekly [day]` - Switch to weekly digest (e.g., `weekly friday`)
 
 *Observance Sources:*
 • `admin special observances` - Combined status for all sources

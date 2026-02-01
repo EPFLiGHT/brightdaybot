@@ -346,6 +346,113 @@ def build_special_day_blocks(
     return blocks, fallback_text
 
 
+def build_weekly_special_days_blocks(
+    upcoming_days: dict,
+    intro_message: str,
+    personality: str = "chronicler",
+) -> tuple[List[Dict[str, Any]], str]:
+    """
+    Build Block Kit structure for weekly special days digest.
+
+    Args:
+        upcoming_days: Dict mapping date strings (DD/MM) to lists of SpecialDay objects
+        intro_message: AI-generated intro message
+        personality: Bot personality name
+
+    Returns:
+        Tuple of (blocks list, fallback_text string)
+    """
+    from datetime import datetime
+
+    from utils.date import format_date_european_short
+
+    if not upcoming_days:
+        return [], "No special days this week"
+
+    # Count totals
+    total_observances = sum(len(days) for days in upcoming_days.values())
+    days_with_observances = len(upcoming_days)
+
+    blocks = [
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": "📅 Weekly Special Days Digest"},
+        },
+        {"type": "section", "text": {"type": "mrkdwn", "text": intro_message}},
+        {"type": "divider"},
+    ]
+
+    # Helper to get attribute from object or dict
+    def get_attr(obj, attr, default=None):
+        if hasattr(obj, attr):
+            return getattr(obj, attr, default)
+        elif isinstance(obj, dict):
+            return obj.get(attr, default)
+        return default
+
+    # Sort dates chronologically
+    today = datetime.now()
+    sorted_dates = []
+    for date_str in upcoming_days.keys():
+        try:
+            date_obj = datetime.strptime(date_str, "%d/%m")
+            # Set to current year for proper sorting
+            date_obj = date_obj.replace(year=today.year)
+            sorted_dates.append((date_str, date_obj))
+        except ValueError:
+            sorted_dates.append((date_str, today))
+
+    sorted_dates.sort(key=lambda x: x[1])
+
+    # Build sections for each day with observances
+    for date_str, date_obj in sorted_dates:
+        special_days = upcoming_days[date_str]
+
+        # Format date header with day name
+        day_name = date_obj.strftime("%A")
+        formatted_date = format_date_european_short(date_obj)
+
+        # Check if it's today
+        is_today = date_obj.date() == today.date()
+        day_label = f"*{day_name}, {formatted_date}*" + (" (Today)" if is_today else "")
+
+        # Build observance list for this day
+        observance_lines = []
+        for day in special_days:
+            emoji = get_attr(day, "emoji", "🌍") or "🌍"
+            name = get_attr(day, "name", "Special Day")
+            source = get_attr(day, "source", "")
+            source_text = f" _({source})_" if source else ""
+            observance_lines.append(f"• {emoji} {name}{source_text}")
+
+        observances_text = "\n".join(observance_lines)
+
+        # Add day section
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": f"{day_label}\n{observances_text}"},
+            }
+        )
+
+    # Add footer with totals and personality
+    blocks.append({"type": "divider"})
+
+    personality_name = get_personality_display_name(personality)
+    footer_text = (
+        f"📊 *{total_observances} observance(s)* across *{days_with_observances} day(s)* this week\n"
+        f"✨ _Brought to you by {personality_name}_\n\n"
+        f"_Use `/special-day` for details on any specific observance._"
+    )
+
+    blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": footer_text}]})
+
+    # Generate fallback text
+    fallback_text = f"Weekly Special Days Digest: {total_observances} observance(s) this week"
+
+    return blocks, fallback_text
+
+
 def build_announce_result_blocks(success: bool) -> tuple[List[Dict[str, Any]], str]:
     """
     Build Block Kit structure for announcement confirmation results

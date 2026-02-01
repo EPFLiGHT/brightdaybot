@@ -317,6 +317,17 @@ SPECIAL_DAYS_CHANNEL = os.getenv("SPECIAL_DAYS_CHANNEL_ID", BIRTHDAY_CHANNEL)
 # Time to check for special days (default: 9:00 AM server time)
 SPECIAL_DAYS_CHECK_TIME = time(9, 0)
 
+# Special days announcement mode: "daily" or "weekly"
+# - "daily": Individual announcements each day (current behavior)
+# - "weekly": Single Monday digest showing all upcoming observances for the week
+SPECIAL_DAYS_MODE = os.getenv("SPECIAL_DAYS_MODE", "daily")
+
+# Day of week for weekly digest (0=Monday through 6=Sunday)
+SPECIAL_DAYS_WEEKLY_DAY = int(os.getenv("SPECIAL_DAYS_WEEKLY_DAY", "0"))
+
+# Weekday names for display and parsing
+WEEKDAY_NAMES = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+
 # Categories of special days to track
 SPECIAL_DAYS_CATEGORIES = [
     "Global Health",

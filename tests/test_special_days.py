@@ -3,11 +3,19 @@ Tests for special days storage functions in storage/special_days.py
 
 Tests observance analysis functions:
 - group_observances_by_category(): Groups observances by category
+- get_special_days_mode(): Returns current announcement mode
+- set_special_days_mode(): Updates announcement mode
+- get_weekly_day(): Returns configured weekly digest day
 """
+
+from unittest.mock import patch
 
 from storage.special_days import (
     SpecialDay,
+    get_special_days_mode,
+    get_weekly_day,
     group_observances_by_category,
+    set_special_days_mode,
 )
 
 
@@ -72,3 +80,61 @@ class TestGroupObservancesByCategory:
         days = [FakeDay()]
         result = group_observances_by_category(days)
         assert "Unknown" in result
+
+
+class TestSpecialDaysMode:
+    """Tests for special days announcement mode functions"""
+
+    def test_get_mode_returns_string(self):
+        """get_special_days_mode returns a string"""
+        mode = get_special_days_mode()
+        assert isinstance(mode, str)
+        assert mode in ("daily", "weekly")
+
+    def test_get_weekly_day_returns_int(self):
+        """get_weekly_day returns an integer 0-6"""
+        day = get_weekly_day()
+        assert isinstance(day, int)
+        assert 0 <= day <= 6
+
+    def test_set_mode_validates_mode(self):
+        """set_special_days_mode rejects invalid mode values"""
+        result = set_special_days_mode("invalid_mode")
+        assert result is False
+
+    def test_set_mode_validates_weekly_day(self):
+        """set_special_days_mode rejects invalid weekly_day values"""
+        result = set_special_days_mode("weekly", weekly_day=-1)
+        assert result is False
+
+        result = set_special_days_mode("weekly", weekly_day=7)
+        assert result is False
+
+    @patch("storage.special_days.save_special_days_config")
+    @patch("storage.special_days.load_special_days_config")
+    def test_set_mode_daily(self, mock_load, mock_save):
+        """set_special_days_mode('daily') saves correctly"""
+        mock_load.return_value = {"announcement_mode": "weekly", "weekly_day": 0}
+        mock_save.return_value = True
+
+        result = set_special_days_mode("daily")
+
+        assert result is True
+        mock_save.assert_called_once()
+        saved_config = mock_save.call_args[0][0]
+        assert saved_config["announcement_mode"] == "daily"
+
+    @patch("storage.special_days.save_special_days_config")
+    @patch("storage.special_days.load_special_days_config")
+    def test_set_mode_weekly_with_day(self, mock_load, mock_save):
+        """set_special_days_mode('weekly', 4) saves Friday correctly"""
+        mock_load.return_value = {"announcement_mode": "daily", "weekly_day": 0}
+        mock_save.return_value = True
+
+        result = set_special_days_mode("weekly", weekly_day=4)
+
+        assert result is True
+        mock_save.assert_called_once()
+        saved_config = mock_save.call_args[0][0]
+        assert saved_config["announcement_mode"] == "weekly"
+        assert saved_config["weekly_day"] == 4

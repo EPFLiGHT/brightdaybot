@@ -535,7 +535,7 @@ def handle_timezone_command(args, user_id, say, app, username):
                 f"✅ Timezone-aware announcements ENABLED\n\n"
                 f"Birthday announcements will now be sent at {TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')} in each user's timezone. "
                 f"The scheduler will check hourly for birthdays.\n\n"
-                f"*Note:* This change will take effect on the next scheduler restart."
+                f"Change takes effect immediately."
             )
             logger.info(f"ADMIN: {username} ({user_id}) ENABLED timezone-aware announcements")
         else:
@@ -548,7 +548,7 @@ def handle_timezone_command(args, user_id, say, app, username):
                 f"✅ Timezone-aware announcements DISABLED\n\n"
                 f"All birthday announcements will now be sent at {DAILY_CHECK_TIME.strftime('%H:%M')} server time, "
                 f"regardless of user timezones.\n\n"
-                f"*Note:* This change will take effect on the next scheduler restart."
+                f"Change takes effect immediately."
             )
             logger.info(f"ADMIN: {username} ({user_id}) DISABLED timezone-aware announcements")
         else:

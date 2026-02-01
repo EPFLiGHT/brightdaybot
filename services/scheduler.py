@@ -130,9 +130,18 @@ def save_scheduler_stats(
 
 def hourly_task():
     """
-    Run the hourly birthday check task for timezone-aware celebrations
-    This function is called every hour to check for birthdays in different timezones
+    Run the hourly birthday check task for timezone-aware celebrations.
+    This function is called every hour to check for birthdays in different timezones.
+    Checks timezone mode at runtime to allow dynamic mode switching.
     """
+    from storage.settings import load_timezone_settings
+
+    # Check if timezone mode is enabled at runtime (allows dynamic switching)
+    timezone_enabled, _ = load_timezone_settings()
+    if not timezone_enabled:
+        logger.debug("SCHEDULER: Timezone mode disabled, skipping hourly check")
+        return
+
     current_time = datetime.now(timezone.utc)
     local_time = datetime.now()
     logger.info(
@@ -147,8 +156,18 @@ def hourly_task():
 
 def daily_task():
     """
-    Daily task - runs simple daily check for all birthdays at once
+    Daily task - runs simple daily check for all birthdays at once.
+    Checks timezone mode at runtime to allow dynamic mode switching.
+    Only runs when timezone mode is DISABLED.
     """
+    from storage.settings import load_timezone_settings
+
+    # Check if timezone mode is disabled at runtime (allows dynamic switching)
+    timezone_enabled, _ = load_timezone_settings()
+    if timezone_enabled:
+        logger.debug("SCHEDULER: Timezone mode enabled, skipping daily check (using hourly)")
+        return
+
     current_time = datetime.now(timezone.utc)
     local_time = datetime.now()
     logger.info(
@@ -181,6 +200,32 @@ def weekly_calendarific_refresh_task():
             logger.error(f"SCHEDULER: Failed to refresh Calendarific cache: {e}")
     else:
         logger.debug("SCHEDULER: Calendarific not enabled, skipping refresh")
+
+
+def weekly_special_days_task():
+    """
+    Weekly task - sends special days digest if in weekly mode.
+    Runs on the configured day at SPECIAL_DAYS_CHECK_TIME.
+    """
+    from storage.special_days import get_special_days_mode
+
+    # Only run if in weekly mode
+    if get_special_days_mode() != "weekly":
+        logger.debug("SCHEDULER: Not in weekly mode, skipping weekly special days task")
+        return
+
+    current_time = datetime.now(timezone.utc)
+    local_time = datetime.now()
+    logger.info(
+        f"SCHEDULER: Running weekly special days digest at {local_time.strftime('%H:%M:%S')} local time"
+    )
+
+    if _app_instance:
+        from services.birthday import check_and_announce_weekly_special_days
+
+        check_and_announce_weekly_special_days(_app_instance, current_time)
+    else:
+        logger.error("SCHEDULER: No app instance registered for weekly special days")
 
 
 def monthly_observances_refresh_task():
@@ -292,30 +337,27 @@ def setup_scheduler(app, timezone_aware_check, simple_daily_check):
     _simple_daily_callback = simple_daily_check
     _app_instance = app
 
-    # Load timezone settings
+    # Load timezone settings for logging current state
     from storage.settings import load_timezone_settings
 
     _timezone_enabled, _check_interval = load_timezone_settings()
 
-    if _timezone_enabled:
-        # Schedule hourly birthday checks at the top of each hour for timezone-aware celebrations
-        # This ensures celebrations happen at the configured time in each user's timezone
-        schedule.every().hour.at(":00").do(hourly_task)
-        logger.info(
-            f"SCHEDULER: Timezone-aware birthday checks ENABLED (checking every {_check_interval} hour(s) at :00)"
-        )
-        # No need for daily task when hourly checks are running - they already cover all timezones
-    else:
-        # Only schedule daily check when timezone mode is disabled
-        schedule.every().day.at(DAILY_CHECK_TIME.strftime("%H:%M")).do(daily_task)
-        logger.info("SCHEDULER: Timezone-aware birthday checks DISABLED (using daily check only)")
+    # Schedule BOTH hourly and daily tasks - they check mode at runtime
+    # This allows dynamic mode switching without bot restart
+    schedule.every().hour.at(":00").do(hourly_task)
+    schedule.every().day.at(DAILY_CHECK_TIME.strftime("%H:%M")).do(daily_task)
 
     # Get time zone info for logging
     local_timezone = datetime.now().astimezone().tzinfo
 
-    if not _timezone_enabled:
+    # Log current mode for visibility
+    if _timezone_enabled:
         logger.info(
-            f"SCHEDULER: Daily primary check scheduled for {DAILY_CHECK_TIME.strftime('%H:%M')} local time ({local_timezone})"
+            "SCHEDULER: Birthday tasks scheduled (current: timezone-aware mode, hourly at :00)"
+        )
+    else:
+        logger.info(
+            f"SCHEDULER: Birthday tasks scheduled (current: daily mode at {DAILY_CHECK_TIME.strftime('%H:%M')} {local_timezone})"
         )
 
     # Schedule weekly Calendarific cache refresh (every Sunday)
@@ -334,6 +376,30 @@ def setup_scheduler(app, timezone_aware_check, simple_daily_check):
     logger.info(
         f"SCHEDULER: Monthly observances refresh (UN/UNESCO/WHO) scheduled for 1st of each month at {cache_time_str}"
     )
+
+    # Schedule weekly special days digest task
+    # Always schedule this - the task itself checks the mode at runtime
+    # This allows mode changes to take effect without bot restart
+    from config import SPECIAL_DAYS_CHECK_TIME, WEEKDAY_NAMES
+    from storage.special_days import get_special_days_mode, get_weekly_day
+
+    special_time_str = SPECIAL_DAYS_CHECK_TIME.strftime("%H:%M")
+
+    # Schedule for all days - the task checks mode and configured day at runtime
+    schedule.every().day.at(special_time_str).do(weekly_special_days_task)
+
+    # Log current mode for visibility
+    special_days_mode = get_special_days_mode()
+    if special_days_mode == "weekly":
+        weekly_day = get_weekly_day()
+        day_name = WEEKDAY_NAMES[weekly_day]
+        logger.info(
+            f"SCHEDULER: Weekly special days task scheduled (current: weekly mode on {day_name.capitalize()})"
+        )
+    else:
+        logger.info(
+            "SCHEDULER: Weekly special days task scheduled (current: daily mode, task will skip)"
+        )
 
     # Start the scheduler in a separate thread
     _scheduler_thread = threading.Thread(target=run_scheduler)

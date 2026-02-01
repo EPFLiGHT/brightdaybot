@@ -32,7 +32,9 @@ from config import (
     SPECIAL_DAYS_CONFIG_FILE,
     SPECIAL_DAYS_ENABLED,
     SPECIAL_DAYS_JSON_FILE,
+    SPECIAL_DAYS_MODE,
     SPECIAL_DAYS_PERSONALITY,
+    SPECIAL_DAYS_WEEKLY_DAY,
     TIMEOUTS,
     UN_OBSERVANCES_CACHE_FILE,
     UN_OBSERVANCES_ENABLED,
@@ -40,6 +42,7 @@ from config import (
     UNESCO_OBSERVANCES_ENABLED,
     UPCOMING_DAYS_DEFAULT,
     UPCOMING_DAYS_EXTENDED,
+    WEEKDAY_NAMES,
     WHO_OBSERVANCES_CACHE_FILE,
     WHO_OBSERVANCES_ENABLED,
 )
@@ -807,6 +810,8 @@ def load_special_days_config() -> dict:
         "channel_override": None,
         "image_generation": False,
         "test_mode": False,
+        "announcement_mode": SPECIAL_DAYS_MODE,  # "daily" or "weekly"
+        "weekly_day": SPECIAL_DAYS_WEEKLY_DAY,  # 0=Monday through 6=Sunday
     }
 
     if not os.path.exists(SPECIAL_DAYS_CONFIG_FILE):
@@ -848,6 +853,123 @@ def save_special_days_config(config: dict) -> bool:
 
     except Exception as e:
         logger.error(f"Error saving special days config: {e}")
+        return False
+
+
+def get_special_days_mode() -> str:
+    """
+    Get the current special days announcement mode.
+
+    Returns:
+        "daily" or "weekly"
+    """
+    config = load_special_days_config()
+    return config.get("announcement_mode", SPECIAL_DAYS_MODE)
+
+
+def set_special_days_mode(mode: str, weekly_day: Optional[int] = None) -> bool:
+    """
+    Set the special days announcement mode.
+
+    Args:
+        mode: "daily" or "weekly"
+        weekly_day: Day of week for weekly digest (0=Monday through 6=Sunday)
+
+    Returns:
+        True if successful, False otherwise
+    """
+    if mode not in ("daily", "weekly"):
+        logger.error(f"Invalid special days mode: {mode}")
+        return False
+
+    if weekly_day is not None and not 0 <= weekly_day <= 6:
+        logger.error(f"Invalid weekly day: {weekly_day}")
+        return False
+
+    config = load_special_days_config()
+    config["announcement_mode"] = mode
+
+    if weekly_day is not None:
+        config["weekly_day"] = weekly_day
+
+    if save_special_days_config(config):
+        day_name = WEEKDAY_NAMES[config.get("weekly_day", 0)].capitalize()
+        logger.info(f"Special days mode set to: {mode} (weekly day: {day_name})")
+        return True
+
+    return False
+
+
+def get_weekly_day() -> int:
+    """
+    Get the configured day for weekly digest announcements.
+
+    Returns:
+        Day of week (0=Monday through 6=Sunday)
+    """
+    config = load_special_days_config()
+    return config.get("weekly_day", SPECIAL_DAYS_WEEKLY_DAY)
+
+
+def has_announced_weekly_digest(date: Optional[datetime] = None) -> bool:
+    """
+    Check if we've already announced the weekly digest for this ISO week.
+
+    Uses consolidated JSON tracking via storage/birthdays.py.
+
+    Args:
+        date: Optional date to check (defaults to today)
+
+    Returns:
+        True if already announced this week, False otherwise
+    """
+    from storage.birthdays import _load_announcements
+
+    if date is None:
+        date = datetime.now()
+
+    # Get ISO week number (year, week_number, weekday)
+    iso_year, iso_week, _ = date.isocalendar()
+    week_key = f"{iso_year}-W{iso_week:02d}"
+
+    data = _load_announcements()
+
+    return week_key in data.get("weekly_special_days", {})
+
+
+def mark_weekly_digest_announced(date: Optional[datetime] = None) -> bool:
+    """
+    Mark that we've announced the weekly special days digest for this ISO week.
+
+    Uses consolidated JSON tracking via storage/birthdays.py.
+
+    Args:
+        date: Optional date to mark (defaults to today)
+
+    Returns:
+        True if successful, False otherwise
+    """
+    from storage.birthdays import _load_announcements, _save_announcements
+
+    if date is None:
+        date = datetime.now()
+
+    # Get ISO week number (year, week_number, weekday)
+    iso_year, iso_week, _ = date.isocalendar()
+    week_key = f"{iso_year}-W{iso_week:02d}"
+
+    data = _load_announcements()
+
+    if "weekly_special_days" not in data:
+        data["weekly_special_days"] = {}
+
+    data["weekly_special_days"][week_key] = datetime.now().isoformat()
+
+    if _save_announcements(data):
+        logger.info(f"Marked weekly special days digest as announced for {week_key}")
+        return True
+    else:
+        logger.error(f"Error marking weekly digest as announced for {week_key}")
         return False
 
 
