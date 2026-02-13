@@ -1587,6 +1587,7 @@ _(All announcements require confirmation)_"""
         special_commands = f"""• `/special-day` or `special` - Today's observances
 • `/special-day week` or `special week` - Next {UPCOMING_DAYS_DEFAULT} days
 • `/special-day month` or `special month` - Next {UPCOMING_DAYS_EXTENDED} days
+• `/special-day export [source]` - Export to calendar (ICS)
 • `special list [category]` - List all special days
 • `special stats` - View statistics"""
 

@@ -109,6 +109,10 @@ def handle_special_command(args, user_id, say, app):
         blocks, fallback = build_special_day_stats_blocks(stats)
         say(blocks=blocks, text=fallback)
 
+    elif subcommand == "export":
+        source_filter = args[1].lower() if len(args) > 1 else None
+        _handle_special_day_export(source_filter, user_id, say, app)
+
     elif subcommand == "help":
         # Show help using Block Kit
         from slack.blocks import build_slash_help_blocks
@@ -906,3 +910,170 @@ _Run `admin special refresh` to update cache_"""
     logger.info(
         f"ADMIN_SPECIAL: {username} ({user_id}) used admin special command: {' '.join(args)}"
     )
+
+
+def _handle_special_day_export(source_filter, user_id, say, app):
+    """
+    Export special days as an ICS calendar file.
+
+    Args:
+        source_filter: Optional source to filter by (un/unesco/who/calendarific/custom), or None for all
+        user_id: Slack user ID
+        say: Slack say/respond function
+        app: Slack app instance
+    """
+    import os
+    import tempfile
+
+    from slack.client import send_message_with_file
+    from storage.special_days import load_all_special_days
+
+    valid_sources = {"un", "unesco", "who", "calendarific", "custom"}
+
+    # Treat "all" same as no filter
+    if source_filter == "all":
+        source_filter = None
+
+    if source_filter and source_filter not in valid_sources:
+        say(
+            text=f"Unknown source `{source_filter}`. "
+            f"Valid sources: {', '.join(f'`{s}`' for s in sorted(valid_sources))}\n"
+            f"Or omit for all sources (deduplicated)."
+        )
+        return
+
+    # Load all days (already deduplicated)
+    all_days = load_all_special_days()
+
+    # Filter by source if specified
+    if source_filter:
+        all_days = [d for d in all_days if d.source.lower() == source_filter]
+
+    if not all_days:
+        label = f" from `{source_filter}`" if source_filter else ""
+        say(text=f"No special days{label} to export.")
+        return
+
+    # Generate ICS
+    source_label = source_filter.upper() if source_filter else None
+    ics_content = _generate_special_days_ics(all_days, source_label)
+
+    logger.info(
+        f"EXPORT: Generated special days calendar with {len(all_days)} events for {user_id}"
+    )
+
+    # Create temp file and upload
+    temp_file_path = None
+    try:
+        prefix = f"special_days_{source_filter}_" if source_filter else "special_days_"
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            suffix=".ics",
+            prefix=prefix,
+            delete=False,
+            encoding="utf-8",
+        ) as temp_file:
+            temp_file_path = temp_file.name
+            temp_file.write(ics_content)
+
+        source_text = f" ({source_label})" if source_label else ""
+        message = (
+            f"📅 *Special Days Calendar Export{source_text}* — {len(all_days)} observances\n\n"
+            f"Import this `.ics` file into your calendar app "
+            f"(Google Calendar, Outlook, Apple Calendar)."
+        )
+
+        success = send_message_with_file(app, user_id, message, temp_file_path)
+
+        if success:
+            say(
+                text=f"✅ Calendar exported! Check your DMs for the `.ics` file "
+                f"with {len(all_days)} special days{source_text}."
+            )
+        else:
+            say(
+                text=f"*Special Days Calendar Export{source_text}* — {len(all_days)} observances\n\n"
+                f"Copy the content below and save as `special_days.ics`:\n\n"
+                f"```\n{ics_content}\n```"
+            )
+
+    except Exception as e:
+        logger.error(f"EXPORT_ERROR: Failed to create/upload special days calendar: {e}")
+        say(
+            text=f"*Special Days Calendar Export* — {len(all_days)} observances\n\n"
+            f"Copy the content below and save as `special_days.ics`:\n\n"
+            f"```\n{ics_content}\n```"
+        )
+
+    finally:
+        if temp_file_path and os.path.exists(temp_file_path):
+            try:
+                os.unlink(temp_file_path)
+            except Exception:
+                pass
+
+
+def _generate_special_days_ics(days, source_label=None):
+    """
+    Generate ICS calendar content for special days.
+
+    Args:
+        days: List of SpecialDay objects
+        source_label: Optional label for calendar name (e.g. "UN")
+
+    Returns:
+        str: ICS format calendar content
+    """
+    import hashlib
+    from datetime import date
+
+    from icalendar import Calendar, Event, vRecur
+
+    cal_name = f"Special Days ({source_label})" if source_label else "Special Days"
+
+    cal = Calendar()
+    cal.add("prodid", "-//BrightDayBot//Special Days Calendar//EN")
+    cal.add("version", "2.0")
+    cal.add("calscale", "GREGORIAN")
+    cal.add("method", "PUBLISH")
+    cal.add("x-wr-calname", cal_name)
+
+    current_year = datetime.now().year
+    now = datetime.utcnow()
+
+    for day in days:
+        try:
+            day_num, month_num = map(int, day.date.split("/"))
+        except (ValueError, AttributeError):
+            continue
+
+        # Stable UID based on name
+        name_hash = hashlib.md5(day.name.lower().encode()).hexdigest()[:12]
+
+        # Summary with emoji if available
+        summary = f"{day.emoji} {day.name}" if day.emoji else day.name
+
+        event = Event()
+        event.add("uid", f"special-{name_hash}@brightdaybot")
+        event.add("dtstamp", now)
+        event.add("dtstart", date(current_year, month_num, day_num))
+        event.add("summary", summary)
+        event.add("transp", "TRANSPARENT")
+
+        # Description with source attribution
+        desc_parts = []
+        if day.description:
+            desc_parts.append(day.description)
+        if day.source:
+            desc_parts.append(f"Source: {day.source}")
+        if desc_parts:
+            event.add("description", "\n".join(desc_parts))
+
+        # Yearly recurrence for fixed-date sources only (not Calendarific — variable dates)
+        source = getattr(day, "source", "") or ""
+        if source.lower() != "calendarific":
+            event.add("rrule", vRecur({"FREQ": "YEARLY"}))
+
+        cal.add_component(event)
+
+    return cal.to_ical().decode("utf-8")

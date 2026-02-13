@@ -257,8 +257,8 @@ class TestCalendarExport:
 
         result = _generate_ics_calendar(birthdays)
 
-        assert result.startswith("BEGIN:VCALENDAR")
-        assert result.endswith("END:VCALENDAR")
+        assert result.strip().startswith("BEGIN:VCALENDAR")
+        assert result.strip().endswith("END:VCALENDAR")
         assert "VERSION:2.0" in result
         assert "PRODID:-//BrightDayBot//Birthday Calendar//EN" in result
 
@@ -313,8 +313,8 @@ class TestCalendarExport:
 
         result = _generate_ics_calendar([])
 
-        assert result.startswith("BEGIN:VCALENDAR")
-        assert result.endswith("END:VCALENDAR")
+        assert result.strip().startswith("BEGIN:VCALENDAR")
+        assert result.strip().endswith("END:VCALENDAR")
         assert "BEGIN:VEVENT" not in result
 
     def test_generate_ics_calendar_skips_invalid_dates(self):

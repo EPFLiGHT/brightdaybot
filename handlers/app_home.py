@@ -432,7 +432,7 @@ def _build_home_view(user_id, app):
                 "type": "mrkdwn",
                 "text": "• `/birthday export` — Export birthdays to calendar (ICS)\n"
                 + "• `/special-day` — View today's special days\n"
-                + "• `/special-day week` — Special days this week",
+                + "• `/special-day export` — Export special days to calendar (ICS)",
             },
         }
     )

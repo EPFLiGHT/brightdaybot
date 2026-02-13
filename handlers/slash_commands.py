@@ -430,17 +430,18 @@ def _generate_ics_calendar(birthdays):
     Returns:
         str: ICS format calendar content
     """
-    from datetime import datetime
+    from datetime import date, datetime
 
-    # ICS header
-    lines = [
-        "BEGIN:VCALENDAR",
-        "VERSION:2.0",
-        "PRODID:-//BrightDayBot//Birthday Calendar//EN",
-        "CALSCALE:GREGORIAN",
-        "METHOD:PUBLISH",
-        "X-WR-CALNAME:Team Birthdays",
-    ]
+    from icalendar import Calendar, Event, vRecur
+
+    cal = Calendar()
+    cal.add("prodid", "-//BrightDayBot//Birthday Calendar//EN")
+    cal.add("version", "2.0")
+    cal.add("calscale", "GREGORIAN")
+    cal.add("method", "PUBLISH")
+    cal.add("x-wr-calname", "Team Birthdays")
+
+    current_year = datetime.now().year
 
     for bday in birthdays:
         username = bday["username"]
@@ -448,45 +449,24 @@ def _generate_ics_calendar(birthdays):
         user_id = bday["user_id"]
         year = bday.get("year")
 
-        # Parse date
         try:
-            day, month = date_str.split("/")
-            day = int(day)
-            month = int(month)
+            day, month = map(int, date_str.split("/"))
         except (ValueError, AttributeError):
             continue
 
-        # Use current year for the event start
-        current_year = datetime.now().year
-        event_date = f"{current_year}{month:02d}{day:02d}"
-
-        # Create unique ID for the event
-        uid = f"birthday-{user_id}@brightdaybot"
-
-        # Event summary
         summary = f"🎂 {username}'s Birthday"
         if year:
-            # Calculate age they'll be turning this year
             turning_age = current_year - year
             summary = f"🎂 {username}'s Birthday (turning {turning_age})"
 
-        # Generate creation timestamp
-        dtstamp = datetime.now().strftime("%Y%m%dT%H%M%SZ")
+        event = Event()
+        event.add("uid", f"birthday-{user_id}@brightdaybot")
+        event.add("dtstamp", datetime.utcnow())
+        event.add("dtstart", date(current_year, month, day))
+        event.add("summary", summary)
+        event.add("rrule", vRecur({"FREQ": "YEARLY"}))
+        event.add("transp", "TRANSPARENT")
 
-        # VEVENT for birthday (all-day event with yearly recurrence)
-        lines.extend(
-            [
-                "BEGIN:VEVENT",
-                f"UID:{uid}",
-                f"DTSTAMP:{dtstamp}",
-                f"DTSTART;VALUE=DATE:{event_date}",
-                f"SUMMARY:{summary}",
-                "RRULE:FREQ=YEARLY",
-                "TRANSP:TRANSPARENT",
-                "END:VEVENT",
-            ]
-        )
+        cal.add_component(event)
 
-    lines.append("END:VCALENDAR")
-
-    return "\n".join(lines)
+    return cal.to_ical().decode("utf-8")
