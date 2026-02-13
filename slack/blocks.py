@@ -1317,19 +1317,7 @@ def build_help_blocks(is_admin: bool = False) -> tuple[List[Dict[str, Any]], str
 
         blocks.append({"type": "divider"})
 
-        # Core Admin Management
-        blocks.append(
-            {
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": "*👥 Admin Management*"},
-            }
-        )
-        admin_mgmt = """• `admin list` - List configured admin users
-• `admin add USER_ID` - Add a user as admin
-• `admin remove USER_ID` - Remove a user from admin list"""
-        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": admin_mgmt}})
-
-        blocks.append({"type": "divider"})
+        # --- Core Features ---
 
         # Birthday Management
         blocks.append(
@@ -1349,6 +1337,81 @@ def build_help_blocks(is_admin: bool = False) -> tuple[List[Dict[str, Any]], str
 
         blocks.append({"type": "divider"})
 
+        # Special Days Management
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*🌟 Special Days Management*"},
+            }
+        )
+        special_days = """• `admin special` - View full special days help
+• `admin special list [category]` - List all observances (all sources)
+• `admin special add/remove` - Manage custom days
+• `admin special test [DD/MM]` - Test announcement
+• `admin special mode` - Show announcement mode (daily/weekly)
+• `admin special mode daily` - Switch to daily announcements
+• `admin special mode weekly [day]` - Switch to weekly digest
+• `admin special observances` - Combined status for UN/UNESCO/WHO
+• `admin special [un|unesco|who]-status` - Individual cache status
+• `admin special api-status` - Calendarific status"""
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": special_days}})
+
+        blocks.append({"type": "divider"})
+
+        # Bot Personality
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*🎭 Bot Personality*"},
+            }
+        )
+        # Get personality list dynamically
+        personality_names = get_personality_descriptions().keys()
+        personality_list = ", ".join(f"`{p}`" for p in personality_names)
+
+        personality = f"""• `admin personality` - Show current bot personality
+• `admin personality [name]` - Change bot personality
+
+*Available:* {personality_list}
+
+*Custom Personality:*
+• `admin custom name|description|style|format|template [value]`"""
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": personality}})
+
+        blocks.append({"type": "divider"})
+
+        # --- Configuration ---
+
+        # AI Configuration
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*🤖 AI Model Configuration*"},
+            }
+        )
+        ai_config = """• `admin model` - Show current OpenAI model and configuration
+• `admin model list` - List all supported OpenAI models
+• `admin model set <model>` - Change to specified model
+• `admin model reset` - Reset to default model"""
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": ai_config}})
+
+        blocks.append({"type": "divider"})
+
+        # Timezone Configuration
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*🌍 Timezone Configuration*"},
+            }
+        )
+        timezone = """• `admin timezone` - View current timezone status
+• `admin timezone status` - Show detailed timezone schedule
+• `admin timezone enable` - Enable timezone-aware mode (hourly checks)
+• `admin timezone disable` - Disable timezone-aware mode (daily check)"""
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": timezone}})
+
+        blocks.append({"type": "divider"})
+
         # System Management
         blocks.append(
             {
@@ -1358,45 +1421,13 @@ def build_help_blocks(is_admin: bool = False) -> tuple[List[Dict[str, Any]], str
         )
         system_mgmt = """• `admin status` - View system health and component status
 • `admin status detailed` - View detailed system information
-• `admin timezone` - View birthday celebration schedule
 • `config` - View command permissions
 • `config COMMAND true/false` - Change command permissions"""
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": system_mgmt}})
 
         blocks.append({"type": "divider"})
 
-        # Testing Commands
-        blocks.append(
-            {
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": "*🧪 Testing Commands*"},
-            }
-        )
-        testing = """• `admin test @user1 [@user2...] [quality] [size] [--text-only]` - Test birthday message/images
-• `admin test-join [@user]` - Test birthday channel welcome
-• `admin test-bot-celebration [quality] [size] [--text-only]` - Test bot self-celebration
-• `admin test-block [type]` - Test Block Kit rendering
-• `admin test-upload` - Test image upload functionality
-• `admin test-upload-multi` - Test multiple image attachments
-• `admin test-blockkit [mode]` - Test Block Kit image embedding
-• `admin test-file-upload` - Test text file upload"""
-        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": testing}})
-
-        blocks.append({"type": "divider"})
-
-        # Announcements
-        blocks.append(
-            {
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": "*📣 Announcements*"},
-            }
-        )
-        announcements = """• `admin announce image` - Announce AI image generation feature
-• `admin announce [message]` - Send custom announcement to birthday channel
-_(All announcements require confirmation)_"""
-        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": announcements}})
-
-        blocks.append({"type": "divider"})
+        # --- Operations ---
 
         # Data Management
         blocks.append(
@@ -1418,90 +1449,63 @@ _(All announcements require confirmation)_"""
         blocks.append(
             {
                 "type": "section",
-                "text": {"type": "mrkdwn", "text": "*📁 Message Archive Management*"},
+                "text": {"type": "mrkdwn", "text": "*📁 Message Archive*"},
             }
         )
-        archive = """• `admin archive stats` - View archive system status and statistics
-• `admin archive search [query]` - Search archived messages with filters
+        archive = """• `admin archive stats` - View archive status and statistics
+• `admin archive search [query]` - Search archived messages
 • `admin archive export [format] [days]` - Export messages (csv/json)
-• `admin archive cleanup` - Manually trigger archive cleanup
-• `admin archive cleanup force` - Force cleanup regardless of age"""
+• `admin archive cleanup [force]` - Trigger archive cleanup"""
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": archive}})
 
         blocks.append({"type": "divider"})
 
-        # AI Configuration
+        # Announcements
         blocks.append(
             {
                 "type": "section",
-                "text": {"type": "mrkdwn", "text": "*🤖 AI Model Configuration*"},
+                "text": {"type": "mrkdwn", "text": "*📣 Announcements*"},
             }
         )
-        ai_config = """• `admin model` - Show current OpenAI model and configuration
-• `admin model list` - List all supported OpenAI models
-• `admin model set <model>` - Change to specified model (e.g., gpt-4o)
-• `admin model reset` - Reset to default model"""
-        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": ai_config}})
+        announcements = """• `admin announce image` - Announce AI image generation feature
+• `admin announce [message]` - Send custom announcement to birthday channel
+_(All announcements require confirmation)_"""
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": announcements}})
 
         blocks.append({"type": "divider"})
 
-        # Timezone Configuration
+        # --- Development & Admin ---
+
+        # Testing Commands
         blocks.append(
             {
                 "type": "section",
-                "text": {"type": "mrkdwn", "text": "*🌍 Timezone Configuration*"},
+                "text": {"type": "mrkdwn", "text": "*🧪 Testing Commands*"},
             }
         )
-        timezone = """• `admin timezone` - View current timezone status
-• `admin timezone status` - Show detailed timezone schedule
-• `admin timezone enable` - Enable timezone-aware mode (hourly checks)
-• `admin timezone disable` - Disable timezone-aware mode (daily check)"""
-        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": timezone}})
+        testing = """• `admin test @user1 [@user2...] [quality] [size] [--text-only]` - Test birthday message/images
+• `admin test-join [@user]` - Test birthday channel welcome
+• `admin test-bot-celebration [quality] [size] [--text-only]` - Test bot self-celebration
+• `admin test-block [type]` - Test Block Kit rendering
+• `admin test-upload` - Test image upload functionality
+• `admin test-upload-multi` - Test multiple image attachments
+• `admin test-blockkit [mode]` - Test Block Kit image embedding
+• `admin test-file-upload` - Test text file upload"""
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": testing}})
 
         blocks.append({"type": "divider"})
 
-        # Bot Personality
+        # Admin Management
         blocks.append(
             {
                 "type": "section",
-                "text": {"type": "mrkdwn", "text": "*🎭 Bot Personality*"},
+                "text": {"type": "mrkdwn", "text": "*👥 Admin Management*"},
             }
         )
-        # Get personality list dynamically
-        personality_names = get_personality_descriptions().keys()
-        personality_list = ", ".join(f"`{p}`" for p in personality_names)
-
-        personality = f"""• `admin personality` - Show current bot personality
-• `admin personality [name]` - Change bot personality
-
-*Available Personalities:*
-{personality_list}
-
-*Custom Personality Commands:*
-• `admin custom name [value]` - Set custom bot name
-• `admin custom description [value]` - Set custom bot description
-• `admin custom style [value]` - Set custom writing style
-• `admin custom format [value]` - Set custom format instruction
-• `admin custom template [value]` - Set custom template extension"""
-        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": personality}})
-
-        blocks.append({"type": "divider"})
-
-        # Special Days Management
-        blocks.append(
-            {
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": "*🌟 Special Days Management*"},
-            }
-        )
-        special_days = """• `admin special` - View special days help
-• `admin special list [category]` - List all observances (all sources)
-• `admin special add/remove` - Manage custom days
-• `admin special test [DD/MM]` - Test announcement
-• `admin special observances` - Combined status for UN/UNESCO/WHO
-• `admin special [un|unesco|who]-status` - Individual cache status
-• `admin special api-status` - Calendarific status"""
-        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": special_days}})
+        admin_mgmt = """• `admin list` - List configured admin users
+• `admin add USER_ID` - Add a user as admin
+• `admin remove USER_ID` - Remove a user from admin list"""
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": admin_mgmt}})
 
         # Footer
         blocks.append(
@@ -1540,11 +1544,11 @@ _(All announcements require confirmation)_"""
                 "fields": [
                     {
                         "type": "mrkdwn",
-                        "text": "*Add Your Birthday:*\nSend: `25/12` or `25/12/1990`\n_(DD/MM or DD/MM/YYYY)_",
+                        "text": "*Slash Commands (preferred):*\n`/birthday` - Open birthday form\n`/special-day` - Today's observances",
                     },
                     {
                         "type": "mrkdwn",
-                        "text": "*Get a Greeting:*\nType: `hello`\nGet a friendly bot greeting!",
+                        "text": "*DM Shortcut:*\nSend `25/12` or `25/12/1990`\nto add your birthday directly",
                     },
                 ],
             }
@@ -1560,14 +1564,13 @@ _(All announcements require confirmation)_"""
             }
         )
 
-        birthday_commands = """• `add DD/MM` or `add DD/MM/YYYY` - Add/update birthday
-• `check` - Check your saved birthday
-• `check @user` - Check someone else's birthday
+        birthday_commands = """• `/birthday` or `add DD/MM` - Add or update your birthday
+• `/birthday check [@user]` or `check` - Check a birthday
+• `/birthday list` or `list` - Upcoming birthdays
+• `/birthday export` - Export birthdays to calendar (ICS)
 • `remove` - Remove your birthday
-• `pause` - Pause your birthday celebrations
-• `resume` - Resume your birthday celebrations
-• `test [quality] [size] [--text-only]` - Test birthday message
-  _Quality: low/medium/high/auto, Size: auto/1024x1024/etc_"""
+• `pause` / `resume` - Pause or resume your celebrations
+• `test [quality] [size] [--text-only]` - Preview your birthday message"""
 
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": birthday_commands}})
 
@@ -1581,9 +1584,9 @@ _(All announcements require confirmation)_"""
             }
         )
 
-        special_commands = f"""• `special` - Show today's special observances
-• `special week` - Show next {UPCOMING_DAYS_DEFAULT} days
-• `special month` - Show next {UPCOMING_DAYS_EXTENDED} days
+        special_commands = f"""• `/special-day` or `special` - Today's observances
+• `/special-day week` or `special week` - Next {UPCOMING_DAYS_DEFAULT} days
+• `/special-day month` or `special month` - Next {UPCOMING_DAYS_EXTENDED} days
 • `special list [category]` - List all special days
 • `special stats` - View statistics"""
 
@@ -1595,12 +1598,12 @@ _(All announcements require confirmation)_"""
         blocks.append(
             {
                 "type": "section",
-                "text": {"type": "mrkdwn", "text": "*⚙️ Other Commands*"},
+                "text": {"type": "mrkdwn", "text": "*⚙️ Other*"},
             }
         )
 
         other_commands = """• `help` - Show this help message
-• `confirm` - Confirm pending commands
+• `hello` - Get a friendly greeting
 • `admin help` - View admin commands _(if admin)_"""
 
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": other_commands}})
@@ -1612,13 +1615,13 @@ _(All announcements require confirmation)_"""
                 "elements": [
                     {
                         "type": "mrkdwn",
-                        "text": "💡 Tip: Just send your birthday date directly (e.g., `25/12`) - no command needed!",
+                        "text": "💡 Tip: Use `/birthday` in any channel — no need to DM the bot!",
                     }
                 ],
             }
         )
 
-        fallback_text = "BrightDay Help - Send your birthday in DD/MM format or type 'hello' for a greeting. Use 'admin help' for admin commands."
+        fallback_text = "BrightDay Help - Use /birthday to add your birthday or /special-day to see today's observances. Use 'admin help' for admin commands."
 
     return blocks, fallback_text
 
