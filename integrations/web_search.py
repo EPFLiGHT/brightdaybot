@@ -21,6 +21,7 @@ from config import (
     DATE_FORMAT,
     DEFAULT_IMAGE_PERSONALITY,
     DEFAULT_OPENAI_MODEL,
+    REASONING_EFFORT,
     TEMPERATURE_SETTINGS,
     TOKEN_LIMITS,
     WEB_SEARCH_CACHE_ENABLED,
@@ -93,6 +94,7 @@ def process_facts_for_personality(facts_text, formatted_date, personality):
             max_tokens=TOKEN_LIMITS["web_search_facts"],
             temperature=TEMPERATURE_SETTINGS["default"],
             context="WEB_SEARCH_FACTS",
+            reasoning_effort=REASONING_EFFORT["analytical"],
         )
         processed_facts = processed_facts.strip()
         logger.info(

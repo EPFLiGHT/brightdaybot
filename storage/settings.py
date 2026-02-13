@@ -566,7 +566,7 @@ def save_openai_model_setting(model_name):
     Save OpenAI model setting to file
 
     Args:
-        model_name: OpenAI model name (e.g., "gpt-4.1", "gpt-5")
+        model_name: OpenAI model name (e.g., "gpt-5.2", "gpt-4.1")
 
     Returns:
         bool: True if successful, False otherwise

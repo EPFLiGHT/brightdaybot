@@ -76,6 +76,7 @@ def complete(
     max_tokens=None,
     temperature=None,
     context=None,
+    reasoning_effort=None,
 ):
     """
     Generate a completion using OpenAI's Responses API.
@@ -89,6 +90,7 @@ def complete(
         max_tokens: Maximum tokens in response
         temperature: Sampling temperature
         context: Optional context string for logging (e.g., "BIRTHDAY_MESSAGE")
+        reasoning_effort: Reasoning effort for GPT-5+ ("low", "medium", "high", etc.)
 
     Returns:
         str: The generated text response
@@ -110,7 +112,7 @@ def complete(
         user_messages = []
 
         for msg in messages:
-            if msg.get("role") == "system":
+            if msg.get("role") in ("system", "developer"):
                 system_content = msg.get("content", "")
             else:
                 user_messages.append(msg)
@@ -142,7 +144,10 @@ def complete(
     # Add optional parameters
     if max_tokens:
         params["max_output_tokens"] = max_tokens
-    if temperature is not None:
+    if reasoning_effort is not None:
+        # When reasoning is active, temperature is not supported
+        params["reasoning"] = {"effort": reasoning_effort}
+    elif temperature is not None:
         params["temperature"] = temperature
 
     logger.info(f"AI_{context}: Calling Responses API with model={model}")
@@ -184,6 +189,7 @@ def complete_with_usage(
     max_tokens=None,
     temperature=None,
     context=None,
+    reasoning_effort=None,
 ):
     """
     Generate a completion and return both text and usage info.
@@ -204,7 +210,7 @@ def complete_with_usage(
         user_messages = []
 
         for msg in messages:
-            if msg.get("role") == "system":
+            if msg.get("role") in ("system", "developer"):
                 system_content = msg.get("content", "")
             else:
                 user_messages.append(msg)
@@ -230,7 +236,9 @@ def complete_with_usage(
 
     if max_tokens:
         params["max_output_tokens"] = max_tokens
-    if temperature is not None:
+    if reasoning_effort is not None:
+        params["reasoning"] = {"effort": reasoning_effort}
+    elif temperature is not None:
         params["temperature"] = temperature
 
     logger.info(f"AI_{context}: Calling Responses API with model={model}")
@@ -276,7 +284,7 @@ def analyze_image(
     Analyze an image using Responses API with vision capabilities.
 
     Centralized in integrations/openai.py following existing patterns.
-    Uses the same model as text completions (gpt-4.1 supports vision).
+    Uses the same model as text completions (supports vision).
 
     Args:
         image_path: Path to the image file to analyze

@@ -11,6 +11,7 @@ from typing import List, Optional
 from config import (
     DESCRIPTION_TEASER_LENGTH,
     IMAGE_GENERATION_PARAMS,
+    REASONING_EFFORT,
     SLACK_BUTTON_DISPLAY_CHAR_LIMIT,
     SLACK_BUTTON_VALUE_CHAR_LIMIT,
     SPECIAL_DAYS_CHANNEL,
@@ -586,6 +587,7 @@ TONE & STYLE:
             max_tokens=max_tokens,
             temperature=temperature,
             context="SPECIAL_DAY_DETAILS",
+            reasoning_effort=REASONING_EFFORT["analytical"],
         )
         details = details.strip()
 

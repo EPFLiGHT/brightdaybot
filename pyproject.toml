@@ -4,24 +4,25 @@ version = "1.0.0"
 description = "A Slack bot that celebrates birthdays with AI-generated personalized messages and images"
 readme = "README.md"
 license = { text = "MIT" }
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
-    "crawl4ai>=0.7.8",
-    "filelock>=3.20.1",
-    "openai>=2.14.0",
-    "pillow>=12.0.0",
+    "crawl4ai>=0.8.0",
+    "filelock>=3.21.2",
+    "httpx[socks]>=0.28.1",
+    "openai>=2.20.0",
+    "pillow>=12.1.1",
     "python-dotenv>=1.2.1",
     "requests>=2.32.5",
     "schedule>=1.2.2",
-    "slack-bolt>=1.22.0",
-    "slack-sdk>=3.34.0",
+    "slack-bolt>=1.27.0",
+    "slack-sdk>=3.40.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.1.1",
-    "black>=24.0.0",
-    "ruff>=0.4.0",
+    "pytest>=9.0.2",
+    "black>=26.1.0",
+    "ruff>=0.15.1",
 ]
 
 [build-system]
@@ -38,14 +39,14 @@ package = false
 
 [dependency-groups]
 dev = [
-    "pytest>=8.1.1",
-    "black>=24.0.0",
-    "ruff>=0.4.0",
+    "pytest>=9.0.2",
+    "black>=26.1.0",
+    "ruff>=0.15.1",
 ]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
@@ -59,7 +60,7 @@ ignore = [
 
 [tool.black]
 line-length = 100
-target-version = ["py310"]
+target-version = ["py311"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

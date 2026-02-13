@@ -1440,7 +1440,7 @@ _(All announcements require confirmation)_"""
         ai_config = """• `admin model` - Show current OpenAI model and configuration
 • `admin model list` - List all supported OpenAI models
 • `admin model set <model>` - Change to specified model (e.g., gpt-4o)
-• `admin model reset` - Reset to default model (gpt-4.1)"""
+• `admin model reset` - Reset to default model"""
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": ai_config}})
 
         blocks.append({"type": "divider"})

@@ -9,7 +9,7 @@ import json
 import os
 import re
 import shutil
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
 from filelock import FileLock
@@ -858,18 +858,45 @@ def save_special_days_config(config: dict) -> bool:
 
 def get_special_days_mode() -> str:
     """
-    Get the current special days announcement mode.
+    Get the current effective special days announcement mode.
+
+    Handles deferred transitions: if a daily→weekly switch was made mid-week,
+    returns "daily" until the next configured weekly day arrives.
 
     Returns:
         "daily" or "weekly"
     """
     config = load_special_days_config()
+    transition = config.get("mode_transition")
+
+    if transition:
+        try:
+            effective_date = datetime.strptime(transition["effective_date"], "%Y-%m-%d").date()
+            if date.today() < effective_date:
+                return transition["previous_mode"]
+            else:
+                # Transition complete — clean up
+                del config["mode_transition"]
+                save_special_days_config(config)
+                logger.info(
+                    f"SPECIAL_DAYS: Mode transition complete, now in "
+                    f"{config.get('announcement_mode', SPECIAL_DAYS_MODE)} mode"
+                )
+        except (KeyError, ValueError) as e:
+            logger.error(f"SPECIAL_DAYS: Invalid mode_transition data, clearing: {e}")
+            config.pop("mode_transition", None)
+            save_special_days_config(config)
+
     return config.get("announcement_mode", SPECIAL_DAYS_MODE)
 
 
 def set_special_days_mode(mode: str, weekly_day: Optional[int] = None) -> bool:
     """
-    Set the special days announcement mode.
+    Set the special days announcement mode with deferred transition support.
+
+    When switching daily → weekly, the switch is deferred until the next configured
+    weekly day so daily announcements continue covering the gap.
+    When switching weekly → daily, takes effect immediately.
 
     Args:
         mode: "daily" or "weekly"
@@ -887,10 +914,39 @@ def set_special_days_mode(mode: str, weekly_day: Optional[int] = None) -> bool:
         return False
 
     config = load_special_days_config()
-    config["announcement_mode"] = mode
+    # Get effective mode BEFORE modifying config (important: config is mutable)
+    effective_mode = get_special_days_mode()
 
     if weekly_day is not None:
         config["weekly_day"] = weekly_day
+
+    config["announcement_mode"] = mode
+
+    # Deferred transition: daily → weekly (or updating a pending daily→weekly transition)
+    if effective_mode == "daily" and mode == "weekly":
+        target_day = weekly_day if weekly_day is not None else config.get("weekly_day", 0)
+        today = date.today()
+        days_until = (target_day - today.weekday()) % 7
+        if days_until == 0:
+            # Today is the weekly day — effective immediately
+            config.pop("mode_transition", None)
+        else:
+            # Log if replacing an existing transition
+            if "mode_transition" in config:
+                old_date = config["mode_transition"].get("effective_date", "unknown")
+                logger.info(f"SPECIAL_DAYS: Replacing pending transition (was {old_date})")
+
+            effective = today + timedelta(days=days_until)
+            config["mode_transition"] = {
+                "previous_mode": "daily",
+                "effective_date": effective.isoformat(),
+            }
+            logger.info(
+                f"SPECIAL_DAYS: Mode transition scheduled, daily until {effective.isoformat()}"
+            )
+    else:
+        # weekly → daily or same mode: immediate, clear any pending transition
+        config.pop("mode_transition", None)
 
     if save_special_days_config(config):
         day_name = WEEKDAY_NAMES[config.get("weekly_day", 0)].capitalize()
@@ -909,6 +965,32 @@ def get_weekly_day() -> int:
     """
     config = load_special_days_config()
     return config.get("weekly_day", SPECIAL_DAYS_WEEKLY_DAY)
+
+
+def get_pending_mode_transition() -> Optional[dict]:
+    """
+    Get pending mode transition info, if any.
+
+    Returns:
+        dict with "target_mode", "effective_date", "current_mode" or None
+    """
+    config = load_special_days_config()
+    transition = config.get("mode_transition")
+    if not transition:
+        return None
+
+    try:
+        effective_date = datetime.strptime(transition["effective_date"], "%Y-%m-%d").date()
+        if date.today() < effective_date:
+            return {
+                "target_mode": config.get("announcement_mode", SPECIAL_DAYS_MODE),
+                "effective_date": effective_date,
+                "current_mode": transition["previous_mode"],
+            }
+    except (KeyError, ValueError):
+        pass
+
+    return None
 
 
 def has_announced_weekly_digest(date: Optional[datetime] = None) -> bool:

@@ -161,7 +161,7 @@ docker compose up -d
 
 ```env
 # AI & Core Settings
-OPENAI_MODEL="gpt-4.1"              # AI model (default: gpt-4.1)
+OPENAI_MODEL=""                      # AI model (see config.py DEFAULT_OPENAI_MODEL)
 AI_IMAGE_GENERATION_ENABLED="true"  # Enable AI images
 EXTERNAL_BACKUP_ENABLED="true"      # Backup to admin DMs
 MAX_BACKUPS="10"                    # Backup files to retain (default: 10)

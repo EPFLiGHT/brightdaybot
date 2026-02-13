@@ -389,8 +389,7 @@ def handle_model_command(args, user_id, say, _app, username):
         # Show help
         from config import DEFAULT_OPENAI_MODEL
 
-        say(
-            f"""*OpenAI Model Management Commands:*
+        say(f"""*OpenAI Model Management Commands:*
 
 • `admin model` - Show current model information
 • `admin model list` - List all available models
@@ -399,8 +398,7 @@ def handle_model_command(args, user_id, say, _app, username):
 
 *Examples:*
 • `admin model set gpt-4o`
-• `admin model set gpt-5`"""
-        )
+• `admin model set gpt-5`""")
 
 
 def handle_cache_command(parts, user_id, say, app):

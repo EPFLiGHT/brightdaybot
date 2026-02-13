@@ -193,18 +193,18 @@ USERNAME_CACHE_TTL_HOURS = 24  # Cache entries expire after 24 hours
 
 # Centralized list of supported OpenAI models
 SUPPORTED_OPENAI_MODELS = [
+    "gpt-5.2",
+    "gpt-5.1",
     "gpt-5",
     "gpt-5-mini",
     "gpt-4.1",
     "gpt-4.1-mini",
     "gpt-4o",
     "gpt-4o-mini",
-    "gpt-4",
-    "gpt-4-turbo",
 ]
 
 # Default OpenAI models
-DEFAULT_OPENAI_MODEL = "gpt-4.1"
+DEFAULT_OPENAI_MODEL = "gpt-5.2"
 DEFAULT_IMAGE_MODEL = "gpt-image-1.5"
 
 # ----- OPENAI API PARAMETERS -----
@@ -213,10 +213,10 @@ DEFAULT_IMAGE_MODEL = "gpt-image-1.5"
 TOKEN_LIMITS = {
     "single_birthday": 1000,  # Default for regular birthday messages
     "consolidated_birthday": 2000,  # Multiple birthday messages
-    "web_search_facts": 1000,  # Historical date summarization
+    "web_search_facts": 1200,  # Historical date summarization (+buffer for reasoning tokens)
     "image_title_generation": 200,  # AI-generated image titles
-    "special_day_details": 600,  # Single special day details (10-14 lines, View Details button - 1950 char Slack limit)
-    "special_day_details_consolidated": 1000,  # Multiple special day details (12-18 lines covering multiple observances)
+    "special_day_details": 800,  # Single special day details (+buffer for reasoning tokens, 1950 char Slack limit)
+    "special_day_details_consolidated": 1200,  # Multiple special day details (+buffer for reasoning tokens)
     # Interactive features
     "mention_response": 300,  # Responses to @-mentions
     "special_day_thread_response": 400,  # Responses to special day thread replies
@@ -230,6 +230,16 @@ TEMPERATURE_SETTINGS = {
     "default": 0.7,  # Standard temperature for most messages
     "creative": 1.0,  # Higher creativity for consolidated messages and titles
     "factual": 0.3,  # Lower temperature for factual content (future use)
+}
+
+# Reasoning effort for GPT-5+ models (controls thinking tokens)
+# Models have different supported levels:
+#   GPT-5/5-mini:  minimal, low, medium, high (default: medium, always-on)
+#   GPT-5.1:       none, low, medium, high (default: none, opt-in)
+#   GPT-5.2:       none, low, medium, high, xhigh (default: none, opt-in)
+REASONING_EFFORT = {
+    "default": None,  # Don't send param — model uses its own default
+    "analytical": "low",  # Light reasoning for factual content (web search, special days)
 }
 
 # Image generation parameters

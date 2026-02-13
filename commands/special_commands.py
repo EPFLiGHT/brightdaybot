@@ -459,6 +459,7 @@ def handle_admin_special_command(args, user_id, say, app):
         # Switch between daily and weekly announcement modes
         from config import WEEKDAY_NAMES
         from storage.special_days import (
+            get_pending_mode_transition,
             get_special_days_mode,
             get_weekly_day,
             set_special_days_mode,
@@ -467,20 +468,26 @@ def handle_admin_special_command(args, user_id, say, app):
         current_mode = get_special_days_mode()
         current_day = get_weekly_day()
         current_day_name = WEEKDAY_NAMES[current_day].capitalize()
+        pending = get_pending_mode_transition()
 
         if len(args) == 1:
             # Show current mode
+            transition_note = ""
+            if pending:
+                eff = pending["effective_date"].strftime("%A, %b %d")
+                transition_note = f"\n• _Switching to *{pending['target_mode']}* on {eff}_"
+
             if current_mode == "weekly":
                 message = f"""📅 *Special Days Announcement Mode*
 
 • Current mode: *Weekly*
-• Digest day: *{current_day_name}*
+• Digest day: *{current_day_name}*{transition_note}
 
 In weekly mode, a single digest of all upcoming observances is posted once per week."""
             else:
-                message = """📅 *Special Days Announcement Mode*
+                message = f"""📅 *Special Days Announcement Mode*
 
-• Current mode: *Daily*
+• Current mode: *Daily*{transition_note}
 
 In daily mode, individual announcements are posted each day with observances."""
             say(message)
@@ -517,10 +524,16 @@ In daily mode, individual announcements are posted each day with observances."""
             day_name = WEEKDAY_NAMES[weekly_day].capitalize()
 
             if set_special_days_mode("weekly", weekly_day):
-                say(
-                    f"✅ Switched to *weekly* mode. Digest will be posted every *{day_name}*.\n\n"
-                    "Change takes effect immediately."
-                )
+                # Check if transition is deferred
+                pending = get_pending_mode_transition()
+                if pending:
+                    eff = pending["effective_date"].strftime("%A, %b %d")
+                    say(
+                        f"✅ Switching to *weekly* mode. Digest will be posted every *{day_name}*.\n\n"
+                        f"Daily announcements will continue until *{eff}*."
+                    )
+                else:
+                    say(f"✅ Switched to *weekly* mode. Digest will be posted every *{day_name}*.")
                 logger.info(f"ADMIN_SPECIAL: {username} switched to weekly mode on {day_name}")
             else:
                 say("❌ Failed to switch mode")
@@ -814,13 +827,11 @@ _Cache refreshes monthly. Use `admin special who-refresh` to force update._"""
         from config import CALENDARIFIC_API_KEY, CALENDARIFIC_ENABLED
 
         if not CALENDARIFIC_ENABLED:
-            say(
-                """📊 *Calendarific API Status*
+            say("""📊 *Calendarific API Status*
 
 • Status: ❌ Disabled
 • To enable: Set `CALENDARIFIC_ENABLED=true` in .env
-• Get free API key at: https://calendarific.com"""
-            )
+• Get free API key at: https://calendarific.com""")
             return
 
         try:
