@@ -248,7 +248,7 @@ class TestCalendarExport:
 
     def test_generate_ics_calendar_creates_valid_structure(self):
         """ICS output has valid VCALENDAR structure"""
-        from handlers.slash_commands import _generate_ics_calendar
+        from utils.ics import generate_birthday_ics as _generate_ics_calendar
 
         birthdays = [
             {"user_id": "U001", "username": "Alice", "date": "15/03", "year": 1990},
@@ -264,7 +264,7 @@ class TestCalendarExport:
 
     def test_generate_ics_calendar_creates_events(self):
         """ICS output contains VEVENT for each birthday"""
-        from handlers.slash_commands import _generate_ics_calendar
+        from utils.ics import generate_birthday_ics as _generate_ics_calendar
 
         birthdays = [
             {"user_id": "U001", "username": "Alice", "date": "15/03", "year": 1990},
@@ -279,7 +279,7 @@ class TestCalendarExport:
 
     def test_generate_ics_calendar_includes_birthday_info(self):
         """ICS events contain birthday summary and recurrence"""
-        from handlers.slash_commands import _generate_ics_calendar
+        from utils.ics import generate_birthday_ics as _generate_ics_calendar
 
         birthdays = [
             {"user_id": "U001", "username": "Alice", "date": "15/03", "year": 1990},
@@ -295,7 +295,7 @@ class TestCalendarExport:
         """ICS event shows turning age when birth year is provided"""
         from datetime import datetime
 
-        from handlers.slash_commands import _generate_ics_calendar
+        from utils.ics import generate_birthday_ics as _generate_ics_calendar
 
         current_year = datetime.now().year
         birthdays = [
@@ -309,7 +309,7 @@ class TestCalendarExport:
 
     def test_generate_ics_calendar_handles_empty_list(self):
         """ICS generation handles empty birthday list"""
-        from handlers.slash_commands import _generate_ics_calendar
+        from utils.ics import generate_birthday_ics as _generate_ics_calendar
 
         result = _generate_ics_calendar([])
 
@@ -319,7 +319,7 @@ class TestCalendarExport:
 
     def test_generate_ics_calendar_skips_invalid_dates(self):
         """ICS generation skips birthdays with invalid dates"""
-        from handlers.slash_commands import _generate_ics_calendar
+        from utils.ics import generate_birthday_ics as _generate_ics_calendar
 
         birthdays = [
             {"user_id": "U001", "username": "Alice", "date": "invalid", "year": 1990},

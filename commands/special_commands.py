@@ -956,7 +956,9 @@ def _handle_special_day_export(source_filter, user_id, say, app):
 
     # Generate ICS
     source_label = source_filter.upper() if source_filter else None
-    ics_content = _generate_special_days_ics(all_days, source_label)
+    from utils.ics import generate_special_days_ics
+
+    ics_content = generate_special_days_ics(all_days, source_label)
 
     logger.info(
         f"EXPORT: Generated special days calendar with {len(all_days)} events for {user_id}"
@@ -980,7 +982,8 @@ def _handle_special_day_export(source_filter, user_id, say, app):
         message = (
             f"📅 *Special Days Calendar Export{source_text}* — {len(all_days)} observances\n\n"
             f"Import this `.ics` file into your calendar app "
-            f"(Google Calendar, Outlook, Apple Calendar)."
+            f"(Google Calendar, Outlook, Apple Calendar).\n"
+            f"💡 _Tip: Import into a *new calendar* so you can remove all events at once later._"
         )
 
         success = send_message_with_file(app, user_id, message, temp_file_path)
@@ -1011,69 +1014,3 @@ def _handle_special_day_export(source_filter, user_id, say, app):
                 os.unlink(temp_file_path)
             except Exception:
                 pass
-
-
-def _generate_special_days_ics(days, source_label=None):
-    """
-    Generate ICS calendar content for special days.
-
-    Args:
-        days: List of SpecialDay objects
-        source_label: Optional label for calendar name (e.g. "UN")
-
-    Returns:
-        str: ICS format calendar content
-    """
-    import hashlib
-    from datetime import date
-
-    from icalendar import Calendar, Event, vRecur
-
-    cal_name = f"Special Days ({source_label})" if source_label else "Special Days"
-
-    cal = Calendar()
-    cal.add("prodid", "-//BrightDayBot//Special Days Calendar//EN")
-    cal.add("version", "2.0")
-    cal.add("calscale", "GREGORIAN")
-    cal.add("method", "PUBLISH")
-    cal.add("x-wr-calname", cal_name)
-
-    current_year = datetime.now().year
-    now = datetime.utcnow()
-
-    for day in days:
-        try:
-            day_num, month_num = map(int, day.date.split("/"))
-        except (ValueError, AttributeError):
-            continue
-
-        # Stable UID based on name
-        name_hash = hashlib.md5(day.name.lower().encode()).hexdigest()[:12]
-
-        # Summary with emoji if available
-        summary = f"{day.emoji} {day.name}" if day.emoji else day.name
-
-        event = Event()
-        event.add("uid", f"special-{name_hash}@brightdaybot")
-        event.add("dtstamp", now)
-        event.add("dtstart", date(current_year, month_num, day_num))
-        event.add("summary", summary)
-        event.add("transp", "TRANSPARENT")
-
-        # Description with source attribution
-        desc_parts = []
-        if day.description:
-            desc_parts.append(day.description)
-        if day.source:
-            desc_parts.append(f"Source: {day.source}")
-        if desc_parts:
-            event.add("description", "\n".join(desc_parts))
-
-        # Yearly recurrence for fixed-date sources only (not Calendarific — variable dates)
-        source = getattr(day, "source", "") or ""
-        if source.lower() != "calendarific":
-            event.add("rrule", vRecur({"FREQ": "YEARLY"}))
-
-        cal.add_component(event)
-
-    return cal.to_ical().decode("utf-8")

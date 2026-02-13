@@ -358,7 +358,9 @@ def _handle_slash_export(user_id, respond, app):
         return
 
     # Generate ICS content
-    ics_content = _generate_ics_calendar(exportable_birthdays)
+    from utils.ics import generate_birthday_ics
+
+    ics_content = generate_birthday_ics(exportable_birthdays)
 
     logger.info(
         f"EXPORT: Generated calendar with {len(exportable_birthdays)} birthdays for {user_id}"
@@ -380,9 +382,10 @@ def _handle_slash_export(user_id, respond, app):
 
         # Send file to user's DM
         message = (
-            f"📅 *Birthday Calendar Export* - {len(exportable_birthdays)} birthdays\n\n"
+            f"📅 *Birthday Calendar Export* — {len(exportable_birthdays)} birthdays\n\n"
             f"Import this `.ics` file into your calendar app "
-            f"(Google Calendar, Outlook, Apple Calendar)."
+            f"(Google Calendar, Outlook, Apple Calendar).\n"
+            f"💡 _Tip: Import into a *new calendar* so you can remove all events at once later._"
         )
 
         success = send_message_with_file(app, user_id, message, temp_file_path)
@@ -415,58 +418,3 @@ def _handle_slash_export(user_id, respond, app):
                 os.unlink(temp_file_path)
             except Exception:
                 pass  # Best effort cleanup
-
-
-def _generate_ics_calendar(birthdays):
-    """
-    Generate ICS calendar format content for birthdays.
-
-    Creates a VCALENDAR with VEVENT entries for each birthday,
-    configured as yearly recurring all-day events.
-
-    Args:
-        birthdays: List of birthday dicts with user_id, username, date, year
-
-    Returns:
-        str: ICS format calendar content
-    """
-    from datetime import date, datetime
-
-    from icalendar import Calendar, Event, vRecur
-
-    cal = Calendar()
-    cal.add("prodid", "-//BrightDayBot//Birthday Calendar//EN")
-    cal.add("version", "2.0")
-    cal.add("calscale", "GREGORIAN")
-    cal.add("method", "PUBLISH")
-    cal.add("x-wr-calname", "Team Birthdays")
-
-    current_year = datetime.now().year
-
-    for bday in birthdays:
-        username = bday["username"]
-        date_str = bday["date"]  # DD/MM format
-        user_id = bday["user_id"]
-        year = bday.get("year")
-
-        try:
-            day, month = map(int, date_str.split("/"))
-        except (ValueError, AttributeError):
-            continue
-
-        summary = f"🎂 {username}'s Birthday"
-        if year:
-            turning_age = current_year - year
-            summary = f"🎂 {username}'s Birthday (turning {turning_age})"
-
-        event = Event()
-        event.add("uid", f"birthday-{user_id}@brightdaybot")
-        event.add("dtstamp", datetime.utcnow())
-        event.add("dtstart", date(current_year, month, day))
-        event.add("summary", summary)
-        event.add("rrule", vRecur({"FREQ": "YEARLY"}))
-        event.add("transp", "TRANSPARENT")
-
-        cal.add_component(event)
-
-    return cal.to_ical().decode("utf-8")
