@@ -131,28 +131,22 @@ def _build_home_view(user_id, app):
         show_age = prefs.get("show_age", DEFAULT_PREFERENCES["show_age"])
         celebration_style = prefs.get("celebration_style", DEFAULT_PREFERENCES["celebration_style"])
 
+        # Only show non-obvious preferences (deviations from defaults)
         pref_items = []
-        if is_active:
-            pref_items.append("✅ Active")
-        else:
+        if not is_active:
             pref_items.append("⏸️ Paused")
-        pref_items.append(
-            f"{'🖼️' if image_enabled else '📝'} {'Images On' if image_enabled else 'Text Only'}"
-        )
-        pref_items.append(
-            f"{'🎂' if show_age else '🤫'} {'Age Shown' if show_age else 'Age Hidden'}"
-        )
-        from storage.birthdays import CELEBRATION_STYLE_EMOJIS
+        if not image_enabled:
+            pref_items.append("📝 Text Only")
+        if not show_age:
+            pref_items.append("🤫 Age Hidden")
 
-        style_emoji = CELEBRATION_STYLE_EMOJIS.get(celebration_style, "🎊")
-        pref_items.append(f"{style_emoji} {celebration_style.title()}")
-
-        blocks.append(
-            {
-                "type": "context",
-                "elements": [{"type": "mrkdwn", "text": " | ".join(pref_items)}],
-            }
-        )
+        if pref_items:
+            blocks.append(
+                {
+                    "type": "context",
+                    "elements": [{"type": "mrkdwn", "text": " | ".join(pref_items)}],
+                }
+            )
 
         # Celebration style selector
         blocks.append(
@@ -423,7 +417,7 @@ def _build_home_view(user_id, app):
 
     blocks.append({"type": "divider"})
 
-    # Quick Commands
+    # Quick Commands — only commands not already represented on this page
     blocks.append(
         {
             "type": "section",
@@ -436,26 +430,22 @@ def _build_home_view(user_id, app):
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": "Use these slash commands anywhere:\n"
-                + "• `/birthday` — Add or edit your birthday\n"
-                + "• `/birthday check` — Check your birthday\n"
-                + "• `/birthday list` — See upcoming birthdays\n"
-                + "• `/birthday export` — Export to calendar\n"
-                + "• `/special-day` — View today's special days",
+                "text": "• `/birthday export` — Export birthdays to calendar (ICS)\n"
+                + "• `/special-day` — View today's special days\n"
+                + "• `/special-day week` — Special days this week",
             },
         }
     )
 
-    # Context footer
+    # Context footer — different for users with/without birthday
+    if user_birthday:
+        tip_text = "💡 Tip: Use `/birthday` to edit your settings or `/special-day` to see today's observances."
+    else:
+        tip_text = "💡 Tip: Use `/birthday` or click *Add My Birthday* above to get started!"
     blocks.append(
         {
             "type": "context",
-            "elements": [
-                {
-                    "type": "mrkdwn",
-                    "text": "💡 Tip: Use `/birthday` or click *Add My Birthday* above to get started!",
-                }
-            ],
+            "elements": [{"type": "mrkdwn", "text": tip_text}],
         }
     )
 

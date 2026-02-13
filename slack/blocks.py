@@ -2314,11 +2314,6 @@ def build_birthday_modal(user_id: str) -> Dict[str, Any]:
 
     # Determine title based on whether editing or adding
     modal_title = "Edit Your Birthday" if existing_data else "Add Your Birthday"
-    intro_text = (
-        "Update your birthday details below."
-        if existing_data
-        else "Enter your birthday to receive personalized celebrations!"
-    )
 
     # Build preferences element
     preferences_element = {
@@ -2369,10 +2364,6 @@ def build_birthday_modal(user_id: str) -> Dict[str, Any]:
         "submit": {"type": "plain_text", "text": "Save"},
         "close": {"type": "plain_text", "text": "Cancel"},
         "blocks": [
-            {
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": intro_text},
-            },
             {
                 "type": "input",
                 "block_id": "birthday_month_block",
