@@ -48,7 +48,7 @@ def handle_special_command(args, user_id, say, app):
     if subcommand == "today":
         # Show today's special days using Block Kit
         special_days = get_todays_special_days()
-        from utils.date import format_date_european_short
+        from utils.date_utils import format_date_european_short
 
         today_str = format_date_european_short(datetime.now())
         blocks, fallback = build_special_days_list_blocks(
@@ -351,7 +351,7 @@ def handle_admin_special_command(args, user_id, say, app):
         special_days = get_special_days_for_date(test_date)
 
         if special_days:
-            from utils.date import format_date_european_short
+            from utils.date_utils import format_date_european_short
 
             test_date_str = format_date_european_short(test_date)
             say(f"🧪 Testing special day announcement for {test_date_str}...")
@@ -397,7 +397,7 @@ def handle_admin_special_command(args, user_id, say, app):
                             )
 
                             # Send individual announcement to admin DM
-                            from slack.client import send_message
+                            from slack.messaging import send_message
 
                             send_message(app, user_id, fallback_text, blocks)
 
@@ -409,7 +409,7 @@ def handle_admin_special_command(args, user_id, say, app):
 
                 say(f"\n✅ Sent {len(special_days)} separate announcement(s) to your DM")
         else:
-            from utils.date import format_date_european_short
+            from utils.date_utils import format_date_european_short
 
             test_date_str = format_date_european_short(test_date)
             say(f"No special days found for {test_date_str}")
@@ -650,9 +650,9 @@ In daily mode, individual announcements are posted each day with observances."""
     elif subcommand in ["observances-status", "observances", "sources"]:
         # Combined status for all observance sources
         try:
-            from integrations.un_observances import get_un_cache_status
-            from integrations.unesco_observances import get_unesco_cache_status
-            from integrations.who_observances import get_who_cache_status
+            from integrations.observances.un import get_un_cache_status
+            from integrations.observances.unesco import get_unesco_cache_status
+            from integrations.observances.who import get_who_cache_status
 
             un_status = get_un_cache_status()
             unesco_status = get_unesco_cache_status()
@@ -682,7 +682,7 @@ _Use `admin special [un|unesco|who]-refresh` to force update._"""
     elif subcommand in ["un-status", "un"]:
         # UN Observances: Show cache status
         try:
-            from integrations.un_observances import get_un_cache_status
+            from integrations.observances.un import get_un_cache_status
 
             status = get_un_cache_status()
 
@@ -712,7 +712,7 @@ _Cache refreshes weekly. Use `admin special un-refresh` to force update._"""
     elif subcommand == "un-refresh":
         # UN Observances: Force refresh
         try:
-            from integrations.un_observances import refresh_un_cache
+            from integrations.observances.un import refresh_un_cache
 
             say("🔄 Refreshing UN observances cache...")
 
@@ -731,7 +731,7 @@ _Cache refreshes weekly. Use `admin special un-refresh` to force update._"""
     elif subcommand in ["unesco-status", "unesco"]:
         # UNESCO Observances: Show cache status
         try:
-            from integrations.unesco_observances import get_unesco_cache_status
+            from integrations.observances.unesco import get_unesco_cache_status
 
             status = get_unesco_cache_status()
 
@@ -761,7 +761,7 @@ _Cache refreshes monthly. Use `admin special unesco-refresh` to force update._""
     elif subcommand == "unesco-refresh":
         # UNESCO Observances: Force refresh
         try:
-            from integrations.unesco_observances import refresh_unesco_cache
+            from integrations.observances.unesco import refresh_unesco_cache
 
             say("🔄 Refreshing UNESCO observances cache...")
 
@@ -780,7 +780,7 @@ _Cache refreshes monthly. Use `admin special unesco-refresh` to force update._""
     elif subcommand in ["who-status", "who"]:
         # WHO Observances: Show cache status
         try:
-            from integrations.who_observances import get_who_cache_status
+            from integrations.observances.who import get_who_cache_status
 
             status = get_who_cache_status()
 
@@ -810,7 +810,7 @@ _Cache refreshes monthly. Use `admin special who-refresh` to force update._"""
     elif subcommand == "who-refresh":
         # WHO Observances: Force refresh
         try:
-            from integrations.who_observances import refresh_who_cache
+            from integrations.observances.who import refresh_who_cache
 
             say("🔄 Refreshing WHO observances cache...")
 
@@ -925,7 +925,7 @@ def _handle_special_day_export(source_filter, user_id, say, app):
     import os
     import tempfile
 
-    from slack.client import send_message_with_file
+    from slack.messaging import send_message_with_file
     from storage.special_days import load_all_special_days
 
     valid_sources = {"un", "unesco", "who", "calendarific", "custom"}

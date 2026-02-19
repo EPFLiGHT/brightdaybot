@@ -17,7 +17,7 @@ class TestSlashCommandRegistration:
         mock_app = MagicMock()
         mock_app.command = MagicMock(return_value=lambda f: f)
 
-        from handlers.slash_commands import register_slash_commands
+        from handlers.slash_handler import register_slash_commands
 
         register_slash_commands(mock_app)
 
@@ -29,7 +29,7 @@ class TestSlashCommandRegistration:
         mock_app = MagicMock()
         mock_app.command = MagicMock(return_value=lambda f: f)
 
-        from handlers.slash_commands import register_slash_commands
+        from handlers.slash_handler import register_slash_commands
 
         register_slash_commands(mock_app)
 
@@ -46,7 +46,7 @@ class TestModalHandlerRegistration:
         mock_app.view = MagicMock(return_value=lambda f: f)
         mock_app.action = MagicMock(return_value=lambda f: f)
 
-        from handlers.modal_handlers import register_modal_handlers
+        from handlers.modal_handler import register_modal_handlers
 
         register_modal_handlers(mock_app)
 
@@ -59,7 +59,7 @@ class TestModalHandlerRegistration:
         mock_app.view = MagicMock(return_value=lambda f: f)
         mock_app.action = MagicMock(return_value=lambda f: f)
 
-        from handlers.modal_handlers import register_modal_handlers
+        from handlers.modal_handler import register_modal_handlers
 
         register_modal_handlers(mock_app)
 
@@ -75,7 +75,7 @@ class TestAppHomeRegistration:
         mock_app = MagicMock()
         mock_app.event = MagicMock(return_value=lambda f: f)
 
-        from handlers.app_home import register_app_home_handlers
+        from handlers.app_home_handler import register_app_home_handlers
 
         register_app_home_handlers(mock_app)
 
@@ -88,7 +88,7 @@ class TestSlashCommandParsing:
 
     def test_birthday_add_subcommand(self):
         """Empty text or 'add' triggers modal opening"""
-        from handlers.slash_commands import register_slash_commands
+        from handlers.slash_handler import register_slash_commands
 
         mock_app = MagicMock()
         captured_handlers = {}
@@ -114,14 +114,14 @@ class TestSlashCommandParsing:
         # Test with empty text (should open modal)
         body = {"user_id": "U123", "text": "", "trigger_id": "trigger123"}
 
-        with patch("handlers.slash_commands._open_birthday_modal") as mock_open_modal:
+        with patch("handlers.slash_handler._open_birthday_modal") as mock_open_modal:
             handler(ack, body, client, respond)
             ack.assert_called_once()
             mock_open_modal.assert_called_once_with(client, "trigger123", "U123")
 
     def test_birthday_check_self(self):
         """Check without user checks own birthday"""
-        from handlers.slash_commands import register_slash_commands
+        from handlers.slash_handler import register_slash_commands
 
         mock_app = MagicMock()
         captured_handlers = {}
@@ -145,14 +145,14 @@ class TestSlashCommandParsing:
 
         body = {"user_id": "U123", "text": "check", "trigger_id": "trigger123"}
 
-        with patch("handlers.slash_commands._handle_slash_check") as mock_check:
+        with patch("handlers.slash_handler._handle_slash_check") as mock_check:
             handler(ack, body, client, respond)
             ack.assert_called_once()
             mock_check.assert_called_once_with("check", "U123", respond, mock_app)
 
     def test_birthday_list_subcommand(self):
         """List subcommand calls list handler"""
-        from handlers.slash_commands import register_slash_commands
+        from handlers.slash_handler import register_slash_commands
 
         mock_app = MagicMock()
         captured_handlers = {}
@@ -176,14 +176,14 @@ class TestSlashCommandParsing:
 
         body = {"user_id": "U123", "text": "list", "trigger_id": "trigger123"}
 
-        with patch("handlers.slash_commands._handle_slash_list") as mock_list:
+        with patch("handlers.slash_handler._handle_slash_list") as mock_list:
             handler(ack, body, client, respond)
             ack.assert_called_once()
             mock_list.assert_called_once_with(respond, mock_app)
 
     def test_birthday_unknown_shows_help(self):
         """Unknown subcommand shows help"""
-        from handlers.slash_commands import register_slash_commands
+        from handlers.slash_handler import register_slash_commands
 
         mock_app = MagicMock()
         captured_handlers = {}
@@ -207,7 +207,7 @@ class TestSlashCommandParsing:
 
         body = {"user_id": "U123", "text": "unknown", "trigger_id": "trigger123"}
 
-        with patch("handlers.slash_commands._send_birthday_help") as mock_help:
+        with patch("handlers.slash_handler._send_birthday_help") as mock_help:
             handler(ack, body, client, respond)
             ack.assert_called_once()
             mock_help.assert_called_once_with(respond)
@@ -270,12 +270,12 @@ class TestAppHomeViewBuilding:
 
     def test_home_view_has_correct_type(self):
         """App Home view has type 'home'"""
-        from handlers.app_home import _build_home_view
+        from handlers.app_home_handler import _build_home_view
 
         mock_app = MagicMock()
 
-        with patch("handlers.app_home.load_birthdays", return_value={}):
-            with patch("handlers.app_home.get_username", return_value="TestUser"):
+        with patch("handlers.app_home_handler.load_birthdays", return_value={}):
+            with patch("handlers.app_home_handler.get_username", return_value="TestUser"):
                 with patch("slack.client.get_channel_members", return_value=["U123"]):
                     view = _build_home_view("U123", mock_app)
 
@@ -284,12 +284,12 @@ class TestAppHomeViewBuilding:
 
     def test_home_view_has_header(self):
         """App Home includes header block"""
-        from handlers.app_home import _build_home_view
+        from handlers.app_home_handler import _build_home_view
 
         mock_app = MagicMock()
 
-        with patch("handlers.app_home.load_birthdays", return_value={}):
-            with patch("handlers.app_home.get_username", return_value="TestUser"):
+        with patch("handlers.app_home_handler.load_birthdays", return_value={}):
+            with patch("handlers.app_home_handler.get_username", return_value="TestUser"):
                 with patch("slack.client.get_channel_members", return_value=["U123"]):
                     view = _build_home_view("U123", mock_app)
 
@@ -298,12 +298,12 @@ class TestAppHomeViewBuilding:
 
     def test_home_view_shows_add_button_when_no_birthday(self):
         """Home shows Add button when user has no birthday"""
-        from handlers.app_home import _build_home_view
+        from handlers.app_home_handler import _build_home_view
 
         mock_app = MagicMock()
 
-        with patch("handlers.app_home.load_birthdays", return_value={}):
-            with patch("handlers.app_home.get_username", return_value="TestUser"):
+        with patch("handlers.app_home_handler.load_birthdays", return_value={}):
+            with patch("handlers.app_home_handler.get_username", return_value="TestUser"):
                 with patch("slack.client.get_channel_members", return_value=["U123"]):
                     view = _build_home_view("U123", mock_app)
 
@@ -317,16 +317,16 @@ class TestAppHomeViewBuilding:
 
     def test_home_view_shows_edit_button_when_has_birthday(self, mock_birthday_data):
         """Home shows Edit button when user has birthday"""
-        from handlers.app_home import _build_home_view
+        from handlers.app_home_handler import _build_home_view
 
         mock_app = MagicMock()
 
         with patch(
-            "handlers.app_home.load_birthdays",
+            "handlers.app_home_handler.load_birthdays",
             return_value={"U123": mock_birthday_data(date="25/12", year=1990)},
         ):
             with patch(
-                "handlers.app_home.get_user_preferences",
+                "handlers.app_home_handler.get_user_preferences",
                 return_value={
                     "active": True,
                     "image_enabled": True,
@@ -334,7 +334,7 @@ class TestAppHomeViewBuilding:
                     "celebration_style": "standard",
                 },
             ):
-                with patch("handlers.app_home.get_username", return_value="TestUser"):
+                with patch("handlers.app_home_handler.get_username", return_value="TestUser"):
                     with patch("slack.client.get_channel_members", return_value=["U123"]):
                         view = _build_home_view("U123", mock_app)
 
@@ -361,7 +361,7 @@ class TestUpcomingBirthdaysFiltering:
     def test_get_upcoming_birthdays_limits_results(self, mock_birthday_data):
         """Upcoming birthdays respects limit parameter"""
 
-        from handlers.app_home import _get_upcoming_birthdays
+        from handlers.app_home_handler import _get_upcoming_birthdays
 
         mock_app = MagicMock()
 
@@ -373,11 +373,11 @@ class TestUpcomingBirthdaysFiltering:
         # Mock channel members to include all test users
         channel_members = [f"U{i}" for i in range(10)]
 
-        with patch("handlers.app_home.get_username", return_value="User"):
+        with patch("handlers.app_home_handler.get_username", return_value="User"):
             with patch("slack.client.get_channel_members", return_value=channel_members):
                 with patch("storage.birthdays.is_user_active", return_value=True):
                     with patch(
-                        "handlers.app_home.calculate_days_until_birthday",
+                        "handlers.app_home_handler.calculate_days_until_birthday",
                         side_effect=lambda d, r: datetime.strptime(d, "%d/%m").day,
                     ):
                         result = _get_upcoming_birthdays(birthdays, mock_app, limit=5)
@@ -386,7 +386,7 @@ class TestUpcomingBirthdaysFiltering:
 
     def test_get_upcoming_birthdays_includes_all_dates(self, mock_birthday_data):
         """All birthdays are included regardless of days until"""
-        from handlers.app_home import _get_upcoming_birthdays
+        from handlers.app_home_handler import _get_upcoming_birthdays
 
         mock_app = MagicMock()
 
@@ -395,11 +395,11 @@ class TestUpcomingBirthdaysFiltering:
             "U2": mock_birthday_data(date="02/01", year=1985),  # Will be 40 days
         }
 
-        with patch("handlers.app_home.get_username", return_value="User"):
+        with patch("handlers.app_home_handler.get_username", return_value="User"):
             with patch("slack.client.get_channel_members", return_value=["U1", "U2"]):
                 with patch("storage.birthdays.is_user_active", return_value=True):
                     with patch(
-                        "handlers.app_home.calculate_days_until_birthday",
+                        "handlers.app_home_handler.calculate_days_until_birthday",
                         side_effect=[5, 40],
                     ):
                         result = _get_upcoming_birthdays(birthdays, mock_app, limit=10)
@@ -410,7 +410,7 @@ class TestUpcomingBirthdaysFiltering:
 
     def test_get_upcoming_birthdays_filters_non_channel_members(self, mock_birthday_data):
         """Users not in channel are excluded from upcoming birthdays"""
-        from handlers.app_home import _get_upcoming_birthdays
+        from handlers.app_home_handler import _get_upcoming_birthdays
 
         mock_app = MagicMock()
 
@@ -420,11 +420,11 @@ class TestUpcomingBirthdaysFiltering:
         }
 
         # Only U1 is in the channel
-        with patch("handlers.app_home.get_username", return_value="User"):
+        with patch("handlers.app_home_handler.get_username", return_value="User"):
             with patch("slack.client.get_channel_members", return_value=["U1"]):
                 with patch("storage.birthdays.is_user_active", return_value=True):
                     with patch(
-                        "handlers.app_home.calculate_days_until_birthday",
+                        "handlers.app_home_handler.calculate_days_until_birthday",
                         return_value=5,
                     ):
                         result = _get_upcoming_birthdays(birthdays, mock_app, limit=10)
@@ -434,7 +434,7 @@ class TestUpcomingBirthdaysFiltering:
 
     def test_get_upcoming_birthdays_filters_paused_users(self, mock_birthday_data):
         """Users with paused celebrations are excluded from upcoming birthdays"""
-        from handlers.app_home import _get_upcoming_birthdays
+        from handlers.app_home_handler import _get_upcoming_birthdays
 
         mock_app = MagicMock()
 
@@ -446,11 +446,11 @@ class TestUpcomingBirthdaysFiltering:
         def is_active_side_effect(user_id, data):
             return data.get("preferences", {}).get("active", True)
 
-        with patch("handlers.app_home.get_username", return_value="User"):
+        with patch("handlers.app_home_handler.get_username", return_value="User"):
             with patch("slack.client.get_channel_members", return_value=["U1", "U2"]):
                 with patch("storage.birthdays.is_user_active", side_effect=is_active_side_effect):
                     with patch(
-                        "handlers.app_home.calculate_days_until_birthday",
+                        "handlers.app_home_handler.calculate_days_until_birthday",
                         return_value=5,
                     ):
                         result = _get_upcoming_birthdays(birthdays, mock_app, limit=10)

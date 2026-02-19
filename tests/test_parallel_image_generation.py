@@ -13,10 +13,10 @@ class TestParallelImageGeneration:
 
     def test_threadpoolexecutor_import_available(self):
         """Verify ThreadPoolExecutor is imported in message service"""
-        from services import message
+        from services import message_generator
 
-        assert hasattr(message, "ThreadPoolExecutor")
-        assert hasattr(message, "as_completed")
+        assert hasattr(message_generator, "ThreadPoolExecutor")
+        assert hasattr(message_generator, "as_completed")
 
     def test_threadpoolexecutor_functionality(self):
         """Verify ThreadPoolExecutor works correctly for parallel tasks"""
@@ -35,7 +35,7 @@ class TestParallelImageGeneration:
 
     def test_generate_birthday_message_exists(self):
         """Verify _generate_birthday_message function exists"""
-        from services.message import _generate_birthday_message
+        from services.message_generator import _generate_birthday_message
 
         assert callable(_generate_birthday_message)
 
@@ -43,7 +43,7 @@ class TestParallelImageGeneration:
         """Verify _generate_birthday_message has expected parameters"""
         import inspect
 
-        from services.message import _generate_birthday_message
+        from services.message_generator import _generate_birthday_message
 
         sig = inspect.signature(_generate_birthday_message)
         params = list(sig.parameters.keys())
@@ -60,7 +60,7 @@ class TestParallelImageGeneration:
         # Read the source to verify max_workers=3 is used
         import inspect
 
-        import services.message as mg
+        import services.message_generator as mg
 
         source = inspect.getsource(mg._generate_birthday_message)
 
@@ -73,7 +73,7 @@ class TestParallelImageGeneration:
         """Verify single person case skips ThreadPoolExecutor"""
         import inspect
 
-        from services.message import _generate_birthday_message
+        from services.message_generator import _generate_birthday_message
 
         source = inspect.getsource(_generate_birthday_message)
 

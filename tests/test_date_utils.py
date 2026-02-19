@@ -12,9 +12,8 @@ Tests pure functions with complex logic:
 """
 
 from datetime import datetime, time, timezone
-from zoneinfo import ZoneInfo
 
-from utils.date import (
+from utils.date_utils import (
     _is_date_in_zodiac_range,
     calculate_age,
     calculate_days_until_birthday,

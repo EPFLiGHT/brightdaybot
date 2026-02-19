@@ -12,8 +12,9 @@ import re
 
 from config import BIRTHDAY_CHANNEL, get_logger
 from services.dispatcher import handle_command, handle_dm_date
-from slack.client import get_channel_mention, get_user_mention, get_username, send_message
-from utils.date import extract_date
+from slack.client import get_channel_mention, get_user_mention, get_username
+from slack.messaging import send_message
+from utils.date_utils import extract_date
 
 events_logger = get_logger("events")
 
@@ -35,7 +36,7 @@ def _try_nlp_date_parsing(text_lower: str, original_text: str):
         if not NLP_DATE_PARSING_ENABLED:
             return None
 
-        from utils.date_nlp import parse_date_with_nlp
+        from utils.date_parsing import parse_date_with_nlp
 
         # Use original text for better parsing (preserves month names, etc.)
         result = parse_date_with_nlp(original_text)
@@ -69,7 +70,7 @@ def _handle_thread_reply(app, event, channel, thread_ts):
         if not THREAD_ENGAGEMENT_ENABLED:
             return
 
-        from utils.thread_tracking import get_thread_tracker
+        from storage.thread_tracking import get_thread_tracker
 
         # Check if this thread is tracked
         tracker = get_thread_tracker()
@@ -393,7 +394,7 @@ def register_event_handlers(app):
                 )
 
             # Refresh the App Home view
-            from handlers.app_home import _build_home_view
+            from handlers.app_home_handler import _build_home_view
 
             view = _build_home_view(user_id, app)
             client.views_publish(user_id=user_id, view=view)
@@ -447,7 +448,7 @@ def register_event_handlers(app):
                 return
 
             # Refresh the App Home view
-            from handlers.app_home import _build_home_view
+            from handlers.app_home_handler import _build_home_view
 
             view = _build_home_view(user_id, app)
             client.views_publish(user_id=user_id, view=view)
@@ -534,7 +535,7 @@ def register_event_handlers(app):
                 nlp_result = _try_nlp_date_parsing(text, event.get("text", ""))
                 if nlp_result and nlp_result.get("status") == "success":
                     # Convert NLP result to format expected by handle_dm_date
-                    from utils.date_nlp import format_parsed_date
+                    from utils.date_parsing import format_parsed_date
 
                     formatted_date = format_parsed_date(nlp_result)
                     if formatted_date:

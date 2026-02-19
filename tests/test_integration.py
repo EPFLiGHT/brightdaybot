@@ -69,8 +69,8 @@ class TestMessageGeneration:
 
     def test_birthday_message_generation(self):
         """Test actual birthday message generation with personality"""
+        from config.personality import get_personality_config
         from integrations.openai import complete
-        from personality_config import get_personality_config
 
         personality = get_personality_config("standard")
 
@@ -90,8 +90,8 @@ class TestMessageGeneration:
 
     def test_special_day_teaser_generation(self):
         """Test special day teaser message generation"""
+        from config.personality import get_personality_config
         from integrations.openai import complete
-        from personality_config import get_personality_config
 
         personality = get_personality_config("chronicler")
 
@@ -123,8 +123,8 @@ class TestMultiplePersonalities:
 
     def test_mystic_dog_personality(self):
         """Test mystic_dog (Ludo) personality generates mystical content"""
+        from config.personality import get_personality_config
         from integrations.openai import complete
-        from personality_config import get_personality_config
 
         personality = get_personality_config("mystic_dog")
 
@@ -141,8 +141,8 @@ class TestMultiplePersonalities:
 
     def test_pirate_personality(self):
         """Test pirate personality generates nautical content"""
+        from config.personality import get_personality_config
         from integrations.openai import complete
-        from personality_config import get_personality_config
 
         personality = get_personality_config("pirate")
 

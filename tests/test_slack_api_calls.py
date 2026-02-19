@@ -149,7 +149,7 @@ class TestSendMessage:
 
     def test_calls_chat_post_message_with_text(self, mock_slack_app):
         """Verify chat_postMessage called with text."""
-        from slack.client import send_message
+        from slack.messaging import send_message
 
         result = send_message(mock_slack_app, "C123456", "Hello world")
 
@@ -161,7 +161,7 @@ class TestSendMessage:
 
     def test_includes_blocks_when_provided(self, mock_slack_app):
         """Message includes blocks when provided."""
-        from slack.client import send_message
+        from slack.messaging import send_message
 
         blocks = [{"type": "section", "text": {"type": "mrkdwn", "text": "Hello"}}]
 
@@ -174,7 +174,7 @@ class TestSendMessage:
 
     def test_returns_false_on_api_error(self, mock_slack_app, slack_api_error):
         """Returns dict with success=False when SlackApiError occurs."""
-        from slack.client import send_message
+        from slack.messaging import send_message
 
         mock_slack_app.client.chat_postMessage.side_effect = slack_api_error("channel_not_found")
 
@@ -201,11 +201,11 @@ class TestSlackApiErrorHandling:
 
     def test_send_message_logs_on_error(self, mock_slack_app, slack_api_error):
         """Errors are logged when send_message fails."""
-        from slack.client import send_message
+        from slack.messaging import send_message
 
         mock_slack_app.client.chat_postMessage.side_effect = slack_api_error("channel_not_found")
 
-        with patch("slack.client.logger") as mock_logger:
+        with patch("slack.messaging.logger") as mock_logger:
             result = send_message(mock_slack_app, "C999999", "Hello")
 
             assert result["success"] is False

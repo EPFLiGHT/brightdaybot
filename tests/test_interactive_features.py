@@ -10,7 +10,7 @@ Tests pure functions with minimal mocking:
 from config import THREAD_DEFAULT_REACTIONS
 from handlers.mention_handler import RateLimiter, classify_question
 from handlers.thread_handler import get_reaction_for_message
-from utils.date_nlp import _parse_llm_response, format_parsed_date
+from utils.date_parsing import _parse_llm_response, format_parsed_date
 
 
 class TestGetReactionForMessage:

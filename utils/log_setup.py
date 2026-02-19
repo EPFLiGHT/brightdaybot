@@ -67,7 +67,7 @@ COMPONENT_LOG_MAPPING = {
     # System (utils/)
     "health": "system",
     "date": "system",
-    "date_nlp": "system",
+    "date_parsing": "system",
     # Scheduler (services/)
     "scheduler": "scheduler",
 }

@@ -570,7 +570,7 @@ DEDUP_PREFIX_SUFFIX_MIN_LENGTH = 6  # Minimum length for prefix/suffix variation
 # ----- PERSONALITY CONFIGURATION -----
 
 # Import centralized personality configurations
-from personality_config import PERSONALITIES
+from config.personality import PERSONALITIES
 
 # For backward compatibility, reference the centralized configurations
 BOT_PERSONALITIES = PERSONALITIES

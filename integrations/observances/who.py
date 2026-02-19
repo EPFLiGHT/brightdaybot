@@ -24,7 +24,7 @@ from config import (
     WHO_OBSERVANCES_CACHE_TTL_DAYS,
     WHO_OBSERVANCES_URL,
 )
-from integrations.observances_base import (
+from integrations.observances.base import (
     MONTH_FULL_TO_NUM,
     ObservanceScraperBase,
     logger,

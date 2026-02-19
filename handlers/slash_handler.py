@@ -72,7 +72,7 @@ def register_slash_commands(app):
         args = text.split() if text else []
 
         # Reuse existing special command handler
-        from commands.special_commands import handle_special_command
+        from commands.special_day_commands import handle_special_command
 
         handle_special_command(args, user_id, respond, app)
 
@@ -108,7 +108,7 @@ def _handle_slash_check(text, user_id, respond, app):
     from slack.blocks import build_birthday_check_blocks
     from slack.client import get_username
     from storage.birthdays import load_birthdays
-    from utils.date import calculate_age, date_to_words, get_star_sign
+    from utils.date_utils import calculate_age, date_to_words, get_star_sign
 
     # Extract target user using regex to handle mentions with spaces in display names
     # Slack format: <@U12345678|Display Name> or <@U12345678>
@@ -197,7 +197,7 @@ def _handle_slash_list(respond, app):
     from slack.blocks import build_upcoming_birthdays_blocks
     from slack.client import get_username
     from storage.birthdays import load_birthdays
-    from utils.date import calculate_days_until_birthday
+    from utils.date_utils import calculate_days_until_birthday
 
     birthdays = load_birthdays()
     reference_date = datetime.now(timezone.utc)
@@ -318,7 +318,8 @@ def _handle_slash_export(user_id, respond, app):
     import tempfile
 
     from config import BIRTHDAY_CHANNEL
-    from slack.client import get_channel_members, get_username, send_message_with_file
+    from slack.client import get_channel_members, get_username
+    from slack.messaging import send_message_with_file
     from storage.birthdays import is_user_active, load_birthdays
 
     birthdays = load_birthdays()

@@ -9,7 +9,7 @@ Main function: handle_command(). Routes to:
 - birthday_commands: list, check, remind
 - admin_commands: stats, config, model, cache, status, timezone, etc.
 - test_commands: test, test-*, admin test-*
-- special_commands: special days management
+- special_day_commands: special days management
 """
 
 from datetime import datetime, timezone
@@ -18,9 +18,9 @@ from config import (
     TIMEOUTS,
     get_logger,
 )
-from personality_config import get_personality_config
+from config.personality import get_personality_config
 from services.birthday import send_reminder_to_users
-from services.message import (
+from services.message_generator import (
     get_random_personality_name,
 )
 from slack.client import (
@@ -36,7 +36,7 @@ from storage.birthdays import (
     save_birthday,
 )
 from storage.settings import get_current_personality_name
-from utils.date import (
+from utils.date_utils import (
     calculate_age,
     check_if_birthday_today,
     date_to_words,
@@ -69,7 +69,7 @@ from commands.birthday_commands import (
     handle_remind_command,
     send_immediate_birthday_announcement,
 )
-from commands.special_commands import (
+from commands.special_day_commands import (
     handle_admin_special_command,
     handle_admin_special_command_with_quotes,
     handle_special_command,

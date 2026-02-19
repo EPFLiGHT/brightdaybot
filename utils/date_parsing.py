@@ -79,7 +79,7 @@ def _try_regex_parse(text: str) -> Dict[str, Any]:
     Returns:
         Dict with parsing result
     """
-    from utils.date import extract_date
+    from utils.date_utils import extract_date
 
     result = extract_date(text)
 

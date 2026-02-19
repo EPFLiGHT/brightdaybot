@@ -9,10 +9,7 @@ Main functions: create_birthday_announcement(), create_consolidated_birthday_ann
 Supports dynamic personality selection and configurable AI models.
 """
 
-import argparse
-import logging
 import random
-import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -38,8 +35,8 @@ from storage.settings import (
     load_recent_personalities,
     save_recent_personalities,
 )
-from utils.date import get_star_sign
-from utils.sanitize import sanitize_profile_field, sanitize_status_text, sanitize_username
+from utils.date_utils import get_star_sign
+from utils.sanitization import sanitize_profile_field, sanitize_status_text, sanitize_username
 
 logger = get_logger("llm")
 
@@ -52,9 +49,6 @@ _recent_personalities = []
 # Load persisted recent personalities from file on module initialization
 _recent_personalities = load_recent_personalities()
 
-
-# Import centralized model configuration function
-from storage.settings import get_configured_openai_model as get_configured_model
 
 # Birthday announcement formats
 BIRTHDAY_INTROS = [
@@ -471,7 +465,7 @@ def _generate_birthday_message(
     birthday_facts_text = ""
 
     # Check if personality has web search configured (dynamic check)
-    from personality_config import get_personality_config
+    from config.personality import get_personality_config
 
     personality_cfg = get_personality_config(selected_personality_name)
     has_web_search = bool(personality_cfg.get("web_search_query"))
@@ -480,7 +474,7 @@ def _generate_birthday_message(
         try:
             birthday_facts = get_birthday_facts(birthday_date, selected_personality_name)
             if birthday_facts and birthday_facts["facts"]:
-                from personality_config import get_personality_config
+                from config.personality import get_personality_config
 
                 personality_config = get_personality_config(selected_personality_name)
                 facts_template = personality_config.get(
@@ -497,7 +491,7 @@ def _generate_birthday_message(
             logger.error(f"AI_ERROR: Failed to get birthday facts: {e}")
 
     # === SHARED: Get emoji context ===
-    from slack.client import get_emoji_context_for_ai
+    from slack.emoji import get_emoji_context_for_ai
 
     emoji_ctx = get_emoji_context_for_ai(app)
 
@@ -606,7 +600,7 @@ def _generate_birthday_message(
     generated_images = []
     if include_image and message:
         try:
-            from image.generator import (
+            from services.image_generator import (
                 create_profile_photo_birthday_image,
                 generate_birthday_image,
             )
@@ -816,7 +810,7 @@ Remember: This is NOT just a birthday - this is an EPIC EVENT that will be remem
     # Date inclusion requirement
     date_inclusion_req = ""
     if birth_date:
-        from utils.date import format_date_european_short
+        from utils.date_utils import format_date_european_short
 
         date_obj = datetime.strptime(birth_date, DATE_FORMAT)
         date_formatted = format_date_european_short(date_obj)
@@ -954,7 +948,7 @@ def _build_consolidated_birthday_prompt(
 
     # Format shared birthday date
     shared_birthday_date = birthday_people[0].get("date", "")
-    from utils.date import format_date_european_short
+    from utils.date_utils import format_date_european_short
 
     date_obj = datetime.strptime(shared_birthday_date, DATE_FORMAT)
     shared_date_formatted = format_date_european_short(date_obj)
@@ -1027,7 +1021,7 @@ def _get_fallback_single_message(person, selected_personality_name):
     """
     Get a fallback message for a single birthday person when AI fails.
     """
-    from personality_config import get_personality_config
+    from config.personality import get_personality_config
 
     name = person.get("profile", {}).get("preferred_name") or person.get(
         "username", "Birthday Person"
@@ -1192,7 +1186,7 @@ CONSOLIDATED MESSAGE GOALS:
 - Keep it concise but impactful (8-12 lines max)"""
 
     # Add personality-specific extensions from centralized configuration
-    from personality_config import get_personality_config
+    from config.personality import get_personality_config
 
     personality_config = get_personality_config(personality_name)
     consolidated_prompt = personality_config.get("consolidated_prompt", "")
@@ -1407,7 +1401,7 @@ def generate_birthday_image_title(
 
     try:
         # Get personality-specific title prompt
-        from personality_config import get_personality_config
+        from config.personality import get_personality_config
 
         personality_config = get_personality_config(personality)
         title_prompt_template = personality_config.get("image_title_prompt")
@@ -1629,7 +1623,7 @@ def get_fallback_title(name, personality="standard", is_multiple_people=False):
         Fallback title string
     """
     # Get title templates from personality config (dynamic loading)
-    from personality_config import get_personality_config
+    from config.personality import get_personality_config
 
     config = get_personality_config(personality)
 
@@ -1649,237 +1643,3 @@ def get_fallback_title(name, personality="standard", is_multiple_people=False):
 
     # Ultimate fallback
     return f"{name}'s Birthday Celebration"
-
-
-def test_fallback_messages(name="Test User", user_id="U123456789"):
-    """
-    Test all fallback messages with a given name and user ID
-
-    Args:
-        name: Name to use in the messages
-        user_id: User ID to use in mentions
-    """
-    print(f"\n=== Testing Fallback Messages for {name} (ID: {user_id}) ===\n")
-
-    user_mention = f"{get_user_mention(user_id)}"
-
-    for i, message in enumerate(BACKUP_MESSAGES, 1):
-        formatted = message.replace("{name}", user_mention)
-        print(f"Message {i}:")
-        print(f"{formatted}\n")
-        print("-" * 60)
-
-
-def test_announcement(name="Test User", user_id="U123456789", birth_date="14/04", birth_year=1990):
-    """
-    Test the birthday announcement format
-    """
-    print(f"\n=== Testing Birthday Announcement for {name} (ID: {user_id}) ===\n")
-
-    announcement = create_birthday_announcement(
-        user_id, name, birth_date, birth_year, test_mode=False, quality=None
-    )
-    print(announcement)
-    print("\n" + "-" * 60)
-
-
-def test_consolidated_announcement():
-    """
-    Test the AI-powered consolidated birthday announcement for multiple people
-    """
-    print("\n=== Testing AI-Powered Consolidated Birthday Announcements ===\n")
-
-    # Test with 2 people (twins)
-    birthday_twins = [
-        {
-            "user_id": "U1234567890",
-            "username": "Alice Johnson",
-            "date": "14/04",
-            "year": 1990,
-            "date_words": "14th of April, 1990",
-        },
-        {
-            "user_id": "U0987654321",
-            "username": "Bob Smith",
-            "date": "14/04",
-            "year": 1985,
-            "date_words": "14th of April, 1985",
-        },
-    ]
-
-    # Test with 3 people (triplets)
-    birthday_triplets = [
-        {
-            "user_id": "U1111111111",
-            "username": "Charlie Brown",
-            "date": "25/12",
-            "year": None,
-            "date_words": "25th of December",
-        },
-        {
-            "user_id": "U2222222222",
-            "username": "Diana Prince",
-            "date": "25/12",
-            "year": 1995,
-            "date_words": "25th of December, 1995",
-        },
-        {
-            "user_id": "U3333333333",
-            "username": "Ethan Hunt",
-            "date": "25/12",
-            "year": 1988,
-            "date_words": "25th of December, 1988",
-        },
-    ]
-
-    test_personalities = ["standard", "mystic_dog", "superhero", "pirate", "tech_guru"]
-
-    for personality in test_personalities:
-        print(f"\n{'='*20} TESTING {personality.upper()} PERSONALITY {'='*20}")
-
-        # Set personality for testing
-        from storage.settings import set_current_personality
-
-        set_current_personality(personality)
-
-        print(f"\n--- Birthday Twins with {personality} personality ---")
-        try:
-            result = create_consolidated_birthday_announcement(
-                birthday_twins, test_mode=False, quality=None, image_size=None
-            )
-            # Unpack the 3-tuple (message, images, personality)
-            if isinstance(result, tuple) and len(result) == 3:
-                twins_message, _, actual_personality = result
-                print(f"(Used personality: {actual_personality})")
-            else:
-                twins_message = result
-            print(twins_message)
-        except Exception as e:
-            print(f"ERROR: {e}")
-
-        print(f"\n--- Birthday Triplets with {personality} personality ---")
-        try:
-            result = create_consolidated_birthday_announcement(
-                birthday_triplets, test_mode=False, quality=None, image_size=None
-            )
-            # Unpack the 3-tuple (message, images, personality)
-            if isinstance(result, tuple) and len(result) == 3:
-                triplets_message, _, actual_personality = result
-                print(f"(Used personality: {actual_personality})")
-            else:
-                triplets_message = result
-            print(triplets_message)
-        except Exception as e:
-            print(f"ERROR: {e}")
-
-        print("\n" + "-" * 80)
-
-    print("\nConsolidated announcement testing completed!")
-
-
-def main():
-    """Main function for testing the completion function with placeholder data"""
-    parser = argparse.ArgumentParser(description="Test the birthday message generator")
-    parser.add_argument("--name", default="John Doe", help="Name of the person")
-    parser.add_argument("--user-id", default="U1234567890", help="Slack user ID")
-    parser.add_argument("--date", default="25th of December", help="Birthday date in words")
-    parser.add_argument("--birth-date", default="25/12", help="Birth date in DD/MM format")
-    parser.add_argument("--birth-year", default=1990, type=int, help="Birth year (optional)")
-    parser.add_argument(
-        "--fallback", action="store_true", help="Test fallback messages instead of API"
-    )
-    parser.add_argument(
-        "--announcement", action="store_true", help="Test birthday announcement format"
-    )
-    parser.add_argument(
-        "--consolidated",
-        action="store_true",
-        help="Test AI-powered consolidated birthday announcements",
-    )
-    parser.add_argument(
-        "--personality",
-        choices=[
-            "standard",
-            "mystic_dog",
-            "poet",
-            "tech_guru",
-            "chef",
-            "superhero",
-            "time_traveler",
-            "pirate",
-            "custom",
-            "random",
-        ],
-        help="Bot personality to use for testing",
-    )
-
-    args = parser.parse_args()
-
-    # Set personality for testing if specified
-    if args.personality:
-        from config import (
-            set_current_personality,
-        )  # Import here to prevent circular imports
-
-        set_current_personality(args.personality)
-        print(f"Using {args.personality} personality for testing")
-
-    # Configure console logging for direct testing
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(logging.Formatter("%(asctime)s - [%(levelname)s] %(message)s"))
-
-    # Create a separate logger just for command-line testing
-    test_logger = logging.getLogger("birthday_bot.test")
-    test_logger.setLevel(logging.INFO)
-    test_logger.addHandler(console_handler)
-
-    test_logger.info("TEST: === Birthday Message Generator Test ===")
-    test_logger.info(f"Current Date/Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    current_model = get_configured_model()
-    test_logger.info(f"Model: {current_model}")
-    test_logger.info(
-        f"Testing with: Name='{args.name}', User ID='{args.user_id}', Date='{args.date}'"
-    )
-
-    current_personality = get_current_personality_name()
-    if current_personality == "random":
-        test_logger.info(
-            "Using random personality mode (will select a random personality for each message)"
-        )
-    else:
-        test_logger.info(f"Personality: {current_personality}")
-
-    print("-" * 60)
-
-    if args.fallback:
-        test_fallback_messages(args.name, args.user_id)
-    elif args.announcement:
-        test_announcement(args.name, args.user_id, args.birth_date, args.birth_year)
-    elif args.consolidated:
-        test_consolidated_announcement()
-    else:
-        try:
-            message = completion(args.date, args.user_id, args.birth_date, args.birth_year)
-            print("\nGenerated Message:")
-            print("-" * 60)
-            print(message)
-            print("-" * 60)
-            print("\nMessage generated successfully!")
-        except Exception as e:
-            print(f"\nError generating message: {e}")
-            print("\nTrying fallback message instead:")
-
-            # Generate a fallback message manually for testing
-            random_message = random.choice(BACKUP_MESSAGES)
-            user_mention = f"{get_user_mention(args.user_id)}"
-            formatted_message = random_message.replace("{name}", user_mention)
-
-            print("-" * 60)
-            print(formatted_message)
-            print("-" * 60)
-
-    print("\nTest completed!")
-
-
-if __name__ == "__main__":
-    main()

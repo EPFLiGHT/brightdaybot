@@ -684,7 +684,7 @@ def get_special_days_for_date(
     # Source 1: UN Observances (if enabled)
     if UN_OBSERVANCES_ENABLED:
         try:
-            from integrations.un_observances import get_un_observances_for_date
+            from integrations.observances.un import get_un_observances_for_date
 
             un_days = get_un_observances_for_date(date)
             special_days.extend(un_days)
@@ -696,7 +696,7 @@ def get_special_days_for_date(
     # Source 2: UNESCO Observances (if enabled)
     if UNESCO_OBSERVANCES_ENABLED:
         try:
-            from integrations.unesco_observances import get_unesco_observances_for_date
+            from integrations.observances.unesco import get_unesco_observances_for_date
 
             unesco_days = get_unesco_observances_for_date(date)
             special_days.extend(unesco_days)
@@ -710,7 +710,7 @@ def get_special_days_for_date(
     # Source 3: WHO Observances (if enabled)
     if WHO_OBSERVANCES_ENABLED:
         try:
-            from integrations.who_observances import get_who_observances_for_date
+            from integrations.observances.who import get_who_observances_for_date
 
             who_days = get_who_observances_for_date(date)
             special_days.extend(who_days)
@@ -1417,7 +1417,7 @@ def initialize_special_days_cache():
     # UN Observances
     if UN_OBSERVANCES_ENABLED:
         try:
-            from integrations.un_observances import get_un_client
+            from integrations.observances.un import get_un_client
 
             client = get_un_client()
             if not client._is_cache_fresh():
@@ -1435,7 +1435,7 @@ def initialize_special_days_cache():
     # UNESCO Observances
     if UNESCO_OBSERVANCES_ENABLED:
         try:
-            from integrations.unesco_observances import get_unesco_client
+            from integrations.observances.unesco import get_unesco_client
 
             client = get_unesco_client()
             if not client._is_cache_fresh():
@@ -1453,7 +1453,7 @@ def initialize_special_days_cache():
     # WHO Observances
     if WHO_OBSERVANCES_ENABLED:
         try:
-            from integrations.who_observances import get_who_client
+            from integrations.observances.who import get_who_client
 
             client = get_who_client()
             if not client._is_cache_fresh():

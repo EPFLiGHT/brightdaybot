@@ -17,7 +17,7 @@ from config import (
 from slack.client import get_username
 from storage.birthdays import get_user_preferences, load_birthdays
 from storage.special_days import get_upcoming_special_days
-from utils.date import calculate_days_until_birthday
+from utils.date_utils import calculate_days_until_birthday
 
 logger = get_logger("events")
 
@@ -63,7 +63,7 @@ def register_app_home_handlers(app):
 
 def _build_home_view(user_id, app):
     """Build the App Home view blocks."""
-    from utils.date import calculate_age, date_to_words, get_star_sign
+    from utils.date_utils import calculate_age, date_to_words, get_star_sign
 
     # Get user's birthday status
     birthdays = load_birthdays()

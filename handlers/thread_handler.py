@@ -69,7 +69,7 @@ def handle_thread_reply(
     Returns:
         Dict with results: {"reaction_added": bool, "error": str or None}
     """
-    from utils.thread_tracking import get_thread_tracker
+    from storage.thread_tracking import get_thread_tracker
 
     result = {"reaction_added": False, "error": None}
 
@@ -140,7 +140,7 @@ def handle_special_day_thread_reply(
         Dict with results: {"response_sent": bool, "error": str or None}
     """
     from config import SPECIAL_DAY_THREAD_ENABLED, SPECIAL_DAY_THREAD_MAX_RESPONSES_PER_USER
-    from utils.thread_tracking import get_thread_tracker
+    from storage.thread_tracking import get_thread_tracker
 
     result = {"response_sent": False, "error": None}
 
@@ -296,8 +296,8 @@ def _generate_special_day_response(
     """
     try:
         from config import TEMPERATURE_SETTINGS, TOKEN_LIMITS
+        from config.personality import PERSONALITIES
         from integrations.openai import complete
-        from personality_config import PERSONALITIES
 
         # Defensive check for special_day_info
         if not special_day_info or not isinstance(special_day_info, dict):

@@ -245,7 +245,7 @@ def monthly_observances_refresh_task():
     # Refresh UN observances
     if UN_OBSERVANCES_ENABLED:
         try:
-            from integrations.un_observances import refresh_un_cache
+            from integrations.observances.un import refresh_un_cache
 
             stats = refresh_un_cache(force=True)
             logger.info(f"SCHEDULER: UN observances refresh complete: {stats}")
@@ -257,7 +257,7 @@ def monthly_observances_refresh_task():
     # Refresh UNESCO observances
     if UNESCO_OBSERVANCES_ENABLED:
         try:
-            from integrations.unesco_observances import refresh_unesco_cache
+            from integrations.observances.unesco import refresh_unesco_cache
 
             stats = refresh_unesco_cache(force=True)
             logger.info(f"SCHEDULER: UNESCO observances refresh complete: {stats}")
@@ -269,7 +269,7 @@ def monthly_observances_refresh_task():
     # Refresh WHO observances
     if WHO_OBSERVANCES_ENABLED:
         try:
-            from integrations.who_observances import refresh_who_cache
+            from integrations.observances.who import refresh_who_cache
 
             stats = refresh_who_cache(force=True)
             logger.info(f"SCHEDULER: WHO observances refresh complete: {stats}")

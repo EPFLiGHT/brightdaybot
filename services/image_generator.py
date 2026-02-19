@@ -366,7 +366,7 @@ def create_image_prompt(
 
     if date_str:
         try:
-            from utils.date import format_date_european_short
+            from utils.date_utils import format_date_european_short
 
             date_obj = datetime.strptime(date_str, "%d/%m")
             date_display = format_date_european_short(date_obj)  # e.g., "25 December"
@@ -437,7 +437,7 @@ def create_image_prompt(
             logger.info(f"IMAGE_PROMPT: Including profile elements for {name}")
 
     # Get image prompt from centralized configuration
-    from personality_config import get_personality_config
+    from config.personality import get_personality_config
 
     personality_config = get_personality_config(personality)
 
@@ -811,81 +811,6 @@ def save_image_to_file(image_data, filename):
         return None
 
 
-def test_image_generation():
-    """
-    Test function for image generation with new reference photo capabilities
-    """
-    # Mock user profile for testing with profile photo
-    test_profile_with_photo = {
-        "preferred_name": "Alex",
-        "title": "Software Engineer",
-        "photo_512": "https://example.com/photo.jpg",  # Simulating profile photo
-        "photo_original": "https://example.com/photo_original.jpg",
-    }
-
-    # Mock birthday message
-    test_message = "🎉 Hey <@U123456>, happy birthday! The stars have aligned perfectly for your special day! 🌟"
-
-    personalities = ["mystic_dog", "superhero", "pirate", "tech_guru"]
-
-    print("=== Testing NEW Reference Photo Image Generation ===")
-    print("🚀 This tests OpenAI's reference photo image generation capabilities!")
-
-    for personality in personalities:
-        print(f"\n--- Testing {personality} personality with REFERENCE PHOTO ---")
-        result = generate_birthday_image(
-            test_profile_with_photo, personality, birthday_message=test_message
-        )
-
-        if result:
-            print(f"✅ Generated image for {personality}")
-            if result.get("image_url"):
-                print(f"URL: {result['image_url']}")
-            else:
-                print("Base64 image generated")
-            print(f"Prompt excerpt: {result['prompt_used'][:200]}...")
-
-            # Check for reference mode indicators
-            if "transform" in result["prompt_used"].lower():
-                print("✓ Reference mode prompt detected!")
-
-            # Check if face context was included
-            if "face" in result["prompt_used"].lower() or "photo" in result["prompt_used"].lower():
-                print("✓ Face/photo context included in prompt")
-
-            # Check if image was automatically saved
-            if result.get("saved_file_path"):
-                print(f"💾 Saved to: {result['saved_file_path']}")
-            elif result.get("image_data"):
-                print("✓ Image data available but not saved to file")
-        else:
-            print(f"❌ Failed to generate image for {personality}")
-
-    # Test without profile photo (fallback mode)
-    print("\n\n--- Testing TEXT-ONLY mode (no profile photo) ---")
-    test_profile_no_photo = {"preferred_name": "Bob", "title": "Designer"}
-    result = generate_birthday_image(
-        test_profile_no_photo, "standard", birthday_message=test_message
-    )
-
-    if result:
-        if "transform" not in result["prompt_used"].lower():
-            print("✓ Correctly using text-only generation mode")
-        else:
-            print("❌ Incorrectly using reference mode without photo")
-
-        if "face" not in result["prompt_used"].lower():
-            print("✓ Face context correctly NOT included when no profile photo")
-        else:
-            print("❌ Face context incorrectly included without profile photo")
-
-    print("\n🎯 Test complete! The new system should now generate:")
-    print("   📸 Reference-based images with HIGH input fidelity for face preservation")
-    print("   ✍️  Text-only images as fallback")
-    print("   💰 Cost optimization via quality settings (low=test, high=production)")
-    print("   🧹 Automatic cleanup of temporary profile photos")
-
-
 def cleanup_old_images(days_to_keep=None):
     """
     Clean up old generated birthday images to save disk space
@@ -1106,7 +1031,3 @@ def create_profile_photo_birthday_image(
             f"PROFILE_FALLBACK_ERROR: Failed to create profile photo birthday image for {user_profile.get('name', 'User')}: {e}"
         )
         return None
-
-
-if __name__ == "__main__":
-    test_image_generation()

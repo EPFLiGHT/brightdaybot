@@ -7,7 +7,7 @@ Tests pure lookup functions:
 - get_personality_display_name(): Returns vivid display names with emojis
 """
 
-from personality_config import (
+from config.personality import (
     PERSONALITIES,
     get_personality_config,
     get_personality_descriptions,

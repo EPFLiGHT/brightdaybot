@@ -32,13 +32,11 @@ from config import (
 )
 from slack.client import (
     get_channel_members,
-    get_channel_mention,
     get_user_mention,
     get_user_profile,
     get_username,
-    send_message,
-    send_message_with_image,
 )
+from slack.messaging import send_message, send_message_with_image
 
 logger = get_logger("commands")
 
@@ -132,7 +130,7 @@ def handle_test_command(
 
     from services.celebration import BirthdayCelebrationPipeline
     from storage.birthdays import load_birthdays
-    from utils.date import date_to_words
+    from utils.date_utils import date_to_words
 
     # Handle single or multiple target users
     if target_user_id is None:
@@ -254,7 +252,7 @@ def handle_test_block_command(user_id, args, say, app):
         build_bot_celebration_blocks,
         build_special_day_blocks,
     )
-    from slack.client import send_message
+    from slack.messaging import send_message
     from storage.settings import get_current_personality_name
 
     username = get_username(app, user_id)
@@ -398,7 +396,7 @@ def handle_test_block_command(user_id, args, say, app):
 
             bot_age = current_year - BOT_BIRTH_YEAR
 
-            from personality_config import get_celebration_personality_count
+            from config.personality import get_celebration_personality_count
 
             personality_count = get_celebration_personality_count()
             test_message = f"🌟 COSMIC BIRTHDAY ALIGNMENT DETECTED! 🌟\n\nGreetings, mortals! Today marks the digital manifestation of Ludo | LiGHT BrightDay Coordinator. This is a test of the mystical celebration blocks that Ludo uses to announce the bot's birthday. All {personality_count} Sacred Forms unite in cosmic harmony!"
@@ -490,7 +488,7 @@ def handle_test_upload_multi_command(user_id, say, app):
         say: Slack say function for sending messages
         app: Slack app instance for file uploads
     """
-    from slack.client import send_message_with_multiple_attachments
+    from slack.messaging import send_message_with_multiple_attachments
 
     username = get_username(app, user_id)
     say(
@@ -624,7 +622,7 @@ def handle_test_file_upload_command(user_id, say, app):
     import tempfile
     from datetime import datetime
 
-    from slack.client import send_message_with_file
+    from slack.messaging import send_message_with_file
 
     username = get_username(app, user_id)
     say("📄 Creating and uploading a test text file to you via DM...")
@@ -1401,16 +1399,16 @@ def handle_test_bot_celebration_command(
     """
     from datetime import datetime
 
-    from image.generator import generate_birthday_image
     from services.celebration import (
         generate_bot_celebration_message,
         get_bot_celebration_image_title,
     )
-    from slack.client import (
+    from services.image_generator import generate_birthday_image
+    from slack.messaging import (
         send_message_with_image,
     )
     from storage.birthdays import load_birthdays
-    from utils.date import date_to_words
+    from utils.date_utils import date_to_words
 
     username = get_username(app, user_id)
     say(
@@ -1539,7 +1537,7 @@ def handle_test_bot_celebration_command(
                     # NEW FLOW: Upload image → Get file ID → Build blocks with embedded image → Send unified message
                     try:
                         # Step 1: Upload image to get file ID
-                        from slack.client import upload_birthday_images_for_blocks
+                        from slack.messaging import upload_birthday_images_for_blocks
 
                         logger.info(
                             "TEST_BOT_CELEBRATION: Uploading test celebration image to get file ID for Block Kit embedding"
@@ -1599,7 +1597,7 @@ def handle_test_bot_celebration_command(
                             fallback_text = celebration_message
 
                         # Step 3: Send unified Block Kit message (image already embedded in blocks)
-                        from slack.client import send_message
+                        from slack.messaging import send_message
 
                         image_result = send_message(app, user_id, fallback_text, blocks)
                         image_success = image_result["success"]

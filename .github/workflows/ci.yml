@@ -26,14 +26,16 @@ jobs:
 
       - name: Syntax check
         run: |
-          uv run python -m py_compile app.py config.py personality_config.py
+          uv run python -m py_compile app.py
+          uv run python -m py_compile config/__init__.py config/personality.py config/personality_data.py
           uv run python -m py_compile commands/*.py
           uv run python -m py_compile handlers/*.py
           uv run python -m py_compile services/*.py
           uv run python -m py_compile integrations/*.py
+          uv run python -m py_compile integrations/observances/*.py
           uv run python -m py_compile slack/*.py
+          uv run python -m py_compile slack/blocks/*.py
           uv run python -m py_compile storage/*.py
-          uv run python -m py_compile image/*.py
           uv run python -m py_compile utils/*.py
 
       - name: Import check
@@ -44,41 +46,53 @@ jobs:
         run: |
           echo "Testing core imports..."
           uv run python -c "from config import *"
-          uv run python -c "from personality_config import *"
+          uv run python -c "from config.personality import *"
+          uv run python -c "from config.personality_data import *"
           echo "Testing commands..."
           uv run python -c "import commands.admin_commands"
           uv run python -c "import commands.birthday_commands"
-          uv run python -c "import commands.special_commands"
+          uv run python -c "import commands.special_day_commands"
           uv run python -c "import commands.test_commands"
           echo "Testing handlers..."
           uv run python -c "import handlers.event_handler"
-          uv run python -c "import handlers.slash_commands"
-          uv run python -c "import handlers.modal_handlers"
-          uv run python -c "import handlers.app_home"
+          uv run python -c "import handlers.slash_handler"
+          uv run python -c "import handlers.modal_handler"
+          uv run python -c "import handlers.app_home_handler"
+          uv run python -c "import handlers.mention_handler"
+          uv run python -c "import handlers.thread_handler"
           echo "Testing services..."
           uv run python -c "import services.dispatcher"
           uv run python -c "import services.birthday"
-          uv run python -c "import services.scheduler"
           uv run python -c "import services.celebration"
-          uv run python -c "import services.message"
+          uv run python -c "import services.image_generator"
+          uv run python -c "import services.mention_responder"
+          uv run python -c "import services.message_generator"
+          uv run python -c "import services.scheduler"
           uv run python -c "import services.special_day"
           echo "Testing integrations..."
           uv run python -c "import integrations.openai"
           uv run python -c "import integrations.calendarific"
           uv run python -c "import integrations.web_search"
+          uv run python -c "import integrations.observances.un"
+          uv run python -c "import integrations.observances.unesco"
+          uv run python -c "import integrations.observances.who"
           echo "Testing slack..."
           uv run python -c "import slack.client"
           uv run python -c "import slack.blocks"
+          uv run python -c "import slack.messaging"
+          uv run python -c "import slack.emoji"
           echo "Testing storage..."
           uv run python -c "import storage.birthdays"
           uv run python -c "import storage.settings"
           uv run python -c "import storage.special_days"
-          echo "Testing image..."
-          uv run python -c "import image.generator"
+          uv run python -c "import storage.thread_tracking"
           echo "Testing utils..."
-          uv run python -c "import utils.date"
+          uv run python -c "import utils.date_utils"
+          uv run python -c "import utils.date_parsing"
           uv run python -c "import utils.health"
+          uv run python -c "import utils.ics"
           uv run python -c "import utils.log_setup"
+          uv run python -c "import utils.sanitization"
           echo "All imports successful!"
 
       - name: Run unit tests

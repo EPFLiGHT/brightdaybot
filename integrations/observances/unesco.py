@@ -24,7 +24,7 @@ from config import (
     UNESCO_OBSERVANCES_CACHE_TTL_DAYS,
     UNESCO_OBSERVANCES_URL,
 )
-from integrations.observances_base import (
+from integrations.observances.base import (
     MONTH_ABBR_TO_NUM,
     ObservanceScraperBase,
     logger,

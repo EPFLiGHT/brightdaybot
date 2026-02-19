@@ -14,13 +14,13 @@ from slack_bolt.adapter.socket_mode import SocketModeHandler
 
 # Import configuration
 from config import logger
-from handlers.app_home import register_app_home_handlers
+from handlers.app_home_handler import register_app_home_handlers
 
 # Import event handlers
 from handlers.event_handler import register_event_handlers
 from handlers.mention_handler import register_mention_handlers
-from handlers.modal_handlers import register_modal_handlers
-from handlers.slash_commands import register_slash_commands
+from handlers.modal_handler import register_modal_handlers
+from handlers.slash_handler import register_slash_commands
 from services.birthday import simple_daily_check, timezone_aware_check
 
 # Import services

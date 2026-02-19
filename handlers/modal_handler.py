@@ -11,7 +11,7 @@ from datetime import datetime
 from config import MIN_BIRTH_YEAR, get_logger
 from slack.client import get_username
 from storage.birthdays import save_birthday, trigger_external_backup
-from utils.date import check_if_birthday_today
+from utils.date_utils import check_if_birthday_today
 
 logger = get_logger("commands")
 
@@ -198,7 +198,7 @@ def _send_modal_confirmation(client, user_id, date_ddmm, birth_year, updated):
         CELEBRATION_STYLES,
         get_user_preferences,
     )
-    from utils.date import calculate_age, date_to_words, get_star_sign
+    from utils.date_utils import calculate_age, date_to_words, get_star_sign
 
     date_words = date_to_words(date_ddmm, birth_year)
     star_sign = get_star_sign(date_ddmm)
@@ -257,7 +257,7 @@ def _send_modal_confirmation(client, user_id, date_ddmm, birth_year, updated):
 
 def _send_birthday_today_message(client, user_id, username, date_ddmm, birth_year, updated, app):
     """Send special message when birthday is today."""
-    from utils.date import date_to_words
+    from utils.date_utils import date_to_words
 
     date_words = date_to_words(date_ddmm, birth_year)
     action = "updated" if updated else "saved"

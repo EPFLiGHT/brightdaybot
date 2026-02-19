@@ -22,10 +22,10 @@ from config import (
     TEMPERATURE_SETTINGS,
     TOKEN_LIMITS,
 )
-from image.generator import generate_birthday_image
+from config.personality import get_personality_config
 from integrations.openai import complete
 from integrations.web_search import get_birthday_facts
-from personality_config import get_personality_config
+from services.image_generator import generate_birthday_image
 from utils.log_setup import get_logger
 
 # Get dedicated logger
@@ -71,7 +71,7 @@ def generate_special_day_message(
         personality_config = get_personality_config(personality)
 
     # Get emoji context for AI message generation (uses config default: 50)
-    from slack.client import get_emoji_context_for_ai
+    from slack.emoji import get_emoji_context_for_ai
 
     emoji_ctx = get_emoji_context_for_ai(app)
     emoji_examples = emoji_ctx["emoji_examples"]
@@ -79,7 +79,7 @@ def generate_special_day_message(
     try:
         # Get current date in European format for organic inclusion
         # Use test_date if provided (for testing specific dates), otherwise use today
-        from utils.date import format_date_european
+        from utils.date_utils import format_date_european
 
         today = test_date if test_date else datetime.now()
         today_formatted = format_date_european(today)  # e.g., "15 April 2025"
@@ -293,7 +293,7 @@ def generate_weekly_digest_message(
     days_with_observances = len(upcoming_days)
 
     # Get emoji context for AI message generation
-    from slack.client import get_emoji_context_for_ai
+    from slack.emoji import get_emoji_context_for_ai
 
     emoji_ctx = get_emoji_context_for_ai(app)
     emoji_examples = emoji_ctx["emoji_examples"]
@@ -466,7 +466,7 @@ def generate_special_day_details(
         personality_config = get_personality_config(personality)
 
     # Get emoji context for AI message generation
-    from slack.client import get_emoji_context_for_ai
+    from slack.emoji import get_emoji_context_for_ai
 
     emoji_ctx = get_emoji_context_for_ai(app)
     emoji_examples = emoji_ctx["emoji_examples"]
@@ -789,7 +789,7 @@ async def send_special_day_announcement(app, special_days: List, test_mode: bool
     Returns:
         True if successful, False otherwise
     """
-    from slack.client import send_message, send_message_with_image
+    from slack.messaging import send_message, send_message_with_image
 
     try:
         # Generate the message

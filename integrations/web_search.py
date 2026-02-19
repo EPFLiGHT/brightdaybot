@@ -60,7 +60,7 @@ def process_facts_for_personality(facts_text, formatted_date, personality):
         user_content = ""
 
         # Get web search configuration from centralized personality config
-        from personality_config import get_personality_config
+        from config.personality import get_personality_config
 
         personality_config = get_personality_config(personality)
 
@@ -174,12 +174,12 @@ def get_birthday_facts(date_str, personality=DEFAULT_IMAGE_PERSONALITY):
         # Use any year for search formatting - year doesn't matter for historical events
         search_date = datetime(2025, date_obj.month, date_obj.day)
         # Format in European style: DD Month
-        from utils.date import format_date_european_short
+        from utils.date_utils import format_date_european_short
 
         formatted_date = format_date_european_short(search_date)  # e.g. "15 April"
 
         # Get search query from personality config (dynamic loading)
-        from personality_config import get_personality_config
+        from config.personality import get_personality_config
 
         personality_config = get_personality_config(personality)
         search_query_template = personality_config.get("web_search_query")
@@ -413,7 +413,7 @@ def main():
         # Use any year for formatting - year doesn't matter for historical facts
         formatted_date_obj = datetime(2025, date_obj.month, date_obj.day)
         # Format in European style: DD Month
-        from utils.date import format_date_european_short
+        from utils.date_utils import format_date_european_short
 
         formatted_date = format_date_european_short(formatted_date_obj)  # e.g. "15 April"
         print(f"Searching for: {formatted_date}\n")

@@ -18,17 +18,17 @@ from services.celebration import (
     log_immediate_celebration_decision,
     should_celebrate_immediately,
 )
-from services.message import create_birthday_announcement
+from services.message_generator import create_birthday_announcement
 from slack.client import (
     check_command_permission,
     get_channel_members,
     get_user_mention,
     get_user_profile,
     get_username,
-    send_message,
 )
+from slack.messaging import send_message
 from storage.birthdays import is_user_active, load_birthdays, mark_birthday_announced
-from utils.date import (
+from utils.date_utils import (
     calculate_age,
     calculate_days_until_birthday,
     calculate_next_birthday_age,

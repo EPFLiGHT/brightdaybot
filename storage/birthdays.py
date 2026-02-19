@@ -42,7 +42,7 @@ from config import (
     TIMEOUTS,
     get_logger,
 )
-from slack.client import send_message_with_file
+from slack.messaging import send_message_with_file
 from storage.settings import get_current_admins
 
 logger = get_logger("storage")
@@ -741,7 +741,7 @@ def mark_timezone_birthday_announced(user_id, user_timezone):
         user_timezone: User's timezone where celebration occurred
     """
     from config import DEFAULT_TIMEZONE
-    from utils.date import get_timezone_object
+    from utils.date_utils import get_timezone_object
 
     if not get_timezone_object(user_timezone):
         logger.warning(f"TIMEZONE: Invalid timezone '{user_timezone}', using default")

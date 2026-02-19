@@ -218,7 +218,7 @@ def handle_mention(app, event: dict, say) -> dict:
         logger.info(f"MENTION: User {user_id} asked '{clean_text[:50]}...' (type: {question_type})")
 
         # Generate response
-        from utils.mention_responder import generate_mention_response
+        from services.mention_responder import generate_mention_response
 
         response = generate_mention_response(
             app=app,

@@ -15,7 +15,7 @@ class TestUNObservancesClient:
     @pytest.fixture
     def client(self):
         """Create a UNObservancesClient for testing with mocked cache paths"""
-        from integrations.un_observances import UNObservancesClient
+        from integrations.observances.un import UNObservancesClient
 
         client = UNObservancesClient()
         client.CACHE_DIR = "/tmp"
@@ -43,7 +43,7 @@ class TestUNRegexParsing:
     @pytest.fixture
     def client(self):
         """Create a UNObservancesClient for testing with mocked cache paths"""
-        from integrations.un_observances import UNObservancesClient
+        from integrations.observances.un import UNObservancesClient
 
         client = UNObservancesClient()
         client.CACHE_DIR = "/tmp"
@@ -84,7 +84,7 @@ class TestUNESCOObservancesClient:
     @pytest.fixture
     def client(self):
         """Create a UNESCOObservancesClient for testing with mocked cache paths"""
-        from integrations.unesco_observances import UNESCOObservancesClient
+        from integrations.observances.unesco import UNESCOObservancesClient
 
         client = UNESCOObservancesClient()
         client.CACHE_DIR = "/tmp"
@@ -111,7 +111,7 @@ class TestUNESCORegexParsing:
     @pytest.fixture
     def client(self):
         """Create a UNESCOObservancesClient for testing with mocked cache paths"""
-        from integrations.unesco_observances import UNESCOObservancesClient
+        from integrations.observances.unesco import UNESCOObservancesClient
 
         client = UNESCOObservancesClient()
         client.CACHE_DIR = "/tmp"
@@ -139,7 +139,7 @@ class TestWHOObservancesClient:
     @pytest.fixture
     def client(self):
         """Create a WHOObservancesClient for testing with mocked cache paths"""
-        from integrations.who_observances import WHOObservancesClient
+        from integrations.observances.who import WHOObservancesClient
 
         client = WHOObservancesClient()
         client.CACHE_DIR = "/tmp"
@@ -166,7 +166,7 @@ class TestWHORegexParsing:
     @pytest.fixture
     def client(self):
         """Create a WHOObservancesClient for testing with mocked cache paths"""
-        from integrations.who_observances import WHOObservancesClient
+        from integrations.observances.who import WHOObservancesClient
 
         client = WHOObservancesClient()
         client.CACHE_DIR = "/tmp"

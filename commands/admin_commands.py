@@ -21,9 +21,9 @@ from config import (
     TIMEZONE_CELEBRATION_TIME,
     get_logger,
 )
+from config.personality import get_personality_descriptions
 from integrations.web_search import clear_cache
-from personality_config import get_personality_descriptions
-from services.message import get_current_personality
+from services.message_generator import get_current_personality
 from slack.client import (
     check_command_permission,
     get_channel_members,
@@ -496,7 +496,7 @@ def handle_timezone_command(args, user_id, say, app, username):
         username: Display name of requesting user for logging
     """
     from storage.settings import load_timezone_settings, save_timezone_settings
-    from utils.date import format_timezone_schedule
+    from utils.date_utils import format_timezone_schedule
 
     # Get current settings
     current_enabled, current_interval = load_timezone_settings()

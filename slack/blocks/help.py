@@ -1,0 +1,572 @@
+"""Block Kit builders for help messages, welcome screens, and error responses."""
+
+from typing import Any, Dict, List
+
+from config import UPCOMING_DAYS_DEFAULT, UPCOMING_DAYS_EXTENDED
+from config.personality import get_personality_descriptions
+
+
+def build_welcome_blocks(
+    user_mention: str, channel_mention: str
+) -> tuple[List[Dict[str, Any]], str]:
+    """
+    Build Block Kit structure for welcome message when user joins birthday channel
+
+    Args:
+        user_mention: Formatted user mention (e.g., "<@U123456>")
+        channel_mention: Formatted channel mention (e.g., "<#C123456|birthdays>")
+
+    Returns:
+        Tuple of (blocks list, fallback_text string)
+    """
+    blocks = [
+        {
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": f"🎉 Welcome {user_mention}!",
+                "emoji": True,
+            },
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"Welcome to {channel_mention}! Here I celebrate everyone's birthdays with personalized AI messages and images.",
+            },
+        },
+        {"type": "divider"},
+        {
+            "type": "section",
+            "fields": [
+                {
+                    "type": "mrkdwn",
+                    "text": "*📅 Add Your Birthday:*\nUse `/birthday` to open the form\nor visit my *App Home* tab",
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": "*🏠 App Home:*\nVisit my Home tab to view your status, preferences, and upcoming events.",
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": "*💡 Get Help:*\nType `help` in a DM to see all commands and options.",
+                },
+            ],
+        },
+        {
+            "type": "context",
+            "elements": [
+                {
+                    "type": "mrkdwn",
+                    "text": "🎂 Hope to celebrate your special day soon! Not interested? Use `/birthday pause` to opt out.",
+                }
+            ],
+        },
+    ]
+
+    fallback_text = (
+        f"🎉 Welcome to {channel_mention}, {user_mention}! Use `/birthday` to add your birthday."
+    )
+
+    return blocks, fallback_text
+
+
+def build_hello_blocks(
+    greeting: str, personality_name: str = "BrightDay"
+) -> tuple[List[Dict[str, Any]], str]:
+    """
+    Build Block Kit structure for hello/greeting messages
+
+    Args:
+        greeting: Personalized greeting from personality (e.g., "Hello @user! 👋")
+        personality_name: Display name of current personality
+
+    Returns:
+        Tuple of (blocks list, fallback_text string)
+    """
+    blocks = [
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": greeting,
+            },
+        },
+        {"type": "divider"},
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"I'm *{personality_name}*, your friendly birthday celebration bot! I help make everyone's special day memorable with personalized AI messages and images.",
+            },
+        },
+        {
+            "type": "section",
+            "fields": [
+                {
+                    "type": "mrkdwn",
+                    "text": "*📅 Get Started:*\nUse `/birthday` to add yours!\nOr visit my *App Home* tab.",
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": "*💡 Need Help?*\nType `help` to see all commands and features",
+                },
+            ],
+        },
+        {
+            "type": "context",
+            "elements": [{"type": "mrkdwn", "text": "🎂 Hope to celebrate with you soon!"}],
+        },
+    ]
+
+    fallback_text = f"{greeting}\n\nI'm {personality_name}, your birthday bot! Use /birthday to add yours, or type 'help' for more info."
+
+    return blocks, fallback_text
+
+
+def build_help_blocks(is_admin: bool = False) -> tuple[List[Dict[str, Any]], str]:
+    """
+    Build Block Kit structure for help messages
+
+    Args:
+        is_admin: If True, show admin help; otherwise show user help
+
+    Returns:
+        Tuple of (blocks list, fallback_text string)
+    """
+    blocks = []
+
+    if is_admin:
+        # Admin help - comprehensive command reference with organized sections
+        blocks.append(
+            {
+                "type": "header",
+                "text": {"type": "plain_text", "text": "🔧 Admin Commands Reference"},
+            }
+        )
+
+        blocks.append(
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "Complete admin command reference organized by category. All commands require admin privileges.",
+                },
+            }
+        )
+
+        blocks.append({"type": "divider"})
+
+        # --- Core Features ---
+
+        # Birthday Management
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*🎂 Birthday Management*"},
+            }
+        )
+        birthday_mgmt = """• `list` - List upcoming birthdays
+• `list all` - List all birthdays organized by month
+• `stats` - View birthday statistics
+• `remind` or `remind new` - Send reminders to users without birthdays
+• `remind update` - Send profile update reminders
+• `remind new [message]` - Custom reminder to new users
+• `remind update [message]` - Custom profile update reminder"""
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": birthday_mgmt}})
+
+        blocks.append({"type": "divider"})
+
+        # Special Days Management
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*🌟 Special Days Management*"},
+            }
+        )
+        special_days = """• `admin special` - View full special days help
+• `admin special list [category]` - List all observances (all sources)
+• `admin special add/remove` - Manage custom days
+• `admin special test [DD/MM]` - Test announcement
+• `admin special mode` - Show announcement mode (daily/weekly)
+• `admin special mode daily` - Switch to daily announcements
+• `admin special mode weekly [day]` - Switch to weekly digest
+• `admin special observances` - Combined status for UN/UNESCO/WHO
+• `admin special [un|unesco|who]-status` - Individual cache status
+• `admin special api-status` - Calendarific status"""
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": special_days}})
+
+        blocks.append({"type": "divider"})
+
+        # Bot Personality
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*🎭 Bot Personality*"},
+            }
+        )
+        # Get personality list dynamically
+        personality_names = get_personality_descriptions().keys()
+        personality_list = ", ".join(f"`{p}`" for p in personality_names)
+
+        personality = f"""• `admin personality` - Show current bot personality
+• `admin personality [name]` - Change bot personality
+
+*Available:* {personality_list}
+
+*Custom Personality:*
+• `admin custom name|description|style|format|template [value]`"""
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": personality}})
+
+        blocks.append({"type": "divider"})
+
+        # --- Configuration ---
+
+        # AI Configuration
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*🤖 AI Model Configuration*"},
+            }
+        )
+        ai_config = """• `admin model` - Show current OpenAI model and configuration
+• `admin model list` - List all supported OpenAI models
+• `admin model set <model>` - Change to specified model
+• `admin model reset` - Reset to default model"""
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": ai_config}})
+
+        blocks.append({"type": "divider"})
+
+        # Timezone Configuration
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*🌍 Timezone Configuration*"},
+            }
+        )
+        timezone = """• `admin timezone` - View current timezone status
+• `admin timezone status` - Show detailed timezone schedule
+• `admin timezone enable` - Enable timezone-aware mode (hourly checks)
+• `admin timezone disable` - Disable timezone-aware mode (daily check)"""
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": timezone}})
+
+        blocks.append({"type": "divider"})
+
+        # System Management
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*⚙️ System Management*"},
+            }
+        )
+        system_mgmt = """• `admin status` - View system health and component status
+• `admin status detailed` - View detailed system information
+• `config` - View command permissions
+• `config COMMAND true/false` - Change command permissions"""
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": system_mgmt}})
+
+        blocks.append({"type": "divider"})
+
+        # --- Operations ---
+
+        # Data Management
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*💾 Data Management*"},
+            }
+        )
+        data_mgmt = """• `admin backup` - Create a manual backup of birthdays data
+• `admin restore latest` - Restore from the latest backup
+• `admin cache clear` - Clear all web search cache
+• `admin cache clear DD/MM` - Clear web search cache for specific date
+• `admin test-external-backup` - Test external backup system"""
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": data_mgmt}})
+
+        blocks.append({"type": "divider"})
+
+        # Message Archive
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*📁 Message Archive*"},
+            }
+        )
+        archive = """• `admin archive stats` - View archive status and statistics
+• `admin archive search [query]` - Search archived messages
+• `admin archive export [format] [days]` - Export messages (csv/json)
+• `admin archive cleanup [force]` - Trigger archive cleanup"""
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": archive}})
+
+        blocks.append({"type": "divider"})
+
+        # Announcements
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*📣 Announcements*"},
+            }
+        )
+        announcements = """• `admin announce image` - Announce AI image generation feature
+• `admin announce [message]` - Send custom announcement to birthday channel
+_(All announcements require confirmation)_"""
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": announcements}})
+
+        blocks.append({"type": "divider"})
+
+        # --- Development & Admin ---
+
+        # Testing Commands
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*🧪 Testing Commands*"},
+            }
+        )
+        testing = """• `admin test @user1 [@user2...] [quality] [size] [--text-only]` - Test birthday message/images
+• `admin test-join [@user]` - Test birthday channel welcome
+• `admin test-bot-celebration [quality] [size] [--text-only]` - Test bot self-celebration
+• `admin test-block [type]` - Test Block Kit rendering
+• `admin test-upload` - Test image upload functionality
+• `admin test-upload-multi` - Test multiple image attachments
+• `admin test-blockkit [mode]` - Test Block Kit image embedding
+• `admin test-file-upload` - Test text file upload"""
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": testing}})
+
+        blocks.append({"type": "divider"})
+
+        # Admin Management
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*👥 Admin Management*"},
+            }
+        )
+        admin_mgmt = """• `admin list` - List configured admin users
+• `admin add USER_ID` - Add a user as admin
+• `admin remove USER_ID` - Remove a user from admin list"""
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": admin_mgmt}})
+
+        # Footer
+        blocks.append(
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": "💡 Most destructive commands require confirmation. Use `confirm` to proceed with pending actions.",
+                    }
+                ],
+            }
+        )
+
+        fallback_text = (
+            "Admin Commands Reference - Complete list of admin commands organized by category"
+        )
+
+    else:
+        # User help - friendly and organized
+        blocks.append(
+            {
+                "type": "header",
+                "text": {"type": "plain_text", "text": "💡 How to Use BrightDay"},
+            }
+        )
+
+        blocks.append({"type": "divider"})
+
+        # Quick Start Section
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "*📅 Quick Start*"}})
+
+        blocks.append(
+            {
+                "type": "section",
+                "fields": [
+                    {
+                        "type": "mrkdwn",
+                        "text": "*Slash Commands (preferred):*\n`/birthday` - Open birthday form\n`/special-day` - Today's observances",
+                    },
+                    {
+                        "type": "mrkdwn",
+                        "text": "*DM Shortcut:*\nSend `25/12` or `25/12/1990`\nto add your birthday directly",
+                    },
+                ],
+            }
+        )
+
+        blocks.append({"type": "divider"})
+
+        # Birthday Commands
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*🎂 Birthday Commands*"},
+            }
+        )
+
+        birthday_commands = """• `/birthday` or `add DD/MM` - Add or update your birthday
+• `/birthday check [@user]` or `check` - Check a birthday
+• `/birthday list` or `list` - Upcoming birthdays
+• `/birthday export` - Export birthdays to calendar (ICS)
+• `remove` - Remove your birthday
+• `pause` / `resume` - Pause or resume your celebrations
+• `test [quality] [size] [--text-only]` - Preview your birthday message"""
+
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": birthday_commands}})
+
+        blocks.append({"type": "divider"})
+
+        # Special Days Commands
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*🌍 Special Days Commands*"},
+            }
+        )
+
+        special_commands = f"""• `/special-day` or `special` - Today's observances
+• `/special-day week` or `special week` - Next {UPCOMING_DAYS_DEFAULT} days
+• `/special-day month` or `special month` - Next {UPCOMING_DAYS_EXTENDED} days
+• `/special-day export [source]` - Export to calendar (ICS)
+• `special list [category]` - List all special days
+• `special stats` - View statistics"""
+
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": special_commands}})
+
+        blocks.append({"type": "divider"})
+
+        # Other Commands
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*⚙️ Other*"},
+            }
+        )
+
+        other_commands = """• `help` - Show this help message
+• `hello` - Get a friendly greeting
+• `admin help` - View admin commands _(if admin)_"""
+
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": other_commands}})
+
+        # Footer
+        blocks.append(
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": "💡 Tip: Use `/birthday` in any channel — no need to DM the bot!",
+                    }
+                ],
+            }
+        )
+
+        fallback_text = "BrightDay Help - Use /birthday to add your birthday or /special-day to see today's observances. Use 'admin help' for admin commands."
+
+    return blocks, fallback_text
+
+
+def build_unrecognized_input_blocks() -> tuple[List[Dict[str, Any]], str]:
+    """
+    Build Block Kit structure for unrecognized DM input
+
+    Returns:
+        Tuple of (blocks list, fallback_text string)
+    """
+    blocks = [
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": "🤔 I Didn't Understand That"},
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "I didn't recognize a valid date format or command in your message.",
+            },
+        },
+        {
+            "type": "section",
+            "fields": [
+                {
+                    "type": "mrkdwn",
+                    "text": "*To add your birthday:*\nSend: `DD/MM` or `DD/MM/YYYY`\nExample: `25/12` or `25/12/1990`",
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": "*For help:*\nType: `help`\nSee all available commands",
+                },
+            ],
+        },
+    ]
+
+    fallback_text = "I didn't recognize a valid date format or command. Please send your birthday as DD/MM or type 'help' for more options."
+
+    return blocks, fallback_text
+
+
+def build_slash_help_blocks(
+    command_type: str,
+) -> tuple[List[Dict[str, Any]], str]:
+    """
+    Build help blocks for slash commands.
+
+    Args:
+        command_type: "birthday" or "special-day"
+
+    Returns:
+        Tuple of (blocks, fallback_text)
+    """
+    if command_type == "birthday":
+        blocks = [
+            {
+                "type": "header",
+                "text": {"type": "plain_text", "text": "/birthday Command Help"},
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "*Available subcommands:*\n\n"
+                    + "- `/birthday` or `/birthday add` - Open birthday form\n"
+                    + "- `/birthday check [@user]` - Check birthday\n"
+                    + "- `/birthday list` - List upcoming birthdays\n"
+                    + "- `/birthday export` - Export birthdays to calendar (ICS)\n"
+                    + "- `/birthday pause` - Pause your celebrations\n"
+                    + "- `/birthday resume` - Resume your celebrations\n"
+                    + "- `/birthday help` - Show this help",
+                },
+            },
+        ]
+        fallback = "/birthday Command Help"
+    else:
+        blocks = [
+            {
+                "type": "header",
+                "text": {"type": "plain_text", "text": "/special-day Command Help"},
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "*Available options:*\n\n"
+                    + "- `/special-day` or `/special-day today` - Today's observances\n"
+                    + f"- `/special-day week` - Next {UPCOMING_DAYS_DEFAULT} days\n"
+                    + f"- `/special-day month` - Next {UPCOMING_DAYS_EXTENDED} days\n"
+                    + "- `/special-day help` - Show this help",
+                },
+            },
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": "_Sources: UN/WHO/UNESCO observances, Calendarific holidays, and custom entries._",
+                    }
+                ],
+            },
+        ]
+        fallback = "/special-day Command Help"
+
+    return blocks, fallback
