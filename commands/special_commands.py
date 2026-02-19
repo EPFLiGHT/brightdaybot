@@ -635,11 +635,11 @@ In daily mode, individual announcements are posted each day with observances."""
             else:
                 message = f"""✅ *Calendarific Prefetch Complete*
 
-• Days fetched: {stats['fetched']}
-• Days skipped (cached): {stats['skipped']}
-• Holidays found: {stats['holidays_found']}
-• API calls made: {stats['api_calls']}
-• Failed: {stats['failed']}"""
+• Days fetched: {stats["fetched"]}
+• Days skipped (cached): {stats["skipped"]}
+• Holidays found: {stats["holidays_found"]}
+• API calls made: {stats["api_calls"]}
+• Failed: {stats["failed"]}"""
                 say(message)
                 logger.info(f"ADMIN_SPECIAL: {username} ran Calendarific refresh")
 
@@ -695,12 +695,12 @@ _Use `admin special [un|unesco|who]-refresh` to force update._"""
 
             message = f"""📊 *UN Observances Cache Status*
 
-• Cache exists: {'✅ Yes' if status['cache_exists'] else '❌ No'}
-• Cache fresh: {'✅ Yes' if status['cache_fresh'] else '⚠️ Stale'}
+• Cache exists: {"✅ Yes" if status["cache_exists"] else "❌ No"}
+• Cache fresh: {"✅ Yes" if status["cache_fresh"] else "⚠️ Stale"}
 • Last updated: {last_str}
-• Observances cached: {status['observance_count']}
+• Observances cached: {status["observance_count"]}
 
-*Source:* {status['source_url']}
+*Source:* {status["source_url"]}
 
 _Cache refreshes weekly. Use `admin special un-refresh` to force update._"""
             say(message)
@@ -744,12 +744,12 @@ _Cache refreshes weekly. Use `admin special un-refresh` to force update._"""
 
             message = f"""📊 *UNESCO Observances Cache Status*
 
-• Cache exists: {'✅ Yes' if status['cache_exists'] else '❌ No'}
-• Cache fresh: {'✅ Yes' if status['cache_fresh'] else '⚠️ Stale'}
+• Cache exists: {"✅ Yes" if status["cache_exists"] else "❌ No"}
+• Cache fresh: {"✅ Yes" if status["cache_fresh"] else "⚠️ Stale"}
 • Last updated: {last_str}
-• Observances cached: {status['observance_count']}
+• Observances cached: {status["observance_count"]}
 
-*Source:* {status['source_url']}
+*Source:* {status["source_url"]}
 
 _Cache refreshes monthly. Use `admin special unesco-refresh` to force update._"""
             say(message)
@@ -793,12 +793,12 @@ _Cache refreshes monthly. Use `admin special unesco-refresh` to force update._""
 
             message = f"""📊 *WHO Observances Cache Status*
 
-• Cache exists: {'✅ Yes' if status['cache_exists'] else '❌ No'}
-• Cache fresh: {'✅ Yes' if status['cache_fresh'] else '⚠️ Stale'}
+• Cache exists: {"✅ Yes" if status["cache_exists"] else "❌ No"}
+• Cache fresh: {"✅ Yes" if status["cache_fresh"] else "⚠️ Stale"}
 • Last updated: {last_str}
-• Observances cached: {status['observance_count']}
+• Observances cached: {status["observance_count"]}
 
-*Source:* {status['source_url']}
+*Source:* {status["source_url"]}
 
 _Cache refreshes monthly. Use `admin special who-refresh` to force update._"""
             say(message)
@@ -853,19 +853,19 @@ _Cache refreshes monthly. Use `admin special who-refresh` to force update._"""
 
             message = f"""📊 *Calendarific API Status*
 
-• Status: {'✅ Enabled' if status['enabled'] else '❌ Disabled'}
-• API Key: {'✅ Configured' if status['api_key_configured'] else '❌ Missing'}
-• Country: {status['country']}
+• Status: {"✅ Enabled" if status["enabled"] else "❌ Disabled"}
+• API Key: {"✅ Configured" if status["api_key_configured"] else "❌ Missing"}
+• Country: {status["country"]}
 
 *Usage This Month:*
-• API calls: {status['month_calls']} / {status['monthly_limit']}
-• Remaining: {status['calls_remaining']}
+• API calls: {status["month_calls"]} / {status["monthly_limit"]}
+• Remaining: {status["calls_remaining"]}
 
 *Cache:*
-• Cached dates: {status['cached_dates']}
-• Cache TTL: {status['cache_ttl_days']} days
+• Cached dates: {status["cached_dates"]}
+• Cache TTL: {status["cache_ttl_days"]} days
 • Last prefetch: {last_str}
-• Needs refresh: {'⚠️ Yes' if status['needs_prefetch'] else '✅ No'}
+• Needs refresh: {"⚠️ Yes" if status["needs_prefetch"] else "✅ No"}
 
 _Run `admin special refresh` to update cache_"""
             say(message)

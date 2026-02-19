@@ -10,6 +10,7 @@ from typing import List, Optional
 
 from config import (
     DESCRIPTION_TEASER_LENGTH,
+    DIGEST_DESCRIPTION_LENGTH,
     IMAGE_GENERATION_PARAMS,
     REASONING_EFFORT,
     SLACK_BUTTON_DISPLAY_CHAR_LIMIT,
@@ -356,6 +357,78 @@ TONE: Informative but not overwhelming. This is a summary, not a detailed announ
             f"Here's what's coming up this week: {total_observances} observance(s) across {days_with_observances} day(s).\n\n"
             f"- {personality_config.get('name', 'The Chronicler')}"
         )
+
+
+def generate_digest_descriptions(special_days: List) -> dict:
+    """
+    Generate concise one-line descriptions for special days in a weekly digest.
+
+    Uses a single batch AI call to generate or shorten descriptions for all
+    observances at once. Falls back to truncated existing descriptions on failure.
+
+    Args:
+        special_days: Flat list of SpecialDay objects for the week
+
+    Returns:
+        Dict mapping observance name to short description string
+    """
+    if not special_days:
+        return {}
+
+    # Build input lines for the AI prompt
+    input_lines = []
+    for day in special_days:
+        name = day.name if hasattr(day, "name") else day.get("name", "")
+        desc = day.description if hasattr(day, "description") else day.get("description", "")
+        if desc:
+            input_lines.append(f"- {name}: {desc}")
+        else:
+            input_lines.append(f"- {name}: (no description)")
+
+    try:
+        max_chars = DIGEST_DESCRIPTION_LENGTH
+        prompt = f"""For each observance below, write a concise one-line description (max {max_chars} characters).
+If a description is provided, shorten it. If missing, create one from the name.
+Return EXACTLY one line per observance in the format: Name: description
+
+{chr(10).join(input_lines)}"""
+
+        result = complete(
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You generate concise, informative one-line descriptions for international observances and holidays. Be factual and direct.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=TOKEN_LIMITS.get("digest_descriptions", 400),
+            temperature=TEMPERATURE_SETTINGS.get("factual", 0.3),
+            context="DIGEST_DESCRIPTIONS",
+        )
+
+        # Parse AI response into dict
+        descriptions = {}
+        if result:
+            for line in result.strip().split("\n"):
+                line = line.strip().lstrip("- ")
+                if ":" in line:
+                    name_part, desc_part = line.split(":", 1)
+                    descriptions[name_part.strip()] = desc_part.strip()[:max_chars]
+
+        logger.info(f"Generated {len(descriptions)} digest descriptions via AI")
+        return descriptions
+
+    except Exception as e:
+        logger.error(f"Error generating digest descriptions: {e}")
+
+    # Fallback: truncate existing descriptions
+    fallback = {}
+    for day in special_days:
+        name = day.name if hasattr(day, "name") else day.get("name", "")
+        desc = day.description if hasattr(day, "description") else day.get("description", "")
+        if desc:
+            fallback[name] = desc[:DIGEST_DESCRIPTION_LENGTH]
+    return fallback
 
 
 def generate_special_day_details(

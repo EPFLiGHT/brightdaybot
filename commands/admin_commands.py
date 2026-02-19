@@ -100,7 +100,7 @@ def handle_stats_command(user_id, say, app):
 
     # Calculate year percentage safely
     year_pct = (
-        f"{birthdays_with_years/total_birthdays*100:.1f}% of recorded"
+        f"{birthdays_with_years / total_birthdays * 100:.1f}% of recorded"
         if total_birthdays > 0
         else "N/A"
     )
@@ -114,7 +114,7 @@ def handle_stats_command(user_id, say, app):
 • Birthdays with year: {birthdays_with_years} ({year_pct})
 
 *Distribution by Month:*
-{', '.join(month_stats)}
+{", ".join(month_stats)}
 
 *Missing Birthdays:* {total_members - total_birthdays} members
 """

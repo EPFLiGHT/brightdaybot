@@ -350,6 +350,7 @@ def build_weekly_special_days_blocks(
     upcoming_days: dict,
     intro_message: str,
     personality: str = "chronicler",
+    descriptions: Optional[Dict[str, str]] = None,
 ) -> tuple[List[Dict[str, Any]], str]:
     """
     Build Block Kit structure for weekly special days digest.
@@ -358,6 +359,7 @@ def build_weekly_special_days_blocks(
         upcoming_days: Dict mapping date strings (DD/MM) to lists of SpecialDay objects
         intro_message: AI-generated intro message
         personality: Bot personality name
+        descriptions: Optional dict mapping observance name to short description
 
     Returns:
         Tuple of (blocks list, fallback_text string)
@@ -421,9 +423,18 @@ def build_weekly_special_days_blocks(
         for day in special_days:
             emoji = get_attr(day, "emoji", "🌍") or "🌍"
             name = get_attr(day, "name", "Special Day")
+            url = get_attr(day, "url", "")
             source = get_attr(day, "source", "")
+
+            # Hyperlink the name if URL available
+            name_text = f"<{url}|{name}>" if url else name
+
+            # Add short description if available
+            desc = (descriptions or {}).get(name, "")
+            desc_text = f" — {desc}" if desc else ""
+
             source_text = f" _({source})_" if source else ""
-            observance_lines.append(f"• {emoji} {name}{source_text}")
+            observance_lines.append(f"• {emoji} {name_text}{desc_text}{source_text}")
 
         observances_text = "\n".join(observance_lines)
 
@@ -440,7 +451,7 @@ def build_weekly_special_days_blocks(
 
     personality_name = get_personality_display_name(personality)
     footer_text = (
-        f"📊 *{total_observances} observance(s)* across *{days_with_observances} day(s)* this week\n"
+        f"📊 *{total_observances} observance{'s' if total_observances != 1 else ''}* across *{days_with_observances} day{'s' if days_with_observances != 1 else ''}* this week\n"
         f"✨ _Brought to you by {personality_name}_\n\n"
         f"_Use `/special-day` for details on any specific observance._"
     )
@@ -448,7 +459,7 @@ def build_weekly_special_days_blocks(
     blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": footer_text}]})
 
     # Generate fallback text
-    fallback_text = f"Weekly Special Days Digest: {total_observances} observance(s) this week"
+    fallback_text = f"Weekly Special Days Digest: {total_observances} observance{'s' if total_observances != 1 else ''} this week"
 
     return blocks, fallback_text
 

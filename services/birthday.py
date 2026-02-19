@@ -721,11 +721,18 @@ def check_and_announce_weekly_special_days(app, moment):
         # Generate intro message
         intro_message = generate_weekly_digest_message(upcoming_days, app=app)
 
+        # Generate short descriptions for each observance
+        from services.special_day import generate_digest_descriptions
+
+        all_observances = [day for days in upcoming_days.values() for day in days]
+        descriptions = generate_digest_descriptions(all_observances)
+
         # Build Block Kit blocks
         blocks, fallback_text = build_weekly_special_days_blocks(
             upcoming_days,
             intro_message,
             personality=SPECIAL_DAYS_PERSONALITY,
+            descriptions=descriptions,
         )
 
         # Send the digest

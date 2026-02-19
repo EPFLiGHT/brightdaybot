@@ -221,6 +221,8 @@ TOKEN_LIMITS = {
     "mention_response": 300,  # Responses to @-mentions
     "special_day_thread_response": 400,  # Responses to special day thread replies
     "date_parsing": 100,  # NLP date extraction from natural language
+    # Weekly digest
+    "digest_descriptions": 400,  # One-line descriptions for weekly digest observances
     # Vision analysis
     "profile_analysis": 100,  # Vision API profile photo element extraction
 }
@@ -546,6 +548,7 @@ ANNOUNCEMENT_RETENTION_DAYS = 60  # Days to keep announcement history
 
 # Text truncation limits
 DESCRIPTION_TEASER_LENGTH = 150  # Characters for description teasers in special days
+DIGEST_DESCRIPTION_LENGTH = 80  # Characters for one-line descriptions in weekly digest
 LOG_PREVIEW_LENGTH = 200  # Characters for log preview snippets
 
 # AI/LLM settings
