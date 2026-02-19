@@ -122,8 +122,6 @@ def handle_special_command(args, user_id, say, app):
 
     else:
         # Unknown subcommand - show help
-        from slack.blocks import build_slash_help_blocks
-
         blocks, fallback = build_slash_help_blocks("special-day")
         say(blocks=blocks, text=fallback)
 
@@ -259,6 +257,11 @@ def handle_admin_special_command_with_quotes(command_text, user_id, say, app):
 
 def handle_admin_special_command(args, user_id, say, app):
     """Handle admin special days commands (non-add commands only)"""
+    from config import CALENDARIFIC_API_KEY, CALENDARIFIC_ENABLED
+    from integrations.calendarific import get_calendarific_client
+    from integrations.observances.un import get_un_cache_status
+    from integrations.observances.unesco import get_unesco_cache_status
+    from integrations.observances.who import get_who_cache_status
     from services.special_day import generate_special_day_message
     from storage.special_days import (
         get_special_days_for_date,
@@ -268,6 +271,7 @@ def handle_admin_special_command(args, user_id, say, app):
         save_special_days_config,
         update_category_status,
     )
+    from utils.date_utils import format_date_european_short
 
     username = get_username(app, user_id)
 
@@ -351,8 +355,6 @@ def handle_admin_special_command(args, user_id, say, app):
         special_days = get_special_days_for_date(test_date)
 
         if special_days:
-            from utils.date_utils import format_date_european_short
-
             test_date_str = format_date_european_short(test_date)
             say(f"🧪 Testing special day announcement for {test_date_str}...")
 
@@ -409,8 +411,6 @@ def handle_admin_special_command(args, user_id, say, app):
 
                 say(f"\n✅ Sent {len(special_days)} separate announcement(s) to your DM")
         else:
-            from utils.date_utils import format_date_european_short
-
             test_date_str = format_date_european_short(test_date)
             say(f"No special days found for {test_date_str}")
 
@@ -604,8 +604,6 @@ In daily mode, individual announcements are posted each day with observances."""
 
     elif subcommand == "refresh":
         # Calendarific: Force weekly prefetch
-        from config import CALENDARIFIC_API_KEY, CALENDARIFIC_ENABLED
-
         if not CALENDARIFIC_ENABLED:
             say("❌ Calendarific API is not enabled. Set `CALENDARIFIC_ENABLED=true` in .env")
             return
@@ -615,8 +613,6 @@ In daily mode, individual announcements are posted each day with observances."""
             return
 
         try:
-            from integrations.calendarific import get_calendarific_client
-
             client = get_calendarific_client()
 
             # Check if force refresh
@@ -650,10 +646,6 @@ In daily mode, individual announcements are posted each day with observances."""
     elif subcommand in ["observances-status", "observances", "sources"]:
         # Combined status for all observance sources
         try:
-            from integrations.observances.un import get_un_cache_status
-            from integrations.observances.unesco import get_unesco_cache_status
-            from integrations.observances.who import get_who_cache_status
-
             un_status = get_un_cache_status()
             unesco_status = get_unesco_cache_status()
             who_status = get_who_cache_status()
@@ -682,8 +674,6 @@ _Use `admin special [un|unesco|who]-refresh` to force update._"""
     elif subcommand in ["un-status", "un"]:
         # UN Observances: Show cache status
         try:
-            from integrations.observances.un import get_un_cache_status
-
             status = get_un_cache_status()
 
             last_updated = status.get("last_updated")
@@ -731,8 +721,6 @@ _Cache refreshes weekly. Use `admin special un-refresh` to force update._"""
     elif subcommand in ["unesco-status", "unesco"]:
         # UNESCO Observances: Show cache status
         try:
-            from integrations.observances.unesco import get_unesco_cache_status
-
             status = get_unesco_cache_status()
 
             last_updated = status.get("last_updated")
@@ -780,8 +768,6 @@ _Cache refreshes monthly. Use `admin special unesco-refresh` to force update._""
     elif subcommand in ["who-status", "who"]:
         # WHO Observances: Show cache status
         try:
-            from integrations.observances.who import get_who_cache_status
-
             status = get_who_cache_status()
 
             last_updated = status.get("last_updated")
@@ -828,8 +814,6 @@ _Cache refreshes monthly. Use `admin special who-refresh` to force update._"""
 
     elif subcommand in ["api-status", "api", "calendarific"]:
         # Calendarific: Show API status
-        from config import CALENDARIFIC_API_KEY, CALENDARIFIC_ENABLED
-
         if not CALENDARIFIC_ENABLED:
             say("""📊 *Calendarific API Status*
 
@@ -839,8 +823,6 @@ _Cache refreshes monthly. Use `admin special who-refresh` to force update._"""
             return
 
         try:
-            from integrations.calendarific import get_calendarific_client
-
             client = get_calendarific_client()
             status = client.get_api_status()
 

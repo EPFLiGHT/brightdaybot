@@ -536,7 +536,7 @@ def _get_birthday_statistics(birthdays, channel_member_set):
     empty_months = all_months - months_with_birthdays
 
     # Count birthdays this week (next 7 days)
-    from datetime import datetime, timedelta, timezone
+    from datetime import timedelta
 
     today = datetime.now(timezone.utc).date()
     week_end = today + timedelta(days=7)

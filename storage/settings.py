@@ -248,8 +248,6 @@ def get_configured_openai_model():
     Returns:
         str: The OpenAI model name to use for API calls
     """
-    import os
-
     try:
         # Use the function defined in this module
         configured_model = get_current_openai_model()

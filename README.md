@@ -161,7 +161,7 @@ docker compose up -d
 
 ```env
 # AI & Core Settings
-OPENAI_MODEL=""                      # AI model (see config.py DEFAULT_OPENAI_MODEL)
+OPENAI_MODEL=""                      # AI model (see config/settings.py)
 AI_IMAGE_GENERATION_ENABLED="true"  # Enable AI images
 EXTERNAL_BACKUP_ENABLED="true"      # Backup to admin DMs
 MAX_BACKUPS="10"                    # Backup files to retain (default: 10)
@@ -225,49 +225,68 @@ Toggle with `admin timezone enable/disable`.
 
 ```text
 brightdaybot/
-├── app.py                    # Entry point
-├── config.py                 # Configuration
-├── personality_config.py     # Personality definitions
-├── commands/                 # Command processors
-│   ├── birthday_commands.py
-│   ├── admin_commands.py
-│   └── special_commands.py
-├── handlers/                 # Slack event handlers
-│   ├── slash_commands.py     # /birthday, /special-day
-│   ├── modal_handlers.py     # Birthday form modal
-│   ├── app_home.py           # App Home dashboard
-│   └── event_handler.py      # DM & channel events
-├── services/                 # Business logic
-│   ├── birthday.py           # Celebrations
-│   ├── celebration.py        # Pipeline & validation
-│   ├── scheduler.py          # Background tasks
-│   ├── message.py            # AI message generation
-│   └── special_day.py        # Special day messages
-├── integrations/             # External API clients
-│   ├── openai.py             # OpenAI API
-│   ├── observances_base.py   # Base class for scrapers
-│   ├── un_observances.py     # UN international days
-│   ├── unesco_observances.py # UNESCO international days
-│   ├── who_observances.py    # WHO health campaigns
-│   ├── calendarific.py       # National holiday API
-│   └── web_search.py         # Historical facts
-├── slack/                    # Slack API layer
-│   ├── client.py             # API wrappers
-│   └── blocks.py             # Block Kit builders
-├── storage/                  # Data persistence
-│   ├── birthdays.py          # Birthday storage
-│   ├── special_days.py       # Special days (multi-source)
-│   └── settings.py           # Dynamic config
-├── image/                    # Image generation
-│   └── generator.py          # AI image generation
-├── utils/                    # Pure utilities
-│   ├── date.py               # Date parsing, star signs
-│   └── health.py             # System health
+├── app.py                        # Entry point
+├── config/                       # Configuration package
+│   ├── __init__.py               # Re-exports (backward compatibility)
+│   ├── settings.py               # Core settings, API parameters
+│   ├── personality.py            # Personality helpers
+│   └── personality_data.py       # Personality data constants
+├── commands/                     # Command processors
+│   ├── admin_commands.py         # Admin operations
+│   ├── birthday_commands.py      # Birthday CRUD
+│   ├── special_day_commands.py   # Special days management
+│   └── test_commands.py          # Testing commands
+├── handlers/                     # Slack event handlers
+│   ├── app_home_handler.py       # App Home dashboard
+│   ├── event_handler.py          # DM & channel events
+│   ├── mention_handler.py        # @-mention Q&A
+│   ├── modal_handler.py          # Birthday form modal
+│   ├── slash_handler.py          # /birthday, /special-day
+│   └── thread_handler.py         # Thread reactions
+├── services/                     # Business logic
+│   ├── birthday.py               # Celebrations
+│   ├── celebration.py            # Pipeline & validation
+│   ├── dispatcher.py             # Command routing
+│   ├── image_generator.py        # AI image generation
+│   ├── mention_responder.py      # @-mention responses
+│   ├── message_generator.py      # AI message generation
+│   ├── scheduler.py              # Background tasks
+│   └── special_day.py            # Special day messages
+├── integrations/                 # External API clients
+│   ├── calendarific.py           # National holiday API
+│   ├── openai.py                 # OpenAI API
+│   ├── web_search.py             # Historical facts
+│   └── observances/              # Web-scraped sources
+│       ├── base.py               # Base scraper class
+│       ├── un.py                 # UN international days
+│       ├── unesco.py             # UNESCO international days
+│       └── who.py                # WHO health campaigns
+├── slack/                        # Slack API layer
+│   ├── client.py                 # User profiles, permissions, channels
+│   ├── emoji.py                  # Emoji selection & management
+│   ├── messaging.py              # Message sending & file uploads
+│   └── blocks/                   # Block Kit builders
+│       ├── admin.py              # Admin/status blocks
+│       ├── birthday.py           # Birthday blocks
+│       ├── help.py               # Help & welcome blocks
+│       └── special_day.py        # Special day blocks
+├── storage/                      # Data persistence
+│   ├── birthdays.py              # Birthday storage
+│   ├── settings.py               # Dynamic config
+│   ├── special_days.py           # Special days (multi-source)
+│   └── thread_tracking.py        # Thread tracking
+├── utils/                        # Pure utilities
+│   ├── date_parsing.py           # Natural language dates
+│   ├── date_utils.py             # Date parsing, star signs
+│   ├── health.py                 # System health
+│   ├── ics.py                    # ICS calendar generation
+│   ├── log_setup.py              # Logging setup
+│   └── sanitization.py           # Input sanitization
 └── data/
-    ├── storage/              # Birthday data, configs
-    ├── logs/                 # 9 component logs
-    ├── backups/              # Auto backups
-    └── cache/                # Images, profiles, special days
+    ├── storage/                  # Birthday data, configs
+    ├── logs/                     # 9 component logs
+    ├── backups/                  # Auto backups
+    └── cache/                    # Images, profiles, observances
 ```
 
 ## Production Deployment

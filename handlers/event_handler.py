@@ -145,7 +145,7 @@ def _handle_channel_message(app, event, channel):
         channel: Channel ID
     """
     try:
-        from config import BIRTHDAY_CHANNEL, THREAD_ENGAGEMENT_ENABLED
+        from config import THREAD_ENGAGEMENT_ENABLED
 
         # Only react to messages in the birthday channel
         if channel != BIRTHDAY_CHANNEL:
@@ -372,7 +372,6 @@ def register_event_handlers(app):
             return
 
         try:
-            from slack.client import get_username
             from storage.birthdays import remove_birthday, trigger_external_backup
 
             username = get_username(app, user_id)

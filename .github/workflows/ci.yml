@@ -27,7 +27,7 @@ jobs:
       - name: Syntax check
         run: |
           uv run python -m py_compile app.py
-          uv run python -m py_compile config/__init__.py config/personality.py config/personality_data.py
+          uv run python -m py_compile config/__init__.py config/settings.py config/personality.py config/personality_data.py
           uv run python -m py_compile commands/*.py
           uv run python -m py_compile handlers/*.py
           uv run python -m py_compile services/*.py
@@ -46,6 +46,7 @@ jobs:
         run: |
           echo "Testing core imports..."
           uv run python -c "from config import *"
+          uv run python -c "from config.settings import *"
           uv run python -c "from config.personality import *"
           uv run python -c "from config.personality_data import *"
           echo "Testing commands..."

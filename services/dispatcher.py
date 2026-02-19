@@ -531,19 +531,17 @@ def _handle_add_command(parts, user_id, username, say, app):
         say: Slack say function for sending messages
         app: Slack app instance
     """
+    from slack.blocks import build_birthday_error_blocks
+
     date_text = " ".join(parts[1:])
     result = extract_date(date_text)
 
     if result["status"] == "no_date":
-        from slack.blocks import build_birthday_error_blocks
-
         blocks, fallback = build_birthday_error_blocks("no_date")
         say(blocks=blocks, text=fallback)
         return
 
     if result["status"] == "invalid_date":
-        from slack.blocks import build_birthday_error_blocks
-
         blocks, fallback = build_birthday_error_blocks("invalid_date")
         say(blocks=blocks, text=fallback)
         return

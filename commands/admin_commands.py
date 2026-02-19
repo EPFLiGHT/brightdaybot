@@ -300,6 +300,7 @@ def handle_model_command(args, user_id, say, _app, username):
         _app: Slack app instance (unused)
         username: Display name of requesting user for logging
     """
+    from config import DEFAULT_OPENAI_MODEL
     from storage.settings import get_openai_model_info
 
     if not args:
@@ -368,8 +369,6 @@ def handle_model_command(args, user_id, say, _app, username):
 
     elif subcommand == "reset":
         # Reset to default model using centralized constant
-        from config import DEFAULT_OPENAI_MODEL
-
         default_model = DEFAULT_OPENAI_MODEL
         current_model = get_current_openai_model()
 
@@ -387,8 +386,6 @@ def handle_model_command(args, user_id, say, _app, username):
 
     else:
         # Show help
-        from config import DEFAULT_OPENAI_MODEL
-
         say(f"""*OpenAI Model Management Commands:*
 
 • `admin model` - Show current model information

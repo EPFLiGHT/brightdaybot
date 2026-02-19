@@ -140,8 +140,6 @@ def check_environment():
 
 def check_birthdays_file():
     """Check birthdays JSON file and count entries."""
-    import json
-
     file_status = check_file(BIRTHDAYS_JSON_FILE)
     if file_status["status"] != STATUS_OK:
         return file_status
@@ -194,8 +192,6 @@ def check_personality_config():
 
 def check_special_days():
     """Check special days configuration."""
-    import json
-
     if not SPECIAL_DAYS_ENABLED:
         return {"status": STATUS_OK, "enabled": False, "note": "Feature disabled"}
 

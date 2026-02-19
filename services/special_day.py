@@ -473,8 +473,6 @@ def generate_special_day_details(
 
     # Get today's date for web search
     # Use test_date if provided (for testing specific dates), otherwise use today
-    from datetime import datetime
-
     today = test_date if test_date else datetime.now()
 
     try:

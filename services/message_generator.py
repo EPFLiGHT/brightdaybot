@@ -474,8 +474,6 @@ def _generate_birthday_message(
         try:
             birthday_facts = get_birthday_facts(birthday_date, selected_personality_name)
             if birthday_facts and birthday_facts["facts"]:
-                from config.personality import get_personality_config
-
                 personality_config = get_personality_config(selected_personality_name)
                 facts_template = personality_config.get(
                     "birthday_facts_text",
