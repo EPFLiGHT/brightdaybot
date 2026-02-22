@@ -1,0 +1,387 @@
+{
+  "version": 1,
+  "last_updated": "2026-01-03T13:30:49.745064",
+  "config": {
+    "enabled": true,
+    "personality": "chronicler",
+    "categories_enabled": {
+      "Global Health": true,
+      "Tech": true,
+      "Culture": true,
+      "Company": true
+    },
+    "announcement_time": "09:00"
+  },
+  "days": [
+    {
+      "date": "28/01",
+      "name": "Data Protection Day",
+      "category": "Tech",
+      "description": "Raising awareness about privacy and data protection best practices",
+      "emoji": "🔒",
+      "enabled": true,
+      "source": "Council of Europe",
+      "url": "https://www.coe.int/en/web/data-protection/data-protection-day"
+    },
+    {
+      "date": "04/02",
+      "name": "World Cancer Day",
+      "category": "Global Health",
+      "description": "Uniting the world in the fight against cancer",
+      "emoji": "🎗️",
+      "enabled": true,
+      "source": "UICC/WHO",
+      "url": "https://www.worldcancerday.org/"
+    },
+    {
+      "date": "14/03",
+      "name": "Pi Day",
+      "category": "Tech",
+      "description": "Celebrating the mathematical constant π and mathematics in general",
+      "emoji": "🥧",
+      "enabled": true,
+      "source": "Larry Shaw/Exploratorium",
+      "url": "https://www.piday.org/"
+    },
+    {
+      "date": "20/03",
+      "name": "World Oral Health Day",
+      "category": "Global Health",
+      "description": "Empowering people with knowledge and tools to secure good oral health",
+      "emoji": "🦷",
+      "enabled": true,
+      "source": "FDI",
+      "url": "https://www.worldoralhealthday.org/"
+    },
+    {
+      "date": "31/03",
+      "name": "World Backup Day",
+      "category": "Tech",
+      "description": "Reminder to protect digital data through regular backups",
+      "emoji": "💾",
+      "enabled": true,
+      "source": "Ismail Jadun",
+      "url": "https://www.worldbackupday.com/"
+    },
+    {
+      "date": "11/04",
+      "name": "World Parkinson's Day",
+      "category": "Global Health",
+      "description": "Raising awareness about Parkinson's disease and supporting those affected worldwide",
+      "emoji": "🧠",
+      "enabled": true,
+      "source": "Parkinson's Europe",
+      "url": "https://parkinsonseurope.org/"
+    },
+    {
+      "date": "18/04",
+      "name": "International Day for Monuments and Sites",
+      "category": "Culture",
+      "description": "Promoting cultural heritage preservation and awareness",
+      "emoji": "🏛️",
+      "enabled": true,
+      "source": "UNESCO/ICOMOS",
+      "url": "https://www.icomos.org/en/focus/18-april-international-day-for-monuments-and-sites"
+    },
+    {
+      "date": "19/04",
+      "name": "World Liver Day",
+      "category": "Global Health",
+      "description": "Raising awareness about liver diseases and promoting liver health globally",
+      "emoji": "🫀",
+      "enabled": true,
+      "source": "EASL",
+      "url": "https://worldliverday.org/"
+    },
+    {
+      "date": "25/04",
+      "name": "World DNA Day",
+      "category": "Tech",
+      "description": "Commemorating the discovery of DNA's double helix and the completion of the Human Genome Project",
+      "emoji": "🧬",
+      "enabled": true,
+      "source": "NHGRI/ASHG",
+      "url": "https://www.genome.gov/dna-day"
+    },
+    {
+      "date": "04/05",
+      "name": "Star Wars Day",
+      "category": "Tech",
+      "description": "Celebrating science fiction and space technology (May the Fourth)",
+      "emoji": "🌟",
+      "enabled": true,
+      "source": "Fan-created",
+      "url": ""
+    },
+    {
+      "date": "05/05",
+      "name": "International Day of the Midwife",
+      "category": "Global Health",
+      "description": "Recognizing midwives' vital role in maternal and newborn health worldwide",
+      "emoji": "🤱",
+      "enabled": true,
+      "source": "ICM",
+      "url": "https://www.internationalmidwives.org/what-we-do/policy-and-practice/international-day-of-the-midwife.html"
+    },
+    {
+      "date": "08/05",
+      "name": "World Red Cross and Red Crescent Day",
+      "category": "Global Health",
+      "description": "Celebrating humanitarian work and founder Henry Dunant's birthday",
+      "emoji": "⚕️",
+      "enabled": true,
+      "source": "IFRC",
+      "url": "https://www.ifrc.org/"
+    },
+    {
+      "date": "12/05",
+      "name": "International Nurses Day",
+      "category": "Global Health",
+      "description": "Honoring nurses and their vital contributions to healthcare",
+      "emoji": "👩‍⚕️",
+      "enabled": true,
+      "source": "ICN",
+      "url": "https://www.icn.ch/"
+    },
+    {
+      "date": "17/05",
+      "name": "International Day Against Homophobia, Biphobia, and Transphobia",
+      "category": "Culture",
+      "description": "Promoting LGBTQ+ rights and ending discrimination worldwide",
+      "emoji": "🏳️‍🌈",
+      "enabled": true,
+      "source": "UN OHCHR",
+      "url": "https://www.ohchr.org/en/topic/lgbti-people"
+    },
+    {
+      "date": "17/05",
+      "name": "World Hypertension Day",
+      "category": "Global Health",
+      "description": "Raising awareness about hypertension affecting 1.28 billion adults worldwide",
+      "emoji": "❤️‍🩹",
+      "enabled": true,
+      "source": "WHL",
+      "url": "https://whleague.org/"
+    },
+    {
+      "date": "20/05",
+      "name": "International Clinical Trials Day",
+      "category": "Tech",
+      "description": "Recognizing the importance of clinical research and honoring James Lind's first trial in 1747",
+      "emoji": "🔬",
+      "enabled": true,
+      "source": "ECRIN/ACRP",
+      "url": "https://www.clinicaltrialsday.org/"
+    },
+    {
+      "date": "28/05",
+      "name": "Menstrual Hygiene Day",
+      "category": "Global Health",
+      "description": "Breaking taboos and raising awareness about menstrual hygiene",
+      "emoji": "🌸",
+      "enabled": true,
+      "source": "WASH United",
+      "url": "https://menstrualhygieneday.org/"
+    },
+    {
+      "date": "19/06",
+      "name": "World Sickle Cell Day",
+      "category": "Global Health",
+      "description": "Increasing awareness of sickle cell disease affecting millions worldwide",
+      "emoji": "🩸",
+      "enabled": true,
+      "source": "UN",
+      "url": "https://www.un.org/en/observances/sickle-cell-day"
+    },
+    {
+      "date": "23/06",
+      "name": "International Women in Engineering Day",
+      "category": "Tech",
+      "description": "Promoting gender equality in STEM fields worldwide",
+      "emoji": "👷‍♀️",
+      "enabled": true,
+      "source": "Women's Engineering Society (WES)",
+      "url": "https://www.inwed.org.uk/"
+    },
+    {
+      "date": "06/07",
+      "name": "World Zoonoses Day",
+      "category": "Global Health",
+      "description": "Raising awareness of diseases transmitted between animals and humans",
+      "emoji": "🦠",
+      "enabled": true,
+      "source": "One Health",
+      "url": "https://www.onehealthcommission.org/"
+    },
+    {
+      "date": "25/07",
+      "name": "System Administrator Appreciation Day",
+      "category": "Tech",
+      "description": "Honoring sysadmins who keep IT infrastructure running (last Friday of July)",
+      "emoji": "🖥️",
+      "enabled": true,
+      "source": "Ted Kekatos",
+      "url": "https://sysadminday.com/"
+    },
+    {
+      "date": "31/08",
+      "name": "International Overdose Awareness Day",
+      "category": "Global Health",
+      "description": "Remembering those lost to overdose and ending stigma",
+      "emoji": "💜",
+      "enabled": true,
+      "source": "Penington Institute",
+      "url": "https://www.overdoseday.com/"
+    },
+    {
+      "date": "13/09",
+      "name": "Programmers' Day",
+      "category": "Tech",
+      "description": "Celebrating programmers and their contributions (256th day of year)",
+      "emoji": "💻",
+      "enabled": true,
+      "source": "Russia",
+      "url": ""
+    },
+    {
+      "date": "13/09",
+      "name": "World Sepsis Day",
+      "category": "Global Health",
+      "description": "Raising awareness of sepsis which affects 50 million people and causes 11 million deaths annually",
+      "emoji": "🩺",
+      "enabled": true,
+      "source": "Global Sepsis Alliance",
+      "url": "https://www.worldsepsisday.org/"
+    },
+    {
+      "date": "21/09",
+      "name": "World Alzheimer's Day",
+      "category": "Global Health",
+      "description": "Raising awareness about Alzheimer's disease and dementia worldwide",
+      "emoji": "🧠",
+      "enabled": true,
+      "source": "Alzheimer's Disease International",
+      "url": "https://www.alzint.org/"
+    },
+    {
+      "date": "26/09",
+      "name": "World Contraception Day",
+      "category": "Global Health",
+      "description": "Improving awareness of contraception enabling informed reproductive health choices",
+      "emoji": "💊",
+      "enabled": true,
+      "source": "WCD Coalition",
+      "url": "https://www.un.org/development/desa/pd/events/world-contraception-day"
+    },
+    {
+      "date": "29/09",
+      "name": "World Heart Day",
+      "category": "Global Health",
+      "description": "Informing people about cardiovascular diseases and prevention",
+      "emoji": "❤️",
+      "enabled": true,
+      "source": "WHO",
+      "url": "https://www.world-heart-federation.org/world-heart-day"
+    },
+    {
+      "date": "07/10",
+      "name": "IEEE Day",
+      "category": "Tech",
+      "description": "Celebrating the founding of IEEE and engineering innovation worldwide",
+      "emoji": "⚡",
+      "enabled": true,
+      "source": "IEEE",
+      "url": "https://ieeeday.org/"
+    },
+    {
+      "date": "12/10",
+      "name": "World Arthritis Day",
+      "category": "Global Health",
+      "description": "Raising awareness of rheumatic and musculoskeletal diseases affecting 350 million people",
+      "emoji": "🦴",
+      "enabled": true,
+      "source": "ARI/EULAR",
+      "url": "https://www.arthritis.org/about-arthritis/world-arthritis-day"
+    },
+    {
+      "date": "14/10",
+      "name": "Ada Lovelace Day",
+      "category": "Tech",
+      "description": "Celebrating women in STEM and honoring the first computer programmer",
+      "emoji": "👩‍💻",
+      "enabled": true,
+      "source": "Finding Ada",
+      "url": "https://findingada.com/"
+    },
+    {
+      "date": "20/10",
+      "name": "World Osteoporosis Day",
+      "category": "Global Health",
+      "description": "Promoting bone health awareness and prevention of osteoporosis and fractures",
+      "emoji": "🦴",
+      "enabled": true,
+      "source": "IOF",
+      "url": "https://www.worldosteoporosisday.org/"
+    },
+    {
+      "date": "24/10",
+      "name": "World Polio Day",
+      "category": "Global Health",
+      "description": "Commemorating Jonas Salk and highlighting global efforts to eradicate polio",
+      "emoji": "💉",
+      "enabled": true,
+      "source": "Rotary/GPEI",
+      "url": "https://www.endpolio.org/world-polio-day"
+    },
+    {
+      "date": "29/10",
+      "name": "World Stroke Day",
+      "category": "Global Health",
+      "description": "Raising awareness about stroke prevention and treatment worldwide",
+      "emoji": "🧠",
+      "enabled": true,
+      "source": "World Stroke Organization",
+      "url": "https://www.world-stroke.org/world-stroke-day-campaign"
+    },
+    {
+      "date": "07/11",
+      "name": "International Day of Medical Physics",
+      "category": "Global Health",
+      "description": "Recognizing the role of medical physics in patient care",
+      "emoji": "⚛️",
+      "enabled": true,
+      "source": "IOMP",
+      "url": "https://www.iomp.org/"
+    },
+    {
+      "date": "08/11",
+      "name": "International Day of Radiology",
+      "category": "Tech",
+      "description": "Celebrating the discovery of x-rays and the vital role of radiology in healthcare",
+      "emoji": "☢️",
+      "enabled": true,
+      "source": "ESR/RSNA",
+      "url": "https://www.internationaldayofradiology.com/"
+    },
+    {
+      "date": "12/11",
+      "name": "World Pneumonia Day",
+      "category": "Global Health",
+      "description": "Raising awareness about pneumonia as the leading infectious cause of child death",
+      "emoji": "🫁",
+      "enabled": true,
+      "source": "GCACP/WHO",
+      "url": "https://stoppneumonia.org/latest/world-pneumonia-day/"
+    },
+    {
+      "date": "30/11",
+      "name": "Computer Security Day",
+      "category": "Tech",
+      "description": "Promoting computer and data security awareness",
+      "emoji": "🔐",
+      "enabled": true,
+      "source": "",
+      "url": ""
+    }
+  ]
+}

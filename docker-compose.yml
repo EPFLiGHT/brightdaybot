@@ -1,0 +1,22 @@
+services:
+  brightdaybot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: brightdaybot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      # Persist data directories
+      - ./data/storage:/app/data/storage
+      - ./data/logs:/app/data/logs
+      - ./data/backups:/app/data/backups
+      - ./data/cache:/app/data/cache
+      - ./data/tracking:/app/data/tracking
+    healthcheck:
+      test: ["CMD", "python", "-c", "from utils.health import get_system_status; import sys; sys.exit(0 if get_system_status()['overall'] == 'ok' else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

@@ -1,25 +1,39 @@
 """
-Background scheduling system for automatic birthday celebrations.
+Background scheduling system for automatic birthday celebrations and cache maintenance.
 
 Manages timezone-aware hourly checks and simple daily announcements in a
 separate daemon thread. Supports startup recovery and dynamic reconfiguration.
 
-Key functions: setup_scheduler(), run_now(), hourly_task(), daily_task().
+Key functions:
+- setup_scheduler(), run_now(): Scheduler initialization and manual triggers
+- hourly_task(), daily_task(): Birthday check tasks
+- weekly_calendarific_refresh_task(): Weekly Calendarific cache refresh (Sundays)
+- monthly_observances_refresh_task(): Monthly observances cache refresh (1st of month)
+  Refreshes UN, UNESCO, and WHO caches.
+
 Uses schedule library and threading for non-blocking execution.
 """
 
-import schedule
-import time
+import json
+import os
 import threading
+import time
 from datetime import datetime, timezone
 
+import schedule
+from filelock import FileLock
+
 from config import (
+    CACHE_REFRESH_TIME,
     DAILY_CHECK_TIME,
-    SCHEDULER_CHECK_INTERVAL_SECONDS,
     HEARTBEAT_STALE_THRESHOLD_SECONDS,
+    SCHEDULER_CHECK_INTERVAL_SECONDS,
+    SCHEDULER_STATS_FILE,
+    SCHEDULER_STATS_SAVE_INTERVAL,
+    TIMEOUTS,
     get_logger,
 )
-from services.birthday import timezone_aware_check, celebrate_missed_birthdays
+from services.birthday import celebrate_missed_birthdays
 
 logger = get_logger("scheduler")
 
@@ -37,12 +51,97 @@ _total_executions = 0
 _failed_executions = 0
 _scheduler_running = False
 
+# Persistence configuration
+SCHEDULER_STATS_LOCK_FILE = SCHEDULER_STATS_FILE + ".lock"
+
+
+def load_scheduler_stats() -> dict:
+    """
+    Load scheduler statistics from persistent storage.
+
+    Returns:
+        dict: Scheduler statistics with keys:
+            - total_executions: int
+            - failed_executions: int
+            - last_heartbeat: ISO timestamp string or None
+            - started_at: ISO timestamp of first run
+            - last_saved: ISO timestamp of last save
+    """
+    try:
+        lock = FileLock(SCHEDULER_STATS_LOCK_FILE, timeout=TIMEOUTS["file_lock"])
+        with lock:
+            if os.path.exists(SCHEDULER_STATS_FILE):
+                with open(SCHEDULER_STATS_FILE, "r") as f:
+                    return json.load(f)
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        logger.warning(f"SCHEDULER_STATS: Failed to load stats: {e}")
+    return {
+        "total_executions": 0,
+        "failed_executions": 0,
+        "last_heartbeat": None,
+        "started_at": None,
+        "last_saved": None,
+    }
+
+
+def save_scheduler_stats(
+    total_executions: int, failed_executions: int, last_heartbeat: datetime | None
+) -> bool:
+    """
+    Save scheduler statistics to persistent storage.
+
+    Args:
+        total_executions: Total number of scheduler loop executions
+        failed_executions: Number of failed executions
+        last_heartbeat: Last heartbeat datetime
+
+    Returns:
+        bool: True if save successful, False otherwise
+    """
+    try:
+        # Load existing to preserve started_at
+        existing = load_scheduler_stats()
+        started_at = existing.get("started_at")
+        if not started_at:
+            started_at = datetime.now(timezone.utc).isoformat()
+
+        data = {
+            "total_executions": total_executions,
+            "failed_executions": failed_executions,
+            "last_heartbeat": last_heartbeat.isoformat() if last_heartbeat else None,
+            "started_at": started_at,
+            "last_saved": datetime.now(timezone.utc).isoformat(),
+        }
+
+        lock = FileLock(SCHEDULER_STATS_LOCK_FILE, timeout=TIMEOUTS["file_lock"])
+        with lock:
+            with open(SCHEDULER_STATS_FILE, "w") as f:
+                json.dump(data, f, indent=2, sort_keys=True)
+        logger.debug(
+            f"SCHEDULER_STATS: Saved stats - {total_executions} total, {failed_executions} failed"
+        )
+        return True
+    except Exception as e:
+        logger.error(f"SCHEDULER_STATS: Failed to save stats: {e}")
+        return False
+
 
 def hourly_task():
     """
-    Run the hourly birthday check task for timezone-aware celebrations
-    This function is called every hour to check for birthdays in different timezones
+    Run the hourly birthday check task for timezone-aware celebrations.
+    This function is called every hour to check for birthdays in different timezones.
+    Checks timezone mode at runtime to allow dynamic mode switching.
     """
+    from storage.settings import load_timezone_settings
+
+    # Check if timezone mode is enabled at runtime (allows dynamic switching)
+    timezone_enabled, _ = load_timezone_settings()
+    if not timezone_enabled:
+        logger.debug("SCHEDULER: Timezone mode disabled, skipping hourly check")
+        return
+
     current_time = datetime.now(timezone.utc)
     local_time = datetime.now()
     logger.info(
@@ -57,8 +156,18 @@ def hourly_task():
 
 def daily_task():
     """
-    Daily task - runs simple daily check for all birthdays at once
+    Daily task - runs simple daily check for all birthdays at once.
+    Checks timezone mode at runtime to allow dynamic mode switching.
+    Only runs when timezone mode is DISABLED.
     """
+    from storage.settings import load_timezone_settings
+
+    # Check if timezone mode is disabled at runtime (allows dynamic switching)
+    timezone_enabled, _ = load_timezone_settings()
+    if timezone_enabled:
+        logger.debug("SCHEDULER: Timezone mode enabled, skipping daily check (using hourly)")
+        return
+
     current_time = datetime.now(timezone.utc)
     local_time = datetime.now()
     logger.info(
@@ -71,12 +180,93 @@ def daily_task():
         logger.error("SCHEDULER: No simple daily callback or app instance registered")
 
 
+def weekly_calendarific_refresh_task():
+    """
+    Weekly task - refreshes Calendarific cache for upcoming holidays.
+    Runs every Sunday at CACHE_REFRESH_TIME.
+    """
+    from config import CALENDARIFIC_ENABLED
+
+    logger.info("SCHEDULER: Running weekly Calendarific cache refresh")
+
+    if CALENDARIFIC_ENABLED:
+        try:
+            from integrations.calendarific import get_calendarific_client
+
+            client = get_calendarific_client()
+            stats = client.weekly_prefetch(force=True)
+            logger.info(f"SCHEDULER: Calendarific prefetch complete: {stats}")
+        except Exception as e:
+            logger.error(f"SCHEDULER: Failed to refresh Calendarific cache: {e}")
+    else:
+        logger.debug("SCHEDULER: Calendarific not enabled, skipping refresh")
+
+
+def weekly_special_days_task():
+    """
+    Weekly task - sends special days digest if in weekly mode.
+    Runs on the configured day at SPECIAL_DAYS_CHECK_TIME.
+    """
+    from storage.special_days import get_special_days_mode
+
+    # Only run if in weekly mode
+    if get_special_days_mode() != "weekly":
+        logger.debug("SCHEDULER: Not in weekly mode, skipping weekly special days task")
+        return
+
+    current_time = datetime.now(timezone.utc)
+    local_time = datetime.now()
+    logger.info(
+        f"SCHEDULER: Running weekly special days digest at {local_time.strftime('%H:%M:%S')} local time"
+    )
+
+    if _app_instance:
+        from services.birthday import check_and_announce_weekly_special_days
+
+        check_and_announce_weekly_special_days(_app_instance, current_time)
+    else:
+        logger.error("SCHEDULER: No app instance registered for weekly special days")
+
+
+def monthly_observances_refresh_task():
+    """
+    Monthly task - refreshes all observances caches (UN, UNESCO, WHO).
+    Runs on the 1st of each month at CACHE_REFRESH_TIME.
+    Observances data rarely changes, so monthly refresh is sufficient.
+    """
+    from integrations.observances import get_enabled_sources
+
+    logger.info("SCHEDULER: Running monthly observances cache refresh")
+
+    sources = get_enabled_sources()
+    if not sources:
+        logger.debug("SCHEDULER: No observance sources enabled, skipping refresh")
+        return
+
+    for name, refresh_fn, _status_fn in sources:
+        try:
+            stats = refresh_fn(force=True)
+            logger.info(f"SCHEDULER: {name} observances refresh complete: {stats}")
+        except Exception as e:
+            logger.error(f"SCHEDULER: Failed to refresh {name} observances cache: {e}")
+
+
 def run_scheduler():
-    """Run the scheduler in a separate thread with health monitoring"""
+    """Run the scheduler in a separate thread with health monitoring and stats persistence"""
     global _last_heartbeat, _total_executions, _failed_executions, _scheduler_running
+
+    # Load persisted stats on startup
+    persisted_stats = load_scheduler_stats()
+    _total_executions = persisted_stats.get("total_executions", 0)
+    _failed_executions = persisted_stats.get("failed_executions", 0)
+    logger.info(
+        f"SCHEDULER_HEALTH: Loaded persisted stats - {_total_executions} total, {_failed_executions} failed"
+    )
 
     _scheduler_running = True
     logger.info("SCHEDULER_HEALTH: Scheduler thread started and running")
+
+    last_save_count = _total_executions
 
     while True:
         try:
@@ -89,14 +279,20 @@ def run_scheduler():
                 _total_executions += 1
 
             schedule.run_pending()
+
+            # Save stats periodically
+            if _total_executions - last_save_count >= SCHEDULER_STATS_SAVE_INTERVAL:
+                save_scheduler_stats(_total_executions, _failed_executions, _last_heartbeat)
+                last_save_count = _total_executions
+
             time.sleep(SCHEDULER_CHECK_INTERVAL_SECONDS)
 
         except Exception as e:
             _failed_executions += 1
             logger.error(f"SCHEDULER_HEALTH: Error in scheduler loop: {e}")
-            time.sleep(
-                SCHEDULER_CHECK_INTERVAL_SECONDS
-            )  # Continue running even after errors
+            # Save stats on error to persist failure count
+            save_scheduler_stats(_total_executions, _failed_executions, _last_heartbeat)
+            time.sleep(SCHEDULER_CHECK_INTERVAL_SECONDS)  # Continue running even after errors
 
 
 def setup_scheduler(app, timezone_aware_check, simple_daily_check):
@@ -113,32 +309,68 @@ def setup_scheduler(app, timezone_aware_check, simple_daily_check):
     _simple_daily_callback = simple_daily_check
     _app_instance = app
 
-    # Load timezone settings
-    from utils.app_config import load_timezone_settings
+    # Load timezone settings for logging current state
+    from storage.settings import load_timezone_settings
 
     _timezone_enabled, _check_interval = load_timezone_settings()
 
-    if _timezone_enabled:
-        # Schedule hourly birthday checks at the top of each hour for timezone-aware celebrations
-        # This ensures celebrations happen at the configured time in each user's timezone
-        schedule.every().hour.at(":00").do(hourly_task)
-        logger.info(
-            f"SCHEDULER: Timezone-aware birthday checks ENABLED (checking every {_check_interval} hour(s) at :00)"
-        )
-        # No need for daily task when hourly checks are running - they already cover all timezones
-    else:
-        # Only schedule daily check when timezone mode is disabled
-        schedule.every().day.at(DAILY_CHECK_TIME.strftime("%H:%M")).do(daily_task)
-        logger.info(
-            f"SCHEDULER: Timezone-aware birthday checks DISABLED (using daily check only)"
-        )
+    # Schedule BOTH hourly and daily tasks - they check mode at runtime
+    # This allows dynamic mode switching without bot restart
+    schedule.every().hour.at(":00").do(hourly_task)
+    schedule.every().day.at(DAILY_CHECK_TIME.strftime("%H:%M")).do(daily_task)
 
     # Get time zone info for logging
     local_timezone = datetime.now().astimezone().tzinfo
 
-    if not _timezone_enabled:
+    # Log current mode for visibility
+    if _timezone_enabled:
         logger.info(
-            f"SCHEDULER: Daily primary check scheduled for {DAILY_CHECK_TIME.strftime('%H:%M')} local time ({local_timezone})"
+            "SCHEDULER: Birthday tasks scheduled (current: timezone-aware mode, hourly at :00)"
+        )
+    else:
+        logger.info(
+            f"SCHEDULER: Birthday tasks scheduled (current: daily mode at {DAILY_CHECK_TIME.strftime('%H:%M')} {local_timezone})"
+        )
+
+    # Schedule weekly Calendarific cache refresh (every Sunday)
+    cache_time_str = CACHE_REFRESH_TIME.strftime("%H:%M")
+    schedule.every().sunday.at(cache_time_str).do(weekly_calendarific_refresh_task)
+    logger.info(f"SCHEDULER: Weekly Calendarific refresh scheduled for Sunday {cache_time_str}")
+
+    # Schedule monthly observances cache refresh (1st of each month)
+    # Refreshes UN, UNESCO, and WHO observances caches
+    # Using day 1 check - runs daily but only executes on the 1st
+    def monthly_observances_check():
+        if datetime.now().day == 1:
+            monthly_observances_refresh_task()
+
+    schedule.every().day.at(cache_time_str).do(monthly_observances_check)
+    logger.info(
+        f"SCHEDULER: Monthly observances refresh (UN/UNESCO/WHO) scheduled for 1st of each month at {cache_time_str}"
+    )
+
+    # Schedule weekly special days digest task
+    # Always schedule this - the task itself checks the mode at runtime
+    # This allows mode changes to take effect without bot restart
+    from config import SPECIAL_DAYS_CHECK_TIME, WEEKDAY_NAMES
+    from storage.special_days import get_special_days_mode, get_weekly_day
+
+    special_time_str = SPECIAL_DAYS_CHECK_TIME.strftime("%H:%M")
+
+    # Schedule for all days - the task checks mode and configured day at runtime
+    schedule.every().day.at(special_time_str).do(weekly_special_days_task)
+
+    # Log current mode for visibility
+    special_days_mode = get_special_days_mode()
+    if special_days_mode == "weekly":
+        weekly_day = get_weekly_day()
+        day_name = WEEKDAY_NAMES[weekly_day]
+        logger.info(
+            f"SCHEDULER: Weekly special days task scheduled (current: weekly mode on {day_name.capitalize()})"
+        )
+    else:
+        logger.info(
+            "SCHEDULER: Weekly special days task scheduled (current: daily mode, task will skip)"
         )
 
     # Start the scheduler in a separate thread
@@ -182,10 +414,10 @@ def startup_birthday_catchup(app, current_time):
 
     Args:
         app: Slack app instance
-        current_time: Current datetime (passed for logging purposes)
+        current_time: Current datetime (for logging)
     """
     logger.info(
-        "STARTUP: Checking for missed birthday celebrations due to server downtime"
+        f"STARTUP: Checking for missed birthday celebrations due to server downtime at {current_time}"
     )
 
     # Use the dedicated missed birthday function that bypasses time checks
@@ -198,7 +430,7 @@ def get_scheduler_health():
     Get scheduler health status for monitoring
 
     Returns:
-        dict: Scheduler health information
+        dict: Scheduler health information including persisted stats
     """
     global _scheduler_thread, _last_heartbeat, _total_executions, _failed_executions, _scheduler_running
 
@@ -218,13 +450,12 @@ def get_scheduler_health():
     # Calculate success rate
     success_rate = None
     if _total_executions > 0:
-        success_rate = (
-            (_total_executions - _failed_executions) / _total_executions
-        ) * 100
+        success_rate = ((_total_executions - _failed_executions) / _total_executions) * 100
 
-    health_status = (
-        "ok" if (thread_alive and heartbeat_fresh and _scheduler_running) else "error"
-    )
+    health_status = "ok" if (thread_alive and heartbeat_fresh and _scheduler_running) else "error"
+
+    # Get persisted stats for additional info
+    persisted_stats = load_scheduler_stats()
 
     return {
         "status": health_status,
@@ -239,6 +470,8 @@ def get_scheduler_health():
         "scheduled_jobs": len(schedule.jobs),
         "timezone_enabled": _timezone_enabled,
         "check_interval_hours": _check_interval,
+        "started_at": persisted_stats.get("started_at"),
+        "last_saved": persisted_stats.get("last_saved"),
     }
 
 
@@ -258,9 +491,11 @@ def get_scheduler_summary():
         if not health["thread_alive"]:
             issues.append("thread not running")
         if not health["heartbeat_fresh"]:
-            issues.append(
-                f"heartbeat stale ({health['heartbeat_age_seconds']:.0f}s ago)"
-            )
+            age = health["heartbeat_age_seconds"]
+            if age is not None:
+                issues.append(f"heartbeat stale ({age:.0f}s ago)")
+            else:
+                issues.append("no heartbeat recorded")
         if not health["scheduler_running"]:
             issues.append("not initialized")
 

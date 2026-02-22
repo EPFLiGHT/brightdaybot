@@ -5,7 +5,7 @@ Verifies that slack_utils functions call the correct Slack SDK methods
 with proper parameters and handle errors appropriately.
 """
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 
 class TestGetUserProfile:
@@ -13,7 +13,7 @@ class TestGetUserProfile:
 
     def test_calls_both_profile_and_info_apis(self, mock_slack_app):
         """Verify both users_profile_get and users_info are called."""
-        from utils.slack_utils import get_user_profile
+        from slack.client import get_user_profile
 
         result = get_user_profile(mock_slack_app, "U123456")
 
@@ -29,11 +29,9 @@ class TestGetUserProfile:
 
     def test_returns_none_on_slack_api_error(self, mock_slack_app, slack_api_error):
         """Returns None when SlackApiError occurs."""
-        from utils.slack_utils import get_user_profile
+        from slack.client import get_user_profile
 
-        mock_slack_app.client.users_profile_get.side_effect = slack_api_error(
-            "user_not_found"
-        )
+        mock_slack_app.client.users_profile_get.side_effect = slack_api_error("user_not_found")
 
         result = get_user_profile(mock_slack_app, "U999999")
 
@@ -41,7 +39,7 @@ class TestGetUserProfile:
 
     def test_returns_none_when_api_returns_not_ok(self, mock_slack_app):
         """Returns None when API response has ok=False."""
-        from utils.slack_utils import get_user_profile
+        from slack.client import get_user_profile
 
         mock_slack_app.client.users_profile_get.return_value = {"ok": False}
 
@@ -51,7 +49,7 @@ class TestGetUserProfile:
 
     def test_handles_missing_display_name(self, mock_slack_app):
         """Handles missing display_name by using real_name."""
-        from utils.slack_utils import get_user_profile
+        from slack.client import get_user_profile
 
         mock_slack_app.client.users_profile_get.return_value = {
             "ok": True,
@@ -70,7 +68,7 @@ class TestGetUserProfile:
 
     def test_extracts_timezone_from_user_info(self, mock_slack_app):
         """Timezone data comes from users_info response."""
-        from utils.slack_utils import get_user_profile
+        from slack.client import get_user_profile
 
         mock_slack_app.client.users_info.return_value = {
             "ok": True,
@@ -96,10 +94,10 @@ class TestGetUsername:
 
     def test_returns_display_name_when_available(self, mock_slack_app):
         """Returns display_name from profile."""
-        from utils.slack_utils import get_username
+        from slack.client import get_username
 
         # Clear the cache to ensure fresh lookup
-        with patch("utils.slack_utils.username_cache", {}):
+        with patch("slack.client.username_cache", {}):
             result = get_username(mock_slack_app, "U123456")
 
         assert result == "TestUser"
@@ -107,39 +105,38 @@ class TestGetUsername:
 
     def test_falls_back_to_real_name_when_display_empty(self, mock_slack_app):
         """Falls back to real_name when display_name is empty."""
-        from utils.slack_utils import get_username
+        from slack.client import get_username
 
         mock_slack_app.client.users_profile_get.return_value = {
             "ok": True,
             "profile": {"display_name": "", "real_name": "Real Name"},
         }
 
-        with patch("utils.slack_utils.username_cache", {}):
+        with patch("slack.client.username_cache", {}):
             result = get_username(mock_slack_app, "U123456")
 
         assert result == "Real Name"
 
     def test_returns_mention_on_api_error(self, mock_slack_app, slack_api_error):
         """Returns formatted mention when API fails."""
-        from utils.slack_utils import get_username
+        from slack.client import get_username
 
-        mock_slack_app.client.users_profile_get.side_effect = slack_api_error(
-            "user_not_found"
-        )
+        mock_slack_app.client.users_profile_get.side_effect = slack_api_error("user_not_found")
 
-        with patch("utils.slack_utils.username_cache", {}):
+        with patch("slack.client.username_cache", {}):
             result = get_username(mock_slack_app, "U999999")
 
         assert "<@U999999>" in result
 
     def test_uses_cache_when_available(self, mock_slack_app):
         """Uses cached username instead of making API call."""
-        from utils.slack_utils import get_username
         from datetime import datetime
+
+        from slack.client import get_username
 
         # Cache now stores (username, timestamp) tuples
         cache_with_ttl = {"U123456": ("CachedName", datetime.now())}
-        with patch("utils.slack_utils.username_cache", cache_with_ttl):
+        with patch("slack.client.username_cache", cache_with_ttl):
             result = get_username(mock_slack_app, "U123456")
 
         assert result == "CachedName"
@@ -152,18 +149,19 @@ class TestSendMessage:
 
     def test_calls_chat_post_message_with_text(self, mock_slack_app):
         """Verify chat_postMessage called with text."""
-        from utils.slack_utils import send_message
+        from slack.messaging import send_message
 
         result = send_message(mock_slack_app, "C123456", "Hello world")
 
         mock_slack_app.client.chat_postMessage.assert_called_once_with(
             channel="C123456", text="Hello world"
         )
-        assert result is True
+        assert result["success"] is True
+        assert "ts" in result
 
     def test_includes_blocks_when_provided(self, mock_slack_app):
         """Message includes blocks when provided."""
-        from utils.slack_utils import send_message
+        from slack.messaging import send_message
 
         blocks = [{"type": "section", "text": {"type": "mrkdwn", "text": "Hello"}}]
 
@@ -172,19 +170,18 @@ class TestSendMessage:
         mock_slack_app.client.chat_postMessage.assert_called_once_with(
             channel="C123456", text="Hello world", blocks=blocks
         )
-        assert result is True
+        assert result["success"] is True
 
     def test_returns_false_on_api_error(self, mock_slack_app, slack_api_error):
-        """Returns False when SlackApiError occurs."""
-        from utils.slack_utils import send_message
+        """Returns dict with success=False when SlackApiError occurs."""
+        from slack.messaging import send_message
 
-        mock_slack_app.client.chat_postMessage.side_effect = slack_api_error(
-            "channel_not_found"
-        )
+        mock_slack_app.client.chat_postMessage.side_effect = slack_api_error("channel_not_found")
 
         result = send_message(mock_slack_app, "C999999", "Hello")
 
-        assert result is False
+        assert result["success"] is False
+        assert result["ts"] is None
 
 
 class TestSlackApiErrorHandling:
@@ -192,13 +189,11 @@ class TestSlackApiErrorHandling:
 
     def test_get_user_profile_logs_on_error(self, mock_slack_app, slack_api_error):
         """Errors are logged when get_user_profile fails."""
-        from utils.slack_utils import get_user_profile
+        from slack.client import get_user_profile
 
-        mock_slack_app.client.users_profile_get.side_effect = slack_api_error(
-            "rate_limited"
-        )
+        mock_slack_app.client.users_profile_get.side_effect = slack_api_error("rate_limited")
 
-        with patch("utils.slack_utils.logger") as mock_logger:
+        with patch("slack.client.logger") as mock_logger:
             result = get_user_profile(mock_slack_app, "U123456")
 
             assert result is None
@@ -206,21 +201,19 @@ class TestSlackApiErrorHandling:
 
     def test_send_message_logs_on_error(self, mock_slack_app, slack_api_error):
         """Errors are logged when send_message fails."""
-        from utils.slack_utils import send_message
+        from slack.messaging import send_message
 
-        mock_slack_app.client.chat_postMessage.side_effect = slack_api_error(
-            "channel_not_found"
-        )
+        mock_slack_app.client.chat_postMessage.side_effect = slack_api_error("channel_not_found")
 
-        with patch("utils.slack_utils.logger") as mock_logger:
+        with patch("slack.messaging.logger") as mock_logger:
             result = send_message(mock_slack_app, "C999999", "Hello")
 
-            assert result is False
+            assert result["success"] is False
             mock_logger.error.assert_called()
 
     def test_graceful_degradation_on_partial_failure(self, mock_slack_app):
         """Functions handle partial API response failures gracefully."""
-        from utils.slack_utils import get_user_profile
+        from slack.client import get_user_profile
 
         # Profile succeeds but info fails
         mock_slack_app.client.users_profile_get.return_value = {
@@ -240,13 +233,14 @@ class TestIsAdmin:
 
     def test_checks_admin_users_list_first(self, mock_slack_app):
         """Checks configured ADMIN_USERS before making API call."""
-        from utils.slack_utils import is_admin
         from datetime import datetime
+
+        from slack.client import is_admin
 
         # Cache now stores (username, timestamp) tuples
         cache_with_ttl = {"U123456": ("AdminUser", datetime.now())}
-        with patch("utils.slack_utils.get_current_admins", return_value=["U123456"]):
-            with patch("utils.slack_utils.username_cache", cache_with_ttl):
+        with patch("slack.client.get_current_admins", return_value=["U123456"]):
+            with patch("slack.client.username_cache", cache_with_ttl):
                 result = is_admin(mock_slack_app, "U123456")
 
         assert result is True
@@ -255,14 +249,14 @@ class TestIsAdmin:
 
     def test_falls_back_to_workspace_admin_check(self, mock_slack_app):
         """Checks workspace admin status when not in ADMIN_USERS."""
-        from utils.slack_utils import is_admin
+        from slack.client import is_admin
 
         mock_slack_app.client.users_info.return_value = {
             "ok": True,
             "user": {"is_admin": True},
         }
 
-        with patch("utils.slack_utils.get_current_admins", return_value=[]):
+        with patch("slack.client.get_current_admins", return_value=[]):
             result = is_admin(mock_slack_app, "U123456")
 
         assert result is True
@@ -270,14 +264,14 @@ class TestIsAdmin:
 
     def test_returns_false_for_non_admin(self, mock_slack_app):
         """Returns False for non-admin users."""
-        from utils.slack_utils import is_admin
+        from slack.client import is_admin
 
         mock_slack_app.client.users_info.return_value = {
             "ok": True,
             "user": {"is_admin": False},
         }
 
-        with patch("utils.slack_utils.get_current_admins", return_value=[]):
+        with patch("slack.client.get_current_admins", return_value=[]):
             result = is_admin(mock_slack_app, "U123456")
 
         assert result is False

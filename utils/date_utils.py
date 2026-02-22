@@ -9,13 +9,15 @@ is_celebration_time_for_user(), format_timezone_schedule().
 """
 
 import re
-from datetime import datetime, timezone
 from calendar import month_name
-import pytz
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from config import (
     DATE_FORMAT,
     DATE_WITH_YEAR_FORMAT,
+    MIN_BIRTH_YEAR,
+    RETRY_LIMITS,
     TIMEZONE_CELEBRATION_TIME,
     get_logger,
 )
@@ -40,11 +42,11 @@ def extract_date(message: str) -> dict:
         try:
             date_obj = datetime.strptime(date_with_year, DATE_WITH_YEAR_FORMAT)
 
-            # Validate reasonable year range (1900-2024)
+            # Validate reasonable year range
             current_year = datetime.now().year
-            if date_obj.year < 1900 or date_obj.year > current_year:
+            if date_obj.year < MIN_BIRTH_YEAR or date_obj.year > current_year:
                 logger.error(
-                    f"DATE_ERROR: Year out of valid range (1900-{current_year}): {date_obj.year}"
+                    f"DATE_ERROR: Year out of valid range ({MIN_BIRTH_YEAR}-{current_year}): {date_obj.year}"
                 )
                 return {"status": "invalid_date", "date": None, "year": None}
 
@@ -112,9 +114,7 @@ def calculate_age(birth_year: int) -> int:
     return current_year - birth_year
 
 
-def calculate_next_birthday_age(
-    birth_year: int, month: int, day: int, reference_date=None
-) -> str:
+def calculate_next_birthday_age(birth_year: int, month: int, day: int, reference_date=None) -> str:
     """
     Calculate the age someone will turn on their next birthday.
 
@@ -134,9 +134,7 @@ def calculate_next_birthday_age(
 
     try:
         next_birthday_year = reference_date.year
-        birthday_this_year = datetime(
-            next_birthday_year, month, day, tzinfo=timezone.utc
-        )
+        birthday_this_year = datetime(next_birthday_year, month, day, tzinfo=timezone.utc)
 
         if birthday_this_year < reference_date:
             next_birthday_year += 1
@@ -168,14 +166,9 @@ def check_if_birthday_today(date_str, reference_date=None):
         date_obj = datetime.strptime(date_str, DATE_FORMAT)
 
         # Compare just the day and month
-        return (
-            date_obj.day == reference_date.day
-            and date_obj.month == reference_date.month
-        )
+        return date_obj.day == reference_date.day and date_obj.month == reference_date.month
     except ValueError as e:
-        logger.error(
-            f"Invalid date format in check_if_birthday_today: {date_str} - {e}"
-        )
+        logger.error(f"Invalid date format in check_if_birthday_today: {date_str} - {e}")
         return False
 
 
@@ -203,7 +196,7 @@ def check_if_birthday_today_in_user_timezone(date_str, user_timezone_str):
         # Use the timezone-aware birthday check logic
         return check_if_birthday_today(date_str, current_user_time)
 
-    except Exception as e:
+    except (ValueError, ZoneInfoNotFoundError) as e:
         logger.error(
             f"TIMEZONE_BIRTHDAY_CHECK_ERROR: Failed to check birthday for timezone {user_timezone_str}: {e}"
         )
@@ -239,9 +232,7 @@ def calculate_days_until_birthday(date_str, reference_date=None):
         month = date_obj.month
         day = date_obj.day
     except ValueError as e:
-        logger.error(
-            f"Invalid date format in calculate_days_until_birthday: {date_str} - {e}"
-        )
+        logger.error(f"Invalid date format in calculate_days_until_birthday: {date_str} - {e}")
         return None
 
     # First try this year's birthday
@@ -251,9 +242,7 @@ def calculate_days_until_birthday(date_str, reference_date=None):
         # If birthday has already passed this year
         if birthday_date < reference_date:
             # Use next year's birthday
-            birthday_date = datetime(
-                reference_date.year + 1, month, day, tzinfo=timezone.utc
-            )
+            birthday_date = datetime(reference_date.year + 1, month, day, tzinfo=timezone.utc)
 
         days_until = (birthday_date - reference_date).days
         return days_until
@@ -261,18 +250,21 @@ def calculate_days_until_birthday(date_str, reference_date=None):
     except ValueError:
         # Handle invalid dates (like February 29 in non-leap years)
         # Default to next valid occurrence
-        logger.warning(
-            f"Invalid date {date_str} for current year, calculating next occurrence"
-        )
+        logger.warning(f"Invalid date {date_str} for current year, calculating next occurrence")
 
-        # Try next year if this year doesn't work
+        # Try next year if this year doesn't work (limit iterations to prevent infinite loop)
         next_year = reference_date.year + 1
-        while True:
+        max_attempts = RETRY_LIMITS.get("date_resolution", 5)
+        for _ in range(max_attempts):
             try:
                 birthday_date = datetime(next_year, month, day, tzinfo=timezone.utc)
                 break
             except ValueError:
                 next_year += 1
+        else:
+            # If no valid date found, date is likely corrupted
+            logger.error(f"Invalid date {date_str} could not be resolved in {max_attempts} years")
+            return None
 
         days_until = (birthday_date - reference_date).days
         return days_until
@@ -317,9 +309,7 @@ def get_star_sign(date_str):
 
         # Check each zodiac range
         for start_month, start_day, end_month, end_day, sign in ZODIAC_SIGNS:
-            if _is_date_in_zodiac_range(
-                month, day, start_month, start_day, end_month, end_day
-            ):
+            if _is_date_in_zodiac_range(month, day, start_month, start_day, end_month, end_day):
                 return sign
 
         # This should never happen given our complete zodiac coverage
@@ -328,9 +318,6 @@ def get_star_sign(date_str):
 
     except ValueError as e:
         logger.error(f"Invalid date format for star sign calculation: {date_str} - {e}")
-        return None
-    except Exception as e:
-        logger.error(f"Unexpected error determining star sign for {date_str}: {e}")
         return None
 
 
@@ -416,15 +403,15 @@ def get_timezone_object(timezone_str):
         timezone_str: Timezone string (e.g., "America/New_York", "Europe/London")
 
     Returns:
-        pytz timezone object or None if invalid
+        zoneinfo.ZoneInfo object or timezone.utc if invalid
     """
     try:
         if not timezone_str:
-            return pytz.UTC
-        return pytz.timezone(timezone_str)
-    except Exception as e:
+            return timezone.utc
+        return ZoneInfo(timezone_str)
+    except ZoneInfoNotFoundError as e:
         logger.warning(f"TIMEZONE: Invalid timezone '{timezone_str}': {e}")
-        return pytz.UTC
+        return timezone.utc
 
 
 def is_celebration_time_for_user(user_timezone_str, target_time=None, utc_moment=None):
@@ -450,7 +437,7 @@ def is_celebration_time_for_user(user_timezone_str, target_time=None, utc_moment
             current_user_time = utc_moment.astimezone(user_tz)
         else:
             # Fallback to current time (backward compatibility)
-            utc_now = datetime.now(pytz.UTC)
+            utc_now = datetime.now(timezone.utc)
             current_user_time = utc_now.astimezone(user_tz)
 
         # Check both hour AND date
@@ -473,7 +460,7 @@ def is_celebration_time_for_user(user_timezone_str, target_time=None, utc_moment
 
         return is_celebration_time
 
-    except Exception as e:
+    except (ValueError, ZoneInfoNotFoundError) as e:
         logger.error(
             f"TIMEZONE_ERROR: Failed to check celebration time for {user_timezone_str}: {e}"
         )
@@ -493,9 +480,9 @@ def get_user_current_time(user_timezone_str):
     try:
         user_tz = get_timezone_object(user_timezone_str)
         return datetime.now(user_tz)
-    except Exception as e:
+    except ZoneInfoNotFoundError as e:
         logger.error(f"TIMEZONE_ERROR: Failed to get time for {user_timezone_str}: {e}")
-        return datetime.now(pytz.UTC)
+        return datetime.now(timezone.utc)
 
 
 def format_timezone_schedule(app=None):
@@ -513,8 +500,8 @@ def format_timezone_schedule(app=None):
 
     # Get birthdays data to find users in each timezone
     try:
-        from utils.storage import load_birthdays
-        from utils.slack_utils import get_user_profile, get_user_mention
+        from slack.client import get_user_mention, get_user_profile
+        from storage.birthdays import load_birthdays
 
         birthdays = load_birthdays()
         timezone_users = {}
@@ -567,9 +554,7 @@ def format_timezone_schedule(app=None):
                         second=0,
                         microsecond=0,
                     )
-                    next_celebration = next_celebration.replace(
-                        day=next_celebration.day + 1
-                    )
+                    next_celebration = next_celebration.replace(day=next_celebration.day + 1)
                 else:
                     # Today at celebration time
                     next_celebration = current_time.replace(
@@ -584,7 +569,7 @@ def format_timezone_schedule(app=None):
                     "users": data["users"],
                 }
 
-            except Exception as e:
+            except ValueError as e:
                 logger.error(
                     f"TIMEZONE_ERROR: Failed to calculate next celebration for UTC{offset_hours:+.1f}: {e}"
                 )
@@ -592,9 +577,9 @@ def format_timezone_schedule(app=None):
         # Sort by the actual celebration time (UTC time) to show chronological order
         def sort_key(item):
             offset_hours, data = item
-            utc_time = data["time"].astimezone(pytz.UTC)
+            utc_time = data["time"].astimezone(timezone.utc)
             # Get the hour (0-23) for sorting
-            return utc_time.hour + (utc_time.day - datetime.now(pytz.UTC).day) * 24
+            return utc_time.hour + (utc_time.day - datetime.now(timezone.utc).day) * 24
 
         sorted_times = sorted(celebration_times.items(), key=sort_key)
 
@@ -604,7 +589,7 @@ def format_timezone_schedule(app=None):
 
     for offset_hours, data in sorted_times:
         local_time = data["time"]
-        utc_time = local_time.astimezone(pytz.UTC)
+        utc_time = local_time.astimezone(timezone.utc)
 
         # Format the UTC offset display
         if offset_hours == int(offset_hours):
@@ -627,9 +612,7 @@ def format_timezone_schedule(app=None):
                 user_mentions = f"({', '.join(mentions)})"
 
         # More compact and readable format
-        lines.append(
-            f"• *{utc_time.strftime('%H:%M')} UTC* ({offset_display}) {user_mentions}"
-        )
+        lines.append(f"• *{utc_time.strftime('%H:%M')} UTC* ({offset_display}) {user_mentions}")
 
     lines.append(
         f"\n_Celebrations happen at {TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')} local time in each timezone_"

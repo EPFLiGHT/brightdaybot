@@ -1,0 +1,57 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info
+.eggs
+*.egg
+.venv
+venv
+ENV
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Data directories (will be mounted as volumes)
+data/logs/*
+data/storage/*
+data/tracking/*
+data/backups/*
+data/cache/*
+
+# Keep directory structure
+!data/logs/.gitkeep
+!data/storage/.gitkeep
+!data/tracking/.gitkeep
+!data/backups/.gitkeep
+!data/cache/.gitkeep
+
+# Environment files
+.env
+.env.local
+
+# Testing
+.pytest_cache
+.coverage
+htmlcov
+
+# Build artifacts
+dist
+build
+*.egg-info
+
+# Documentation build
+docs/_build
+
+# OS files
+.DS_Store
+Thumbs.db

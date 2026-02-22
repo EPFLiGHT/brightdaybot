@@ -266,7 +266,7 @@ data/cache/
 !data/logs/.gitkeep
 !data/tracking/.gitkeep
 !data/storage/.gitkeep
-!data/storage/special_days.csv
+!data/storage/special_days.json
 !data/backups/.gitkeep
 !data/cache/.gitkeep
 CLAUDE.md

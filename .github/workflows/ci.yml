@@ -13,22 +13,30 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v6
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
         with:
-          python-version: '3.11'
-          cache: 'pip'
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.11
 
       - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
-          pip install pytest
+        run: uv sync --all-extras
 
       - name: Syntax check
         run: |
-          python -m py_compile app.py config.py personality_config.py
-          python -m py_compile handlers/*.py
-          python -m py_compile services/*.py
-          python -m py_compile utils/*.py
+          uv run python -m py_compile app.py
+          uv run python -m py_compile config/__init__.py config/settings.py config/personality.py config/personality_data.py
+          uv run python -m py_compile commands/*.py
+          uv run python -m py_compile handlers/*.py
+          uv run python -m py_compile services/*.py
+          uv run python -m py_compile integrations/*.py
+          uv run python -m py_compile integrations/observances/*.py
+          uv run python -m py_compile slack/*.py
+          uv run python -m py_compile slack/blocks/*.py
+          uv run python -m py_compile storage/*.py
+          uv run python -m py_compile utils/*.py
 
       - name: Import check
         env:
@@ -37,36 +45,68 @@ jobs:
           SLACK_APP_TOKEN: "xapp-dummy-token-for-ci"
         run: |
           echo "Testing core imports..."
-          python -c "from config import *"
-          python -c "from personality_config import *"
+          uv run python -c "from config import *"
+          uv run python -c "from config.settings import *"
+          uv run python -c "from config.personality import *"
+          uv run python -c "from config.personality_data import *"
+          echo "Testing commands..."
+          uv run python -c "import commands.admin_commands"
+          uv run python -c "import commands.birthday_commands"
+          uv run python -c "import commands.special_day_commands"
+          uv run python -c "import commands.test_commands"
           echo "Testing handlers..."
-          python -c "import handlers.command_handler"
-          python -c "import handlers.event_handler"
-          python -c "import handlers.admin_commands"
-          python -c "import handlers.birthday_commands"
-          python -c "import handlers.test_commands"
-          python -c "import handlers.special_commands"
+          uv run python -c "import handlers.event_handler"
+          uv run python -c "import handlers.slash_handler"
+          uv run python -c "import handlers.modal_handler"
+          uv run python -c "import handlers.app_home_handler"
+          uv run python -c "import handlers.mention_handler"
+          uv run python -c "import handlers.thread_handler"
           echo "Testing services..."
-          python -c "import services.birthday"
-          python -c "import services.scheduler"
-          python -c "import services.celebration"
+          uv run python -c "import services.dispatcher"
+          uv run python -c "import services.birthday"
+          uv run python -c "import services.celebration"
+          uv run python -c "import services.image_generator"
+          uv run python -c "import services.mention_responder"
+          uv run python -c "import services.message_generator"
+          uv run python -c "import services.scheduler"
+          uv run python -c "import services.special_day"
+          echo "Testing integrations..."
+          uv run python -c "import integrations.openai"
+          uv run python -c "import integrations.calendarific"
+          uv run python -c "import integrations.web_search"
+          uv run python -c "import integrations.observances"
+          uv run python -c "import integrations.observances.un"
+          uv run python -c "import integrations.observances.unesco"
+          uv run python -c "import integrations.observances.who"
+          echo "Testing slack..."
+          uv run python -c "import slack.client"
+          uv run python -c "import slack.blocks"
+          uv run python -c "import slack.messaging"
+          uv run python -c "import slack.emoji"
+          echo "Testing storage..."
+          uv run python -c "import storage.birthdays"
+          uv run python -c "import storage.settings"
+          uv run python -c "import storage.special_days"
+          uv run python -c "import storage.thread_tracking"
           echo "Testing utils..."
-          python -c "import utils.date_utils"
-          python -c "import utils.block_builder"
-          python -c "import utils.storage"
-          python -c "import utils.message_generator"
+          uv run python -c "import utils.date_utils"
+          uv run python -c "import utils.date_parsing"
+          uv run python -c "import utils.health"
+          uv run python -c "import utils.ics"
+          uv run python -c "import utils.log_setup"
+          uv run python -c "import utils.sanitization"
           echo "All imports successful!"
 
       - name: Run unit tests
         env:
           OPENAI_API_KEY: "sk-dummy-key-for-ci"
-        run: pytest tests/ -v --tb=short --ignore=tests/test_integration.py
+        run: uv run pytest tests/ -v --tb=short --ignore=tests/test_integration.py
 
       - name: Test summary
         if: always()
         run: |
           echo "Unit test count:"
-          python -m pytest tests/ --ignore=tests/test_integration.py --collect-only -q 2>/dev/null | tail -1
+          uv run pytest tests/ --ignore=tests/test_integration.py --collect-only -q 2>/dev/null | tail -1
 
   integration:
     name: Integration Tests
@@ -76,15 +116,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v6
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
         with:
-          python-version: '3.11'
-          cache: 'pip'
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.11
 
       - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
-          pip install pytest
+        run: uv sync --all-extras
 
       - name: Run integration tests
         env:
@@ -96,4 +137,4 @@ jobs:
             echo "::warning::OPENAI_API_KEY secret not set - skipping integration tests"
             exit 0
           fi
-          pytest tests/test_integration.py -v -s --tb=short
+          uv run pytest tests/test_integration.py -v -s --tb=short
