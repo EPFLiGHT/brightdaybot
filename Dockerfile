@@ -1,77 +1,49 @@
 # BrightDayBot Docker Image
-# Multi-stage build for optimized image size
+# Based on https://docs.astral.sh/uv/guides/integration/docker/
 
-# Stage 1: Build stage with uv
-FROM python:3.11-slim AS builder
+FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim
 
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# uv build optimizations
+ENV UV_COMPILE_BYTECODE=1
+ENV UV_LINK_MODE=copy
+ENV UV_NO_DEV=1
+ENV PYTHONUNBUFFERED=1
 
-# Set working directory
 WORKDIR /app
 
-# Copy dependency files first for better caching
-COPY pyproject.toml uv.lock ./
+# Install dependencies (cached layer — only rebuilds when deps change)
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv sync --locked --no-install-project
 
-# Install dependencies
-RUN uv sync --frozen --no-dev --no-install-project
+# Set PATH so venv and playwright CLI are available
+ENV PATH="/app/.venv/bin:$PATH"
 
-# Stage 2: Runtime stage
-FROM python:3.11-slim AS runtime
-
-# Install system dependencies for Playwright/crawl4ai
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    # Playwright dependencies
-    libnss3 \
-    libnspr4 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libxkbcommon0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libasound2 \
-    libpango-1.0-0 \
-    libcairo2 \
-    # Other utilities
-    curl \
+# Install Playwright system dependencies (as root)
+RUN playwright install-deps chromium \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
-RUN useradd --create-home --shell /bin/bash appuser
+RUN groupadd --system --gid 999 nonroot \
+    && useradd --system --gid 999 --uid 999 --create-home nonroot
 
-# Set working directory
-WORKDIR /app
-
-# Copy uv and virtual environment from builder
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
-COPY --from=builder /app/.venv /app/.venv
-
-# Copy application code
-COPY --chown=appuser:appuser . .
+# Copy application code (owned by nonroot)
+COPY --chown=nonroot:nonroot . /app
 
 # Create data directories
 RUN mkdir -p data/logs data/storage data/tracking data/backups data/cache \
-    && chown -R appuser:appuser data
+    && chown -R nonroot:nonroot data
 
 # Switch to non-root user
-USER appuser
+USER nonroot
 
-# Set environment variables
-ENV PATH="/app/.venv/bin:$PATH"
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
-
-# Install Playwright browsers (for crawl4ai)
+# Install Playwright browser binary (as non-root user)
 RUN playwright install chromium
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "from utils.health import check_system_health; import sys; sys.exit(0 if check_system_health()['overall_healthy'] else 1)"
+    CMD python -c "from utils.health import get_system_status; import sys; sys.exit(0 if get_system_status()['overall'] == 'ok' else 1)"
 
 # Default command
-CMD ["python", "app.py"]
+CMD ["uv", "run", "python", "app.py"]

@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   brightdaybot:
     build:
@@ -17,7 +15,7 @@ services:
       - ./data/cache:/app/data/cache
       - ./data/tracking:/app/data/tracking
     healthcheck:
-      test: ["CMD", "python", "-c", "from utils.health import check_system_health; import sys; sys.exit(0 if check_system_health()['overall_healthy'] else 1)"]
+      test: ["CMD", "python", "-c", "from utils.health import get_system_status; import sys; sys.exit(0 if get_system_status()['overall'] == 'ok' else 1)"]
       interval: 30s
       timeout: 10s
       retries: 3

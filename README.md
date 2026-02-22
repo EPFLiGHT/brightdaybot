@@ -8,13 +8,11 @@ A Slack bot that celebrates birthdays with AI-generated personalized messages an
 - **AI Images**: Face-accurate images using Slack profile photos
 - **Multiple Personalities**: Ludo the Mystic Dog, Captain BirthdayBeard, TechBot 3000, and more
 - **Multi-Timezone**: Celebrates at 9 AM in each user's timezone
-- **Special Days**: UN/WHO/UNESCO observances with AI-generated content
-- **Smart Consolidation**: Single message for multiple same-day birthdays
+- **Special Days**: UN/WHO/UNESCO observances and national holidays with AI-generated content
 - **Slash Commands**: `/birthday` and `/special-day` with modal forms
-- **App Home**: Dashboard with birthday status, statistics, and upcoming birthdays
-- **Calendar Export**: Export team birthdays to ICS format for calendar apps
-- **Celebration Styles**: Choose quiet, standard, or epic celebration intensity
-- **Block Kit UI**: Professional Slack message layouts
+- **App Home**: Dashboard with birthday status, statistics, and upcoming events
+- **Calendar Export**: Export team birthdays to ICS format
+- **Celebration Styles**: Quiet, standard, or epic intensity per user
 - **Thread Engagement**: Reacts to birthday thread replies with contextual emojis
 - **@-Mention Q&A**: Ask the bot about special days, birthdays, and capabilities
 - **NLP Date Parsing**: Set birthday with natural language ("July 14th")
@@ -39,9 +37,7 @@ A Slack bot that celebrates birthdays with AI-generated personalized messages an
 7. Enable **App Home** → Home Tab
 8. Install to workspace
 
-### 2. Configure Environment
-
-#### Option A: Using uv (Recommended)
+### 2. Install Dependencies
 
 ```bash
 # Install uv (if not installed)
@@ -50,27 +46,15 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # Install dependencies
 uv sync
 
-# Setup crawl4ai browser (for UN observances)
+# Setup crawl4ai browser (for web-scraped observances)
 uv run crawl4ai-setup
 ```
 
-#### Option B: Using pip
-
-```bash
-# Create virtual environment
-python -m venv .venv && source .venv/bin/activate
-
-# Install dependencies
-pip install .
-
-# Setup crawl4ai browser
-crawl4ai-setup
-```
-
-**Configure environment:**
+### 3. Configure and Run
 
 ```bash
 cp .env.example .env
+# Edit .env with your actual tokens (see .env.example for all options)
 ```
 
 **Required in `.env`:**
@@ -82,24 +66,19 @@ BIRTHDAY_CHANNEL_ID="C..."
 OPENAI_API_KEY="sk-..."
 ```
 
-### 3. Run
-
 ```bash
-# Using uv (recommended)
 uv run python app.py
-
-# Or using Docker
-docker compose up -d
 ```
+
+For production deployment, see [Production Deployment](#production-deployment).
 
 ## Commands
 
-### Slash Commands (Use Anywhere)
+### Slash Commands
 
 | Command                   | Description                      |
 | ------------------------- | -------------------------------- |
 | `/birthday`               | Open birthday form               |
-| `/birthday add`           | Open birthday form               |
 | `/birthday check [@user]` | Check birthday                   |
 | `/birthday list`          | List upcoming birthdays          |
 | `/birthday export`        | Export birthdays to ICS calendar |
@@ -112,7 +91,7 @@ docker compose up -d
 ### User Commands (DM the bot)
 
 > [!TIP]
-> Slash commands (`/birthday`) and App Home are the recommended ways to interact. DM commands are available as an alternative.
+> Slash commands and App Home are the recommended ways to interact. DM commands are available as an alternative.
 
 | Command              | Description                  |
 | -------------------- | ---------------------------- |
@@ -157,75 +136,22 @@ docker compose up -d
 
 ## Configuration
 
-### Optional Environment Variables
+All optional settings are documented in [`.env.example`](.env.example) with defaults and descriptions. Key categories:
 
-```env
-# AI & Core Settings
-OPENAI_MODEL=""                      # AI model (see config/settings.py)
-AI_IMAGE_GENERATION_ENABLED="true"  # Enable AI images
-EXTERNAL_BACKUP_ENABLED="true"      # Backup to admin DMs
-MAX_BACKUPS="10"                    # Backup files to retain (default: 10)
-UPCOMING_DAYS_DEFAULT="7"           # Lookahead for upcoming birthdays (default: 7)
-
-# Special Days Sources
-CALENDARIFIC_API_KEY="..."          # For national/local holidays
-CALENDARIFIC_ENABLED="true"         # Enable Calendarific integration
-UN_OBSERVANCES_CACHE_TTL_DAYS="7"   # UN cache refresh (default: 7)
-UNESCO_OBSERVANCES_CACHE_TTL_DAYS="30"  # UNESCO cache refresh (default: 30)
-WHO_OBSERVANCES_CACHE_TTL_DAYS="30" # WHO cache refresh (default: 30)
-CALENDARIFIC_CACHE_TTL_DAYS="7"     # Calendarific cache refresh (default: 7)
-
-# Thread Engagement - React to birthday thread replies
-THREAD_ENGAGEMENT_ENABLED="true"    # Enable reactions (default: true)
-THREAD_TRACKING_TTL_DAYS="7"        # Days to track threads (default: 7)
-
-# @-Mention Q&A - Answer questions when mentioned
-MENTION_QA_ENABLED="true"           # Enable mention responses (default: true)
-MENTION_RATE_LIMIT_WINDOW="60"      # Rate limit window in seconds
-MENTION_RATE_LIMIT_MAX="5"          # Max requests per window
-
-# NLP Date Parsing - Natural language birthday input
-NLP_DATE_PARSING_ENABLED="false"    # Enable NLP parsing (default: false)
-
-# Special Day Announcements
-SPECIAL_DAY_MENTION_ENABLED="true"  # Include @-here in announcements (default: true)
-SPECIAL_DAY_TOPIC_UPDATE_ENABLED="false"  # Update channel topic (default: false)
-```
-
-### Special Days Setup (Optional)
-
-```bash
-# UN/UNESCO/WHO Observances - browser setup for crawl4ai
-uv run crawl4ai-setup
-
-# Calendarific holidays (optional, 500 free calls/month)
-# Add to .env: CALENDARIFIC_API_KEY="..." CALENDARIFIC_ENABLED="true"
-```
-
-**Data Sources:**
-
-| Source       | Content                 | Update Frequency |
-| ------------ | ----------------------- | ---------------- |
-| UN           | ~220 international days | Weekly           |
-| UNESCO       | ~75 international days  | Monthly          |
-| WHO          | ~26 health campaigns    | Monthly          |
-| Calendarific | National/local holidays | Weekly           |
-| CSV          | Company custom days     | Manual           |
-
-All sources auto-populate on first access. Duplicates are automatically deduplicated with UN/WHO/UNESCO taking priority over Calendarific.
-
-### Timezone Modes
-
-- **Timezone-aware** (default): Celebrates at 9 AM per user's timezone
-- **Simple mode**: Single daily check at 10 AM server time
-
-Toggle with `admin timezone enable/disable`.
+- **AI & Core**: Model selection, image generation, backups
+- **Special Days Sources**: UN/UNESCO/WHO cache TTLs, Calendarific API
+- **Interactive Features**: Thread engagement, @-mention Q&A, NLP date parsing
+- **Announcements**: @-here mentions, channel topic updates
+- **Custom Personality**: Name, description, style, formatting
 
 ## Project Structure
 
 ```text
 brightdaybot/
 ├── app.py                        # Entry point
+├── Dockerfile                    # Docker image definition
+├── docker-compose.yml            # Docker Compose configuration
+├── pyproject.toml                # Project metadata & dependencies
 ├── config/                       # Configuration package
 │   ├── __init__.py               # Re-exports (backward compatibility)
 │   ├── settings.py               # Core settings, API parameters
@@ -282,42 +208,85 @@ brightdaybot/
 │   ├── ics.py                    # ICS calendar generation
 │   ├── log_setup.py              # Logging setup
 │   └── sanitization.py           # Input sanitization
+├── tests/                        # Test suite
+│   ├── conftest.py               # Shared fixtures
+│   └── test_*.py                 # Unit & integration tests
 └── data/
     ├── storage/                  # Birthday data, configs
-    ├── logs/                     # 9 component logs
+    ├── logs/                     # Component log files
+    ├── tracking/                 # Duplicate prevention
     ├── backups/                  # Auto backups
     └── cache/                    # Images, profiles, observances
 ```
 
 ## Production Deployment
 
-### Docker (Recommended)
+### Option A: Docker + systemd (Recommended)
+
+Docker handles dependencies, Playwright browsers, and isolation. systemd ensures the bot starts on boot and restarts on failure. Data is stored on the host via volume mounts, not inside the container.
 
 ```bash
-# Build and run
-docker compose up -d
+cd /path/to/brightdaybot
+cp .env.example .env
+# Edit .env with your actual tokens
 
-# View logs
-docker compose logs -f
-
-# Update
-docker compose pull && docker compose up -d
+# Test the setup
+docker compose up --build
 ```
 
-### systemd with uv
+```ini
+# /etc/systemd/system/brightdaybot.service
+[Unit]
+Description=BrightDayBot (Docker)
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=/path/to/brightdaybot
+ExecStart=/usr/bin/docker compose up --build
+ExecStop=/usr/bin/docker compose down
+Restart=always
+RestartSec=30
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now brightdaybot
+
+# Useful commands
+sudo systemctl status brightdaybot     # Check status
+sudo journalctl -u brightdaybot -f     # Follow logs
+sudo systemctl restart brightdaybot    # Restart after code changes
+```
+
+### Option B: systemd with uv (No Docker)
+
+Run the bot directly with uv. Requires manual Playwright browser setup.
 
 ```bash
 # Install uv system-wide
 curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Move uv to /usr/local/bin (optional, for system-wide access)
 sudo mv ~/.local/bin/uv /usr/local/bin/
 
-# Install dependencies and setup crawl4ai browser
+# Install dependencies and configure environment
 cd /path/to/brightdaybot
 uv sync
-sudo mkdir -p /opt/playwright && sudo chmod 777 /opt/playwright
+cp .env.example .env
+# Edit .env with your actual tokens
+
+# Setup Playwright browsers
+sudo mkdir -p /opt/playwright && sudo chmod -R 777 /opt/playwright
 PLAYWRIGHT_BROWSERS_PATH=/opt/playwright uv run crawl4ai-setup
+
+# If crawl4ai-setup fails with permission errors on /opt/playwright/.links/,
+# install browsers manually:
+PLAYWRIGHT_BROWSERS_PATH=/opt/playwright uv run python -m patchright install chromium --with-deps
 ```
 
 ```ini
@@ -325,6 +294,7 @@ PLAYWRIGHT_BROWSERS_PATH=/opt/playwright uv run crawl4ai-setup
 [Unit]
 Description=BrightDayBot
 After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
@@ -339,21 +309,20 @@ WantedBy=multi-user.target
 ```
 
 ```bash
-# Reload systemd after creating/modifying the service file
 sudo systemctl daemon-reload
-
-# Enable and start the service
 sudo systemctl enable --now brightdaybot
 ```
 
 ## Troubleshooting
 
 1. **Health check**: `admin status` in Slack
-2. **Logs**: Check `data/logs/` (ai.log, birthday.log, etc.)
+2. **Logs**: Check `data/logs/` (`ai.log`, `birthday.log`, etc.)
 3. **Common issues**:
    - Missing API keys → Check `.env`
    - Image failures → Verify OpenAI key has image access
    - Timezone issues → User must set timezone in Slack profile
+   - Playwright browser not found (Docker) → Rebuild with `docker compose up -d --build`
+   - Playwright browser not found (uv) → Run `PLAYWRIGHT_BROWSERS_PATH=/opt/playwright uv run python -m patchright install chromium --with-deps` and restart the service
 
 ## License
 
