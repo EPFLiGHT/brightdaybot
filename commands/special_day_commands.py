@@ -259,9 +259,6 @@ def handle_admin_special_command(args, user_id, say, app):
     """Handle admin special days commands (non-add commands only)"""
     from config import CALENDARIFIC_API_KEY, CALENDARIFIC_ENABLED
     from integrations.calendarific import get_calendarific_client
-    from integrations.observances.un import get_un_cache_status
-    from integrations.observances.unesco import get_unesco_cache_status
-    from integrations.observances.who import get_who_cache_status
     from services.special_day import generate_special_day_message
     from storage.special_days import (
         get_special_days_for_date,
@@ -646,25 +643,27 @@ In daily mode, individual announcements are posted each day with observances."""
     elif subcommand in ["observances-status", "observances", "sources"]:
         # Combined status for all observance sources
         try:
-            un_status = get_un_cache_status()
-            unesco_status = get_unesco_cache_status()
-            who_status = get_who_cache_status()
+            from integrations.observances import get_enabled_sources
 
-            def format_status(status, name):
+            sources = get_enabled_sources()
+            if not sources:
+                say("ℹ️ No observance sources are enabled.")
+                return
+
+            lines = []
+            for name, _refresh_fn, status_fn in sources:
+                status = status_fn()
                 fresh = "✅" if status["cache_fresh"] else "⚠️"
                 count = status["observance_count"]
-                return f"• {name}: {fresh} {count} days"
+                lines.append(f"• {name}: {fresh} {count} days")
 
+            status_lines = "\n".join(lines)
             message = f"""📊 *Observance Sources Status*
 
-{format_status(un_status, "UN")}
-{format_status(unesco_status, "UNESCO")}
-{format_status(who_status, "WHO")}
-
-*Total unique days after deduplication:* ~284
+{status_lines}
 
 _Use `admin special [un|unesco|who]-status` for details._
-_Use `admin special [un|unesco|who]-refresh` to force update._"""
+_Use `admin special [un|unesco|who]-refresh` or `all-refresh` to force update._"""
             say(message)
 
         except Exception as e:
@@ -674,6 +673,8 @@ _Use `admin special [un|unesco|who]-refresh` to force update._"""
     elif subcommand in ["un-status", "un"]:
         # UN Observances: Show cache status
         try:
+            from integrations.observances.un import get_un_cache_status
+
             status = get_un_cache_status()
 
             last_updated = status.get("last_updated")
@@ -721,6 +722,8 @@ _Cache refreshes weekly. Use `admin special un-refresh` to force update._"""
     elif subcommand in ["unesco-status", "unesco"]:
         # UNESCO Observances: Show cache status
         try:
+            from integrations.observances.unesco import get_unesco_cache_status
+
             status = get_unesco_cache_status()
 
             last_updated = status.get("last_updated")
@@ -768,6 +771,8 @@ _Cache refreshes monthly. Use `admin special unesco-refresh` to force update._""
     elif subcommand in ["who-status", "who"]:
         # WHO Observances: Show cache status
         try:
+            from integrations.observances.who import get_who_cache_status
+
             status = get_who_cache_status()
 
             last_updated = status.get("last_updated")
@@ -811,6 +816,31 @@ _Cache refreshes monthly. Use `admin special who-refresh` to force update._"""
         except Exception as e:
             say(f"❌ Refresh error: {e}")
             logger.error(f"ADMIN_SPECIAL: WHO refresh failed: {e}")
+
+    elif subcommand == "all-refresh":
+        # Refresh all observance sources at once
+        from integrations.observances import get_enabled_sources
+
+        sources = get_enabled_sources()
+        if not sources:
+            say("ℹ️ No observance sources are enabled.")
+            return
+
+        say("🔄 Refreshing all observance sources...")
+
+        results = []
+        for name, refresh_fn, _status_fn in sources:
+            try:
+                stats = refresh_fn(force=True)
+                if stats.get("error"):
+                    results.append(f"• {name}: ❌ {stats['error']}")
+                else:
+                    results.append(f"• {name}: ✅ {stats['fetched']} observances")
+            except Exception as e:
+                results.append(f"• {name}: ❌ {e}")
+
+        say(f"📊 *Refresh Results*\n\n" + "\n".join(results))
+        logger.info(f"ADMIN_SPECIAL: {username} refreshed all observance caches")
 
     elif subcommand in ["api-status", "api", "calendarific"]:
         # Calendarific: Show API status
@@ -875,6 +905,7 @@ _Run `admin special refresh` to update cache_"""
 
 *Observance Sources:*
 • `admin special observances` - Combined status for all sources
+• `admin special all-refresh` - Force refresh all sources (UN/UNESCO/WHO)
 • `admin special un-status` - UN cache status (~220 days, weekly)
 • `admin special un-refresh` - Force refresh UN cache
 • `admin special unesco-status` - UNESCO cache status (~75 days, monthly)

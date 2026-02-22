@@ -234,49 +234,21 @@ def monthly_observances_refresh_task():
     Runs on the 1st of each month at CACHE_REFRESH_TIME.
     Observances data rarely changes, so monthly refresh is sufficient.
     """
-    from config import (
-        UN_OBSERVANCES_ENABLED,
-        UNESCO_OBSERVANCES_ENABLED,
-        WHO_OBSERVANCES_ENABLED,
-    )
+    from integrations.observances import get_enabled_sources
 
     logger.info("SCHEDULER: Running monthly observances cache refresh")
 
-    # Refresh UN observances
-    if UN_OBSERVANCES_ENABLED:
+    sources = get_enabled_sources()
+    if not sources:
+        logger.debug("SCHEDULER: No observance sources enabled, skipping refresh")
+        return
+
+    for name, refresh_fn, _status_fn in sources:
         try:
-            from integrations.observances.un import refresh_un_cache
-
-            stats = refresh_un_cache(force=True)
-            logger.info(f"SCHEDULER: UN observances refresh complete: {stats}")
+            stats = refresh_fn(force=True)
+            logger.info(f"SCHEDULER: {name} observances refresh complete: {stats}")
         except Exception as e:
-            logger.error(f"SCHEDULER: Failed to refresh UN observances cache: {e}")
-    else:
-        logger.debug("SCHEDULER: UN observances not enabled, skipping refresh")
-
-    # Refresh UNESCO observances
-    if UNESCO_OBSERVANCES_ENABLED:
-        try:
-            from integrations.observances.unesco import refresh_unesco_cache
-
-            stats = refresh_unesco_cache(force=True)
-            logger.info(f"SCHEDULER: UNESCO observances refresh complete: {stats}")
-        except Exception as e:
-            logger.error(f"SCHEDULER: Failed to refresh UNESCO observances cache: {e}")
-    else:
-        logger.debug("SCHEDULER: UNESCO observances not enabled, skipping refresh")
-
-    # Refresh WHO observances
-    if WHO_OBSERVANCES_ENABLED:
-        try:
-            from integrations.observances.who import refresh_who_cache
-
-            stats = refresh_who_cache(force=True)
-            logger.info(f"SCHEDULER: WHO observances refresh complete: {stats}")
-        except Exception as e:
-            logger.error(f"SCHEDULER: Failed to refresh WHO observances cache: {e}")
-    else:
-        logger.debug("SCHEDULER: WHO observances not enabled, skipping refresh")
+            logger.error(f"SCHEDULER: Failed to refresh {name} observances cache: {e}")
 
 
 def run_scheduler():

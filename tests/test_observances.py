@@ -1,8 +1,66 @@
 """
-Tests for Observances modules (UN, UNESCO, WHO) - core functionality only.
+Tests for Observances modules (UN, UNESCO, WHO) - core functionality and source registry.
 """
 
+from unittest.mock import patch
+
 import pytest
+
+# ============================================================================
+# Observance Source Registry Tests
+# ============================================================================
+
+
+class TestObservanceSourceRegistry:
+    """Tests for the centralized get_enabled_sources() registry"""
+
+    @patch("integrations.observances.UN_OBSERVANCES_ENABLED", True)
+    @patch("integrations.observances.UNESCO_OBSERVANCES_ENABLED", True)
+    @patch("integrations.observances.WHO_OBSERVANCES_ENABLED", True)
+    def test_all_sources_enabled(self):
+        """Returns all 3 sources when all flags are enabled"""
+        from integrations.observances import get_enabled_sources
+
+        sources = get_enabled_sources()
+        assert len(sources) == 3
+        names = [name for name, _, _ in sources]
+        assert names == ["UN", "UNESCO", "WHO"]
+
+    @patch("integrations.observances.UN_OBSERVANCES_ENABLED", False)
+    @patch("integrations.observances.UNESCO_OBSERVANCES_ENABLED", False)
+    @patch("integrations.observances.WHO_OBSERVANCES_ENABLED", False)
+    def test_no_sources_enabled(self):
+        """Returns empty list when all flags are disabled"""
+        from integrations.observances import get_enabled_sources
+
+        sources = get_enabled_sources()
+        assert sources == []
+
+    @patch("integrations.observances.UN_OBSERVANCES_ENABLED", True)
+    @patch("integrations.observances.UNESCO_OBSERVANCES_ENABLED", False)
+    @patch("integrations.observances.WHO_OBSERVANCES_ENABLED", True)
+    def test_partial_sources_enabled(self):
+        """Returns only enabled sources"""
+        from integrations.observances import get_enabled_sources
+
+        sources = get_enabled_sources()
+        assert len(sources) == 2
+        names = [name for name, _, _ in sources]
+        assert names == ["UN", "WHO"]
+
+    @patch("integrations.observances.UN_OBSERVANCES_ENABLED", True)
+    @patch("integrations.observances.UNESCO_OBSERVANCES_ENABLED", True)
+    @patch("integrations.observances.WHO_OBSERVANCES_ENABLED", True)
+    def test_source_tuple_structure(self):
+        """Each source tuple contains (str, callable, callable)"""
+        from integrations.observances import get_enabled_sources
+
+        sources = get_enabled_sources()
+        for name, refresh_fn, status_fn in sources:
+            assert isinstance(name, str)
+            assert callable(refresh_fn)
+            assert callable(status_fn)
+
 
 # ============================================================================
 # UN Observances Tests

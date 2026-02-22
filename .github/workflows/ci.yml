@@ -74,6 +74,7 @@ jobs:
           uv run python -c "import integrations.openai"
           uv run python -c "import integrations.calendarific"
           uv run python -c "import integrations.web_search"
+          uv run python -c "import integrations.observances"
           uv run python -c "import integrations.observances.un"
           uv run python -c "import integrations.observances.unesco"
           uv run python -c "import integrations.observances.who"

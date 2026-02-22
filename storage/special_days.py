@@ -1414,59 +1414,22 @@ def initialize_special_days_cache():
 
     Called from app.py at startup to ensure caches are populated.
     """
-    # UN Observances
-    if UN_OBSERVANCES_ENABLED:
+    from integrations.observances import get_enabled_sources
+
+    for name, refresh_fn, status_fn in get_enabled_sources():
         try:
-            from integrations.observances.un import get_un_client
-
-            client = get_un_client()
-            if not client._is_cache_fresh():
-                logger.info("INIT: UN observances cache stale/missing, refreshing...")
-                stats = client.refresh_cache()
+            status = status_fn()
+            if not status["cache_fresh"]:
+                logger.info(f"INIT: {name} observances cache stale/missing, refreshing...")
+                stats = refresh_fn()
                 if stats.get("error"):
-                    logger.warning(f"INIT: UN refresh failed: {stats['error']}")
+                    logger.warning(f"INIT: {name} refresh failed: {stats['error']}")
                 else:
-                    logger.info(f"INIT: UN cache refreshed with {stats['fetched']} observances")
+                    logger.info(f"INIT: {name} cache refreshed with {stats['fetched']} observances")
             else:
-                logger.info("INIT: UN observances cache is fresh")
+                logger.info(f"INIT: {name} observances cache is fresh")
         except Exception as e:
-            logger.warning(f"INIT: Failed to initialize UN cache: {e}")
-
-    # UNESCO Observances
-    if UNESCO_OBSERVANCES_ENABLED:
-        try:
-            from integrations.observances.unesco import get_unesco_client
-
-            client = get_unesco_client()
-            if not client._is_cache_fresh():
-                logger.info("INIT: UNESCO observances cache stale/missing, refreshing...")
-                stats = client.refresh_cache()
-                if stats.get("error"):
-                    logger.warning(f"INIT: UNESCO refresh failed: {stats['error']}")
-                else:
-                    logger.info(f"INIT: UNESCO cache refreshed with {stats['fetched']} observances")
-            else:
-                logger.info("INIT: UNESCO observances cache is fresh")
-        except Exception as e:
-            logger.warning(f"INIT: Failed to initialize UNESCO cache: {e}")
-
-    # WHO Observances
-    if WHO_OBSERVANCES_ENABLED:
-        try:
-            from integrations.observances.who import get_who_client
-
-            client = get_who_client()
-            if not client._is_cache_fresh():
-                logger.info("INIT: WHO observances cache stale/missing, refreshing...")
-                stats = client.refresh_cache()
-                if stats.get("error"):
-                    logger.warning(f"INIT: WHO refresh failed: {stats['error']}")
-                else:
-                    logger.info(f"INIT: WHO cache refreshed with {stats['fetched']} observances")
-            else:
-                logger.info("INIT: WHO observances cache is fresh")
-        except Exception as e:
-            logger.warning(f"INIT: Failed to initialize WHO cache: {e}")
+            logger.warning(f"INIT: Failed to initialize {name} cache: {e}")
 
     # Calendarific
     if CALENDARIFIC_ENABLED:
