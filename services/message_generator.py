@@ -966,7 +966,7 @@ CRITICAL FORMATTING REQUIREMENTS (MUST FOLLOW EXACTLY):
    - Do NOT replace with names or other text
    - These EXACT strings must appear in your response: {mention_text}
 2. **NOTIFICATION**: {'Include <!here> exactly as written to notify active members' if not skip_mention else 'Do NOT include any channel mention like <!here> or <!channel>'}
-3. **LENGTH**: Keep the message to 8-12 lines maximum
+3. **LENGTH**: Keep the message to 8-12 lines maximum (under 2000 characters total)
 4. **EMOJIS**: {emoji_ctx['emoji_instruction']}
 5. **AVAILABLE EMOJIS**: {emoji_ctx['emoji_examples']}
 6. **DATE INCLUSION**: Organically mention today's date ({shared_date_formatted}) in your message. Examples:
@@ -1433,7 +1433,7 @@ def generate_birthday_image_title(
                     messages=[
                         {
                             "role": "system",
-                            "content": "You are a creative title generator for birthday image uploads. Generate funny, witty, and personalized titles that are 2-8 words long. CRITICAL: You MUST include the person's name(s) prominently in every title. Be creative but keep it workplace appropriate. Do not include emojis - they will be added separately.",
+                            "content": "You are a creative title generator for birthday image uploads. STRICT LIMIT: Keep titles 2-8 words and under 100 characters total. CRITICAL: You MUST include the person's name(s) prominently in every title. Be creative but keep it workplace appropriate. Do not include emojis - they will be added separately. Output ONLY the title, nothing else.",
                         },
                         {"role": "user", "content": formatted_prompt},
                     ],

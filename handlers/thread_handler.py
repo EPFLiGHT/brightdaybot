@@ -333,7 +333,7 @@ Today's special day(s):{day_context}
 A user asked in the thread about this special day:
 "{text[:300]}"
 
-Generate a helpful, informative response (2-4 sentences) that:
+Generate a helpful, informative response (2-4 sentences, maximum 600 characters total) that:
 1. Directly addresses their question or comment
 2. Provides interesting and accurate information about the observance
 3. Uses a warm, engaging tone with 1-2 relevant emojis

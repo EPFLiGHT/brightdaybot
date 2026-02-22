@@ -250,7 +250,7 @@ Your capabilities:
 
     prompt += f"""A user asked: "{question_text}"
 
-Respond helpfully in 2-4 sentences. Be friendly but concise. Use 1-2 relevant emojis.
+Respond helpfully in 2-4 sentences (maximum 500 characters total). Be friendly but concise. Use 1-2 relevant emojis.
 If you don't have information to answer the question, say so politely.
 
 Response:"""

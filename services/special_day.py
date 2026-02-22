@@ -205,6 +205,10 @@ def generate_special_day_message(
         else:
             prompt += "\n\nDo NOT include <!here> or any channel mention."
 
+        # Add character limit for teasers
+        if use_teaser:
+            prompt += "\n\nSTRICT LENGTH LIMIT: Maximum 400 characters total. Be concise."
+
         # Generate the message using Responses API
         # Use lower token limit for teasers (shorter messages)
         max_tokens = 200 if use_teaser else TOKEN_LIMITS.get("single_birthday", 500)
@@ -605,7 +609,8 @@ For EACH observance below, provide:
 🏢 *Organization:* [1 company-wide opportunity for policy/culture alignment]
 
 CRITICAL LENGTH REQUIREMENT:
-- MAXIMUM {length_guidance} total (approximately {SLACK_BUTTON_DISPLAY_CHAR_LIMIT} characters)
+- STRICT MAXIMUM: {SLACK_BUTTON_DISPLAY_CHAR_LIMIT} characters total. Do NOT exceed this limit.
+- MAXIMUM {length_guidance} total
 - Be CONCISE and TACTICAL - every line must add value
 - Prioritize actionable insights over background details
 

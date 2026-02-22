@@ -835,7 +835,8 @@ STRUCTURE (Concise - 10-14 lines total to fit 1950 character Slack button limit)
 🏢 *Organization:* [1 company-wide opportunity for policy/culture alignment]
 
 CRITICAL LENGTH REQUIREMENT:
-- MAXIMUM 10-14 lines total (approximately 1850 characters)
+- STRICT MAXIMUM: 1850 characters total. Do NOT exceed this limit.
+- MAXIMUM 10-14 lines total
 - Be CONCISE and TACTICAL - every line must add value
 - Prioritize actionable insights over background details
 
