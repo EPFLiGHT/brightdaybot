@@ -44,10 +44,8 @@ WEB_SEARCH_CACHE_ENABLED = os.getenv("WEB_SEARCH_CACHE_ENABLED", "true").lower()
 USE_CUSTOM_EMOJIS = os.getenv("USE_CUSTOM_EMOJIS", "true").lower() == "true"
 # Enable AI image generation for birthday messages
 AI_IMAGE_GENERATION_ENABLED = os.getenv("AI_IMAGE_GENERATION_ENABLED", "true").lower() == "true"
-# Enable external backup system (sends backups to admin DMs)
+# Enable external backup system (canvas dashboard updates on birthday changes)
 EXTERNAL_BACKUP_ENABLED = os.getenv("EXTERNAL_BACKUP_ENABLED", "true").lower() == "true"
-# Send backup files to admin users via DM
-BACKUP_TO_ADMINS = os.getenv("BACKUP_TO_ADMINS", "true").lower() == "true"
 # Optional dedicated ops channel for canvas dashboard
 OPS_CHANNEL_ID = os.getenv("OPS_CHANNEL_ID", os.getenv("BACKUP_CHANNEL_ID"))
 # Send backup on every change vs. batched/daily digest

@@ -34,7 +34,6 @@ from config import (
     ANNOUNCEMENT_RETENTION_DAYS,
     ANNOUNCEMENTS_FILE,
     BACKUP_DIR,
-    BACKUP_TO_ADMINS,
     BIRTHDAYS_JSON_FILE,
     EXTERNAL_BACKUP_ENABLED,
     MAX_BACKUPS,
@@ -42,8 +41,6 @@ from config import (
     TIMEOUTS,
     get_logger,
 )
-from slack.messaging import send_message_with_file
-from storage.settings import get_current_admins
 
 logger = get_logger("storage")
 
@@ -134,14 +131,14 @@ def send_external_backup(
     backup_file_path, change_type="update", username=None, app=None, user_id=None
 ):
     """
-    Send backup file to admin users via DM and optionally to backup channel.
+    Notify ops channel canvas dashboard of birthday data changes.
 
     Args:
-        backup_file_path: Path to the backup file to send
-        change_type: Type of change that triggered backup ("add", "update", "remove", "manual")
+        backup_file_path: Path to the backup file (used for validation)
+        change_type: Type of change ("add", "update", "remove", "manual")
         username: Username of person whose birthday changed (for context)
-        app: Slack app instance (required for sending messages)
-        user_id: User ID of person whose birthday changed (for preferences lookup)
+        app: Slack app instance (required for canvas updates)
+        user_id: User ID of person whose birthday changed
     """
     logger.info(f"BACKUP: send_external_backup called - type: {change_type}, user: {username}")
 
@@ -154,65 +151,12 @@ def send_external_backup(
             logger.error(f"BACKUP: Backup file not found: {backup_file_path}")
             return
 
-        file_size = os.path.getsize(backup_file_path)
-        file_size_kb = round(file_size / 1024, 1)
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        birthdays = load_birthdays()
-        total_birthdays = len(birthdays)
-
         change_text = {
             "add": f"Added birthday for {username}" if username else "Added birthday",
             "update": f"Updated birthday for {username}" if username else "Updated birthday",
             "remove": f"Removed birthday for {username}" if username else "Removed birthday",
             "manual": "Manual backup created",
         }.get(change_type, "Data changed")
-
-        # Get user's preferences for context if available
-        prefs_text = ""
-        if user_id and change_type in ("add", "update"):
-            user_data = birthdays.get(user_id, {})
-            prefs = user_data.get("preferences", {})
-            style = prefs.get("celebration_style", "standard")
-            if style != "standard":
-                style_emoji = CELEBRATION_STYLE_EMOJIS.get(style, "🎊")
-                style_desc = CELEBRATION_STYLES.get(style, "")
-                prefs_text = f"\n{style_emoji} *Style:* {style.title()} - {style_desc}"
-
-        message = f"""🗂️ *Birthday Data Backup* - {timestamp}
-
-📊 *Changes:* {change_text}{prefs_text}
-📁 *File:* {os.path.basename(backup_file_path)} ({file_size_kb} KB)
-👥 *Total Birthdays:* {total_birthdays} people
-🔄 *Auto-backup after data changes*
-
-This backup was automatically created to protect your birthday data."""
-
-        if BACKUP_TO_ADMINS:
-            current_admin_users = get_current_admins()
-            if not current_admin_users:
-                logger.warning(
-                    "BACKUP: No bot admins configured - external backup will not be sent."
-                )
-                return
-
-            success_count = 0
-            logger.info(
-                f"BACKUP: Starting external backup delivery to {len(current_admin_users)} admin(s)"
-            )
-            for admin_id in current_admin_users:
-                try:
-                    if send_message_with_file(app, admin_id, message, backup_file_path):
-                        success_count += 1
-                        logger.info(f"BACKUP: Successfully sent backup to admin {admin_id}")
-                    else:
-                        logger.error(f"BACKUP: Failed to send backup to admin {admin_id}")
-                except Exception as e:
-                    logger.error(f"BACKUP: Error sending to admin {admin_id}: {e}")
-
-            logger.info(
-                f"BACKUP: Sent external backup to {success_count}/{len(current_admin_users)} admins"
-            )
 
         if OPS_CHANNEL_ID:
             try:

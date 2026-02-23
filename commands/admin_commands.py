@@ -633,32 +633,47 @@ def handle_canvas_command(args, user_id, say, app, username):
 
     if subcommand == "status":
         status = get_canvas_status()
-        enabled = "Enabled" if status["enabled"] else "Disabled"
+        enabled = "✅ Enabled" if status["enabled"] else "❌ Disabled"
         canvas_id = status["canvas_id"] or "Not created"
-        channel = status["channel_id"] or "Not configured"
+        channel = f"<#{status['channel_id']}>" if status["channel_id"] else "Not configured"
         changes = status["recent_changes"]
         last_update = status["last_update"] or "Never"
+        backup_link = status.get("backup_permalink") or "None"
+        backup_file = (
+            status.get("backup_cache_key", "").split(":")[0]
+            if status.get("backup_cache_key")
+            else "None"
+        )
+        backup_thread = "✅ Active" if status.get("backup_thread_ts") else "Not created"
 
         say(
             f"📊 *Canvas Dashboard Status*\n\n"
-            f"• *Enabled:* {enabled}\n"
+            f"• *Status:* {enabled}\n"
             f"• *Canvas ID:* `{canvas_id}`\n"
             f"• *Channel:* {channel}\n"
-            f"• *Recent changes:* {changes}\n"
-            f"• *Last update:* {last_update}"
+            f"• *Last update:* {last_update}\n"
+            f"• *Pending changes:* {changes}\n"
+            f"• *Backup thread:* {backup_thread}\n"
+            f"• *Backup file:* {backup_file}\n"
+            f"• *Backup link:* {backup_link}"
         )
 
     elif subcommand == "refresh":
         say("🔄 Refreshing canvas dashboard...")
-        success = update_canvas(app, reason="admin_refresh")
+        success = update_canvas(app, reason="admin_refresh", force=True)
         if success:
             say("✅ Canvas dashboard updated successfully.")
         else:
             say("❌ Failed to update canvas. Check logs for details.")
 
     elif subcommand == "reset":
-        if reset_canvas():
-            say("🗑️ Canvas settings reset. A new canvas will be created on the next update.")
+        if reset_canvas(app):
+            say("🗑️ Canvas deleted. Recreating...")
+            success = update_canvas(app, reason="admin_reset", force=True)
+            if success:
+                say("✅ New canvas created and updated.")
+            else:
+                say("⚠️ Canvas deleted but failed to recreate. Check logs.")
         else:
             say("❌ Failed to reset canvas settings.")
 

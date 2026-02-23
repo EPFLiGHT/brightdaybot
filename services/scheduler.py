@@ -389,13 +389,12 @@ def setup_scheduler(app, timezone_aware_check, simple_daily_check):
         )
 
     # Schedule canvas dashboard refresh
-    from config import CANVAS_DASHBOARD_ENABLED, CANVAS_REFRESH_INTERVAL_MINUTES
+    from config import CANVAS_DASHBOARD_ENABLED
 
     if CANVAS_DASHBOARD_ENABLED:
-        schedule.every(CANVAS_REFRESH_INTERVAL_MINUTES).minutes.do(canvas_refresh_task)
-        logger.info(
-            f"SCHEDULER: Canvas dashboard refresh scheduled every {CANVAS_REFRESH_INTERVAL_MINUTES} minutes"
-        )
+        schedule.every().hour.at(":00").do(canvas_refresh_task)
+        schedule.every().hour.at(":30").do(canvas_refresh_task)
+        logger.info("SCHEDULER: Canvas dashboard refresh scheduled at :00 and :30")
 
     # Start the scheduler in a separate thread
     _scheduler_thread = threading.Thread(target=run_scheduler)

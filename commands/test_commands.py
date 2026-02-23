@@ -21,7 +21,6 @@ from config import (
     AI_IMAGE_GENERATION_ENABLED,
     BACKUP_DIR,
     BACKUP_ON_EVERY_CHANGE,
-    BACKUP_TO_ADMINS,
     BIRTHDAY_CHANNEL,
     BOT_BIRTH_YEAR,
     BOT_BIRTHDAY,
@@ -731,7 +730,6 @@ def handle_test_external_backup_command(user_id, say, app):
 
     config_status = f"""📋 *External Backup Configuration:*
 • `EXTERNAL_BACKUP_ENABLED`: {EXTERNAL_BACKUP_ENABLED}
-• `BACKUP_TO_ADMINS`: {BACKUP_TO_ADMINS}
 • `BACKUP_ON_EVERY_CHANGE`: {BACKUP_ON_EVERY_CHANGE}
 • `OPS_CHANNEL_ID`: {OPS_CHANNEL_ID or 'Not set'}"""
 
