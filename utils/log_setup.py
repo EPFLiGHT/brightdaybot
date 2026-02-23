@@ -25,8 +25,6 @@ LOG_FILE_NAMES = {
     "scheduler": "scheduler.log",  # Scheduling and background tasks
 }
 
-# For backwards compatibility and health check usage
-LOG_FILES = LOG_FILE_NAMES  # Will be updated with full paths when LOGS_DIR is available
 
 # Component to log file mapping
 COMPONENT_LOG_MAPPING = {
@@ -99,7 +97,7 @@ def setup_logging(logs_dir):
     )
 
     # Set up file handlers with rotation for each log file
-    for log_type, log_file in LOG_FILES.items():
+    for log_type, log_file in LOG_FILE_NAMES.items():
         full_log_path = os.path.join(logs_dir, log_file)
         # Use RotatingFileHandler to prevent files from getting too large
         handler = logging.handlers.RotatingFileHandler(

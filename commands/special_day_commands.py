@@ -839,7 +839,7 @@ _Cache refreshes monthly. Use `admin special who-refresh` to force update._"""
             except Exception as e:
                 results.append(f"• {name}: ❌ {e}")
 
-        say(f"📊 *Refresh Results*\n\n" + "\n".join(results))
+        say("📊 *Refresh Results*\n\n" + "\n".join(results))
         logger.info(f"ADMIN_SPECIAL: {username} refreshed all observance caches")
 
     elif subcommand in ["api-status", "api", "calendarific"]:

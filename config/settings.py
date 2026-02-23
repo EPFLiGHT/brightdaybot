@@ -48,10 +48,16 @@ AI_IMAGE_GENERATION_ENABLED = os.getenv("AI_IMAGE_GENERATION_ENABLED", "true").l
 EXTERNAL_BACKUP_ENABLED = os.getenv("EXTERNAL_BACKUP_ENABLED", "true").lower() == "true"
 # Send backup files to admin users via DM
 BACKUP_TO_ADMINS = os.getenv("BACKUP_TO_ADMINS", "true").lower() == "true"
-# Optional dedicated backup channel ID
-BACKUP_CHANNEL_ID = os.getenv("BACKUP_CHANNEL_ID")
+# Optional dedicated ops channel for canvas dashboard
+OPS_CHANNEL_ID = os.getenv("OPS_CHANNEL_ID", os.getenv("BACKUP_CHANNEL_ID"))
 # Send backup on every change vs. batched/daily digest
 BACKUP_ON_EVERY_CHANGE = os.getenv("BACKUP_ON_EVERY_CHANGE", "true").lower() == "true"
+# Canvas dashboard in ops channel
+CANVAS_DASHBOARD_ENABLED = os.getenv("CANVAS_DASHBOARD_ENABLED", "true").lower() == "true"
+CANVAS_SETTINGS_FILE = os.path.join(STORAGE_DIR, "canvas_settings.json")
+CANVAS_REFRESH_INTERVAL_MINUTES = 30
+CANVAS_MIN_UPDATE_INTERVAL_SECONDS = 30
+CANVAS_RECENT_CHANGES_MAX = 10
 
 # ----- EMOJI CONSTANTS -----
 

@@ -37,7 +37,6 @@ from integrations.openai import complete
 from services.message_generator import create_consolidated_birthday_announcement
 from slack.blocks import build_birthday_blocks
 from slack.client import (
-    fix_slack_formatting,
     get_channel_members,
     get_user_status_and_info,
 )
@@ -49,6 +48,7 @@ from storage.birthdays import (
     mark_timezone_birthday_announced,
 )
 from utils.date_utils import check_if_birthday_today, date_to_words
+from utils.sanitization import markdown_to_slack_mrkdwn
 
 logger = get_logger("birthday")
 
@@ -1281,7 +1281,7 @@ def generate_bot_celebration_message(
 
         if generated_message:
             # Fix Slack formatting issues
-            generated_message = fix_slack_formatting(generated_message)
+            generated_message = markdown_to_slack_mrkdwn(generated_message)
             logger.info("BOT_CELEBRATION: Successfully generated AI celebration message")
             return generated_message
         else:
@@ -1362,8 +1362,8 @@ def get_bot_celebration_image_title():
 
         if generated_title:
             # Fix Slack formatting issues
-            formatted_title = fix_slack_formatting(generated_title)
-            # Ensure fix_slack_formatting didn't return None or empty string
+            formatted_title = markdown_to_slack_mrkdwn(generated_title)
+            # Ensure markdown_to_slack_mrkdwn didn't return None or empty string
             if formatted_title and formatted_title.strip():
                 # Validate title length (Slack file title limit ~200 chars, use config for readability)
                 if len(formatted_title) > SLACK_FILE_TITLE_MAX_LENGTH:
@@ -1378,7 +1378,7 @@ def get_bot_celebration_image_title():
                 return formatted_title
             else:
                 logger.warning(
-                    "BOT_CELEBRATION: fix_slack_formatting returned empty, using fallback"
+                    "BOT_CELEBRATION: markdown_to_slack_mrkdwn returned empty, using fallback"
                 )
                 return "🌟 Ludo's Mystical Birthday Vision! 🎂✨"
         else:

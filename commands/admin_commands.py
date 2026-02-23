@@ -618,6 +618,61 @@ def handle_restore_command(args, _user_id, say, _app, _username):
         say("Use `admin restore latest` to restore from the most recent backup.")
 
 
+def handle_canvas_command(args, user_id, say, app, username):
+    """
+    Manage canvas dashboard in ops channel.
+
+    Subcommands:
+        status  - Show canvas dashboard status
+        refresh - Force immediate canvas update
+        reset   - Delete stored canvas ID and recreate
+    """
+    from slack.canvas import clean_channel, get_canvas_status, reset_canvas, update_canvas
+
+    subcommand = args[0] if args else "status"
+
+    if subcommand == "status":
+        status = get_canvas_status()
+        enabled = "Enabled" if status["enabled"] else "Disabled"
+        canvas_id = status["canvas_id"] or "Not created"
+        channel = status["channel_id"] or "Not configured"
+        changes = status["recent_changes"]
+        last_update = status["last_update"] or "Never"
+
+        say(
+            f"📊 *Canvas Dashboard Status*\n\n"
+            f"• *Enabled:* {enabled}\n"
+            f"• *Canvas ID:* `{canvas_id}`\n"
+            f"• *Channel:* {channel}\n"
+            f"• *Recent changes:* {changes}\n"
+            f"• *Last update:* {last_update}"
+        )
+
+    elif subcommand == "refresh":
+        say("🔄 Refreshing canvas dashboard...")
+        success = update_canvas(app, reason="admin_refresh")
+        if success:
+            say("✅ Canvas dashboard updated successfully.")
+        else:
+            say("❌ Failed to update canvas. Check logs for details.")
+
+    elif subcommand == "reset":
+        if reset_canvas():
+            say("🗑️ Canvas settings reset. A new canvas will be created on the next update.")
+        else:
+            say("❌ Failed to reset canvas settings.")
+
+    elif subcommand == "clean":
+        say("🧹 Cleaning old bot messages from ops channel...")
+        deleted = clean_channel(app)
+        say(f"✅ Removed {deleted} bot message(s) from the channel.")
+
+    else:
+        say("Usage: `admin canvas [status|refresh|reset|clean]`")
+
+    logger.info(f"ADMIN: {username} ({user_id}) used canvas {subcommand}")
+
+
 def handle_personality_command(args, user_id, say, _app, username):
     """
     Manage bot personality settings.

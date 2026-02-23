@@ -25,7 +25,7 @@ from config import (
     TRACKING_DIR,
     get_logger,
 )
-from utils.log_setup import LOG_FILES
+from utils.log_setup import LOG_FILE_NAMES
 
 logger = get_logger("system")
 
@@ -220,8 +220,7 @@ def check_log_files():
         log_files = {}
         total_size = 0
 
-        for log_name, log_filename in LOG_FILES.items():
-            # LOG_FILES contains just filenames, construct full path
+        for log_name, log_filename in LOG_FILE_NAMES.items():
             log_path = os.path.join(LOGS_DIR, log_filename)
             if os.path.exists(log_path):
                 size = os.path.getsize(log_path)

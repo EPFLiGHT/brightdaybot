@@ -27,10 +27,11 @@ A Slack bot that celebrates birthdays with AI-generated personalized messages an
 4. Add **Bot Scopes**:
    - Core: `chat:write`, `chat:write.public`, `chat:write.customize`
    - Users: `users:read`, `users.profile:read`
-   - Channels: `channels:read`, `channels:history`, `groups:read`, `mpim:read`
+   - Channels: `channels:read`, `channels:history`, `channels:manage`, `groups:read`, `mpim:read`
    - DMs: `im:write`, `im:read`, `im:history`
    - Files: `files:read`, `files:write`
    - Reactions: `reactions:read`, `reactions:write`
+   - Canvas: `canvases:write`
    - Other: `emoji:read`, `app_mentions:read`, `commands`
 5. Add **Slash Commands**: `/birthday`, `/special-day`
 6. Enable **Interactivity & Shortcuts** (for modal forms)

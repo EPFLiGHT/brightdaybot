@@ -186,7 +186,9 @@ def _generate_llm_response(
         )
 
         if response and response.strip():
-            return response.strip()
+            from utils.sanitization import markdown_to_slack_mrkdwn
+
+            return markdown_to_slack_mrkdwn(response.strip())
 
         return None
 
@@ -249,6 +251,8 @@ Your capabilities:
 """
 
     prompt += f"""A user asked: "{question_text}"
+
+SLACK FORMATTING: Use *single asterisks* for bold, _single underscores_ for italic. Do NOT use **double asterisks** or __double underscores__. For links use <URL|text> format.
 
 Respond helpfully in 2-4 sentences (maximum 500 characters total). Be friendly but concise. Use 1-2 relevant emojis.
 If you don't have information to answer the question, say so politely.

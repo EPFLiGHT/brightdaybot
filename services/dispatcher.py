@@ -55,6 +55,7 @@ from commands.admin_commands import (
     handle_announce_command,
     handle_backup_command,
     handle_cache_command,
+    handle_canvas_command,
     handle_config_command,
     handle_model_command,
     handle_personality_command,
@@ -817,6 +818,9 @@ def handle_admin_command(
 
     elif subcommand == "restore":
         handle_restore_command(args, user_id, say, app, username)
+
+    elif subcommand == "canvas":
+        handle_canvas_command(args, user_id, say, app, username)
 
     elif subcommand == "personality":
         handle_personality_command(args, user_id, say, app, username)

@@ -28,7 +28,7 @@ from config import (
 )
 from integrations.openai import complete
 from integrations.web_search import get_birthday_facts
-from slack.client import fix_slack_formatting, get_user_mention
+from slack.client import get_user_mention
 from storage.birthdays import DEFAULT_PREFERENCES
 from storage.settings import (
     get_current_personality_name,
@@ -36,7 +36,12 @@ from storage.settings import (
     save_recent_personalities,
 )
 from utils.date_utils import get_star_sign
-from utils.sanitization import sanitize_profile_field, sanitize_status_text, sanitize_username
+from utils.sanitization import (
+    markdown_to_slack_mrkdwn,
+    sanitize_profile_field,
+    sanitize_status_text,
+    sanitize_username,
+)
 
 logger = get_logger("llm")
 
@@ -539,7 +544,7 @@ def _generate_birthday_message(
             message = message.strip()
 
             # Fix common Slack formatting issues
-            message = fix_slack_formatting(message)
+            message = markdown_to_slack_mrkdwn(message)
 
             # === CONDITIONAL: Validation ===
             if is_single:
@@ -784,11 +789,11 @@ def _build_single_birthday_prompt(
     if celebration_style == "epic":
         epic_context = """
 
-:rotating_light: **EPIC CELEBRATION MODE ACTIVATED!** :rotating_light:
+:rotating_light: *EPIC CELEBRATION MODE ACTIVATED!* :rotating_light:
 
 This person has requested the ULTIMATE birthday experience! You must deliver a LEGENDARY celebration:
 
-**MESSAGE STYLE:**
+*MESSAGE STYLE:*
 - Start with a DRAMATIC announcement/proclamation (e.g., "ATTENTION EVERYONE!", "HEAR YE, HEAR YE!", "STOP EVERYTHING!")
 - Use SIGNIFICANTLY more emojis than usual - go emoji crazy!
 - Be EXTREMELY enthusiastic, theatrical, and over-the-top dramatic
@@ -797,7 +802,7 @@ This person has requested the ULTIMATE birthday experience! You must deliver a L
 - Make references to legends, myths, or epic tales
 - This should feel like announcing royalty or a superhero's arrival!
 
-**REQUIRED ELEMENTS:**
+*REQUIRED ELEMENTS:*
 - At least one dramatic pause or buildup (use "..." or line breaks)
 - Multiple exclamation marks!!!
 - Superlatives: "THE most", "THE greatest", "LEGENDARY", "UNSTOPPABLE"
@@ -1034,7 +1039,7 @@ def _get_fallback_single_message(person, selected_personality_name):
     formatted_message = random_message.replace("{mention}", user_mention).replace(
         "{name}", user_mention
     )
-    formatted_message = fix_slack_formatting(formatted_message)
+    formatted_message = markdown_to_slack_mrkdwn(formatted_message)
 
     logger.info(f"AI: Used personality-specific fallback message ({selected_personality_name})")
     return formatted_message
@@ -1444,7 +1449,7 @@ def generate_birthday_image_title(
                 ai_title = ai_title.strip()
 
                 # Fix Slack formatting issues
-                ai_title = fix_slack_formatting(ai_title)
+                ai_title = markdown_to_slack_mrkdwn(ai_title)
 
                 # Clean up the title (remove quotes, extra punctuation)
                 ai_title = ai_title.strip("\"'").rstrip(".!?")

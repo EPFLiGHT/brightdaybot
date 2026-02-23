@@ -27,6 +27,7 @@ from integrations.openai import complete
 from integrations.web_search import get_birthday_facts
 from services.image_generator import generate_birthday_image
 from utils.log_setup import get_logger
+from utils.sanitization import markdown_to_slack_mrkdwn
 
 # Get dedicated logger
 logger = get_logger("special_days")
@@ -231,7 +232,7 @@ def generate_special_day_message(
             temperature=temperature,
             context="SPECIAL_DAY_MESSAGE",
         )
-        message = message.strip()
+        message = markdown_to_slack_mrkdwn(message.strip())
 
         logger.info("Successfully generated special day message")
         return message
@@ -322,6 +323,8 @@ def generate_weekly_digest_message(
 This week features {total_observances} observance(s) across {days_with_observances} day(s):
 {observance_preview}
 
+SLACK FORMATTING: Use *single asterisks* for bold, _single underscores_ for italic. Do NOT use **double asterisks** or __double underscores__. For links use <URL|text> format.
+
 REQUIREMENTS:
 - Start with <!here> to notify the channel
 - Be concise (2-3 lines max)
@@ -348,7 +351,7 @@ TONE: Informative but not overwhelming. This is a summary, not a detailed announ
         )
 
         logger.info("Successfully generated weekly digest intro message")
-        return message.strip()
+        return markdown_to_slack_mrkdwn(message.strip())
 
     except Exception as e:
         logger.error(f"Error generating weekly digest message: {e}")
@@ -665,7 +668,7 @@ TONE & STYLE:
             context="SPECIAL_DAY_DETAILS",
             reasoning_effort=REASONING_EFFORT["analytical"],
         )
-        details = details.strip()
+        details = markdown_to_slack_mrkdwn(details.strip())
 
         logger.info("Successfully generated special day details")
 

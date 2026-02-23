@@ -33,12 +33,12 @@ from filelock import FileLock
 from config import (
     ANNOUNCEMENT_RETENTION_DAYS,
     ANNOUNCEMENTS_FILE,
-    BACKUP_CHANNEL_ID,
     BACKUP_DIR,
     BACKUP_TO_ADMINS,
     BIRTHDAYS_JSON_FILE,
     EXTERNAL_BACKUP_ENABLED,
     MAX_BACKUPS,
+    OPS_CHANNEL_ID,
     TIMEOUTS,
     get_logger,
 )
@@ -214,14 +214,15 @@ This backup was automatically created to protect your birthday data."""
                 f"BACKUP: Sent external backup to {success_count}/{len(current_admin_users)} admins"
             )
 
-        if BACKUP_CHANNEL_ID:
+        if OPS_CHANNEL_ID:
             try:
-                if send_message_with_file(app, BACKUP_CHANNEL_ID, message, backup_file_path):
-                    logger.info(f"BACKUP: Sent backup to channel {BACKUP_CHANNEL_ID}")
-                else:
-                    logger.warning(f"BACKUP: Failed to send backup to channel {BACKUP_CHANNEL_ID}")
+                from slack.canvas import record_change, update_canvas_async
+
+                record_change(change_text)
+                update_canvas_async(app, reason=f"backup_{change_type}")
+                logger.info(f"BACKUP: Triggered canvas update for channel {OPS_CHANNEL_ID}")
             except Exception as e:
-                logger.error(f"BACKUP: Error sending to backup channel: {e}")
+                logger.error(f"BACKUP: Error triggering canvas update: {e}")
 
     except Exception as e:
         logger.error(f"BACKUP: Failed to send external backup: {e}")

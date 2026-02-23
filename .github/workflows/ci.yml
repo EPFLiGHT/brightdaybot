@@ -79,6 +79,7 @@ jobs:
           uv run python -c "import integrations.observances.unesco"
           uv run python -c "import integrations.observances.who"
           echo "Testing slack..."
+          uv run python -c "import slack.canvas"
           uv run python -c "import slack.client"
           uv run python -c "import slack.blocks"
           uv run python -c "import slack.messaging"

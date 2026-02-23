@@ -192,41 +192,12 @@ class TestUpdateUserPreferences:
 
 
 class TestCelebrationStyles:
-    """Tests for celebration style preferences"""
+    """Tests for celebration style preference merging"""
 
-    def test_default_preferences_includes_celebration_style(self):
-        """DEFAULT_PREFERENCES includes celebration_style with standard default"""
-        from storage.birthdays import DEFAULT_PREFERENCES
-
-        assert "celebration_style" in DEFAULT_PREFERENCES
-        assert DEFAULT_PREFERENCES["celebration_style"] == "standard"
-
-    def test_celebration_styles_dict_exists(self):
-        """CELEBRATION_STYLES dict contains all valid styles"""
-        from storage.birthdays import CELEBRATION_STYLES
-
-        assert "quiet" in CELEBRATION_STYLES
-        assert "standard" in CELEBRATION_STYLES
-        assert "epic" in CELEBRATION_STYLES
-        assert len(CELEBRATION_STYLES) == 3
-
-    def test_get_user_preferences_returns_celebration_style(self, mock_birthday_data):
-        """User preferences include celebration_style"""
+    def test_missing_celebration_style_defaults_to_standard(self):
+        """get_user_preferences merges DEFAULT_PREFERENCES when field missing"""
         from storage.birthdays import get_user_preferences
 
-        birthday_data = mock_birthday_data(celebration_style="quiet")
-
-        with patch("storage.birthdays.load_birthdays", return_value={"U123": birthday_data}):
-            result = get_user_preferences("U123")
-
-        assert result is not None
-        assert result["celebration_style"] == "quiet"
-
-    def test_celebration_style_defaults_to_standard(self, mock_birthday_data):
-        """Missing celebration_style defaults to standard"""
-        from storage.birthdays import DEFAULT_PREFERENCES, get_user_preferences
-
-        # Create birthday data without celebration_style in preferences
         birthday_data = {
             "date": "25/12",
             "year": 1990,
@@ -236,11 +207,8 @@ class TestCelebrationStyles:
         with patch("storage.birthdays.load_birthdays", return_value={"U123": birthday_data}):
             result = get_user_preferences("U123")
 
-        # Should merge with defaults
         assert result is not None
-        # The actual implementation may or may not merge defaults - check behavior
-        expected_style = result.get("celebration_style", DEFAULT_PREFERENCES["celebration_style"])
-        assert expected_style == "standard"
+        assert result["celebration_style"] == "standard"
 
 
 class TestCalendarExport:

@@ -251,6 +251,21 @@ def monthly_observances_refresh_task():
             logger.error(f"SCHEDULER: Failed to refresh {name} observances cache: {e}")
 
 
+def canvas_refresh_task():
+    """Periodic task to refresh the ops channel canvas dashboard."""
+    from config import CANVAS_DASHBOARD_ENABLED, OPS_CHANNEL_ID
+
+    if not CANVAS_DASHBOARD_ENABLED or not OPS_CHANNEL_ID or not _app_instance:
+        return
+
+    try:
+        from slack.canvas import update_canvas
+
+        update_canvas(_app_instance, reason="periodic")
+    except Exception as e:
+        logger.error(f"SCHEDULER: Canvas refresh failed: {e}")
+
+
 def run_scheduler():
     """Run the scheduler in a separate thread with health monitoring and stats persistence"""
     global _last_heartbeat, _total_executions, _failed_executions, _scheduler_running
@@ -371,6 +386,15 @@ def setup_scheduler(app, timezone_aware_check, simple_daily_check):
     else:
         logger.info(
             "SCHEDULER: Weekly special days task scheduled (current: daily mode, task will skip)"
+        )
+
+    # Schedule canvas dashboard refresh
+    from config import CANVAS_DASHBOARD_ENABLED, CANVAS_REFRESH_INTERVAL_MINUTES
+
+    if CANVAS_DASHBOARD_ENABLED:
+        schedule.every(CANVAS_REFRESH_INTERVAL_MINUTES).minutes.do(canvas_refresh_task)
+        logger.info(
+            f"SCHEDULER: Canvas dashboard refresh scheduled every {CANVAS_REFRESH_INTERVAL_MINUTES} minutes"
         )
 
     # Start the scheduler in a separate thread

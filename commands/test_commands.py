@@ -19,7 +19,6 @@ from datetime import datetime
 
 from config import (
     AI_IMAGE_GENERATION_ENABLED,
-    BACKUP_CHANNEL_ID,
     BACKUP_DIR,
     BACKUP_ON_EVERY_CHANGE,
     BACKUP_TO_ADMINS,
@@ -28,6 +27,7 @@ from config import (
     BOT_BIRTHDAY,
     EXTERNAL_BACKUP_ENABLED,
     IMAGE_GENERATION_PARAMS,
+    OPS_CHANNEL_ID,
     get_logger,
 )
 from slack.client import (
@@ -733,7 +733,7 @@ def handle_test_external_backup_command(user_id, say, app):
 • `EXTERNAL_BACKUP_ENABLED`: {EXTERNAL_BACKUP_ENABLED}
 • `BACKUP_TO_ADMINS`: {BACKUP_TO_ADMINS}
 • `BACKUP_ON_EVERY_CHANGE`: {BACKUP_ON_EVERY_CHANGE}
-• `BACKUP_CHANNEL_ID`: {BACKUP_CHANNEL_ID or 'Not set'}"""
+• `OPS_CHANNEL_ID`: {OPS_CHANNEL_ID or 'Not set'}"""
 
     say(config_status)
     logger.info(f"TEST_EXTERNAL_BACKUP: Configuration check by {username} ({user_id})")
