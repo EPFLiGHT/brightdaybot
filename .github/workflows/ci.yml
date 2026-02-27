@@ -24,19 +24,10 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras
 
-      - name: Syntax check
+      - name: Lint check
         run: |
-          uv run python -m py_compile app.py
-          uv run python -m py_compile config/__init__.py config/settings.py config/personality.py config/personality_data.py
-          uv run python -m py_compile commands/*.py
-          uv run python -m py_compile handlers/*.py
-          uv run python -m py_compile services/*.py
-          uv run python -m py_compile integrations/*.py
-          uv run python -m py_compile integrations/observances/*.py
-          uv run python -m py_compile slack/*.py
-          uv run python -m py_compile slack/blocks/*.py
-          uv run python -m py_compile storage/*.py
-          uv run python -m py_compile utils/*.py
+          uv run ruff check .
+          uv run black --check .
 
       - name: Import check
         env:
