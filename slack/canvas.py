@@ -608,9 +608,7 @@ def _upload_backup_file(app, file_path, filename):
     """Upload backup file to a dedicated thread and return its permalink.
 
     Uses a pinned thread in the ops channel to keep backups organized.
-    The file share message stays in the thread (NOT deleted) so the
-    permalink remains accessible to channel members. Old file replies
-    are deleted when a new backup is uploaded.
+    Old files are kept in the thread as historical audit trail — never deleted.
     """
     # Skip if same file already uploaded (persisted across restarts)
     file_mtime = os.path.getmtime(file_path)
@@ -623,16 +621,7 @@ def _upload_backup_file(app, file_path, filename):
     if not thread_ts:
         return None
 
-    # Delete previous file reply in the thread (keep thread tidy)
-    old_reply_ts = settings.get("backup_reply_ts")
-    if old_reply_ts:
-        try:
-            app.client.chat_delete(channel=OPS_CHANNEL_ID, ts=old_reply_ts)
-            logger.debug(f"CANVAS: Deleted old backup reply {old_reply_ts}")
-        except SlackApiError:
-            pass  # Already gone — that's fine
-
-    # Upload file as a thread reply
+    # Upload file as a thread reply (old files stay for history)
     with open(file_path, "rb") as f:
         response = app.client.files_upload_v2(
             channel=OPS_CHANNEL_ID,
@@ -649,24 +638,12 @@ def _upload_backup_file(app, file_path, filename):
         if not file_id:
             return None
 
-        # Get permalink and reply ts from files.info
+        # Get permalink from files.info
         permalink = None
-        reply_ts = None
         try:
             info_response = app.client.files_info(file=file_id)
             file_info = info_response.get("file", {})
             permalink = file_info.get("permalink")
-
-            # Find the reply message ts for cleanup on next upload
-            shares = file_info.get("shares", {})
-            for share_type in ("public", "private"):
-                channel_shares = shares.get(share_type, {}).get(OPS_CHANNEL_ID, [])
-                for share in channel_shares:
-                    reply_ts = share.get("ts")
-                    if reply_ts:
-                        break
-                if reply_ts:
-                    break
         except SlackApiError as e:
             logger.warning(f"CANVAS: Could not get file info: {e}")
 
@@ -675,7 +652,6 @@ def _upload_backup_file(app, file_path, filename):
                 {
                     "backup_cache_key": cache_key,
                     "backup_permalink": permalink,
-                    "backup_reply_ts": reply_ts,
                 }
             )
             logger.info(f"CANVAS: Uploaded backup file {filename} to thread")

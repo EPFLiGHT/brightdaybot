@@ -174,9 +174,9 @@ def send_external_backup(
 
 def trigger_external_backup(updated, username, app, change_type=None, user_id=None):
     """
-    Trigger external backup after birthday changes if enabled.
+    Trigger canvas dashboard update after birthday changes if enabled.
 
-    Finds the latest backup file and sends it to admins/backup channel.
+    Finds the latest backup file and notifies the ops channel canvas.
 
     Args:
         updated: Whether this was an update (True) or new addition (False)

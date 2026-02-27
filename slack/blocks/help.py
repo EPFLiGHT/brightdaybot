@@ -212,10 +212,7 @@ def build_help_blocks(is_admin: bool = False) -> tuple[List[Dict[str, Any]], str
         personality = f"""• `admin personality` - Show current bot personality
 • `admin personality [name]` - Change bot personality
 
-*Available:* {personality_list}
-
-*Custom Personality:*
-• `admin custom name|description|style|format|template [value]`"""
+*Available:* {personality_list}"""
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": personality}})
 
         blocks.append({"type": "divider"})
@@ -294,24 +291,8 @@ def build_help_blocks(is_admin: bool = False) -> tuple[List[Dict[str, Any]], str
         data_mgmt = """• `admin backup` - Create a manual backup of birthdays data
 • `admin restore latest` - Restore from the latest backup
 • `admin cache clear` - Clear all web search cache
-• `admin cache clear DD/MM` - Clear web search cache for specific date
-• `admin test-external-backup` - Test external backup system"""
+• `admin cache clear DD/MM` - Clear web search cache for specific date"""
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": data_mgmt}})
-
-        blocks.append({"type": "divider"})
-
-        # Message Archive
-        blocks.append(
-            {
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": "*📁 Message Archive*"},
-            }
-        )
-        archive = """• `admin archive stats` - View archive status and statistics
-• `admin archive search [query]` - Search archived messages
-• `admin archive export [format] [days]` - Export messages (csv/json)
-• `admin archive cleanup [force]` - Trigger archive cleanup"""
-        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": archive}})
 
         blocks.append({"type": "divider"})
 
