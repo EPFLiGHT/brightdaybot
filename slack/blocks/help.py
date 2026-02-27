@@ -247,7 +247,6 @@ def build_help_blocks(is_admin: bool = False) -> tuple[List[Dict[str, Any]], str
             }
         )
         timezone = """• `admin timezone` - View current timezone status
-• `admin timezone status` - Show detailed timezone schedule
 • `admin timezone enable` - Enable timezone-aware mode (hourly checks)
 • `admin timezone disable` - Disable timezone-aware mode (daily check)"""
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": timezone}})
@@ -555,6 +554,8 @@ def build_slash_help_blocks(
                     + "- `/special-day` or `/special-day today` - Today's observances\n"
                     + f"- `/special-day week` - Next {UPCOMING_DAYS_DEFAULT} days\n"
                     + f"- `/special-day month` - Next {UPCOMING_DAYS_EXTENDED} days\n"
+                    + "- `/special-day list [category]` - List all special days\n"
+                    + "- `/special-day stats` - View statistics\n"
                     + "- `/special-day export [source]` - Export to calendar (ICS)\n"
                     + "- `/special-day help` - Show this help",
                 },

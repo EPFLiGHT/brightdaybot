@@ -12,7 +12,8 @@ Storage format:
     "preferences": {
       "active": true,
       "image_enabled": true,
-      "show_age": true
+      "show_age": true,
+      "celebration_style": "standard"
     },
     "created_at": "ISO timestamp",
     "updated_at": "ISO timestamp"

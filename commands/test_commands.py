@@ -1,7 +1,7 @@
 """
 Test command handlers for BrightDayBot.
 
-This module contains all test-related command handlers extracted from command_handler.py.
+This module contains all test-related command handlers.
 These commands are used for testing various bot features including:
 - Birthday celebrations and messages
 - Block Kit rendering

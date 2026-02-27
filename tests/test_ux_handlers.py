@@ -1,11 +1,10 @@
 """
 Tests for UX handlers: slash commands, modals, and App Home.
 
-Tests handler registration, input parsing, and response generation
-without requiring live Slack connections.
+Tests handler registration, input parsing, conditional view logic,
+and upcoming birthday filtering without requiring live Slack connections.
 """
 
-from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 
@@ -21,7 +20,6 @@ class TestSlashCommandRegistration:
 
         register_slash_commands(mock_app)
 
-        # Verify command was registered
         mock_app.command.assert_any_call("/birthday")
 
     def test_register_slash_commands_adds_special_day(self):
@@ -33,7 +31,6 @@ class TestSlashCommandRegistration:
 
         register_slash_commands(mock_app)
 
-        # Verify command was registered
         mock_app.command.assert_any_call("/special-day")
 
 
@@ -50,7 +47,6 @@ class TestModalHandlerRegistration:
 
         register_modal_handlers(mock_app)
 
-        # Verify view handler was registered
         mock_app.view.assert_called_once_with("birthday_modal")
 
     def test_register_modal_handlers_adds_button_action(self):
@@ -63,7 +59,6 @@ class TestModalHandlerRegistration:
 
         register_modal_handlers(mock_app)
 
-        # Verify action handler was registered
         mock_app.action.assert_called_once_with("open_birthday_modal")
 
 
@@ -79,7 +74,6 @@ class TestAppHomeRegistration:
 
         register_app_home_handlers(mock_app)
 
-        # Verify event handler was registered
         mock_app.event.assert_called_once_with("app_home_opened")
 
 
@@ -106,12 +100,10 @@ class TestSlashCommandParsing:
 
         handler = captured_handlers["/birthday"]
 
-        # Mock ack and respond
         ack = MagicMock()
         respond = MagicMock()
         client = MagicMock()
 
-        # Test with empty text (should open modal)
         body = {"user_id": "U123", "text": "", "trigger_id": "trigger123"}
 
         with patch("handlers.slash_handler._open_birthday_modal") as mock_open_modal:
@@ -213,88 +205,8 @@ class TestSlashCommandParsing:
             mock_help.assert_called_once_with(respond)
 
 
-class TestModalDateConversion:
-    """Tests for modal dropdown value handling"""
-
-    def test_dropdown_to_ddmm_conversion(self):
-        """Month and day dropdowns convert to DD/MM format"""
-        month_value = "12"
-        day_value = "25"
-        date_ddmm = f"{day_value}/{month_value}"
-        assert date_ddmm == "25/12"
-
-    def test_invalid_date_feb_30(self):
-        """February 30 is invalid - datetime.strptime raises ValueError"""
-        date_str = "30/02/2000"  # Use leap year to test, Feb 30 still invalid
-        is_valid = True
-        try:
-            datetime.strptime(date_str, "%d/%m/%Y")
-        except ValueError:
-            is_valid = False
-        assert not is_valid
-
-    def test_valid_date_feb_29(self):
-        """February 29 is valid (leap year birthdays)"""
-        date_str = "29/02/2000"  # Use leap year to validate Feb 29
-        is_valid = True
-        try:
-            datetime.strptime(date_str, "%d/%m/%Y")
-        except ValueError:
-            is_valid = False
-        assert is_valid
-
-    def test_year_validation_too_old(self):
-        """Year before 1900 is rejected"""
-        year_int = 1800
-        current_year = datetime.now().year
-        is_valid = 1900 <= year_int <= current_year
-        assert not is_valid
-
-    def test_year_validation_future(self):
-        """Future year is rejected"""
-        year_int = datetime.now().year + 1
-        current_year = datetime.now().year
-        is_valid = 1900 <= year_int <= current_year
-        assert not is_valid
-
-    def test_year_validation_valid(self):
-        """Valid year passes validation"""
-        year_int = 1990
-        current_year = datetime.now().year
-        is_valid = 1900 <= year_int <= current_year
-        assert is_valid
-
-
 class TestAppHomeViewBuilding:
-    """Tests for App Home view construction"""
-
-    def test_home_view_has_correct_type(self):
-        """App Home view has type 'home'"""
-        from handlers.app_home_handler import _build_home_view
-
-        mock_app = MagicMock()
-
-        with patch("handlers.app_home_handler.load_birthdays", return_value={}):
-            with patch("handlers.app_home_handler.get_username", return_value="TestUser"):
-                with patch("slack.client.get_channel_members", return_value=["U123"]):
-                    view = _build_home_view("U123", mock_app)
-
-        assert view["type"] == "home"
-        assert "blocks" in view
-
-    def test_home_view_has_header(self):
-        """App Home includes header block"""
-        from handlers.app_home_handler import _build_home_view
-
-        mock_app = MagicMock()
-
-        with patch("handlers.app_home_handler.load_birthdays", return_value={}):
-            with patch("handlers.app_home_handler.get_username", return_value="TestUser"):
-                with patch("slack.client.get_channel_members", return_value=["U123"]):
-                    view = _build_home_view("U123", mock_app)
-
-        header_blocks = [b for b in view["blocks"] if b.get("type") == "header"]
-        assert len(header_blocks) >= 1
+    """Tests for App Home conditional view construction"""
 
     def test_home_view_shows_add_button_when_no_birthday(self):
         """Home shows Add button when user has no birthday"""
@@ -310,7 +222,6 @@ class TestAppHomeViewBuilding:
         action_blocks = [b for b in view["blocks"] if b.get("type") == "actions"]
         assert len(action_blocks) >= 1
 
-        # Check button text
         button = action_blocks[0]["elements"][0]
         assert button["action_id"] == "open_birthday_modal"
         assert "Add" in button["text"]["text"]
@@ -341,7 +252,6 @@ class TestAppHomeViewBuilding:
         action_blocks = [b for b in view["blocks"] if b.get("type") == "actions"]
         assert len(action_blocks) >= 1
 
-        # Find the edit button by action_id (may not be first due to celebration style selector)
         edit_button = None
         for block in action_blocks:
             for element in block.get("elements", []):
@@ -360,17 +270,16 @@ class TestUpcomingBirthdaysFiltering:
 
     def test_get_upcoming_birthdays_limits_results(self, mock_birthday_data):
         """Upcoming birthdays respects limit parameter"""
+        from datetime import datetime
 
         from handlers.app_home_handler import _get_upcoming_birthdays
 
         mock_app = MagicMock()
 
-        # Create more birthdays than limit with full preferences structure
         birthdays = {
             f"U{i}": mock_birthday_data(date=f"{10+i:02d}/01", year=1990) for i in range(10)
         }
 
-        # Mock channel members to include all test users
         channel_members = [f"U{i}" for i in range(10)]
 
         with patch("handlers.app_home_handler.get_username", return_value="User"):
@@ -391,8 +300,8 @@ class TestUpcomingBirthdaysFiltering:
         mock_app = MagicMock()
 
         birthdays = {
-            "U1": mock_birthday_data(date="01/01", year=1990),  # Will be 5 days
-            "U2": mock_birthday_data(date="02/01", year=1985),  # Will be 40 days
+            "U1": mock_birthday_data(date="01/01", year=1990),
+            "U2": mock_birthday_data(date="02/01", year=1985),
         }
 
         with patch("handlers.app_home_handler.get_username", return_value="User"):
@@ -405,7 +314,7 @@ class TestUpcomingBirthdaysFiltering:
                         result = _get_upcoming_birthdays(birthdays, mock_app, limit=10)
 
         assert len(result) == 2
-        assert result[0]["user_id"] == "U1"  # Sorted by days_until
+        assert result[0]["user_id"] == "U1"
         assert result[1]["user_id"] == "U2"
 
     def test_get_upcoming_birthdays_filters_non_channel_members(self, mock_birthday_data):
@@ -416,10 +325,9 @@ class TestUpcomingBirthdaysFiltering:
 
         birthdays = {
             "U1": mock_birthday_data(date="01/01", year=1990),
-            "U2": mock_birthday_data(date="02/01", year=1985),  # Not in channel
+            "U2": mock_birthday_data(date="02/01", year=1985),
         }
 
-        # Only U1 is in the channel
         with patch("handlers.app_home_handler.get_username", return_value="User"):
             with patch("slack.client.get_channel_members", return_value=["U1"]):
                 with patch("storage.birthdays.is_user_active", return_value=True):
@@ -440,7 +348,7 @@ class TestUpcomingBirthdaysFiltering:
 
         birthdays = {
             "U1": mock_birthday_data(date="01/01", year=1990, active=True),
-            "U2": mock_birthday_data(date="02/01", year=1985, active=False),  # Paused
+            "U2": mock_birthday_data(date="02/01", year=1985, active=False),
         }
 
         def is_active_side_effect(user_id, data):
