@@ -171,6 +171,7 @@ def build_help_blocks(is_admin: bool = False) -> tuple[List[Dict[str, Any]], str
 • `stats` - View birthday statistics
 • `remind` or `remind new` - Send reminders to users without birthdays
 • `remind update` - Send profile update reminders
+• `remind all` - Send reminders to both new and existing users
 • `remind new [message]` - Custom reminder to new users
 • `remind update [message]` - Custom profile update reminder"""
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": birthday_mgmt}})
@@ -187,13 +188,17 @@ def build_help_blocks(is_admin: bool = False) -> tuple[List[Dict[str, Any]], str
         special_days = """• `admin special` - View full special days help
 • `admin special list [category]` - List all observances (all sources)
 • `admin special add/remove` - Manage custom days
+• `admin special categories` - Manage category enable/disable
 • `admin special test [DD/MM]` - Test announcement
-• `admin special mode` - Show announcement mode (daily/weekly)
-• `admin special mode daily` - Switch to daily announcements
-• `admin special mode weekly [day]` - Switch to weekly digest
-• `admin special observances` - Combined status for UN/UNESCO/WHO
+• `admin special config` - View/update configuration
+• `admin special verify` - Verify data accuracy
+• `admin special mode [daily|weekly [day]]` - Announcement mode
+• `admin special observances` - Combined source status
 • `admin special [un|unesco|who]-status` - Individual cache status
-• `admin special api-status` - Calendarific status"""
+• `admin special [un|unesco|who]-refresh` - Force refresh individual source
+• `admin special all-refresh` - Refresh all observance sources
+• `admin special api-status` - Calendarific API status
+• `admin special refresh [days]` - Prefetch Calendarific data"""
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": special_days}})
 
         blocks.append({"type": "divider"})
@@ -550,6 +555,7 @@ def build_slash_help_blocks(
                     + "- `/special-day` or `/special-day today` - Today's observances\n"
                     + f"- `/special-day week` - Next {UPCOMING_DAYS_DEFAULT} days\n"
                     + f"- `/special-day month` - Next {UPCOMING_DAYS_EXTENDED} days\n"
+                    + "- `/special-day export [source]` - Export to calendar (ICS)\n"
                     + "- `/special-day help` - Show this help",
                 },
             },

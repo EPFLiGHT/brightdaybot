@@ -86,38 +86,48 @@ For production deployment, see [Production Deployment](#production-deployment).
 | `/birthday export`        | Export birthdays to ICS calendar |
 | `/birthday pause`         | Pause birthday celebrations      |
 | `/birthday resume`        | Resume birthday celebrations     |
+| `/birthday help`          | Show birthday command help       |
 | `/special-day`            | Today's special days             |
 | `/special-day week`       | Next 7 days                      |
 | `/special-day month`      | Next 30 days                     |
+| `/special-day export`     | Export special days to ICS       |
 
 ### User Commands (DM the bot)
 
 > [!TIP]
 > Slash commands and App Home are the recommended ways to interact. DM commands are available as an alternative.
 
-| Command              | Description                  |
-| -------------------- | ---------------------------- |
-| `add DD/MM [YYYY]`   | Set your birthday            |
-| `check`              | View your birthday           |
-| `remove`             | Remove your birthday         |
-| `pause`              | Pause birthday celebrations  |
-| `resume`             | Resume birthday celebrations |
-| `test [--text-only]` | Preview birthday message     |
-| `special`            | Today's special days         |
-| `help`               | Show commands                |
+| Command                               | Description                  |
+| ------------------------------------- | ---------------------------- |
+| `add DD/MM [YYYY]`                    | Set your birthday            |
+| `check`                               | View your birthday           |
+| `remove`                              | Remove your birthday         |
+| `pause`                               | Pause birthday celebrations  |
+| `resume`                              | Resume birthday celebrations |
+| `test [quality] [size] [--text-only]` | Preview birthday message     |
+| `special`                             | Today's special days         |
+| `help`                                | Show commands                |
 
 ### Admin Commands
 
-| Command                                        | Description                 |
-| ---------------------------------------------- | --------------------------- |
-| `admin status`                                 | System health check         |
-| `admin model set <model>`                      | Change AI model             |
-| `admin personality <name>`                     | Change bot personality      |
-| `admin timezone enable/disable`                | Toggle timezone mode        |
-| `admin test @user [--text-only]`               | Test for specific user      |
-| `admin announce`                               | Send announcement           |
-| `admin canvas [status\|refresh\|reset\|clean]` | Manage ops canvas dashboard |
-| `list`                                         | View all birthdays          |
+| Command                                        | Description                     |
+| ---------------------------------------------- | ------------------------------- |
+| `admin status [detailed]`                      | System health check             |
+| `admin model set <model>`                      | Change AI model                 |
+| `admin personality [name]`                     | View or change bot personality  |
+| `admin timezone enable/disable`                | Toggle timezone mode            |
+| `admin test @user [--text-only]`               | Test for specific user          |
+| `admin announce [message]`                     | Send announcement               |
+| `admin canvas [status\|refresh\|reset\|clean]` | Manage ops canvas dashboard     |
+| `admin special [subcommand]`                   | Special days management         |
+| `admin backup`                                 | Manual birthday data backup     |
+| `admin restore latest`                         | Restore from latest backup      |
+| `admin cache clear [DD/MM]`                    | Clear web search cache          |
+| `admin config`                                 | View/change command permissions |
+| `admin remind [new\|update\|all]`              | Send reminders to users         |
+| `admin list/add/remove`                        | Admin user management           |
+| `admin stats`                                  | Birthday statistics             |
+| `list`                                         | View all birthdays              |
 
 ## Personalities
 
@@ -321,7 +331,7 @@ sudo systemctl enable --now brightdaybot
 ## Troubleshooting
 
 1. **Health check**: `admin status` in Slack
-2. **Logs**: Check `data/logs/` (`ai.log`, `birthday.log`, etc.)
+2. **Logs**: Check `data/logs/` (`main.log`, `commands.log`, `ai.log`, `birthday.log`, `slack.log`, `storage.log`, `system.log`, `scheduler.log`, `events.log`)
 3. **Common issues**:
    - Missing API keys → Check `.env`
    - Image failures → Verify OpenAI key has image access

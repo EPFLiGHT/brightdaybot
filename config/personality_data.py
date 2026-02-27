@@ -2,7 +2,7 @@
 Personality data definitions for BrightDayBot.
 
 Contains the PERSONALITIES dictionary and Ludo-specific constants.
-This is pure data — helper functions are in personality_config.py.
+This is pure data — helper functions are in personality.py.
 """
 
 import os

@@ -307,7 +307,7 @@ def create_birthday_announcement(
 
 
 # Backup birthday messages for fallback if the API fails
-# Use {mention} placeholder for consistency with personality_config.py
+# Use {mention} placeholder for consistency with personality.py
 BACKUP_MESSAGES = [
     """
 :birthday: HAPPY BIRTHDAY {mention}!!! :tada:

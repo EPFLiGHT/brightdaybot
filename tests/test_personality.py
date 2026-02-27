@@ -1,5 +1,5 @@
 """
-Tests for personality configuration functions in personality_config.py
+Tests for personality configuration functions in personality.py
 
 Tests pure lookup functions:
 - get_personality_config(): Returns personality dict or standard fallback

@@ -47,6 +47,7 @@ AI_IMAGE_GENERATION_ENABLED = os.getenv("AI_IMAGE_GENERATION_ENABLED", "true").l
 # Enable external backup system (canvas dashboard updates on birthday changes)
 EXTERNAL_BACKUP_ENABLED = os.getenv("EXTERNAL_BACKUP_ENABLED", "true").lower() == "true"
 # Optional dedicated ops channel for canvas dashboard
+# Falls back to BACKUP_CHANNEL_ID for backward compatibility with old .env files
 OPS_CHANNEL_ID = os.getenv("OPS_CHANNEL_ID", os.getenv("BACKUP_CHANNEL_ID"))
 # Send backup on every change vs. batched/daily digest
 BACKUP_ON_EVERY_CHANGE = os.getenv("BACKUP_ON_EVERY_CHANGE", "true").lower() == "true"
@@ -145,9 +146,6 @@ BIRTHDAYS_JSON_FILE = os.path.join(STORAGE_DIR, "birthdays.json")
 ADMINS_FILE = os.path.join(STORAGE_DIR, "admins.json")
 PERSONALITY_FILE = os.path.join(STORAGE_DIR, "personality.json")
 PERMISSIONS_FILE = os.path.join(STORAGE_DIR, "permissions.json")
-
-# Legacy log file for compatibility
-LOG_FILE = os.path.join(LOGS_DIR, "app.log")
 
 # ----- APPLICATION CONFIGURATION -----
 
