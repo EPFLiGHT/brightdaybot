@@ -78,19 +78,19 @@ For production deployment, see [Production Deployment](#production-deployment).
 
 ### Slash Commands
 
-| Command                   | Description                      |
-| ------------------------- | -------------------------------- |
-| `/birthday`               | Open birthday form               |
-| `/birthday check [@user]` | Check birthday                   |
-| `/birthday list`          | List upcoming birthdays          |
-| `/birthday export`        | Export birthdays to ICS calendar |
-| `/birthday pause`         | Pause birthday celebrations      |
-| `/birthday resume`        | Resume birthday celebrations     |
-| `/birthday help`          | Show birthday command help       |
-| `/special-day`            | Today's special days             |
-| `/special-day week`       | Next 7 days                      |
-| `/special-day month`      | Next 30 days                     |
-| `/special-day export`     | Export special days to ICS       |
+| Command                        | Description                      |
+| ------------------------------ | -------------------------------- |
+| `/birthday`                    | Open birthday form               |
+| `/birthday check [@user]`      | Check birthday                   |
+| `/birthday list`               | List upcoming birthdays          |
+| `/birthday export`             | Export birthdays to ICS calendar |
+| `/birthday pause`              | Pause birthday celebrations      |
+| `/birthday resume`             | Resume birthday celebrations     |
+| `/birthday help`               | Show birthday command help       |
+| `/special-day`                 | Today's special days             |
+| `/special-day week`            | Next 7 days                      |
+| `/special-day month`           | Next 30 days                     |
+| `/special-day export [source]` | Export special days to ICS       |
 
 ### User Commands (DM the bot)
 
@@ -100,7 +100,7 @@ For production deployment, see [Production Deployment](#production-deployment).
 | Command                               | Description                  |
 | ------------------------------------- | ---------------------------- |
 | `add DD/MM [YYYY]`                    | Set your birthday            |
-| `check`                               | View your birthday           |
+| `check [@user]`                       | View birthday                |
 | `remove`                              | Remove your birthday         |
 | `pause`                               | Pause birthday celebrations  |
 | `resume`                              | Resume birthday celebrations |

@@ -222,8 +222,8 @@ def _update_channel_topic(app, channel_id):
                         channel=channel_id, purpose=expected_purpose
                     )
                     logger.info(f"CANVAS: Updated channel purpose for {channel_id}")
-                except SlackApiError:
-                    pass
+                except SlackApiError as e:
+                    logger.debug(f"CANVAS: Could not update channel purpose: {e}")
     except SlackApiError as e:
         logger.warning(f"CANVAS: Could not update channel topic: {e}")
     except Exception as e:
@@ -494,14 +494,14 @@ def _build_observances_section():
                 from integrations.calendarific import get_calendarific_client
 
                 cal_status = get_calendarific_client().get_api_status()
-                cal_fresh = "🟢 Fresh" if cal_status.get("cache_fresh") else "🟡 Stale"
+                cal_fresh = "🟢 Fresh" if not cal_status.get("needs_prefetch") else "🟡 Stale"
                 cal_count = cal_status.get("cached_dates", "?")
                 cal_updated = cal_status.get("last_prefetch", "?")
                 if isinstance(cal_updated, str) and "T" in cal_updated:
                     cal_updated = cal_updated[:10]
                 rows.append(f"| Calendarific | {cal_fresh} | {cal_count} | {cal_updated} |")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"CANVAS: Could not get Calendarific status: {e}")
 
         table_rows = "\n".join(rows)
         return f"""## 🌍 Observance Caches

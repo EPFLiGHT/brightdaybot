@@ -168,12 +168,11 @@ def build_help_blocks(is_admin: bool = False) -> tuple[List[Dict[str, Any]], str
         )
         birthday_mgmt = """• `list` - List upcoming birthdays
 • `list all` - List all birthdays organized by month
-• `stats` - View birthday statistics
-• `remind` or `remind new` - Send reminders to users without birthdays
-• `remind update` - Send profile update reminders
-• `remind all` - Send reminders to both new and existing users
-• `remind new [message]` - Custom reminder to new users
-• `remind update [message]` - Custom profile update reminder"""
+• `admin stats` - View birthday statistics
+• `admin remind` or `admin remind new` - Send reminders to users without birthdays
+• `admin remind update` - Send profile update reminders
+• `admin remind all` - Send reminders to both new and existing users
+• `admin remind [type] [message]` - Custom reminder message"""
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": birthday_mgmt}})
 
         blocks.append({"type": "divider"})
@@ -197,8 +196,8 @@ def build_help_blocks(is_admin: bool = False) -> tuple[List[Dict[str, Any]], str
 • `admin special [un|unesco|who]-status` - Individual cache status
 • `admin special [un|unesco|who]-refresh` - Force refresh individual source
 • `admin special all-refresh` - Refresh all observance sources
-• `admin special api-status` - Calendarific API status
-• `admin special refresh [days]` - Prefetch Calendarific data"""
+• `admin special calendarific-status` - Calendarific API status
+• `admin special calendarific-refresh [days]` - Prefetch Calendarific data"""
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": special_days}})
 
         blocks.append({"type": "divider"})
@@ -262,8 +261,8 @@ def build_help_blocks(is_admin: bool = False) -> tuple[List[Dict[str, Any]], str
         )
         system_mgmt = """• `admin status` - View system health and component status
 • `admin status detailed` - View detailed system information
-• `config` - View command permissions
-• `config COMMAND true/false` - Change command permissions"""
+• `admin config` - View command permissions
+• `admin config COMMAND true/false` - Change command permissions"""
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": system_mgmt}})
 
         blocks.append({"type": "divider"})
@@ -330,7 +329,8 @@ _(All announcements require confirmation)_"""
 • `admin test-upload` - Test image upload functionality
 • `admin test-upload-multi` - Test multiple image attachments
 • `admin test-blockkit [mode]` - Test Block Kit image embedding
-• `admin test-file-upload` - Test text file upload"""
+• `admin test-file-upload` - Test text file upload
+• `admin test-external-backup` - Test canvas backup system"""
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": testing}})
 
         blocks.append({"type": "divider"})

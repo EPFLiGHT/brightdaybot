@@ -599,7 +599,7 @@ In daily mode, individual announcements are posted each day with observances."""
             "📥 Import feature not yet implemented. Please add special days individually or edit the CSV file directly."
         )
 
-    elif subcommand == "refresh":
+    elif subcommand == "calendarific-refresh":
         # Calendarific: Force weekly prefetch
         if not CALENDARIFIC_ENABLED:
             say("❌ Calendarific API is not enabled. Set `CALENDARIFIC_ENABLED=true` in .env")
@@ -842,7 +842,7 @@ _Cache refreshes monthly. Use `admin special who-refresh` to force update._"""
         say("📊 *Refresh Results*\n\n" + "\n".join(results))
         logger.info(f"ADMIN_SPECIAL: {username} refreshed all observance caches")
 
-    elif subcommand in ["api-status", "api", "calendarific"]:
+    elif subcommand == "calendarific-status":
         # Calendarific: Show API status
         if not CALENDARIFIC_ENABLED:
             say("""📊 *Calendarific API Status*
@@ -879,7 +879,7 @@ _Cache refreshes monthly. Use `admin special who-refresh` to force update._"""
 • Last prefetch: {last_str}
 • Needs refresh: {"⚠️ Yes" if status["needs_prefetch"] else "✅ No"}
 
-_Run `admin special refresh` to update cache_"""
+_Run `admin special calendarific-refresh` to update cache_"""
             say(message)
 
         except Exception as e:
@@ -914,8 +914,8 @@ _Run `admin special refresh` to update cache_"""
 • `admin special who-refresh` - Force refresh WHO cache
 
 *Calendarific API (national holidays):*
-• `admin special api-status` - Show Calendarific status
-• `admin special refresh [days]` - Prefetch upcoming days
+• `admin special calendarific-status` - Show Calendarific status
+• `admin special calendarific-refresh [days]` - Prefetch upcoming days
 
 *Categories:* Global Health, Tech, Culture, Company"""
         say(help_text)
