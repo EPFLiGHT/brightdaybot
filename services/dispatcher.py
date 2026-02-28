@@ -55,6 +55,7 @@ from commands.admin_commands import (
     handle_announce_command,
     handle_backup_command,
     handle_cache_command,
+    handle_canvas_command,
     handle_config_command,
     handle_model_command,
     handle_personality_command,
@@ -480,22 +481,6 @@ def handle_command(text, user_id, say, app):
     elif command == "check":
         handle_check_command(parts, user_id, say, app)
 
-    elif command == "remind":
-        handle_remind_command(
-            parts,
-            user_id,
-            say,
-            app,
-            add_pending_confirmation,
-            CONFIRMATION_TIMEOUT_MINUTES,
-        )
-
-    elif command == "stats":
-        handle_stats_command(user_id, say, app)
-
-    elif command == "config":
-        handle_config_command(parts, user_id, say, app)
-
     elif command == "test":
         quality, image_size, text_only, error_message = parse_test_command_args(parts[1:])
         if error_message:
@@ -818,6 +803,9 @@ def handle_admin_command(
     elif subcommand == "restore":
         handle_restore_command(args, user_id, say, app, username)
 
+    elif subcommand == "canvas":
+        handle_canvas_command(args, user_id, say, app, username)
+
     elif subcommand == "personality":
         handle_personality_command(args, user_id, say, app, username)
 
@@ -836,6 +824,22 @@ def handle_admin_command(
 
     elif subcommand == "timezone":
         handle_timezone_command(args, user_id, say, app, username)
+
+    elif subcommand == "config":
+        handle_config_command(args, user_id, say, app)
+
+    elif subcommand == "stats":
+        handle_stats_command(user_id, say, app)
+
+    elif subcommand == "remind":
+        handle_remind_command(
+            ["remind"] + args,
+            user_id,
+            say,
+            app,
+            add_pending_fn,
+            timeout_minutes,
+        )
 
     elif subcommand == "test-block":
         handle_test_block_command(user_id, args, say, app)

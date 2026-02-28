@@ -28,7 +28,7 @@ from config import (
 )
 from integrations.openai import complete
 from integrations.web_search import get_birthday_facts
-from slack.client import fix_slack_formatting, get_user_mention
+from slack.client import get_user_mention
 from storage.birthdays import DEFAULT_PREFERENCES
 from storage.settings import (
     get_current_personality_name,
@@ -36,7 +36,12 @@ from storage.settings import (
     save_recent_personalities,
 )
 from utils.date_utils import get_star_sign
-from utils.sanitization import sanitize_profile_field, sanitize_status_text, sanitize_username
+from utils.sanitization import (
+    markdown_to_slack_mrkdwn,
+    sanitize_profile_field,
+    sanitize_status_text,
+    sanitize_username,
+)
 
 logger = get_logger("llm")
 
@@ -302,7 +307,7 @@ def create_birthday_announcement(
 
 
 # Backup birthday messages for fallback if the API fails
-# Use {mention} placeholder for consistency with personality_config.py
+# Use {mention} placeholder for consistency with personality.py
 BACKUP_MESSAGES = [
     """
 :birthday: HAPPY BIRTHDAY {mention}!!! :tada:
@@ -539,7 +544,7 @@ def _generate_birthday_message(
             message = message.strip()
 
             # Fix common Slack formatting issues
-            message = fix_slack_formatting(message)
+            message = markdown_to_slack_mrkdwn(message)
 
             # === CONDITIONAL: Validation ===
             if is_single:
@@ -784,11 +789,11 @@ def _build_single_birthday_prompt(
     if celebration_style == "epic":
         epic_context = """
 
-:rotating_light: **EPIC CELEBRATION MODE ACTIVATED!** :rotating_light:
+:rotating_light: *EPIC CELEBRATION MODE ACTIVATED!* :rotating_light:
 
 This person has requested the ULTIMATE birthday experience! You must deliver a LEGENDARY celebration:
 
-**MESSAGE STYLE:**
+*MESSAGE STYLE:*
 - Start with a DRAMATIC announcement/proclamation (e.g., "ATTENTION EVERYONE!", "HEAR YE, HEAR YE!", "STOP EVERYTHING!")
 - Use SIGNIFICANTLY more emojis than usual - go emoji crazy!
 - Be EXTREMELY enthusiastic, theatrical, and over-the-top dramatic
@@ -797,7 +802,7 @@ This person has requested the ULTIMATE birthday experience! You must deliver a L
 - Make references to legends, myths, or epic tales
 - This should feel like announcing royalty or a superhero's arrival!
 
-**REQUIRED ELEMENTS:**
+*REQUIRED ELEMENTS:*
 - At least one dramatic pause or buildup (use "..." or line breaks)
 - Multiple exclamation marks!!!
 - Superlatives: "THE most", "THE greatest", "LEGENDARY", "UNSTOPPABLE"
@@ -966,7 +971,7 @@ CRITICAL FORMATTING REQUIREMENTS (MUST FOLLOW EXACTLY):
    - Do NOT replace with names or other text
    - These EXACT strings must appear in your response: {mention_text}
 2. **NOTIFICATION**: {'Include <!here> exactly as written to notify active members' if not skip_mention else 'Do NOT include any channel mention like <!here> or <!channel>'}
-3. **LENGTH**: Keep the message to 8-12 lines maximum
+3. **LENGTH**: Keep the message to 8-12 lines maximum (under 2000 characters total)
 4. **EMOJIS**: {emoji_ctx['emoji_instruction']}
 5. **AVAILABLE EMOJIS**: {emoji_ctx['emoji_examples']}
 6. **DATE INCLUSION**: Organically mention today's date ({shared_date_formatted}) in your message. Examples:
@@ -1034,7 +1039,7 @@ def _get_fallback_single_message(person, selected_personality_name):
     formatted_message = random_message.replace("{mention}", user_mention).replace(
         "{name}", user_mention
     )
-    formatted_message = fix_slack_formatting(formatted_message)
+    formatted_message = markdown_to_slack_mrkdwn(formatted_message)
 
     logger.info(f"AI: Used personality-specific fallback message ({selected_personality_name})")
     return formatted_message
@@ -1433,7 +1438,7 @@ def generate_birthday_image_title(
                     messages=[
                         {
                             "role": "system",
-                            "content": "You are a creative title generator for birthday image uploads. Generate funny, witty, and personalized titles that are 2-8 words long. CRITICAL: You MUST include the person's name(s) prominently in every title. Be creative but keep it workplace appropriate. Do not include emojis - they will be added separately.",
+                            "content": "You are a creative title generator for birthday image uploads. STRICT LIMIT: Keep titles 2-8 words and under 100 characters total. CRITICAL: You MUST include the person's name(s) prominently in every title. Be creative but keep it workplace appropriate. Do not include emojis - they will be added separately. Output ONLY the title, nothing else.",
                         },
                         {"role": "user", "content": formatted_prompt},
                     ],
@@ -1444,7 +1449,7 @@ def generate_birthday_image_title(
                 ai_title = ai_title.strip()
 
                 # Fix Slack formatting issues
-                ai_title = fix_slack_formatting(ai_title)
+                ai_title = markdown_to_slack_mrkdwn(ai_title)
 
                 # Clean up the title (remove quotes, extra punctuation)
                 ai_title = ai_title.strip("\"'").rstrip(".!?")

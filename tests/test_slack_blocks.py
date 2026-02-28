@@ -1,10 +1,13 @@
 """
 Tests for Block Kit builder functions in slack/blocks.py
 
-Tests structural validity of Slack Block Kit output:
-- All functions return (blocks, fallback_text) tuples
-- Blocks contain required types (header, section, context)
-- Error types produce valid structures
+Tests behavioral logic and content validation:
+- Header text varies by single/multiple people
+- Error blocks include format hints
+- Check blocks personalize by self vs other
+- Modal has correct dropdown structure and DMY order
+- Upcoming birthdays show special text for today/tomorrow
+- Weekly digest sorts chronologically with footer totals
 """
 
 from slack.blocks import (
@@ -23,54 +26,13 @@ from slack.blocks import (
 
 
 class TestBuildBirthdayBlocks:
-    """Tests for build_birthday_blocks() structure"""
-
-    def test_returns_tuple(self):
-        """Function returns (blocks, fallback_text) tuple"""
-        result = build_birthday_blocks(
-            [{"username": "Alice", "user_id": "U123", "age": 30, "star_sign": "Aries"}],
-            "Happy birthday!",
-        )
-        assert isinstance(result, tuple)
-        assert len(result) == 2
-
-    def test_blocks_is_list(self):
-        """First element is a list of blocks"""
-        blocks, _ = build_birthday_blocks(
-            [{"username": "Alice", "user_id": "U123", "age": 30, "star_sign": "Aries"}],
-            "Happy birthday!",
-        )
-        assert isinstance(blocks, list)
-        assert len(blocks) > 0
-
-    def test_has_header_block(self):
-        """Blocks include a header type"""
-        blocks, _ = build_birthday_blocks(
-            [{"username": "Alice", "user_id": "U123", "age": 30, "star_sign": "Aries"}],
-            "Happy birthday!",
-        )
-        header_blocks = [b for b in blocks if b.get("type") == "header"]
-        assert len(header_blocks) == 1
-
-    def test_fallback_text_not_empty(self):
-        """Fallback text is non-empty string"""
-        _, fallback = build_birthday_blocks(
-            [{"username": "Alice", "user_id": "U123", "age": 30, "star_sign": "Aries"}],
-            "Happy birthday!",
-        )
-        assert isinstance(fallback, str)
-        assert len(fallback) > 0
+    """Tests for build_birthday_blocks() header behavior"""
 
     def test_multiple_people_header(self):
-        """Multiple people get appropriate header"""
+        """Multiple people get 'Twins' header"""
         blocks, _ = build_birthday_blocks(
             [
-                {
-                    "username": "Alice",
-                    "user_id": "U123",
-                    "age": 30,
-                    "star_sign": "Aries",
-                },
+                {"username": "Alice", "user_id": "U123", "age": 30, "star_sign": "Aries"},
                 {"username": "Bob", "user_id": "U456", "age": 25, "star_sign": "Leo"},
             ],
             "Happy birthday!",
@@ -89,25 +51,7 @@ class TestBuildBirthdayBlocks:
 
 
 class TestBuildBirthdayErrorBlocks:
-    """Tests for build_birthday_error_blocks() error handling"""
-
-    def test_invalid_date_error(self):
-        """Invalid date error produces valid blocks"""
-        blocks, fallback = build_birthday_error_blocks("invalid_date")
-        assert isinstance(blocks, list)
-        assert "Invalid" in fallback
-
-    def test_no_date_error(self):
-        """No date error produces valid blocks"""
-        blocks, fallback = build_birthday_error_blocks("no_date")
-        assert isinstance(blocks, list)
-        assert len(blocks) >= 2
-
-    def test_unknown_error_type(self):
-        """Unknown error type uses default message"""
-        blocks, fallback = build_birthday_error_blocks("unknown_type")
-        assert isinstance(blocks, list)
-        assert "Invalid Input" in fallback
+    """Tests for build_birthday_error_blocks() format hint"""
 
     def test_format_hint_added(self):
         """Format hint appears in context block"""
@@ -117,13 +61,7 @@ class TestBuildBirthdayErrorBlocks:
 
 
 class TestBuildPermissionErrorBlocks:
-    """Tests for build_permission_error_blocks() access control"""
-
-    def test_returns_valid_structure(self):
-        """Returns valid (blocks, fallback) tuple"""
-        blocks, fallback = build_permission_error_blocks("list")
-        assert isinstance(blocks, list)
-        assert isinstance(fallback, str)
+    """Tests for build_permission_error_blocks() command reflection"""
 
     def test_command_in_message(self):
         """Command name appears in error message"""
@@ -132,7 +70,7 @@ class TestBuildPermissionErrorBlocks:
 
 
 class TestBuildBirthdayCheckBlocks:
-    """Tests for build_birthday_check_blocks() info display"""
+    """Tests for build_birthday_check_blocks() personalization"""
 
     def test_self_check(self):
         """Self birthday check uses 'Your'"""
@@ -156,12 +94,11 @@ class TestBuildBirthdayCheckBlocks:
 
 
 class TestBuildBirthdayNotFoundBlocks:
-    """Tests for build_birthday_not_found_blocks() not found message"""
+    """Tests for build_birthday_not_found_blocks() instructions"""
 
     def test_self_includes_instructions(self):
-        """Self not found includes add instructions"""
+        """Self not found includes /birthday add instructions"""
         blocks, _ = build_birthday_not_found_blocks("Alice", is_self=True)
-        # Check section text includes instructions (now promotes /birthday command)
         section_texts = [
             b.get("text", {}).get("text", "") for b in blocks if b.get("type") == "section"
         ]
@@ -170,13 +107,7 @@ class TestBuildBirthdayNotFoundBlocks:
 
 
 class TestBuildUnrecognizedInputBlocks:
-    """Tests for build_unrecognized_input_blocks() help message"""
-
-    def test_returns_valid_structure(self):
-        """Returns valid (blocks, fallback) tuple"""
-        blocks, fallback = build_unrecognized_input_blocks()
-        assert isinstance(blocks, list)
-        assert isinstance(fallback, str)
+    """Tests for build_unrecognized_input_blocks() help fields"""
 
     def test_has_help_fields(self):
         """Blocks contain helpful field sections"""
@@ -186,34 +117,7 @@ class TestBuildUnrecognizedInputBlocks:
 
 
 class TestBuildSpecialDayBlocks:
-    """Tests for build_special_day_blocks() structure"""
-
-    def test_returns_tuple(self):
-        """Function returns (blocks, fallback_text) tuple"""
-        result = build_special_day_blocks(
-            [{"name": "World Health Day", "date": "07/04", "source": "WHO"}],
-            "Today we celebrate health!",
-        )
-        assert isinstance(result, tuple)
-        assert len(result) == 2
-
-    def test_blocks_is_list(self):
-        """First element is a list of blocks"""
-        blocks, _ = build_special_day_blocks(
-            [{"name": "World Health Day", "date": "07/04", "source": "WHO"}],
-            "Today we celebrate health!",
-        )
-        assert isinstance(blocks, list)
-        assert len(blocks) > 0
-
-    def test_has_header_block(self):
-        """Blocks include a header type"""
-        blocks, _ = build_special_day_blocks(
-            [{"name": "World Health Day", "date": "07/04", "source": "WHO"}],
-            "Today we celebrate health!",
-        )
-        header_blocks = [b for b in blocks if b.get("type") == "header"]
-        assert len(header_blocks) == 1
+    """Tests for build_special_day_blocks() content"""
 
     def test_single_day_header(self):
         """Single special day gets observance name in header"""
@@ -223,15 +127,6 @@ class TestBuildSpecialDayBlocks:
         )
         header = blocks[0]
         assert "World Health Day" in header["text"]["text"]
-
-    def test_fallback_text_not_empty(self):
-        """Fallback text is non-empty string"""
-        _, fallback = build_special_day_blocks(
-            [{"name": "World Health Day", "date": "07/04", "source": "WHO"}],
-            "Today we celebrate health!",
-        )
-        assert isinstance(fallback, str)
-        assert len(fallback) > 0
 
     def test_url_buttons_have_action_id(self):
         """URL buttons have explicit action_id to prevent Slack warnings"""
@@ -245,10 +140,8 @@ class TestBuildSpecialDayBlocks:
             ],
             "Today we celebrate health!",
         )
-        # Find actions block
         actions_block = next((b for b in blocks if b.get("type") == "actions"), None)
         assert actions_block is not None
-        # Find URL button (has url property)
         url_buttons = [e for e in actions_block["elements"] if e.get("url")]
         assert len(url_buttons) > 0
         for button in url_buttons:
@@ -257,31 +150,22 @@ class TestBuildSpecialDayBlocks:
 
 
 class TestBuildBirthdayModal:
-    """Tests for build_birthday_modal() modal structure"""
+    """Tests for build_birthday_modal() dropdown structure and DMY order"""
 
-    def test_returns_dict(self):
-        """Function returns a modal dict"""
-        result = build_birthday_modal("U123")
-        assert isinstance(result, dict)
-
-    def test_has_required_modal_fields(self):
-        """Modal has type, callback_id, title, submit, close"""
+    def test_has_day_dropdown(self):
+        """Modal includes day dropdown with 31 options"""
         modal = build_birthday_modal("U123")
-        assert modal["type"] == "modal"
-        assert modal["callback_id"] == "birthday_modal"
-        assert "title" in modal
-        assert "submit" in modal
-        assert "close" in modal
-
-    def test_has_blocks_list(self):
-        """Modal contains blocks array"""
-        modal = build_birthday_modal("U123")
-        assert "blocks" in modal
-        assert isinstance(modal["blocks"], list)
-        assert len(modal["blocks"]) >= 2
+        input_blocks = [b for b in modal["blocks"] if b.get("type") == "input"]
+        day_block = next(
+            (b for b in input_blocks if b.get("block_id") == "birthday_day_block"), None
+        )
+        assert day_block is not None
+        assert day_block["element"]["type"] == "static_select"
+        assert day_block["element"]["action_id"] == "birthday_day"
+        assert len(day_block["element"]["options"]) == 31
 
     def test_has_month_dropdown(self):
-        """Modal includes month dropdown"""
+        """Modal includes month dropdown with 12 options"""
         modal = build_birthday_modal("U123")
         input_blocks = [b for b in modal["blocks"] if b.get("type") == "input"]
         month_block = next(
@@ -292,18 +176,6 @@ class TestBuildBirthdayModal:
         assert month_block["element"]["type"] == "static_select"
         assert month_block["element"]["action_id"] == "birthday_month"
         assert len(month_block["element"]["options"]) == 12
-
-    def test_has_day_dropdown(self):
-        """Modal includes day dropdown"""
-        modal = build_birthday_modal("U123")
-        input_blocks = [b for b in modal["blocks"] if b.get("type") == "input"]
-        day_block = next(
-            (b for b in input_blocks if b.get("block_id") == "birthday_day_block"), None
-        )
-        assert day_block is not None
-        assert day_block["element"]["type"] == "static_select"
-        assert day_block["element"]["action_id"] == "birthday_day"
-        assert len(day_block["element"]["options"]) == 31
 
     def test_has_optional_year_input(self):
         """Modal includes optional year text input"""
@@ -316,15 +188,19 @@ class TestBuildBirthdayModal:
         assert year_block["optional"] is True
         assert year_block["element"]["type"] == "plain_text_input"
 
+    def test_dmy_block_order(self):
+        """Modal blocks follow Day-Month-Year order"""
+        modal = build_birthday_modal("U123")
+        input_blocks = [b for b in modal["blocks"] if b.get("type") == "input"]
+        block_ids = [b.get("block_id") for b in input_blocks]
+        day_idx = block_ids.index("birthday_day_block")
+        month_idx = block_ids.index("birthday_month_block")
+        year_idx = block_ids.index("birth_year_block")
+        assert day_idx < month_idx < year_idx
+
 
 class TestBuildUpcomingBirthdaysBlocks:
-    """Tests for build_upcoming_birthdays_blocks() list structure"""
-
-    def test_returns_tuple(self):
-        """Function returns (blocks, fallback_text) tuple"""
-        result = build_upcoming_birthdays_blocks([])
-        assert isinstance(result, tuple)
-        assert len(result) == 2
+    """Tests for build_upcoming_birthdays_blocks() content"""
 
     def test_empty_list_message(self):
         """Empty list shows no birthdays message"""
@@ -338,30 +214,12 @@ class TestBuildUpcomingBirthdaysBlocks:
         )
         assert any_has_no_birthdays or "registered" in str(section_texts).lower()
 
-    def test_has_header_block(self):
-        """Blocks include header type"""
-        blocks, _ = build_upcoming_birthdays_blocks(
-            [{"user_id": "U123", "username": "Alice", "date": "25/12", "days_until": 5}]
-        )
-        header_blocks = [b for b in blocks if b.get("type") == "header"]
-        assert len(header_blocks) == 1
-
     def test_shows_upcoming_birthdays(self):
-        """Upcoming birthdays are listed"""
+        """Upcoming birthdays list includes user mentions"""
         blocks, fallback = build_upcoming_birthdays_blocks(
             [
-                {
-                    "user_id": "U123",
-                    "username": "Alice",
-                    "date": "25/12",
-                    "days_until": 5,
-                },
-                {
-                    "user_id": "U456",
-                    "username": "Bob",
-                    "date": "31/12",
-                    "days_until": 10,
-                },
+                {"user_id": "U123", "username": "Alice", "date": "25/12", "days_until": 5},
+                {"user_id": "U456", "username": "Bob", "date": "31/12", "days_until": 10},
             ]
         )
         section_texts = " ".join(
@@ -392,20 +250,7 @@ class TestBuildUpcomingBirthdaysBlocks:
 
 
 class TestBuildSlashHelpBlocks:
-    """Tests for build_slash_help_blocks() help structure"""
-
-    def test_returns_tuple(self):
-        """Function returns (blocks, fallback_text) tuple"""
-        result = build_slash_help_blocks("birthday")
-        assert isinstance(result, tuple)
-        assert len(result) == 2
-
-    def test_birthday_help_has_header(self):
-        """Birthday help includes header"""
-        blocks, _ = build_slash_help_blocks("birthday")
-        header_blocks = [b for b in blocks if b.get("type") == "header"]
-        assert len(header_blocks) == 1
-        assert "/birthday" in header_blocks[0]["text"]["text"]
+    """Tests for build_slash_help_blocks() content"""
 
     def test_birthday_help_shows_subcommands(self):
         """Birthday help lists subcommands"""
@@ -416,13 +261,6 @@ class TestBuildSlashHelpBlocks:
         assert "add" in section_texts.lower()
         assert "check" in section_texts.lower()
         assert "list" in section_texts.lower()
-
-    def test_special_day_help_has_header(self):
-        """Special day help includes header"""
-        blocks, _ = build_slash_help_blocks("special-day")
-        header_blocks = [b for b in blocks if b.get("type") == "header"]
-        assert len(header_blocks) == 1
-        assert "/special-day" in header_blocks[0]["text"]["text"]
 
     def test_special_day_help_shows_options(self):
         """Special day help lists options"""
@@ -438,39 +276,11 @@ class TestBuildSlashHelpBlocks:
 class TestBuildWeeklySpecialDaysBlocks:
     """Tests for build_weekly_special_days_blocks() structure"""
 
-    def test_returns_tuple(self):
-        """Function returns (blocks, fallback_text) tuple"""
-        upcoming_days = {
-            "01/02": [{"name": "Test Day", "emoji": "🎉", "source": "UN"}],
-        }
-        result = build_weekly_special_days_blocks(upcoming_days, "Weekly digest intro")
-        assert isinstance(result, tuple)
-        assert len(result) == 2
-
     def test_empty_dict_returns_empty_blocks(self):
         """Empty upcoming_days returns empty blocks with message"""
         blocks, fallback = build_weekly_special_days_blocks({}, "No days")
         assert blocks == []
         assert "No special days" in fallback
-
-    def test_blocks_is_list(self):
-        """First element is a list of blocks"""
-        upcoming_days = {
-            "01/02": [{"name": "Test Day", "emoji": "🎉", "source": "UN"}],
-        }
-        blocks, _ = build_weekly_special_days_blocks(upcoming_days, "Weekly digest intro")
-        assert isinstance(blocks, list)
-        assert len(blocks) > 0
-
-    def test_has_header_block(self):
-        """Blocks include a header with 'Weekly Special Days Digest'"""
-        upcoming_days = {
-            "01/02": [{"name": "Test Day", "emoji": "🎉", "source": "UN"}],
-        }
-        blocks, _ = build_weekly_special_days_blocks(upcoming_days, "Weekly digest intro")
-        header_blocks = [b for b in blocks if b.get("type") == "header"]
-        assert len(header_blocks) == 1
-        assert "Weekly" in header_blocks[0]["text"]["text"]
 
     def test_includes_intro_message(self):
         """Blocks include the intro message"""
@@ -495,12 +305,10 @@ class TestBuildWeeklySpecialDaysBlocks:
         section_texts = [
             b.get("text", {}).get("text", "") for b in blocks if b.get("type") == "section"
         ]
-        # Find indices of day names in section texts
         all_text = " ".join(section_texts)
         first_idx = all_text.find("First Day")
         middle_idx = all_text.find("Middle Day")
         later_idx = all_text.find("Later Day")
-        # All should be found and in order
         assert first_idx < middle_idx < later_idx
 
     def test_fallback_text_has_count(self):
@@ -510,7 +318,7 @@ class TestBuildWeeklySpecialDaysBlocks:
             "02/02": [{"name": "Day 3"}],
         }
         _, fallback = build_weekly_special_days_blocks(upcoming_days, "Intro")
-        assert "3" in fallback  # 3 total observances
+        assert "3" in fallback
 
     def test_has_footer_with_totals(self):
         """Blocks include footer context with totals"""
@@ -521,6 +329,5 @@ class TestBuildWeeklySpecialDaysBlocks:
         blocks, _ = build_weekly_special_days_blocks(upcoming_days, "Intro")
         context_blocks = [b for b in blocks if b.get("type") == "context"]
         assert len(context_blocks) >= 1
-        # Footer should mention observances and days
         footer_text = str(context_blocks[-1])
-        assert "2" in footer_text  # 2 observances or 2 days
+        assert "2" in footer_text

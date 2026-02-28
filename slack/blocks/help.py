@@ -168,11 +168,11 @@ def build_help_blocks(is_admin: bool = False) -> tuple[List[Dict[str, Any]], str
         )
         birthday_mgmt = """• `list` - List upcoming birthdays
 • `list all` - List all birthdays organized by month
-• `stats` - View birthday statistics
-• `remind` or `remind new` - Send reminders to users without birthdays
-• `remind update` - Send profile update reminders
-• `remind new [message]` - Custom reminder to new users
-• `remind update [message]` - Custom profile update reminder"""
+• `admin stats` - View birthday statistics
+• `admin remind` or `admin remind new` - Send reminders to users without birthdays
+• `admin remind update` - Send profile update reminders
+• `admin remind all` - Send reminders to both new and existing users
+• `admin remind [type] [message]` - Custom reminder message"""
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": birthday_mgmt}})
 
         blocks.append({"type": "divider"})
@@ -187,13 +187,17 @@ def build_help_blocks(is_admin: bool = False) -> tuple[List[Dict[str, Any]], str
         special_days = """• `admin special` - View full special days help
 • `admin special list [category]` - List all observances (all sources)
 • `admin special add/remove` - Manage custom days
+• `admin special categories` - Manage category enable/disable
 • `admin special test [DD/MM]` - Test announcement
-• `admin special mode` - Show announcement mode (daily/weekly)
-• `admin special mode daily` - Switch to daily announcements
-• `admin special mode weekly [day]` - Switch to weekly digest
-• `admin special observances` - Combined status for UN/UNESCO/WHO
+• `admin special config` - View/update configuration
+• `admin special verify` - Verify data accuracy
+• `admin special mode [daily|weekly [day]]` - Announcement mode
+• `admin special observances` - Combined source status
 • `admin special [un|unesco|who]-status` - Individual cache status
-• `admin special api-status` - Calendarific status"""
+• `admin special [un|unesco|who]-refresh` - Force refresh individual source
+• `admin special all-refresh` - Refresh all observance sources
+• `admin special calendarific-status` - Calendarific API status
+• `admin special calendarific-refresh [days]` - Prefetch Calendarific data"""
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": special_days}})
 
         blocks.append({"type": "divider"})
@@ -212,10 +216,7 @@ def build_help_blocks(is_admin: bool = False) -> tuple[List[Dict[str, Any]], str
         personality = f"""• `admin personality` - Show current bot personality
 • `admin personality [name]` - Change bot personality
 
-*Available:* {personality_list}
-
-*Custom Personality:*
-• `admin custom name|description|style|format|template [value]`"""
+*Available:* {personality_list}"""
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": personality}})
 
         blocks.append({"type": "divider"})
@@ -245,7 +246,6 @@ def build_help_blocks(is_admin: bool = False) -> tuple[List[Dict[str, Any]], str
             }
         )
         timezone = """• `admin timezone` - View current timezone status
-• `admin timezone status` - Show detailed timezone schedule
 • `admin timezone enable` - Enable timezone-aware mode (hourly checks)
 • `admin timezone disable` - Disable timezone-aware mode (daily check)"""
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": timezone}})
@@ -261,13 +261,28 @@ def build_help_blocks(is_admin: bool = False) -> tuple[List[Dict[str, Any]], str
         )
         system_mgmt = """• `admin status` - View system health and component status
 • `admin status detailed` - View detailed system information
-• `config` - View command permissions
-• `config COMMAND true/false` - Change command permissions"""
+• `admin config` - View command permissions
+• `admin config COMMAND true/false` - Change command permissions"""
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": system_mgmt}})
 
         blocks.append({"type": "divider"})
 
         # --- Operations ---
+
+        # Canvas Dashboard
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*📊 Canvas Dashboard*"},
+            }
+        )
+        canvas_cmds = """• `admin canvas` or `admin canvas status` - Dashboard status and backup info
+• `admin canvas refresh` - Force immediate update (bypasses debounce)
+• `admin canvas reset` - Delete and recreate canvas from scratch
+• `admin canvas clean` - Remove bot messages from ops channel (keeps backup thread)"""
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": canvas_cmds}})
+
+        blocks.append({"type": "divider"})
 
         # Data Management
         blocks.append(
@@ -279,24 +294,8 @@ def build_help_blocks(is_admin: bool = False) -> tuple[List[Dict[str, Any]], str
         data_mgmt = """• `admin backup` - Create a manual backup of birthdays data
 • `admin restore latest` - Restore from the latest backup
 • `admin cache clear` - Clear all web search cache
-• `admin cache clear DD/MM` - Clear web search cache for specific date
-• `admin test-external-backup` - Test external backup system"""
+• `admin cache clear DD/MM` - Clear web search cache for specific date"""
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": data_mgmt}})
-
-        blocks.append({"type": "divider"})
-
-        # Message Archive
-        blocks.append(
-            {
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": "*📁 Message Archive*"},
-            }
-        )
-        archive = """• `admin archive stats` - View archive status and statistics
-• `admin archive search [query]` - Search archived messages
-• `admin archive export [format] [days]` - Export messages (csv/json)
-• `admin archive cleanup [force]` - Trigger archive cleanup"""
-        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": archive}})
 
         blocks.append({"type": "divider"})
 
@@ -330,7 +329,8 @@ _(All announcements require confirmation)_"""
 • `admin test-upload` - Test image upload functionality
 • `admin test-upload-multi` - Test multiple image attachments
 • `admin test-blockkit [mode]` - Test Block Kit image embedding
-• `admin test-file-upload` - Test text file upload"""
+• `admin test-file-upload` - Test text file upload
+• `admin test-external-backup` - Test canvas backup system"""
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": testing}})
 
         blocks.append({"type": "divider"})
@@ -554,6 +554,9 @@ def build_slash_help_blocks(
                     + "- `/special-day` or `/special-day today` - Today's observances\n"
                     + f"- `/special-day week` - Next {UPCOMING_DAYS_DEFAULT} days\n"
                     + f"- `/special-day month` - Next {UPCOMING_DAYS_EXTENDED} days\n"
+                    + "- `/special-day list [category]` - List all special days\n"
+                    + "- `/special-day stats` - View statistics\n"
+                    + "- `/special-day export [source]` - Export to calendar (ICS)\n"
                     + "- `/special-day help` - Show this help",
                 },
             },

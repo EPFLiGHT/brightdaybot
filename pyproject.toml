@@ -1,6 +1,6 @@
 [project]
 name = "brightdaybot"
-version = "1.0.0"
+version = "1.1.0"
 description = "A Slack bot that celebrates birthdays with AI-generated personalized messages and images"
 readme = "README.md"
 license = { text = "MIT" }

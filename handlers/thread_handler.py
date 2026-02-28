@@ -333,11 +333,13 @@ Today's special day(s):{day_context}
 A user asked in the thread about this special day:
 "{text[:300]}"
 
-Generate a helpful, informative response (2-4 sentences) that:
+Generate a helpful, informative response (2-4 sentences, maximum 600 characters total) that:
 1. Directly addresses their question or comment
 2. Provides interesting and accurate information about the observance
 3. Uses a warm, engaging tone with 1-2 relevant emojis
 4. Encourages appreciation for the day's significance
+
+SLACK FORMATTING: Use *single asterisks* for bold, _single underscores_ for italic. Do NOT use **double asterisks** or __double underscores__. For links use <URL|text> format.
 
 Keep your response concise and focused. Do not repeat information that was already in the announcement.
 
@@ -351,7 +353,9 @@ Response:"""
         )
 
         if response and response.strip():
-            return response.strip()
+            from utils.sanitization import markdown_to_slack_mrkdwn
+
+            return markdown_to_slack_mrkdwn(response.strip())
 
         return None
 

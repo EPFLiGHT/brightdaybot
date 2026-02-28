@@ -16,6 +16,7 @@ A Slack bot that celebrates birthdays with AI-generated personalized messages an
 - **Thread Engagement**: Reacts to birthday thread replies with contextual emojis
 - **@-Mention Q&A**: Ask the bot about special days, birthdays, and capabilities
 - **NLP Date Parsing**: Set birthday with natural language ("July 14th")
+- **Ops Canvas Dashboard**: Auto-updating channel canvas with system health, birthday stats, scheduler, caches, and backups
 
 ## Quick Start
 
@@ -27,10 +28,11 @@ A Slack bot that celebrates birthdays with AI-generated personalized messages an
 4. Add **Bot Scopes**:
    - Core: `chat:write`, `chat:write.public`, `chat:write.customize`
    - Users: `users:read`, `users.profile:read`
-   - Channels: `channels:read`, `channels:history`, `groups:read`, `mpim:read`
+   - Channels: `channels:read`, `channels:history`, `channels:manage`, `groups:read`, `groups:history`, `groups:write`, `mpim:read`
    - DMs: `im:write`, `im:read`, `im:history`
    - Files: `files:read`, `files:write`
    - Reactions: `reactions:read`, `reactions:write`
+   - Canvas: `canvases:write`, `pins:write`
    - Other: `emoji:read`, `app_mentions:read`, `commands`
 5. Add **Slash Commands**: `/birthday`, `/special-day`
 6. Enable **Interactivity & Shortcuts** (for modal forms)
@@ -76,45 +78,56 @@ For production deployment, see [Production Deployment](#production-deployment).
 
 ### Slash Commands
 
-| Command                   | Description                      |
-| ------------------------- | -------------------------------- |
-| `/birthday`               | Open birthday form               |
-| `/birthday check [@user]` | Check birthday                   |
-| `/birthday list`          | List upcoming birthdays          |
-| `/birthday export`        | Export birthdays to ICS calendar |
-| `/birthday pause`         | Pause birthday celebrations      |
-| `/birthday resume`        | Resume birthday celebrations     |
-| `/special-day`            | Today's special days             |
-| `/special-day week`       | Next 7 days                      |
-| `/special-day month`      | Next 30 days                     |
+| Command                        | Description                      |
+| ------------------------------ | -------------------------------- |
+| `/birthday`                    | Open birthday form               |
+| `/birthday check [@user]`      | Check birthday                   |
+| `/birthday list`               | List upcoming birthdays          |
+| `/birthday export`             | Export birthdays to ICS calendar |
+| `/birthday pause`              | Pause birthday celebrations      |
+| `/birthday resume`             | Resume birthday celebrations     |
+| `/birthday help`               | Show birthday command help       |
+| `/special-day`                 | Today's special days             |
+| `/special-day week`            | Next 7 days                      |
+| `/special-day month`           | Next 30 days                     |
+| `/special-day export [source]` | Export special days to ICS       |
 
 ### User Commands (DM the bot)
 
 > [!TIP]
 > Slash commands and App Home are the recommended ways to interact. DM commands are available as an alternative.
 
-| Command              | Description                  |
-| -------------------- | ---------------------------- |
-| `add DD/MM [YYYY]`   | Set your birthday            |
-| `check`              | View your birthday           |
-| `remove`             | Remove your birthday         |
-| `pause`              | Pause birthday celebrations  |
-| `resume`             | Resume birthday celebrations |
-| `test [--text-only]` | Preview birthday message     |
-| `special`            | Today's special days         |
-| `help`               | Show commands                |
+| Command                               | Description                  |
+| ------------------------------------- | ---------------------------- |
+| `add DD/MM [YYYY]`                    | Set your birthday            |
+| `check [@user]`                       | View birthday                |
+| `remove`                              | Remove your birthday         |
+| `pause`                               | Pause birthday celebrations  |
+| `resume`                              | Resume birthday celebrations |
+| `test [quality] [size] [--text-only]` | Preview birthday message     |
+| `special`                             | Today's special days         |
+| `help`                                | Show commands                |
 
 ### Admin Commands
 
-| Command                          | Description            |
-| -------------------------------- | ---------------------- |
-| `admin status`                   | System health check    |
-| `admin model set <model>`        | Change AI model        |
-| `admin personality <name>`       | Change bot personality |
-| `admin timezone enable/disable`  | Toggle timezone mode   |
-| `admin test @user [--text-only]` | Test for specific user |
-| `admin announce`                 | Send announcement      |
-| `list`                           | View all birthdays     |
+| Command                                        | Description                     |
+| ---------------------------------------------- | ------------------------------- |
+| `admin status [detailed]`                      | System health check             |
+| `admin model set <model>`                      | Change AI model                 |
+| `admin personality [name]`                     | View or change bot personality  |
+| `admin timezone enable/disable`                | Toggle timezone mode            |
+| `admin test @user [--text-only]`               | Test for specific user          |
+| `admin announce [message]`                     | Send announcement               |
+| `admin canvas [status\|refresh\|reset\|clean]` | Manage ops canvas dashboard     |
+| `admin special [subcommand]`                   | Special days management         |
+| `admin backup`                                 | Manual birthday data backup     |
+| `admin restore latest`                         | Restore from latest backup      |
+| `admin cache clear [DD/MM]`                    | Clear web search cache          |
+| `admin config`                                 | View/change command permissions |
+| `admin remind [new\|update\|all]`              | Send reminders to users         |
+| `admin list/add/remove`                        | Admin user management           |
+| `admin stats`                                  | Birthday statistics             |
+| `list`                                         | View all birthdays              |
 
 ## Personalities
 
@@ -142,6 +155,7 @@ All optional settings are documented in [`.env.example`](.env.example) with defa
 - **Special Days Sources**: UN/UNESCO/WHO cache TTLs, Calendarific API
 - **Interactive Features**: Thread engagement, @-mention Q&A, NLP date parsing
 - **Announcements**: @-here mentions, channel topic updates
+- **Canvas Dashboard**: Ops channel with auto-updating system overview
 - **Custom Personality**: Name, description, style, formatting
 
 ## Project Structure
@@ -188,6 +202,7 @@ brightdaybot/
 │       ├── unesco.py             # UNESCO international days
 │       └── who.py                # WHO health campaigns
 ├── slack/                        # Slack API layer
+│   ├── canvas.py                 # Ops channel canvas dashboard
 │   ├── client.py                 # User profiles, permissions, channels
 │   ├── emoji.py                  # Emoji selection & management
 │   ├── messaging.py              # Message sending & file uploads
@@ -316,7 +331,7 @@ sudo systemctl enable --now brightdaybot
 ## Troubleshooting
 
 1. **Health check**: `admin status` in Slack
-2. **Logs**: Check `data/logs/` (`ai.log`, `birthday.log`, etc.)
+2. **Logs**: Check `data/logs/` (`main.log`, `commands.log`, `ai.log`, `birthday.log`, `slack.log`, `storage.log`, `system.log`, `scheduler.log`, `events.log`)
 3. **Common issues**:
    - Missing API keys → Check `.env`
    - Image failures → Verify OpenAI key has image access

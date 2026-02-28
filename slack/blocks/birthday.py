@@ -695,15 +695,15 @@ def build_birthday_modal(user_id: str) -> Dict[str, Any]:
         "blocks": [
             {
                 "type": "input",
-                "block_id": "birthday_month_block",
-                "element": month_element,
-                "label": {"type": "plain_text", "text": "Birthday Month"},
-            },
-            {
-                "type": "input",
                 "block_id": "birthday_day_block",
                 "element": day_element,
                 "label": {"type": "plain_text", "text": "Birthday Day"},
+            },
+            {
+                "type": "input",
+                "block_id": "birthday_month_block",
+                "element": month_element,
+                "label": {"type": "plain_text", "text": "Birthday Month"},
             },
             {
                 "type": "input",

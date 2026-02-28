@@ -1,12 +1,61 @@
 """
-Input sanitization utilities for BrightDayBot.
+Sanitization utilities for BrightDayBot.
 
-Provides functions to sanitize user-provided data before use in AI prompts
-to prevent prompt injection attacks.
+Provides functions to:
+- Convert AI-generated markdown to Slack mrkdwn format
+- Sanitize user-provided data before use in AI prompts
 """
 
 import re
 from typing import Optional
+
+
+def markdown_to_slack_mrkdwn(text: str) -> str:
+    """
+    Convert standard markdown formatting in AI-generated text to Slack mrkdwn.
+
+    AI models (GPT, Claude) default to standard markdown, but Slack uses its
+    own mrkdwn format. This function fixes:
+    - **bold** → *bold* (single asterisks)
+    - __italic__ → _italic_ (single underscores)
+    - [text](url) → <url|text> (Slack link format)
+    - # headers → *bold text*
+    - ```code blocks``` → `inline code`
+    - > blockquotes → >>> blockquotes
+    - Stray HTML tags (preserving Slack special tags like <@user>, <!here>)
+
+    Args:
+        text: AI-generated text with potential standard markdown
+
+    Returns:
+        Text with Slack-compatible mrkdwn formatting
+    """
+    if not text:
+        return text
+
+    # Remove HTML tags first (preserve Slack special: <@user>, <!here>, <#channel>)
+    # Must happen before link conversion so <url|text> links aren't stripped
+    text = re.sub(r"<(?![@!#])(.*?)>", r"\1", text)
+
+    # Bold: **text** → *text*
+    text = re.sub(r"\*\*(.*?)\*\*", r"*\1*", text)
+
+    # Italic: __text__ → _text_
+    text = re.sub(r"__(.*?)__", r"_\1_", text)
+
+    # Links: [text](url) → <url|text>
+    text = re.sub(r"\[(.*?)\]\((.*?)\)", r"<\2|\1>", text)
+
+    # Headers: # text → *text*
+    text = re.sub(r"^(#{1,6})\s+(.*?)$", r"*\2*", text, flags=re.MULTILINE)
+
+    # Code blocks: ```code``` → `code`
+    text = re.sub(r"```(.*?)```", r"`\1`", text, flags=re.DOTALL)
+
+    # Blockquotes: > text → >>>text
+    text = re.sub(r"^>\s+(.*?)$", r">>>\1", text, flags=re.MULTILINE)
+
+    return text
 
 
 def sanitize_for_prompt(

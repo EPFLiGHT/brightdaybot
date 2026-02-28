@@ -1,7 +1,7 @@
 """
 Test command handlers for BrightDayBot.
 
-This module contains all test-related command handlers extracted from command_handler.py.
+This module contains all test-related command handlers.
 These commands are used for testing various bot features including:
 - Birthday celebrations and messages
 - Block Kit rendering
@@ -19,15 +19,14 @@ from datetime import datetime
 
 from config import (
     AI_IMAGE_GENERATION_ENABLED,
-    BACKUP_CHANNEL_ID,
     BACKUP_DIR,
     BACKUP_ON_EVERY_CHANGE,
-    BACKUP_TO_ADMINS,
     BIRTHDAY_CHANNEL,
     BOT_BIRTH_YEAR,
     BOT_BIRTHDAY,
     EXTERNAL_BACKUP_ENABLED,
     IMAGE_GENERATION_PARAMS,
+    OPS_CHANNEL_ID,
     get_logger,
 )
 from slack.client import (
@@ -707,15 +706,15 @@ This test file contains sample birthday data in the same format used by the exte
 
 def handle_test_external_backup_command(user_id, say, app):
     """
-    Test the external backup delivery system.
+    Test the canvas dashboard backup notification system.
 
-    Displays current backup configuration, finds the latest backup file,
-    and triggers a test delivery to configured admin users.
+    Displays current configuration, finds the latest backup file,
+    and triggers a canvas dashboard update.
 
     Args:
         user_id: Slack user ID requesting the test
         say: Slack say function for sending messages
-        app: Slack app instance for backup delivery
+        app: Slack app instance
     """
     import glob
     import os
@@ -723,37 +722,15 @@ def handle_test_external_backup_command(user_id, say, app):
     from storage.birthdays import send_external_backup
 
     username = get_username(app, user_id)
-    say(
-        "🔄 *Testing External Backup System*\nChecking configuration and attempting to send the latest backup file..."
-    )
+    say("🔄 *Testing Canvas Backup System*\nChecking configuration and triggering canvas update...")
 
-    # Check environment variables
-
-    config_status = f"""📋 *External Backup Configuration:*
+    config_status = f"""📋 *Configuration:*
 • `EXTERNAL_BACKUP_ENABLED`: {EXTERNAL_BACKUP_ENABLED}
-• `BACKUP_TO_ADMINS`: {BACKUP_TO_ADMINS}
 • `BACKUP_ON_EVERY_CHANGE`: {BACKUP_ON_EVERY_CHANGE}
-• `BACKUP_CHANNEL_ID`: {BACKUP_CHANNEL_ID or 'Not set'}"""
+• `OPS_CHANNEL_ID`: {OPS_CHANNEL_ID or 'Not set'}"""
 
     say(config_status)
     logger.info(f"TEST_EXTERNAL_BACKUP: Configuration check by {username} ({user_id})")
-
-    # Check admin configuration
-    from storage.settings import get_current_admins
-
-    current_admins = get_current_admins()
-
-    admin_status = f"""👥 *Admin Configuration:*
-• Bot admins configured: {len(current_admins)}
-• Admin list: {current_admins}"""
-
-    say(admin_status)
-
-    if not current_admins:
-        say(
-            "❌ *No bot admins configured!* Use `admin add @username` to add admins who should receive backup files."
-        )
-        return
 
     # Find the latest backup file
     backup_files = glob.glob(os.path.join(BACKUP_DIR, "birthdays_*.json"))
@@ -773,23 +750,19 @@ def handle_test_external_backup_command(user_id, say, app):
 
     say(backup_info)
 
-    # Test the external backup system
     try:
-        say("🚀 *Testing external backup delivery...*")
-        logger.info(
-            f"TEST_EXTERNAL_BACKUP: Triggering manual external backup test by {username} ({user_id})"
-        )
+        say("🚀 *Triggering canvas dashboard update...*")
+        logger.info(f"TEST_EXTERNAL_BACKUP: Triggering manual test by {username} ({user_id})")
 
-        # Call the external backup function directly
         send_external_backup(latest_backup, "manual", username, app)
 
         say(
-            "✅ *External backup test completed!* Check the logs and your DMs for results. If successful, you should have received the backup file."
+            "✅ *Test completed!* Canvas dashboard has been updated. Check the ops channel canvas for results."
         )
         logger.info(f"TEST_EXTERNAL_BACKUP: Test completed by {username} ({user_id})")
 
     except Exception as e:
-        say(f"❌ *External backup test failed:* {e}")
+        say(f"❌ *Test failed:* {e}")
         logger.error(f"TEST_EXTERNAL_BACKUP: Test failed for {username} ({user_id}): {e}")
 
 

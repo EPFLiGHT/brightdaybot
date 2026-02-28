@@ -196,8 +196,8 @@ def handle_mention(app, event: dict, say) -> dict:
                     text=f"Whoa there! Please wait {seconds_until_reset} seconds before asking me another question.",
                     thread_ts=thread_ts,
                 )
-            except SlackApiError:
-                pass
+            except SlackApiError as e:
+                logger.debug(f"MENTION: Could not send rate limit message: {e}")
             result["error"] = "rate_limited"
             return result
 
