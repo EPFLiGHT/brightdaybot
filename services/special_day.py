@@ -33,6 +33,40 @@ from utils.sanitization import markdown_to_slack_mrkdwn
 logger = get_logger("special_days")
 
 
+def _resolve_special_day_personality(personality_name, required_key):
+    """Resolve personality, falling back to chronicler if required prompt key is missing."""
+    personality = personality_name or SPECIAL_DAYS_PERSONALITY
+    config = get_personality_config(personality)
+    if required_key not in config and personality != "chronicler":
+        logger.info(
+            f"Personality {personality} doesn't have {required_key} prompts, using Chronicler"
+        )
+        personality = "chronicler"
+        config = get_personality_config(personality)
+    return personality, config
+
+
+def _build_source_link(day):
+    """Build a Slack-formatted source link from a SpecialDay object."""
+    if hasattr(day, "source") and day.source:
+        if hasattr(day, "url") and day.url:
+            return f"<{day.url}|{day.source}>"
+        return day.source
+    return ""
+
+
+def _fetch_facts_text(date_str, personality):
+    """Fetch historical facts for a date, returning empty string on failure."""
+    try:
+        facts_result = get_birthday_facts(date_str, personality)
+        if facts_result and facts_result.get("facts"):
+            logger.info("Successfully retrieved historical facts for context")
+            return facts_result["facts"]
+    except Exception as e:
+        logger.warning(f"Could not fetch web facts: {e}. Continuing without them.")
+    return ""
+
+
 def generate_special_day_message(
     special_days: List,
     personality_name: Optional[str] = None,
@@ -61,15 +95,9 @@ def generate_special_day_message(
         logger.warning("No special days provided for message generation")
         return None
 
-    # Get personality configuration
-    personality = personality_name or SPECIAL_DAYS_PERSONALITY
-    personality_config = get_personality_config(personality)
-
-    # Check if personality has special day prompts
-    if "special_day_single" not in personality_config and personality != "chronicler":
-        logger.info(f"Personality {personality} doesn't have special day prompts, using Chronicler")
-        personality = "chronicler"
-        personality_config = get_personality_config(personality)
+    personality, personality_config = _resolve_special_day_personality(
+        personality_name, "special_day_single"
+    )
 
     # Get emoji context for AI message generation (uses config default: 50)
     from slack.emoji import get_emoji_context_for_ai
@@ -86,25 +114,15 @@ def generate_special_day_message(
         today_formatted = format_date_european(today)  # e.g., "15 April 2025"
         day_of_week = today.strftime("%A")  # e.g., "Monday"
 
-        # Get historical facts if enabled
-        facts_text = ""
-        if include_facts:
-            facts = get_birthday_facts(today.strftime("%d/%m"), personality)
-            if facts and facts.get("facts"):
-                facts_text = facts["facts"]
+        facts_text = (
+            _fetch_facts_text(today.strftime("%d/%m"), personality) if include_facts else ""
+        )
 
         # Prepare the prompt based on number of special days
         if len(special_days) == 1:
             day = special_days[0]
 
-            # Prepare source information for the prompt with Slack link format
-            source_info = ""
-            if hasattr(day, "source") and day.source:
-                if hasattr(day, "url") and day.url:
-                    # Use Slack's <URL|text> format for clean inline links
-                    source_info = f"<{day.url}|{day.source}>"
-                else:
-                    source_info = day.source
+            source_info = _build_source_link(day)
 
             # Choose prompt based on use_teaser flag
             if use_teaser:
@@ -160,18 +178,11 @@ def generate_special_day_message(
             else:
                 prompt_key = "special_day_multiple"
 
-            # Prepare source information for all days with Slack link format (only for full messages)
             sources_info = []
             if not use_teaser:
                 for day in special_days:
-                    if hasattr(day, "source") and day.source:
-                        if hasattr(day, "url") and day.url:
-                            source_line = f"{day.name}: <{day.url}|{day.source}>"
-                        else:
-                            source_line = f"{day.name}: {day.source}"
-                        sources_info.append(source_line)
-                    else:
-                        sources_info.append(f"{day.name}: UN/WHO observance")
+                    link = _build_source_link(day)
+                    sources_info.append(f"{day.name}: {link or 'UN/WHO observance'}")
 
             sources_text = "\n".join(sources_info) if sources_info else "Various UN/WHO observances"
 
@@ -460,17 +471,9 @@ def generate_special_day_details(
         logger.warning("No special days provided for details generation")
         return None
 
-    # Get personality configuration
-    personality = personality_name or SPECIAL_DAYS_PERSONALITY
-    personality_config = get_personality_config(personality)
-
-    # Check if personality has special day prompts
-    if "special_day_details" not in personality_config and personality != "chronicler":
-        logger.info(
-            f"Personality {personality} doesn't have special day detail prompts, using Chronicler"
-        )
-        personality = "chronicler"
-        personality_config = get_personality_config(personality)
+    personality, personality_config = _resolve_special_day_personality(
+        personality_name, "special_day_details"
+    )
 
     # Get emoji context for AI message generation
     from slack.emoji import get_emoji_context_for_ai
@@ -487,26 +490,8 @@ def generate_special_day_details(
         if len(special_days) == 1:
             day = special_days[0]
 
-            # Prepare source information with Slack link format
-            source_info = ""
-            if hasattr(day, "source") and day.source:
-                if hasattr(day, "url") and day.url:
-                    source_info = f"<{day.url}|{day.source}>"
-                else:
-                    source_info = day.source
-
-            # Get additional facts via web search to supplement the brief CSV description
-            facts_text = ""
-            try:
-                logger.info(f"Fetching web search facts for {day.name} to enrich details")
-                facts_result = get_birthday_facts(today.strftime("%d/%m"), personality)
-                if facts_result and facts_result.get("facts"):
-                    facts_text = facts_result["facts"]
-                    logger.info("Successfully retrieved historical facts for context")
-            except Exception as e:
-                logger.warning(
-                    f"Could not fetch web facts for details: {e}. Continuing without them."
-                )
+            source_info = _build_source_link(day)
+            facts_text = _fetch_facts_text(today.strftime("%d/%m"), personality)
 
             prompt = personality_config.get("special_day_details", "")
 
@@ -531,33 +516,15 @@ def generate_special_day_details(
             # Build comprehensive context for all observances
             observances_context = []
             for i, day in enumerate(special_days, 1):
-                source_info = ""
-                if hasattr(day, "source") and day.source:
-                    if hasattr(day, "url") and day.url:
-                        source_info = f" (Source: <{day.url}|{day.source}>)"
-                    else:
-                        source_info = f" (Source: {day.source})"
-
+                link = _build_source_link(day)
+                source_info = f" (Source: {link})" if link else ""
                 observances_context.append(
                     f"{i}. {day.emoji} *{day.name}* ({day.category}): {day.description}{source_info}"
                 )
 
             observances_text = "\n\n".join(observances_context)
 
-            # Get historical facts for additional context
-            facts_text = ""
-            try:
-                logger.info(
-                    f"Fetching web search facts for {len(special_days)} observances to enrich details"
-                )
-                facts_result = get_birthday_facts(today.strftime("%d/%m"), personality)
-                if facts_result and facts_result.get("facts"):
-                    facts_text = facts_result["facts"]
-                    logger.info("Successfully retrieved historical facts for context")
-            except Exception as e:
-                logger.warning(
-                    f"Could not fetch web facts for details: {e}. Continuing without them."
-                )
+            facts_text = _fetch_facts_text(today.strftime("%d/%m"), personality)
 
             # Create prompt for multiple observances
             # Calculate proportional length based on number of observances

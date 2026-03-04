@@ -77,6 +77,18 @@ CELEBRATION_STYLE_EMOJIS = {
 }
 
 
+def _list_backup_files():
+    """List all birthday backup JSON files sorted by modification time (oldest first)."""
+    return sorted(
+        [
+            os.path.join(BACKUP_DIR, f)
+            for f in os.listdir(BACKUP_DIR)
+            if f.startswith("birthdays_") and f.endswith(".json")
+        ],
+        key=lambda x: os.path.getmtime(x),
+    )
+
+
 def create_backup():
     """
     Create a timestamped backup of the birthdays JSON file.
@@ -111,13 +123,7 @@ def rotate_backups():
     Maintain only the specified number of most recent JSON backups.
     """
     try:
-        backup_files = [
-            os.path.join(BACKUP_DIR, f)
-            for f in os.listdir(BACKUP_DIR)
-            if f.startswith("birthdays_") and f.endswith(".json")
-        ]
-
-        backup_files.sort(key=lambda x: os.path.getmtime(x))
+        backup_files = _list_backup_files()
 
         while len(backup_files) > MAX_BACKUPS:
             oldest = backup_files.pop(0)
@@ -192,13 +198,9 @@ def trigger_external_backup(updated, username, app, change_type=None, user_id=No
         if not EXTERNAL_BACKUP_ENABLED or not BACKUP_ON_EVERY_CHANGE:
             return
 
-        backup_files = [
-            os.path.join(BACKUP_DIR, f)
-            for f in os.listdir(BACKUP_DIR)
-            if f.startswith("birthdays_") and f.endswith(".json")
-        ]
+        backup_files = _list_backup_files()
         if backup_files:
-            latest_backup = max(backup_files, key=lambda x: os.path.getmtime(x))
+            latest_backup = backup_files[-1]  # Already sorted oldest-first
             if change_type is None:
                 change_type = "update" if updated else "add"
             send_external_backup(latest_backup, change_type, username, app, user_id)
@@ -214,18 +216,13 @@ def restore_latest_backup():
         bool: True if restore succeeded, False otherwise
     """
     try:
-        backup_files = [
-            os.path.join(BACKUP_DIR, f)
-            for f in os.listdir(BACKUP_DIR)
-            if f.startswith("birthdays_") and f.endswith(".json")
-        ]
+        backup_files = _list_backup_files()
 
         if not backup_files:
             logger.warning("RESTORE: No backup files found")
             return False
 
-        backup_files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
-        latest = backup_files[0]
+        latest = backup_files[-1]  # Already sorted oldest-first, last = newest
 
         shutil.copy2(latest, BIRTHDAYS_JSON_FILE)
         logger.info(f"RESTORE: Successfully restored from {latest}")

@@ -30,7 +30,6 @@ from config import (
     get_logger,
 )
 from slack.client import (
-    get_channel_members,
     get_user_mention,
     get_user_profile,
     get_username,
@@ -1348,10 +1347,9 @@ def handle_test_bot_celebration_command(
     user_id, say, app, quality=None, image_size=None, text_only=None
 ):
     """
-    Test the bot's self-celebration feature.
+    Test the bot's self-celebration feature using the production celebration pipeline.
 
-    Generates Ludo's mystical birthday message and optional AI image,
-    displaying current statistics and celebration configuration.
+    Sends the celebration to the admin's DM instead of the birthday channel.
 
     Args:
         user_id: Slack user ID to receive test celebration
@@ -1361,14 +1359,7 @@ def handle_test_bot_celebration_command(
         image_size: Optional image size (auto/1024x1024/etc.)
         text_only: Skip image generation if True
     """
-    from services.celebration import (
-        generate_bot_celebration_message,
-        get_bot_celebration_image_title,
-    )
-    from services.image_generator import generate_birthday_image
-    from slack.blocks import build_bot_celebration_blocks
-    from slack.messaging import upload_birthday_images_for_blocks
-    from storage.birthdays import load_birthdays
+    from services.birthday import run_bot_celebration
     from utils.date_utils import date_to_words
 
     username = get_username(app, user_id)
@@ -1377,43 +1368,7 @@ def handle_test_bot_celebration_command(
     )
 
     try:
-        # Calculate current bot age
-        current_year = datetime.now().year
-        bot_age = current_year - BOT_BIRTH_YEAR
-
-        # Get current statistics
-        birthdays = load_birthdays()
-        total_birthdays = len(birthdays)
-
-        # Get channel members for savings calculation
-        channel_members = get_channel_members(app, BIRTHDAY_CHANNEL)
-        channel_members_count = len(channel_members) if channel_members else 0
-
-        # Calculate estimated savings vs Billy bot
-        yearly_savings = channel_members_count * 12  # $1 per user per month
-
-        # Get special days count (all sources: UN, UNESCO, WHO, CSV)
-        try:
-            from storage.special_days import load_all_special_days
-
-            special_days_count = len(load_all_special_days())
-        except (FileNotFoundError, ValueError, KeyError) as e:
-            logger.debug(f"TEST_BOT_CELEBRATION: Could not load special days: {e}")
-            special_days_count = 0
-
-        # Add logging for test start
-        logger.info(
-            f"TEST_BOT_CELEBRATION: Starting test for {username} ({user_id}) - bot age {bot_age}"
-        )
-        logger.info(
-            f"TEST_BOT_CELEBRATION: Configuration - birthdays: {total_birthdays}, members: {channel_members_count}, savings: ${yearly_savings}"
-        )
-
-        # Log text_only flag if provided
-        if text_only:
-            logger.info("TEST_BOT_CELEBRATION: Using text-only mode (skipping image generation)")
-
-        # Determine quality and size settings with smart defaults for display
+        # Show configuration preview
         display_quality = (
             quality if quality is not None else IMAGE_GENERATION_PARAMS["quality"]["test"]
         )
@@ -1421,272 +1376,59 @@ def handle_test_bot_celebration_command(
             image_size if image_size is not None else IMAGE_GENERATION_PARAMS["size"]["default"]
         )
 
-        # Show configuration and progress feedback
         say(
             f"_Configuration:_\n"
-            f"• Bot age: {bot_age} years ({date_to_words(BOT_BIRTHDAY)}, {BOT_BIRTH_YEAR})\n"
-            f"• Birthdays tracked: {total_birthdays}\n"
-            f"• Special days tracked: {special_days_count}\n"
-            f"• Channel members: {channel_members_count}\n"
-            f"• Estimated savings: ${yearly_savings}/year\n"
             f"• Quality: {display_quality} {'(custom)' if quality is not None else '(default)'}\n"
             f"• Size: {display_image_size} {'(custom)' if image_size is not None else '(default)'}\n"
-            f"• Images: {'enabled' if AI_IMAGE_GENERATION_ENABLED else 'disabled'}"
+            f"• Images: {'enabled' if (AI_IMAGE_GENERATION_ENABLED and not text_only) else 'disabled'}"
         )
 
         say("Generating Ludo's mystical celebration message... this might take a moment.")
 
-        # Generate Ludo's mystical celebration message
-        celebration_message = generate_bot_celebration_message(
-            bot_age=bot_age,
-            total_birthdays=total_birthdays,
-            yearly_savings=yearly_savings,
-            channel_members_count=channel_members_count,
-            special_days_count=special_days_count,
+        logger.info(f"TEST_BOT_CELEBRATION: Starting test for {username} ({user_id})")
+
+        # Run the same celebration pipeline as production, but to DM
+        include_image = AI_IMAGE_GENERATION_ENABLED and not text_only
+        result = run_bot_celebration(
+            app,
+            channel=user_id,
+            test_mode=True,
+            quality=quality,
+            image_size=image_size,
+            include_image=include_image,
         )
 
-        # Determine whether to include image: respect --text-only flag first, then global setting
-        include_image = AI_IMAGE_GENERATION_ENABLED and not text_only
-
-        # Try to generate birthday image if enabled
-        if include_image:
-            try:
-                image_title = get_bot_celebration_image_title()
-
-                # Generate the birthday image using a fake user profile for bot
-                bot_profile = {
-                    "real_name": "Ludo | LiGHT BrightDay Coordinator",
-                    "display_name": "Ludo | LiGHT BrightDay Coordinator",
-                    "title": "Mystical Birthday Guardian",
-                    "user_id": "BRIGHTDAYBOT",  # Critical for bot celebration detection
-                }
-
-                # Determine quality and size settings with smart defaults
-                final_quality = (
-                    quality if quality is not None else IMAGE_GENERATION_PARAMS["quality"]["test"]
-                )
-                final_image_size = (
-                    image_size
-                    if image_size is not None
-                    else IMAGE_GENERATION_PARAMS["size"]["default"]
-                )
-
-                image_result = generate_birthday_image(
-                    user_profile=bot_profile,
-                    personality="mystic_dog",  # Use Ludo for bot celebration
-                    date_str=BOT_BIRTHDAY,  # Bot's birthday from config
-                    birthday_message=celebration_message,
-                    test_mode=True,  # Use test mode for cost efficiency
-                    quality=final_quality,  # Use custom or default quality
-                    image_size=final_image_size,  # Use custom or default size
-                    birth_year=BOT_BIRTH_YEAR,
-                )
-
-                if image_result and image_result.get("success"):
-                    # Add the bot celebration title to image_result for proper display
-                    image_result["custom_title"] = image_title
-                    # Validate the custom title was set properly
-                    if not image_title or not image_title.strip():
-                        logger.error(
-                            f"BOT_CELEBRATION_TEST: Custom title is empty or None: '{image_title}' - AI title generation will run instead"
-                        )
-                    else:
-                        logger.info(
-                            f"BOT_CELEBRATION_TEST: Custom title set successfully: '{image_title}'"
-                        )
-
-                    # NEW FLOW: Upload image → Get file ID → Build blocks with embedded image → Send unified message
-                    try:
-                        # Step 1: Upload image to get file ID
-                        logger.info(
-                            "TEST_BOT_CELEBRATION: Uploading test celebration image to get file ID for Block Kit embedding"
-                        )
-                        file_ids = upload_birthday_images_for_blocks(
-                            app,
-                            user_id,
-                            [image_result],
-                            context={
-                                "message_type": "test",
-                                "command_name": "admin test-bot-celebration",
-                            },
-                        )
-
-                        # Extract file_id and title from tuple (new format)
-                        file_id_tuple = file_ids[0] if file_ids else None
-                        if file_id_tuple:
-                            if isinstance(file_id_tuple, tuple):
-                                file_id, image_title = file_id_tuple
-                                logger.info(
-                                    f"TEST_BOT_CELEBRATION: Successfully uploaded image, got file ID: {file_id}, title: {image_title}"
-                                )
-                            else:
-                                # Backward compatibility: handle old string format
-                                file_id = file_id_tuple
-                                image_title = None
-                                logger.info(
-                                    f"TEST_BOT_CELEBRATION: Successfully uploaded image, got file ID: {file_id} (no title)"
-                                )
-                        else:
-                            file_id = None
-                            image_title = None
-                            logger.warning(
-                                "TEST_BOT_CELEBRATION: Image upload failed or returned no file ID"
-                            )
-
-                        # Step 2: Build Block Kit blocks with embedded image (using file ID tuple)
-                        try:
-
-                            blocks, fallback_text = build_bot_celebration_blocks(
-                                celebration_message,
-                                bot_age,
-                                personality="mystic_dog",
-                                image_file_id=file_id_tuple if file_id_tuple else None,
-                            )
-
-                            image_note = f" (with embedded image: {image_title})" if file_id else ""
-                            logger.info(
-                                f"TEST_BOT_CELEBRATION: Built Block Kit structure with {len(blocks)} blocks{image_note}"
-                            )
-                        except Exception as block_error:
-                            logger.warning(
-                                f"TEST_BOT_CELEBRATION: Failed to build Block Kit blocks: {block_error}. Using plain text."
-                            )
-                            blocks = None
-                            fallback_text = celebration_message
-
-                        # Step 3: Send unified Block Kit message (image already embedded in blocks)
-
-                        image_result = send_message(app, user_id, fallback_text, blocks)
-                        image_success = image_result["success"]
-
-                    except Exception as upload_error:
-                        logger.error(
-                            f"TEST_BOT_CELEBRATION: Upload/block building failed: {upload_error}"
-                        )
-                        image_success = False
-
-                    if image_success and file_id:
-                        # Enhanced success message with detailed results
-                        say(
-                            f"✅ *Bot Celebration Test Completed!* ✅\n\n"
-                            f"_Results:_\n"
-                            f"• Ludo's mystical message: ✅ Generated successfully\n"
-                            f"• AI image generation: ✅ Generated and sent\n"
-                            f"• Image features: Cosmic scene with all personality incarnations\n"
-                            f"• Processing: Complete - ready for {date_to_words(BOT_BIRTHDAY)} automatic celebration\n\n"
-                            f"🎉 _Test successful!_ This demonstrates the complete bot self-celebration flow."
-                        )
-                        logger.info(
-                            f"TEST_BOT_CELEBRATION: Successfully completed with image for {username}"
-                        )
-                    else:
-                        # Fallback to message only if image upload fails - but with blocks
-
-                        try:
-                            blocks, fallback_text = build_bot_celebration_blocks(
-                                celebration_message, bot_age, personality="mystic_dog"
-                            )
-                        except (TypeError, ValueError, KeyError) as block_err:
-                            logger.debug(
-                                f"TEST_BOT_CELEBRATION: Block building failed: {block_err}"
-                            )
-                            blocks = None
-                            fallback_text = celebration_message
-
-                        send_message_with_image(app, user_id, fallback_text, None, blocks=blocks)
-                        say(
-                            "⚠️ *Bot Celebration Test - Image Upload Failed* ⚠️\n\n"
-                            "_Results:_\n"
-                            "• Ludo's mystical message: ✅ Generated and sent above with blocks\n"
-                            "• AI image generation: ✅ Generated successfully\n"
-                            "• Image upload: ❌ Failed to send to Slack\n"
-                            "• Fallback: Message-only mode used\n\n"
-                            "🔧 _Admin tip:_ Check Slack API permissions or image file format."
-                        )
-                        logger.warning(
-                            f"TEST_BOT_CELEBRATION: Image upload failed for {username}, fell back to message-only with blocks"
-                        )
-                else:
-                    # Send message only if image failed - but with blocks
-
-                    try:
-                        blocks, fallback_text = build_bot_celebration_blocks(
-                            celebration_message, bot_age, personality="mystic_dog"
-                        )
-                    except (TypeError, ValueError, KeyError) as block_err:
-                        logger.debug(f"TEST_BOT_CELEBRATION: Block building failed: {block_err}")
-                        blocks = None
-                        fallback_text = celebration_message
-
-                    send_message_with_image(app, user_id, fallback_text, None, blocks=blocks)
-                    say(
-                        f"⚠️ *Bot Celebration Test - Partial Success* ⚠️\n\n"
-                        f"_Results:_\n"
-                        f"• Ludo's mystical message: ✅ Generated and sent above with blocks\n"
-                        f"• AI image generation: ❌ Failed\n"
-                        f"• Reason: Image generation error (check logs)\n"
-                        f"• Impact: Message-only mode for this test\n\n"
-                        f"💡 _Note:_ Actual {date_to_words(BOT_BIRTHDAY)} celebration would retry image generation."
-                    )
-                    logger.warning(
-                        f"TEST_BOT_CELEBRATION: Completed with image failure for {username}, sent with blocks"
-                    )
-
-            except Exception as image_error:
-                logger.warning(
-                    f"TEST_BOT_CELEBRATION: Image generation exception for {username}: {image_error}"
-                )
-                # Fallback to message only - but with blocks
-
-                try:
-                    blocks, fallback_text = build_bot_celebration_blocks(
-                        celebration_message, bot_age, personality="mystic_dog"
-                    )
-                except (TypeError, ValueError, KeyError) as block_err:
-                    logger.debug(f"TEST_BOT_CELEBRATION: Block building failed: {block_err}")
-                    blocks = None
-                    fallback_text = celebration_message
-
-                send_message_with_image(app, user_id, fallback_text, None, blocks=blocks)
-                say(
-                    "⚠️ *Bot Celebration Test - Image Error* ⚠️\n\n"
-                    "_Results:_\n"
-                    "• Ludo's mystical message: ✅ Generated and sent above with blocks\n"
-                    "• AI image generation: ❌ Exception occurred\n"
-                    "• Error details: Check logs for technical details\n"
-                    "• Fallback: Message-only mode used\n\n"
-                    "🔧 _Admin tip:_ Review image generation logs for troubleshooting."
-                )
-        else:
-            # Images disabled - send message only but with blocks
-            try:
-                blocks, fallback_text = build_bot_celebration_blocks(
-                    celebration_message, bot_age, personality="mystic_dog"
-                )
-            except (TypeError, ValueError, KeyError) as block_err:
-                logger.debug(f"TEST_BOT_CELEBRATION: Block building failed: {block_err}")
-                blocks = None
-                fallback_text = celebration_message
-
-            send_message_with_image(app, user_id, fallback_text, None, blocks=blocks)
+        # Show result summary with statistics from the pipeline
+        if result["success"]:
+            image_status = (
+                "✅ Generated and sent" if result["image_success"] else "⚠️ Skipped or failed"
+            )
             say(
                 f"✅ *Bot Celebration Test Completed!* ✅\n\n"
                 f"_Results:_\n"
-                f"• Ludo's mystical message: ✅ Generated and sent above with blocks\n"
-                f"• AI image generation: ⚠️ Disabled in configuration\n"
-                f"• Mode: Message-only celebration\n"
+                f"• Bot age: {result['bot_age']} years ({date_to_words(BOT_BIRTHDAY)}, {BOT_BIRTH_YEAR})\n"
+                f"• Birthdays tracked: {result['total_birthdays']}\n"
+                f"• Special days tracked: {result['special_days_count']}\n"
+                f"• Channel members: {result['channel_members_count']}\n"
+                f"• Estimated savings: ${result['yearly_savings']}/year\n"
+                f"• Ludo's mystical message: ✅ Generated successfully\n"
+                f"• AI image: {image_status}\n"
                 f"• Processing: Complete - ready for {date_to_words(BOT_BIRTHDAY)} automatic celebration\n\n"
-                f"💡 _Note:_ Enable AI_IMAGE_GENERATION_ENABLED for full visual celebration."
+                f"🎉 _Test successful!_ This demonstrates the complete bot self-celebration flow."
             )
-            logger.info(f"TEST_BOT_CELEBRATION: Completed in message-only mode for {username}")
+            logger.info(f"TEST_BOT_CELEBRATION: Successfully completed for {username}")
+        else:
+            say(
+                f"❌ *Bot Celebration Test Failed* ❌\n\n"
+                f"• Error: {result.get('error', 'Unknown')}\n\n"
+                f"🔧 _Admin tip:_ Check logs for detailed error information."
+            )
+            logger.error(f"TEST_BOT_CELEBRATION: Failed for {username}: {result.get('error')}")
 
     except Exception as e:
         say(
             f"❌ *Bot Celebration Test Failed* ❌\n\n"
-            f"_Error Details:_\n"
-            f"• Test status: Failed during processing\n"
-            f"• Error: {str(e)}\n"
-            f"• Admin user: {username}\n\n"
+            f"• Error: {str(e)}\n\n"
             f"🔧 _Admin tip:_ Check logs for detailed error information."
         )
         logger.error(f"TEST_BOT_CELEBRATION: Test failed by {username} ({user_id}): {e}")

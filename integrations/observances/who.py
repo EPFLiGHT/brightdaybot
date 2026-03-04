@@ -15,8 +15,7 @@ Features:
 """
 
 import re
-import threading
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from config import (
     WHO_OBSERVANCES_CACHE_DIR,
@@ -27,6 +26,7 @@ from config import (
 from integrations.observances.base import (
     MONTH_FULL_TO_NUM,
     ObservanceScraperBase,
+    _get_client,
     logger,
 )
 
@@ -96,14 +96,7 @@ Rules:
         for day, month, name in matches2:
             self._add_observance(observances, name.strip(), day, month)
 
-        # Remove duplicates by name
-        seen = set()
-        unique = []
-        for obs in observances:
-            if obs["name"] not in seen:
-                seen.add(obs["name"])
-                unique.append(obs)
-
+        unique = self._deduplicate_by_name(observances)
         logger.info(f"WHO_OBSERVANCES: Parsed {len(unique)} observances from WHO page")
         return unique
 
@@ -158,22 +151,11 @@ Rules:
             pass
 
 
-# Singleton instance with thread lock
-_client: Optional[WHOObservancesClient] = None
-_client_lock = threading.Lock()
-
-
 def get_who_client() -> WHOObservancesClient:
     """Get or create the WHO observances client singleton (thread-safe)."""
-    global _client
-    if _client is None:
-        with _client_lock:
-            if _client is None:
-                _client = WHOObservancesClient()
-    return _client
+    return _get_client(WHOObservancesClient)
 
 
-# Convenience functions
 def get_who_observances_for_date(date) -> List:
     """Get WHO observances for a specific date."""
     return get_who_client().get_observances_for_date(date)

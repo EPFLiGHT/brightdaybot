@@ -20,6 +20,15 @@ from storage.settings import get_current_admins
 logger = get_logger("slack")
 
 
+def _evict_username_cache():
+    """Remove oldest 25% of username cache entries when cache is full."""
+    sorted_entries = sorted(username_cache.items(), key=lambda x: x[1][1])
+    entries_to_remove = sorted_entries[: USERNAME_CACHE_MAX_SIZE // 4]
+    for key, _ in entries_to_remove:
+        del username_cache[key]
+    logger.info(f"CACHE: Cleaned up {len(entries_to_remove)} old username cache entries")
+
+
 def get_user_profile(app, user_id):
     """
     Get comprehensive user profile information including timezone, job title, and photos
@@ -180,14 +189,8 @@ def get_username(app, user_id):
             del username_cache[user_id]
             logger.debug(f"CACHE: Expired username cache for {user_id}")
 
-    # Check if cache is getting too large
     if len(username_cache) >= USERNAME_CACHE_MAX_SIZE:
-        # Remove oldest entries based on timestamp (LRU-like)
-        sorted_entries = sorted(username_cache.items(), key=lambda x: x[1][1])
-        entries_to_remove = sorted_entries[: USERNAME_CACHE_MAX_SIZE // 4]
-        for key, _ in entries_to_remove:
-            del username_cache[key]
-        logger.info(f"CACHE: Cleaned up {len(entries_to_remove)} old username cache entries")
+        _evict_username_cache()
 
     try:
         response = app.client.users_profile_get(user=user_id)
@@ -244,14 +247,7 @@ def get_user_status_and_info(app, user_id):
 
                 if should_cache:
                     if len(username_cache) >= USERNAME_CACHE_MAX_SIZE:
-                        # Remove oldest entries based on timestamp
-                        sorted_entries = sorted(username_cache.items(), key=lambda x: x[1][1])
-                        entries_to_remove = sorted_entries[: USERNAME_CACHE_MAX_SIZE // 4]
-                        for key, _ in entries_to_remove:
-                            del username_cache[key]
-                        logger.info(
-                            f"CACHE: Cleaned up {len(entries_to_remove)} old username cache entries"
-                        )
+                        _evict_username_cache()
                     username_cache[user_id] = (username, datetime.now())
 
             return is_active, is_bot, is_deleted, username

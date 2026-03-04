@@ -15,6 +15,7 @@ import asyncio
 import calendar
 import json
 import os
+import threading
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -26,6 +27,19 @@ from storage.special_days import SpecialDay
 from utils.log_setup import get_logger
 
 logger = get_logger("special_days")
+
+# Shared singleton registry for all observance clients
+_clients: Dict[type, "ObservanceScraperBase"] = {}
+_clients_lock = threading.Lock()
+
+
+def _get_client(cls):
+    """Get or create an observance client singleton (thread-safe double-checked locking)."""
+    if cls not in _clients:
+        with _clients_lock:
+            if cls not in _clients:
+                _clients[cls] = cls()
+    return _clients[cls]
 
 
 class ObservanceItem(BaseModel):
@@ -588,6 +602,16 @@ class ObservanceScraperBase(ABC):
                 pass
 
         return status
+
+    def _deduplicate_by_name(self, observances: List[Dict]) -> List[Dict]:
+        """Remove duplicate observances by name, keeping the first occurrence."""
+        seen = set()
+        unique = []
+        for obs in observances:
+            if obs["name"] not in seen:
+                seen.add(obs["name"])
+                unique.append(obs)
+        return unique
 
     # Abstract methods - must be implemented by subclasses
 

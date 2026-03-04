@@ -182,229 +182,179 @@ def celebrate_bot_birthday(app, moment):
     Returns:
         bool: True if bot birthday was celebrated, False otherwise
     """
-    # Check if today is the bot's birthday using BOT_BIRTHDAY config
     if not check_if_birthday_today(BOT_BIRTHDAY, moment):
         return False
 
-    # Atomically check and mark to prevent race conditions
-    # This holds a file lock throughout check-and-mark to prevent duplicates
-    from slack.blocks import build_bot_celebration_blocks
-    from slack.messaging import upload_birthday_images_for_blocks
     from storage.birthdays import try_mark_birthday_announced
 
     if not try_mark_birthday_announced(BOT_USER_ID):
         logger.debug("BOT_BIRTHDAY: Already celebrated today (atomic check), skipping")
         return False
 
-    try:
+    logger.info(
+        f"BOT_BIRTHDAY: It's BrightDayBot's birthday - {date_to_words(BOT_BIRTHDAY)}! Celebrating..."
+    )
+
+    result = run_bot_celebration(app, channel=BIRTHDAY_CHANNEL)
+
+    if result["success"]:
         logger.info(
-            f"BOT_BIRTHDAY: It's BrightDayBot's birthday - {date_to_words(BOT_BIRTHDAY)}! Celebrating..."
+            f"BOT_BIRTHDAY: Successfully celebrated BrightDayBot's {result['bot_age']} year anniversary!"
         )
+    else:
+        logger.error(f"BOT_BIRTHDAY_ERROR: Celebration failed: {result.get('error')}")
 
-        # Calculate bot age
-        bot_age = moment.year - BOT_BIRTH_YEAR
+    return result["success"]
 
-        # Get current statistics
+
+def run_bot_celebration(
+    app, channel, test_mode=False, quality=None, image_size=None, include_image=True
+):
+    """
+    Core bot self-celebration logic shared by production and test commands.
+
+    Generates Ludo's mystical birthday message and optional AI image,
+    builds Block Kit blocks, and sends to the specified channel.
+
+    Args:
+        app: Slack app instance
+        channel: Target channel or user ID (for DM)
+        test_mode: Use test-quality image generation
+        quality: Override image quality (None = use config default)
+        image_size: Override image size (None = use config default)
+        include_image: Whether to attempt image generation
+
+    Returns:
+        dict with keys: success, bot_age, message, image_success, error
+    """
+    from slack.blocks import build_bot_celebration_blocks
+    from slack.messaging import upload_birthday_images_for_blocks
+
+    result = {
+        "success": False,
+        "bot_age": 0,
+        "total_birthdays": 0,
+        "channel_members_count": 0,
+        "yearly_savings": 0,
+        "special_days_count": 0,
+        "message": "",
+        "image_success": False,
+        "error": None,
+    }
+
+    try:
+        # Calculate bot age and gather statistics
+        from datetime import datetime
+
+        result["bot_age"] = datetime.now().year - BOT_BIRTH_YEAR
+
         birthdays = load_birthdays()
-        total_birthdays = len(birthdays)
+        result["total_birthdays"] = len(birthdays)
 
-        # Get channel members for savings calculation
         channel_members = get_channel_members(app, BIRTHDAY_CHANNEL)
-        channel_members_count = len(channel_members) if channel_members else 0
+        result["channel_members_count"] = len(channel_members) if channel_members else 0
+        result["yearly_savings"] = result["channel_members_count"] * 12
 
-        # Calculate estimated savings vs Billy bot
-        yearly_savings = channel_members_count * 12  # $1 per user per month
-
-        # Get special days count for celebration (all sources: UN, UNESCO, WHO, CSV)
         try:
             from storage.special_days import load_all_special_days
 
-            special_days_count = len(load_all_special_days())
+            result["special_days_count"] = len(load_all_special_days())
         except (FileNotFoundError, ValueError, KeyError) as e:
-            logger.debug(f"BOT_BIRTHDAY: Could not load special days count: {e}")
-            special_days_count = 0
+            logger.debug(f"BOT_CELEBRATION: Could not load special days count: {e}")
 
         # Generate Ludo's mystical celebration message
         celebration_message = generate_bot_celebration_message(
-            bot_age=bot_age,
-            total_birthdays=total_birthdays,
-            yearly_savings=yearly_savings,
-            channel_members_count=channel_members_count,
-            special_days_count=special_days_count,
+            bot_age=result["bot_age"],
+            total_birthdays=result["total_birthdays"],
+            yearly_savings=result["yearly_savings"],
+            channel_members_count=result["channel_members_count"],
+            special_days_count=result["special_days_count"],
         )
+        result["message"] = celebration_message
 
-        # Generate birthday image if enabled
-        if AI_IMAGE_GENERATION_ENABLED:
+        # Determine image file_id tuple (None if skipped/failed)
+        file_id_tuple = None
+
+        if include_image and AI_IMAGE_GENERATION_ENABLED:
             try:
                 image_title = get_bot_celebration_image_title()
 
-                # Generate the birthday image using a fake user profile for bot
                 bot_profile = {
                     "real_name": "Ludo | LiGHT BrightDay Coordinator",
                     "display_name": "Ludo | LiGHT BrightDay Coordinator",
+                    "preferred_name": "Ludo | LiGHT BrightDay Coordinator",
                     "title": "Mystical Birthday Guardian",
-                    "user_id": "BRIGHTDAYBOT",  # Critical for bot celebration detection
+                    "user_id": "BRIGHTDAYBOT",
                 }
+
+                final_quality = (
+                    quality
+                    if quality is not None
+                    else IMAGE_GENERATION_PARAMS["quality"]["test" if test_mode else "default"]
+                )
+                final_size = (
+                    image_size
+                    if image_size is not None
+                    else IMAGE_GENERATION_PARAMS["size"]["default"]
+                )
 
                 image_result = generate_birthday_image(
                     user_profile=bot_profile,
-                    personality="mystic_dog",  # Use Ludo for bot celebration
-                    date_str=BOT_BIRTHDAY,  # Bot's birthday from config
+                    personality="mystic_dog",
+                    date_str=BOT_BIRTHDAY,
                     birthday_message=celebration_message,
-                    test_mode=False,
-                    quality=IMAGE_GENERATION_PARAMS["quality"][
-                        "default"
-                    ],  # Use default quality from config
-                    image_size=IMAGE_GENERATION_PARAMS["size"][
-                        "default"
-                    ],  # Use default size from config
+                    test_mode=test_mode,
+                    quality=final_quality,
+                    image_size=final_size,
                     birth_year=BOT_BIRTH_YEAR,
                 )
 
                 if image_result and image_result.get("success"):
-                    # NEW FLOW: Upload image → Get file ID → Build blocks with embedded image → Send unified message
-                    try:
-                        # Step 1: Upload image to get file ID
-                        logger.info(
-                            "BOT_BIRTHDAY: Uploading celebration image to get file ID for Block Kit embedding"
-                        )
-                        file_ids = upload_birthday_images_for_blocks(
-                            app,
-                            BIRTHDAY_CHANNEL,
-                            [image_result],
-                            context={
-                                "message_type": "bot_celebration",
-                                "personality": "mystic_dog",
-                            },
-                        )
+                    image_result["custom_title"] = image_title
 
-                        # Extract file_id and title from tuple (new format)
-                        file_id_tuple = file_ids[0] if file_ids else None
-                        if file_id_tuple:
-                            if isinstance(file_id_tuple, tuple):
-                                file_id, image_title = file_id_tuple
-                                logger.info(
-                                    f"BOT_BIRTHDAY: Successfully uploaded image, got file ID: {file_id}, title: {image_title}"
-                                )
-                            else:
-                                # Backward compatibility: handle old string format
-                                file_id = file_id_tuple
-                                image_title = None
-                                logger.info(
-                                    f"BOT_BIRTHDAY: Successfully uploaded image, got file ID: {file_id} (no title)"
-                                )
-                        else:
-                            file_id = None
-                            image_title = None
-                            logger.warning(
-                                "BOT_BIRTHDAY: Image upload failed or returned no file ID, proceeding without embedded image"
-                            )
+                    file_ids = upload_birthday_images_for_blocks(
+                        app,
+                        channel,
+                        [image_result],
+                        context={
+                            "message_type": "test" if test_mode else "bot_celebration",
+                            "personality": "mystic_dog",
+                        },
+                    )
 
-                        # Step 2: Build Block Kit blocks with embedded image (using file ID tuple)
-                        try:
-
-                            blocks, fallback_text = build_bot_celebration_blocks(
-                                celebration_message,
-                                bot_age,
-                                personality="mystic_dog",
-                                image_file_id=file_id_tuple if file_id_tuple else None,
-                            )
-
-                            image_note = f" (with embedded image: {image_title})" if file_id else ""
-                            logger.info(
-                                f"BOT_BIRTHDAY: Built Block Kit structure with {len(blocks)} blocks{image_note}"
-                            )
-                        except (TypeError, ValueError, KeyError) as block_error:
-                            logger.warning(
-                                f"BOT_BIRTHDAY: Failed to build Block Kit blocks: {block_error}. Using plain text."
-                            )
-                            blocks = None
-                            fallback_text = celebration_message
-
-                        # Step 3: Send unified Block Kit message (image already embedded in blocks)
-                        send_message(app, BIRTHDAY_CHANNEL, fallback_text, blocks)
-                        logger.info(
-                            "BOT_BIRTHDAY: Sent celebration message with Block Kit embedded image"
-                        )
-
-                    except (SlackApiError, OSError) as upload_error:
-                        logger.error(
-                            f"BOT_BIRTHDAY: Upload/block building failed: {upload_error}, falling back to message only"
-                        )
-                        # Fallback to message only with blocks (no image)
-                        try:
-
-                            blocks, fallback_text = build_bot_celebration_blocks(
-                                celebration_message, bot_age, personality="mystic_dog"
-                            )
-                        except (TypeError, ValueError, KeyError) as block_error:
-                            logger.debug(f"BOT_BIRTHDAY: Block building failed: {block_error}")
-                            blocks = None
-                            fallback_text = celebration_message
-
-                        send_message(app, BIRTHDAY_CHANNEL, fallback_text, blocks)
-                        logger.info(
-                            "BOT_BIRTHDAY: Sent celebration message without image (upload error fallback)"
-                        )
+                    file_id_tuple = file_ids[0] if file_ids else None
+                    if file_id_tuple:
+                        result["image_success"] = True
+                        logger.info("BOT_CELEBRATION: Image uploaded successfully")
+                    else:
+                        logger.warning("BOT_CELEBRATION: Image upload returned no file ID")
                 else:
-                    # Fallback to message only with blocks
-                    try:
+                    logger.warning("BOT_CELEBRATION: Image generation failed or returned no data")
 
-                        blocks, fallback_text = build_bot_celebration_blocks(
-                            celebration_message, bot_age, personality="mystic_dog"
-                        )
-                    except (TypeError, ValueError, KeyError) as block_error:
-                        logger.debug(f"BOT_BIRTHDAY: Block building failed: {block_error}")
-                        blocks = None
-                        fallback_text = celebration_message
+            except Exception as e:
+                logger.warning(f"BOT_CELEBRATION: Image generation/upload failed: {e}")
 
-                    send_message(app, BIRTHDAY_CHANNEL, fallback_text, blocks)
-                    logger.info(
-                        "BOT_BIRTHDAY: Sent celebration message with Block Kit formatting (image generation failed)"
-                    )
-
-            except (SlackApiError, OSError, ValueError) as image_error:
-                logger.warning(f"BOT_BIRTHDAY: Image generation failed: {image_error}")
-                # Fallback to message only with blocks
-                try:
-
-                    blocks, fallback_text = build_bot_celebration_blocks(
-                        celebration_message, bot_age, personality="mystic_dog"
-                    )
-                except (TypeError, ValueError, KeyError) as block_error:
-                    logger.debug(f"BOT_BIRTHDAY: Block building failed: {block_error}")
-                    blocks = None
-                    fallback_text = celebration_message
-
-                send_message(app, BIRTHDAY_CHANNEL, fallback_text, blocks)
-                logger.info(
-                    "BOT_BIRTHDAY: Sent celebration message with Block Kit formatting (image error fallback)"
-                )
-        else:
-            # Images disabled - send message only with blocks
-            try:
-
-                blocks, fallback_text = build_bot_celebration_blocks(
-                    celebration_message, bot_age, personality="mystic_dog"
-                )
-            except (TypeError, ValueError, KeyError) as block_error:
-                logger.debug(f"BOT_BIRTHDAY: Block building failed: {block_error}")
-                blocks = None
-                fallback_text = celebration_message
-
-            send_message(app, BIRTHDAY_CHANNEL, fallback_text, blocks)
-            logger.info(
-                "BOT_BIRTHDAY: Sent celebration message with Block Kit formatting (images disabled)"
+        # Build blocks and send message
+        try:
+            blocks, fallback_text = build_bot_celebration_blocks(
+                celebration_message,
+                result["bot_age"],
+                personality="mystic_dog",
+                image_file_id=file_id_tuple if file_id_tuple else None,
             )
+        except (TypeError, ValueError, KeyError) as block_error:
+            logger.warning(f"BOT_CELEBRATION: Block building failed: {block_error}")
+            blocks = None
+            fallback_text = celebration_message
 
-        logger.info(
-            f"BOT_BIRTHDAY: Successfully celebrated BrightDayBot's {bot_age} year anniversary!"
-        )
-        return True
+        send_message(app, channel, fallback_text, blocks)
+        result["success"] = True
+        return result
 
     except Exception as e:
-        logger.error(f"BOT_BIRTHDAY_ERROR: Failed to celebrate bot birthday: {e}")
-        return False
+        result["error"] = str(e)
+        logger.error(f"BOT_CELEBRATION_ERROR: {e}")
+        return result
 
 
 def _update_channel_topic_with_special_days(app, special_days, channel):

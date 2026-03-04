@@ -15,8 +15,7 @@ Features:
 """
 
 import re
-import threading
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from config import (
     UNESCO_OBSERVANCES_CACHE_DIR,
@@ -27,6 +26,7 @@ from config import (
 from integrations.observances.base import (
     MONTH_ABBR_TO_NUM,
     ObservanceScraperBase,
+    _get_client,
     logger,
 )
 
@@ -94,14 +94,7 @@ Rules:
         for name, url_path, day, month in matches2:
             self._add_observance(observances, name, url_path, day, month)
 
-        # Remove duplicates by name
-        seen = set()
-        unique = []
-        for obs in observances:
-            if obs["name"] not in seen:
-                seen.add(obs["name"])
-                unique.append(obs)
-
+        unique = self._deduplicate_by_name(observances)
         logger.info(f"UNESCO_OBSERVANCES: Parsed {len(unique)} observances from UNESCO page")
         return unique
 
@@ -149,22 +142,11 @@ Rules:
             pass
 
 
-# Singleton instance with thread lock
-_client: Optional[UNESCOObservancesClient] = None
-_client_lock = threading.Lock()
-
-
 def get_unesco_client() -> UNESCOObservancesClient:
     """Get or create the UNESCO observances client singleton (thread-safe)."""
-    global _client
-    if _client is None:
-        with _client_lock:
-            if _client is None:
-                _client = UNESCOObservancesClient()
-    return _client
+    return _get_client(UNESCOObservancesClient)
 
 
-# Convenience functions
 def get_unesco_observances_for_date(date) -> List:
     """Get UNESCO observances for a specific date."""
     return get_unesco_client().get_observances_for_date(date)
