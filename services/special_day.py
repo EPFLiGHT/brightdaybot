@@ -243,6 +243,9 @@ def generate_special_day_message(
             temperature=temperature,
             context="SPECIAL_DAY_MESSAGE",
         )
+        if not message:
+            logger.warning("SPECIAL_DAY: AI generated empty message, using fallback")
+            return generate_fallback_special_day_message(special_days, personality_config)
         message = markdown_to_slack_mrkdwn(message.strip())
 
         logger.info("Successfully generated special day message")
@@ -264,13 +267,17 @@ def generate_fallback_special_day_message(special_days: List, personality_config
     Returns:
         Fallback message string
     """
+    from config import SPECIAL_DAY_MENTION_ENABLED
+
+    mention = "<!here> " if SPECIAL_DAY_MENTION_ENABLED else ""
+
     if len(special_days) == 1:
         day = special_days[0]
         emoji = f"{day.emoji} " if day.emoji else ""
         message = "📅 TODAY IN HUMAN HISTORY...\n\n"
         message += f"Today marks {emoji}*{day.name}*!\n\n"
         message += f"{day.description}\n\n"
-        message += f"<!here> Let's take a moment to recognize this important {day.category.lower()} observance.\n\n"
+        message += f"{mention}Let's take a moment to recognize this important {day.category.lower()} observance.\n\n"
         message += f"- {personality_config.get('name', 'The Chronicler')}"
     else:
         message = "📅 TODAY IN HUMAN HISTORY...\n\n"
@@ -278,7 +285,7 @@ def generate_fallback_special_day_message(special_days: List, personality_config
         for day in special_days:
             emoji = f"{day.emoji} " if day.emoji else ""
             message += f"• {emoji}*{day.name}* ({day.category})\n"
-        message += "\n<!here> These observances remind us of humanity's diverse priorities and shared values.\n\n"
+        message += f"\n{mention}These observances remind us of humanity's diverse priorities and shared values.\n\n"
         message += f"- {personality_config.get('name', 'The Chronicler')}"
 
     return message
@@ -361,6 +368,9 @@ TONE: Informative but not overwhelming. This is a summary, not a detailed announ
             context="WEEKLY_DIGEST_MESSAGE",
         )
 
+        if not message:
+            logger.warning("WEEKLY_DIGEST: AI generated empty message, using fallback")
+            raise ValueError("Empty AI response")
         logger.info("Successfully generated weekly digest intro message")
         return markdown_to_slack_mrkdwn(message.strip())
 
@@ -635,6 +645,9 @@ TONE & STYLE:
             context="SPECIAL_DAY_DETAILS",
             reasoning_effort=REASONING_EFFORT["analytical"],
         )
+        if not details:
+            logger.warning("SPECIAL_DAY_DETAILS: AI generated empty response")
+            return None
         details = markdown_to_slack_mrkdwn(details.strip())
 
         logger.info("Successfully generated special day details")

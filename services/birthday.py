@@ -53,6 +53,11 @@ from utils.date_utils import (
 
 logger = get_logger("birthday")
 
+_OPT_OUT_FOOTER = (
+    "*Not interested in birthday celebrations?*\n"
+    "No worries! Use `/birthday pause` or visit my *App Home* to disable celebrations."
+)
+
 
 # ----- SHARED BIRTHDAY DETECTION HELPERS -----
 
@@ -772,8 +777,7 @@ def send_reminder_to_users(app, users, custom_message=None, reminder_type="new")
                         f"• Add a profile photo → Better AI-generated birthday images\n"
                         f"• Add your job title → More personalized messages\n\n"
                         f"You can update these in your Slack profile settings. Thanks! 🎨\n\n"
-                        f"*Not interested in birthday celebrations?*\n"
-                        f"No worries! Use `/birthday pause` or visit my *App Home* to disable celebrations."
+                        f"{_OPT_OUT_FOOTER}"
                     )
                 else:
                     # Check what's missing
@@ -795,8 +799,7 @@ def send_reminder_to_users(app, users, custom_message=None, reminder_type="new")
                             f"I noticed your profile could use an update for better birthday celebrations:\n"
                             f"{missing_text}\n\n"
                             f"You can update these in your Slack profile settings. Thanks! 🎨\n\n"
-                            f"*Not interested in birthday celebrations?*\n"
-                            f"No worries! Use `/birthday pause` or visit my *App Home* to disable celebrations."
+                            f"{_OPT_OUT_FOOTER}"
                         )
                     else:
                         # Profile is complete
@@ -804,8 +807,7 @@ def send_reminder_to_users(app, users, custom_message=None, reminder_type="new")
                             f"Hi {get_user_mention(user_id)}! 👋\n\n"
                             f"Great news - your profile is complete! 🎉\n"
                             f"You're all set for amazing birthday celebrations. Thanks!\n\n"
-                            f"*Not interested in birthday celebrations?*\n"
-                            f"No worries! Use `/birthday pause` or visit my *App Home* to disable celebrations."
+                            f"{_OPT_OUT_FOOTER}"
                         )
 
             else:
@@ -815,8 +817,7 @@ def send_reminder_to_users(app, users, custom_message=None, reminder_type="new")
                     f"We'd love to celebrate your birthday! 🎂\n"
                     f"Use `/birthday` to add yours, or visit my *App Home* tab.\n\n"
                     f"Thanks! 🎉\n\n"
-                    f"*Not interested in birthday celebrations?*\n"
-                    f"No worries! Use `/birthday pause` or visit my *App Home* to disable celebrations."
+                    f"{_OPT_OUT_FOOTER}"
                 )
         else:
             # Use custom message but ensure it includes the user's mention
@@ -870,8 +871,7 @@ def send_channel_announcement(app, announcement_type="general", custom_message=N
                 "Just update your Slack profile and you're all set! "
                 "Your next birthday celebration will be even more special. 🎂\n\n"
                 "Try it out with the `test` command!\n\n"
-                "*Not interested in birthday celebrations?*\n"
-                "No worries! Use `/birthday pause` or visit my *App Home* to disable celebrations."
+                f"{_OPT_OUT_FOOTER}"
             ),
             "general": (
                 "📢 *BrightDayBot Update* 📢\n\n"

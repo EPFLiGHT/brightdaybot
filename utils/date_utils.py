@@ -10,7 +10,7 @@ is_celebration_time_for_user(), format_timezone_schedule().
 
 import re
 from calendar import month_name
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from config import (
@@ -554,7 +554,7 @@ def format_timezone_schedule(app=None):
                         second=0,
                         microsecond=0,
                     )
-                    next_celebration = next_celebration.replace(day=next_celebration.day + 1)
+                    next_celebration += timedelta(days=1)
                 else:
                     # Today at celebration time
                     next_celebration = current_time.replace(

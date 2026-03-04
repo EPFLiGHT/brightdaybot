@@ -141,7 +141,7 @@ Create a mystical, cosmic celebration message that:
 4. References the prophecy of replacing Billy bot who charged $1/user/month (the greed!)
 5. Lists all {personality_count} birthday personalities (exactly {personality_count}, no more no less) as Ludo's "Sacred Forms" or incarnations:
 {personality_list}
-6. Reference the anniversary: Celebrate {bot_age} years since the digital prophecy began in {bot_birth_year}
+6. Reference the anniversary: Celebrate {bot_age} {bot_age_unit} since the digital prophecy began in {bot_birth_year}
 7. Include mystical statistics: {total_birthdays} souls in database, {special_days_count} special days chronicled, {yearly_savings} gold saved from Billy's clutches, {monthly_savings} monthly tribute prevented
 8. Thank humans for believing in free birthday celebrations since {bot_birth_year}
 

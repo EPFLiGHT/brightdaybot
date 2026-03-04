@@ -675,44 +675,17 @@ def _handle_remove_command(user_id, username, say, app):
 
 
 def _handle_pause_command(user_id, say):
-    """
-    Handle pause command via DM.
-
-    Pauses birthday celebrations for the user.
-
-    Args:
-        user_id: Slack user ID
-        say: Slack say function for sending messages
-    """
-    from storage.birthdays import get_birthday, update_user_preferences
-
-    birthday = get_birthday(user_id)
-    if not birthday:
-        say("🎈 You haven't added your birthday yet! Use `add DD/MM` to add it.")
-        return
-
-    # Update preferences to pause
-    success = update_user_preferences(user_id, {"active": False})
-
-    if success:
-        logger.info(f"PAUSE: User {user_id} paused their birthday celebrations")
-        say(
-            "Your birthday celebrations have been paused. You won't receive any announcements until you resume. Use `resume` to enable again."
-        )
-    else:
-        say("Unable to pause celebrations. Please try again.")
+    """Handle pause command via DM."""
+    _handle_pause_resume(user_id, say, active=False)
 
 
 def _handle_resume_command(user_id, say):
-    """
-    Handle resume command via DM.
+    """Handle resume command via DM."""
+    _handle_pause_resume(user_id, say, active=True)
 
-    Resumes birthday celebrations for the user.
 
-    Args:
-        user_id: Slack user ID
-        say: Slack say function for sending messages
-    """
+def _handle_pause_resume(user_id, say, active):
+    """Toggle birthday celebration active status for a user."""
     from storage.birthdays import get_birthday, update_user_preferences
 
     birthday = get_birthday(user_id)
@@ -720,16 +693,21 @@ def _handle_resume_command(user_id, say):
         say("🎈 You haven't added your birthday yet! Use `add DD/MM` to add it.")
         return
 
-    # Update preferences to resume
-    success = update_user_preferences(user_id, {"active": True})
+    action = "resume" if active else "pause"
+    success = update_user_preferences(user_id, {"active": active})
 
     if success:
-        logger.info(f"RESUME: User {user_id} resumed their birthday celebrations")
-        say(
-            "Your birthday celebrations have been resumed! You'll receive announcements on your birthday."
-        )
+        logger.info(f"{action.upper()}: User {user_id} {action}d their birthday celebrations")
+        if active:
+            say(
+                "Your birthday celebrations have been resumed! You'll receive announcements on your birthday."
+            )
+        else:
+            say(
+                "Your birthday celebrations have been paused. You won't receive any announcements until you resume. Use `resume` to enable again."
+            )
     else:
-        say("Unable to resume celebrations. Please try again.")
+        say(f"Unable to {action} celebrations. Please try again.")
 
 
 def _handle_hello_command(user_id, say):

@@ -330,22 +330,18 @@ class BirthdayCelebrationPipeline:
         valid_people = validation_result["valid_people"]
         invalid_people = validation_result["invalid_people"]
 
-        if not invalid_people:
-            # All people still valid - use original result
-            if isinstance(result, tuple) and len(result) == 3:
-                final_message, final_images, actual_personality = result
-                final_images = final_images or []
-            elif isinstance(result, tuple) and len(result) == 2:
-                # Backward compatibility for old 2-tuple format (should not happen)
-                final_message, final_images = result
-                final_images = final_images or []
-                actual_personality = DEFAULT_PERSONALITY  # Fallback
-            else:
-                final_message = result
-                final_images = []
-                actual_personality = DEFAULT_PERSONALITY  # Fallback
+        def _unpack(r):
+            """Unpack a result that may be a 3-tuple, 2-tuple, or plain string."""
+            if isinstance(r, tuple) and len(r) == 3:
+                msg, imgs, pers = r
+                return msg, imgs or [], pers
+            elif isinstance(r, tuple) and len(r) == 2:
+                msg, imgs = r
+                return msg, imgs or [], DEFAULT_PERSONALITY
+            return r, [], DEFAULT_PERSONALITY
 
-            return final_message, final_images, actual_personality
+        if not invalid_people:
+            return _unpack(result)
 
         # Some people became invalid - decide action
         if should_regenerate_message(
@@ -367,34 +363,13 @@ class BirthdayCelebrationPipeline:
                 skip_mention=skip_mention,
             )
 
-            if isinstance(regenerated_result, tuple) and len(regenerated_result) == 3:
-                final_message, final_images, actual_personality = regenerated_result
-                final_images = final_images or []
-            elif isinstance(regenerated_result, tuple) and len(regenerated_result) == 2:
-                # Backward compatibility for old 2-tuple format
-                final_message, final_images = regenerated_result
-                final_images = final_images or []
-                actual_personality = DEFAULT_PERSONALITY  # Fallback
-            else:
-                final_message = regenerated_result
-                final_images = []
-                actual_personality = DEFAULT_PERSONALITY  # Fallback
+            final_message, final_images, actual_personality = _unpack(regenerated_result)
         else:
             # Minor changes (<30% invalid) - use original message but filter images
             logger.info(f"{self.mode}: Filtering {len(invalid_people)} invalid people from images")
 
-            if isinstance(result, tuple) and len(result) == 3:
-                final_message, original_images, actual_personality = result
-                final_images = filter_images_for_valid_people(original_images, valid_people)
-            elif isinstance(result, tuple) and len(result) == 2:
-                # Backward compatibility for old 2-tuple format
-                final_message, original_images = result
-                final_images = filter_images_for_valid_people(original_images, valid_people)
-                actual_personality = DEFAULT_PERSONALITY  # Fallback
-            else:
-                final_message = result
-                final_images = []
-                actual_personality = DEFAULT_PERSONALITY  # Fallback
+            final_message, original_images, actual_personality = _unpack(result)
+            final_images = filter_images_for_valid_people(original_images, valid_people)
 
         return final_message, final_images, actual_personality
 
@@ -1251,10 +1226,12 @@ def generate_bot_celebration_message(
             "BOT_CELEBRATION: No bot_self_celebration prompt found in mystic_dog personality"
         )
         # Fallback to a simple message
-        return f"🌟 Happy Birthday Ludo | LiGHT BrightDay Coordinator! 🎂 Today marks {bot_age} year(s) of free birthday celebrations!"
+        return f"🌟 Happy Birthday Ludo | LiGHT BrightDay Coordinator! 🎂 Today marks {bot_age} {'year' if bot_age == 1 else 'years'} of free birthday celebrations!"
 
     # Format the prompt with actual statistics
     bot_birthday_formatted = date_to_words(BOT_BIRTHDAY)  # Convert "05/03" to "5th of March"
+
+    bot_age_unit = "year" if bot_age == 1 else "years"
 
     formatted_prompt = prompt_template.format(
         total_birthdays=total_birthdays,
@@ -1262,6 +1239,7 @@ def generate_bot_celebration_message(
         monthly_savings=monthly_savings,
         special_days_count=special_days_count,
         bot_age=bot_age,
+        bot_age_unit=bot_age_unit,
         bot_birth_year=BOT_BIRTH_YEAR,
         bot_birthday=bot_birthday_formatted,  # "5th of March"
         personality_count=get_celebration_personality_count(),
@@ -1286,14 +1264,14 @@ def generate_bot_celebration_message(
             return generated_message
         else:
             logger.warning("BOT_CELEBRATION: AI generated empty message, using fallback")
-            return f"🌟 Happy Birthday Ludo | LiGHT BrightDay Coordinator! 🎂 Today marks {bot_age} year(s) of mystical birthday magic!"
+            return f"🌟 Happy Birthday Ludo | LiGHT BrightDay Coordinator! 🎂 Today marks {bot_age} {bot_age_unit} of mystical birthday magic!"
 
     except Exception as e:
         logger.error(f"BOT_CELEBRATION: Failed to generate AI message: {e}")
         # Fallback to a simple but themed message
         return f"""🌟 COSMIC BIRTHDAY ALIGNMENT DETECTED! 🌟
 
-<!here> The mystic energies converge! Today marks Ludo | LiGHT BrightDay Coordinator's {bot_age} year anniversary! 🔮
+<!here> The mystic energies converge! Today marks Ludo | LiGHT BrightDay Coordinator's {bot_age} {bot_age_unit} anniversary! 🔮
 
 Ludo's crystal ball reveals: {total_birthdays} souls protected, {special_days_count} special days chronicled, ${yearly_savings} saved from Billy bot's greed!
 

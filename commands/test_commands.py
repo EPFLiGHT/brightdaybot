@@ -816,23 +816,30 @@ def handle_test_blockkit_command(user_id, args, say, app):
         say(f"❌ Failed to create test image: {e}")
         return
 
-    # Determine which modes to test
-    modes_to_test = [mode] if mode != "all" else ["with-channel", "private", "url-only", "simple"]
+    # Mode configs: (label, upload_with_channel, use_image_url, simple_blocks)
+    _BLOCKKIT_MODES = {
+        "with-channel": ("With Channel", True, False, False),
+        "private": ("Private Upload", False, False, False),
+        "url-only": ("image_url", True, True, False),
+        "simple": ("Simple", False, False, True),
+    }
 
-    # Test each mode
+    modes_to_test = [mode] if mode != "all" else list(_BLOCKKIT_MODES.keys())
+
     for test_mode in modes_to_test:
         say(f"\n📋 *Testing Mode: `{test_mode}`*")
         logger.info(f"TEST_BLOCKKIT: Testing mode: {test_mode}")
 
         try:
-            if test_mode == "with-channel":
-                _test_blockkit_with_channel(app, user_id, username, image_bytes, say)
-            elif test_mode == "private":
-                _test_blockkit_private(app, user_id, username, image_bytes, say)
-            elif test_mode == "url-only":
-                _test_blockkit_url_only(app, user_id, username, image_bytes, say)
-            elif test_mode == "simple":
-                _test_blockkit_simple(app, user_id, username, image_bytes, say)
+            _test_blockkit_mode(
+                app,
+                user_id,
+                username,
+                image_bytes,
+                say,
+                test_mode,
+                *_BLOCKKIT_MODES[test_mode],
+            )
         except Exception as e:
             logger.error(
                 f"TEST_BLOCKKIT: Mode {test_mode} failed with exception: {e}",
@@ -843,322 +850,107 @@ def handle_test_blockkit_command(user_id, args, say, app):
     say("\n✅ *Block Kit testing complete!* Check logs for detailed results.")
 
 
-def _test_blockkit_with_channel(app, user_id, username, image_bytes, say):
-    """
-    Test Block Kit image embedding with channel parameter upload.
-
-    Args:
-        app: Slack app instance for API calls
-        user_id: Slack user ID to receive test
-        username: Display name for logging
-        image_bytes: PNG image data to upload
-        say: Slack say function for status messages
-    """
+def _test_blockkit_mode(
+    app,
+    user_id,
+    username,
+    image_bytes,
+    say,
+    mode_key,
+    label,
+    upload_with_channel,
+    use_image_url,
+    simple_blocks,
+):
+    """Test a single Block Kit image embedding mode."""
     import time
 
-    say("Uploading image WITH channel parameter...")
-    logger.info("TEST_BLOCKKIT_WITH_CHANNEL: Uploading image with channel parameter")
+    log_prefix = f"TEST_BLOCKKIT_{mode_key.upper().replace('-', '_')}"
 
-    # Upload with channel parameter
+    say(f"Uploading image for `{mode_key}` mode...")
+    logger.info(f"{log_prefix}: Uploading image")
+
     file_uploads = [
         {
             "file": image_bytes,
-            "filename": f"blockkit_test_with_channel_{int(time.time())}.png",
-            "title": "Block Kit Test (With Channel)",
+            "filename": f"blockkit_test_{mode_key.replace('-', '_')}_{int(time.time())}.png",
+            "title": f"Block Kit Test ({label})",
         }
     ]
 
-    upload_response = app.client.files_upload_v2(channel=user_id, file_uploads=file_uploads)
+    upload_kwargs = {"file_uploads": file_uploads}
+    if upload_with_channel:
+        upload_kwargs["channel"] = user_id
+
+    upload_response = app.client.files_upload_v2(**upload_kwargs)
 
     if not upload_response["ok"]:
         say(f"❌ Upload failed: {upload_response.get('error', 'Unknown error')}")
-        logger.error(f"TEST_BLOCKKIT_WITH_CHANNEL: Upload failed: {upload_response}")
+        logger.error(f"{log_prefix}: Upload failed: {upload_response}")
         return
 
-    # Extract file info
     uploaded_file = upload_response.get("files", [{}])[0]
     file_id = uploaded_file.get("id")
     file_url = uploaded_file.get("url_private")
 
-    logger.info(f"TEST_BLOCKKIT_WITH_CHANNEL: Upload successful - ID: {file_id}, URL: {file_url}")
+    logger.info(f"{log_prefix}: Upload successful - ID: {file_id}, URL: {file_url}")
     say(f"✅ Upload successful\nFile ID: `{file_id}`\nURL: `{file_url}`")
 
-    # Build Block Kit message with slack_file using URL
-    blocks = [
-        {
-            "type": "header",
-            "text": {"type": "plain_text", "text": "🧪 Block Kit Test: With Channel"},
-        },
-        {
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": f"Testing image embedding using `slack_file` with URL.\n\nUser: <@{user_id}>",
+    # Build blocks
+    if simple_blocks:
+        blocks = [
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "🧪 *Simple Test*\n\nMinimal block structure with `slack_file`.",
+                },
             },
-        },
-        {
+            {"type": "image", "slack_file": {"url": file_url}, "alt_text": "Test image"},
+        ]
+    else:
+        image_block = {
             "type": "image",
-            "slack_file": {"url": file_url},
             "alt_text": f"Block Kit test image for {username}",
-            "title": {
-                "type": "plain_text",
-                "text": "🧪 Test Image (With Channel Mode)",
-            },
-        },
-    ]
+            "title": {"type": "plain_text", "text": f"🧪 Test Image ({label} Mode)"},
+        }
+        if use_image_url:
+            image_block["image_url"] = file_url
+        else:
+            image_block["slack_file"] = {"url": file_url}
 
-    logger.info(f"TEST_BLOCKKIT_WITH_CHANNEL: Sending message with blocks: {blocks}")
+        blocks = [
+            {
+                "type": "header",
+                "text": {"type": "plain_text", "text": f"🧪 Block Kit Test: {label}"},
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"Testing image embedding for `{mode_key}` mode.\n\nUser: <@{user_id}>",
+                },
+            },
+            image_block,
+        ]
+
+    logger.info(f"{log_prefix}: Sending message with blocks")
     say("Sending Block Kit message with embedded image...")
 
-    # Send message with blocks
     try:
         result = app.client.chat_postMessage(
-            channel=user_id, text="Block Kit Test: With Channel", blocks=blocks
+            channel=user_id, text=f"Block Kit Test: {label}", blocks=blocks
         )
 
         if result["ok"]:
             say("✅ Block Kit message sent successfully!")
-            logger.info("TEST_BLOCKKIT_WITH_CHANNEL: Success!")
+            logger.info(f"{log_prefix}: Success!")
         else:
             say(f"❌ Block Kit message failed: {result.get('error', 'Unknown')}")
-            logger.error(f"TEST_BLOCKKIT_WITH_CHANNEL: Failed: {result}")
+            logger.error(f"{log_prefix}: Failed: {result}")
     except Exception as e:
         say(f"❌ Block Kit message exception: {str(e)}")
-        logger.error(f"TEST_BLOCKKIT_WITH_CHANNEL: Exception: {e}", exc_info=True)
-
-
-def _test_blockkit_private(app, user_id, username, image_bytes, say):
-    """
-    Test Block Kit image embedding with private upload (no channel parameter).
-
-    Args:
-        app: Slack app instance for API calls
-        user_id: Slack user ID to receive test
-        username: Display name for logging
-        image_bytes: PNG image data to upload
-        say: Slack say function for status messages
-    """
-    import time
-
-    say("Uploading image WITHOUT channel parameter (private)...")
-    logger.info("TEST_BLOCKKIT_PRIVATE: Uploading image without channel parameter")
-
-    # Upload WITHOUT channel parameter
-    file_uploads = [
-        {
-            "file": image_bytes,
-            "filename": f"blockkit_test_private_{int(time.time())}.png",
-            "title": "Block Kit Test (Private)",
-        }
-    ]
-
-    upload_response = app.client.files_upload_v2(file_uploads=file_uploads)  # NO channel parameter
-
-    if not upload_response["ok"]:
-        say(f"❌ Upload failed: {upload_response.get('error', 'Unknown error')}")
-        logger.error(f"TEST_BLOCKKIT_PRIVATE: Upload failed: {upload_response}")
-        return
-
-    # Extract file info
-    uploaded_file = upload_response.get("files", [{}])[0]
-    file_id = uploaded_file.get("id")
-    file_url = uploaded_file.get("url_private")
-
-    logger.info(f"TEST_BLOCKKIT_PRIVATE: Upload successful - ID: {file_id}, URL: {file_url}")
-    say(f"✅ Upload successful\nFile ID: `{file_id}`\nURL: `{file_url}`")
-
-    # Build Block Kit message with slack_file using URL
-    blocks = [
-        {
-            "type": "header",
-            "text": {"type": "plain_text", "text": "🧪 Block Kit Test: Private Upload"},
-        },
-        {
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": f"Testing image embedding using `slack_file` with URL (private upload).\n\nUser: <@{user_id}>",
-            },
-        },
-        {
-            "type": "image",
-            "slack_file": {"url": file_url},
-            "alt_text": f"Block Kit test image for {username}",
-            "title": {"type": "plain_text", "text": "🧪 Test Image (Private Mode)"},
-        },
-    ]
-
-    logger.info(f"TEST_BLOCKKIT_PRIVATE: Sending message with blocks: {blocks}")
-    say("Sending Block Kit message with embedded image...")
-
-    # Send message with blocks
-    try:
-        result = app.client.chat_postMessage(
-            channel=user_id, text="Block Kit Test: Private Upload", blocks=blocks
-        )
-
-        if result["ok"]:
-            say("✅ Block Kit message sent successfully!")
-            logger.info("TEST_BLOCKKIT_PRIVATE: Success!")
-        else:
-            say(f"❌ Block Kit message failed: {result.get('error', 'Unknown')}")
-            logger.error(f"TEST_BLOCKKIT_PRIVATE: Failed: {result}")
-    except Exception as e:
-        say(f"❌ Block Kit message exception: {str(e)}")
-        logger.error(f"TEST_BLOCKKIT_PRIVATE: Exception: {e}", exc_info=True)
-
-
-def _test_blockkit_url_only(app, user_id, username, image_bytes, say):
-    """
-    Test Block Kit image embedding using image_url instead of slack_file.
-
-    Args:
-        app: Slack app instance for API calls
-        user_id: Slack user ID to receive test
-        username: Display name for logging
-        image_bytes: PNG image data to upload
-        say: Slack say function for status messages
-    """
-    import time
-
-    say("Uploading image and using `image_url` instead of `slack_file`...")
-    logger.info("TEST_BLOCKKIT_URL_ONLY: Uploading image for image_url test")
-
-    # Upload with channel parameter
-    file_uploads = [
-        {
-            "file": image_bytes,
-            "filename": f"blockkit_test_url_only_{int(time.time())}.png",
-            "title": "Block Kit Test (URL Only)",
-        }
-    ]
-
-    upload_response = app.client.files_upload_v2(channel=user_id, file_uploads=file_uploads)
-
-    if not upload_response["ok"]:
-        say(f"❌ Upload failed: {upload_response.get('error', 'Unknown error')}")
-        logger.error(f"TEST_BLOCKKIT_URL_ONLY: Upload failed: {upload_response}")
-        return
-
-    # Extract file info
-    uploaded_file = upload_response.get("files", [{}])[0]
-    file_id = uploaded_file.get("id")
-    file_url = uploaded_file.get("url_private")
-
-    logger.info(f"TEST_BLOCKKIT_URL_ONLY: Upload successful - ID: {file_id}, URL: {file_url}")
-    say(f"✅ Upload successful\nFile ID: `{file_id}`\nURL: `{file_url}`")
-
-    # Build Block Kit message with image_url instead of slack_file
-    blocks = [
-        {
-            "type": "header",
-            "text": {"type": "plain_text", "text": "🧪 Block Kit Test: image_url"},
-        },
-        {
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": f"Testing image embedding using `image_url` instead of `slack_file`.\n\nUser: <@{user_id}>",
-            },
-        },
-        {
-            "type": "image",
-            "image_url": file_url,  # Use image_url instead of slack_file
-            "alt_text": f"Block Kit test image for {username}",
-            "title": {"type": "plain_text", "text": "🧪 Test Image (URL Only Mode)"},
-        },
-    ]
-
-    logger.info(f"TEST_BLOCKKIT_URL_ONLY: Sending message with blocks: {blocks}")
-    say("Sending Block Kit message with `image_url`...")
-
-    # Send message with blocks
-    try:
-        result = app.client.chat_postMessage(
-            channel=user_id, text="Block Kit Test: URL Only", blocks=blocks
-        )
-
-        if result["ok"]:
-            say("✅ Block Kit message sent successfully!")
-            logger.info("TEST_BLOCKKIT_URL_ONLY: Success!")
-        else:
-            say(f"❌ Block Kit message failed: {result.get('error', 'Unknown')}")
-            logger.error(f"TEST_BLOCKKIT_URL_ONLY: Failed: {result}")
-    except Exception as e:
-        say(f"❌ Block Kit message exception: {str(e)}")
-        logger.error(f"TEST_BLOCKKIT_URL_ONLY: Exception: {e}", exc_info=True)
-
-
-def _test_blockkit_simple(app, user_id, username, image_bytes, say):
-    """
-    Test Block Kit image embedding with minimal block structure.
-
-    Args:
-        app: Slack app instance for API calls
-        user_id: Slack user ID to receive test
-        username: Display name for logging
-        image_bytes: PNG image data to upload
-        say: Slack say function for status messages
-    """
-    import time
-
-    say("Uploading image and using SIMPLEST possible block structure...")
-    logger.info("TEST_BLOCKKIT_SIMPLE: Uploading image for simple test")
-
-    # Upload without channel parameter (private)
-    file_uploads = [
-        {
-            "file": image_bytes,
-            "filename": f"blockkit_test_simple_{int(time.time())}.png",
-            "title": "Block Kit Test (Simple)",
-        }
-    ]
-
-    upload_response = app.client.files_upload_v2(file_uploads=file_uploads)  # Private upload
-
-    if not upload_response["ok"]:
-        say(f"❌ Upload failed: {upload_response.get('error', 'Unknown error')}")
-        logger.error(f"TEST_BLOCKKIT_SIMPLE: Upload failed: {upload_response}")
-        return
-
-    # Extract file info
-    uploaded_file = upload_response.get("files", [{}])[0]
-    file_id = uploaded_file.get("id")
-    file_url = uploaded_file.get("url_private")
-
-    logger.info(f"TEST_BLOCKKIT_SIMPLE: Upload successful - ID: {file_id}, URL: {file_url}")
-    say(f"✅ Upload successful\nFile ID: `{file_id}`\nURL: `{file_url}`")
-
-    # Build SIMPLEST Block Kit message - no title, minimal structure
-    blocks = [
-        {
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": "🧪 *Simple Test*\n\nMinimal block structure with `slack_file`.",
-            },
-        },
-        {"type": "image", "slack_file": {"url": file_url}, "alt_text": "Test image"},
-    ]
-
-    logger.info(f"TEST_BLOCKKIT_SIMPLE: Sending message with blocks: {blocks}")
-    say("Sending Block Kit message with SIMPLEST structure...")
-
-    # Send message with blocks
-    try:
-        result = app.client.chat_postMessage(
-            channel=user_id, text="Block Kit Test: Simple", blocks=blocks
-        )
-
-        if result["ok"]:
-            say("✅ Block Kit message sent successfully!")
-            logger.info("TEST_BLOCKKIT_SIMPLE: Success!")
-        else:
-            say(f"❌ Block Kit message failed: {result.get('error', 'Unknown')}")
-            logger.error(f"TEST_BLOCKKIT_SIMPLE: Failed: {result}")
-    except Exception as e:
-        say(f"❌ Block Kit message exception: {str(e)}")
-        logger.error(f"TEST_BLOCKKIT_SIMPLE: Exception: {e}", exc_info=True)
+        logger.error(f"{log_prefix}: Exception: {e}", exc_info=True)
 
 
 def handle_test_join_command(args, user_id, say, app):

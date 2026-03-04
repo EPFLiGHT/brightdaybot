@@ -537,16 +537,8 @@ def _cleanup_old_announcements(data: dict) -> dict:
         "%Y-%m-%d"
     )
 
-    # Clean birthdays
-    data["birthdays"] = {k: v for k, v in data.get("birthdays", {}).items() if k >= cutoff}
-
-    # Clean timezone birthdays
-    data["timezone_birthdays"] = {
-        k: v for k, v in data.get("timezone_birthdays", {}).items() if k >= cutoff
-    }
-
-    # Clean special days
-    data["special_days"] = {k: v for k, v in data.get("special_days", {}).items() if k >= cutoff}
+    for key in ("birthdays", "timezone_birthdays", "special_days"):
+        data[key] = {k: v for k, v in data.get(key, {}).items() if k >= cutoff}
 
     data["last_cleanup"] = datetime.now(timezone.utc).isoformat()
 

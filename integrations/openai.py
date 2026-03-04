@@ -68,6 +68,51 @@ def get_openai_client():
 # =============================================================================
 
 
+def _build_api_params(
+    messages, input_text, instructions, model, max_tokens, temperature, reasoning_effort
+):
+    """Build Responses API parameters from Chat Completions-style inputs."""
+    params = {"model": model}
+
+    if messages:
+        system_content = None
+        user_messages = []
+
+        for msg in messages:
+            if msg.get("role") in ("system", "developer"):
+                system_content = msg.get("content", "")
+            else:
+                user_messages.append(msg)
+
+        if instructions:
+            params["instructions"] = instructions
+        elif system_content:
+            params["instructions"] = system_content
+
+        if len(user_messages) == 1:
+            params["input"] = user_messages[0].get("content", "")
+        elif user_messages:
+            params["input"] = user_messages
+        else:
+            params["input"] = system_content or ""
+
+    elif input_text:
+        params["input"] = input_text
+        if instructions:
+            params["instructions"] = instructions
+    else:
+        raise ValueError("Either 'messages' or 'input_text' must be provided")
+
+    if max_tokens:
+        params["max_output_tokens"] = max_tokens
+    if reasoning_effort is not None:
+        params["reasoning"] = {"effort": reasoning_effort}
+    elif temperature is not None:
+        params["temperature"] = temperature
+
+    return params
+
+
 def complete(
     messages=None,
     input_text=None,
@@ -102,60 +147,15 @@ def complete(
     model = model or get_configured_openai_model()
     context = context or "COMPLETION"
 
-    # Build the API parameters
-    params = {"model": model}
-
-    # Handle input format
-    if messages:
-        # Extract system instruction if present
-        system_content = None
-        user_messages = []
-
-        for msg in messages:
-            if msg.get("role") in ("system", "developer"):
-                system_content = msg.get("content", "")
-            else:
-                user_messages.append(msg)
-
-        # Set instructions from system message or parameter
-        if instructions:
-            params["instructions"] = instructions
-        elif system_content:
-            params["instructions"] = system_content
-
-        # Set input from user messages
-        if len(user_messages) == 1:
-            # Single user message - pass as string
-            params["input"] = user_messages[0].get("content", "")
-        elif user_messages:
-            # Multiple messages - pass as list
-            params["input"] = user_messages
-        else:
-            # No user messages, use system content as input
-            params["input"] = system_content or ""
-
-    elif input_text:
-        params["input"] = input_text
-        if instructions:
-            params["instructions"] = instructions
-    else:
-        raise ValueError("Either 'messages' or 'input_text' must be provided")
-
-    # Add optional parameters
-    if max_tokens:
-        params["max_output_tokens"] = max_tokens
-    if reasoning_effort is not None:
-        # When reasoning is active, temperature is not supported
-        params["reasoning"] = {"effort": reasoning_effort}
-    elif temperature is not None:
-        params["temperature"] = temperature
+    params = _build_api_params(
+        messages, input_text, instructions, model, max_tokens, temperature, reasoning_effort
+    )
 
     logger.info(f"AI_{context}: Calling Responses API with model={model}")
 
     try:
         response = client.responses.create(**params)
 
-        # Log usage if available
         if hasattr(response, "usage") and response.usage:
             usage = response.usage
             logger.info(
@@ -201,52 +201,15 @@ def complete_with_usage(
     model = model or get_configured_openai_model()
     context = context or "COMPLETION"
 
-    # Build the API parameters
-    params = {"model": model}
-
-    # Handle input format
-    if messages:
-        system_content = None
-        user_messages = []
-
-        for msg in messages:
-            if msg.get("role") in ("system", "developer"):
-                system_content = msg.get("content", "")
-            else:
-                user_messages.append(msg)
-
-        if instructions:
-            params["instructions"] = instructions
-        elif system_content:
-            params["instructions"] = system_content
-
-        if len(user_messages) == 1:
-            params["input"] = user_messages[0].get("content", "")
-        elif user_messages:
-            params["input"] = user_messages
-        else:
-            params["input"] = system_content or ""
-
-    elif input_text:
-        params["input"] = input_text
-        if instructions:
-            params["instructions"] = instructions
-    else:
-        raise ValueError("Either 'messages' or 'input_text' must be provided")
-
-    if max_tokens:
-        params["max_output_tokens"] = max_tokens
-    if reasoning_effort is not None:
-        params["reasoning"] = {"effort": reasoning_effort}
-    elif temperature is not None:
-        params["temperature"] = temperature
+    params = _build_api_params(
+        messages, input_text, instructions, model, max_tokens, temperature, reasoning_effort
+    )
 
     logger.info(f"AI_{context}: Calling Responses API with model={model}")
 
     try:
         response = client.responses.create(**params)
 
-        # Extract usage info
         usage_dict = {}
         if hasattr(response, "usage") and response.usage:
             usage = response.usage
