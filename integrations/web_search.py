@@ -7,10 +7,8 @@ people born on specific dates, with personality-specific formatting and caching.
 Key functions: get_birthday_facts(), process_facts_for_personality().
 """
 
-import argparse
 import json
 import os
-import sys
 from datetime import datetime
 
 from openai import APIConnectionError, APIError, APITimeoutError, RateLimitError
@@ -333,6 +331,9 @@ def clear_cache(date_str=None):
 
 def main():
     """Main function for testing the web search functionality"""
+    import argparse
+    import sys
+
     parser = argparse.ArgumentParser(description="Test the birthday facts web search")
     parser.add_argument(
         "--date",

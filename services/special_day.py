@@ -15,7 +15,7 @@ from config import (
     REASONING_EFFORT,
     SLACK_BUTTON_DISPLAY_CHAR_LIMIT,
     SLACK_BUTTON_VALUE_CHAR_LIMIT,
-    SPECIAL_DAYS_CHANNEL,
+    SPECIAL_DAY_MENTION_ENABLED,
     SPECIAL_DAYS_IMAGE_ENABLED,
     SPECIAL_DAYS_PERSONALITY,
     TEAM_NAME,
@@ -26,6 +26,7 @@ from config.personality import get_personality_config
 from integrations.openai import complete
 from integrations.web_search import get_birthday_facts
 from services.image_generator import generate_birthday_image
+from slack.emoji import get_emoji_context_for_ai
 from utils.log_setup import get_logger
 from utils.sanitization import markdown_to_slack_mrkdwn
 
@@ -100,8 +101,6 @@ def generate_special_day_message(
     )
 
     # Get emoji context for AI message generation (uses config default: 50)
-    from slack.emoji import get_emoji_context_for_ai
-
     emoji_ctx = get_emoji_context_for_ai(app)
     emoji_examples = emoji_ctx["emoji_examples"]
 
@@ -210,8 +209,6 @@ def generate_special_day_message(
             prompt += f"\n\nHistorical context for today: {facts_text}"
 
         # Add channel mention (conditional based on config)
-        from config import SPECIAL_DAY_MENTION_ENABLED
-
         if SPECIAL_DAY_MENTION_ENABLED:
             prompt += "\n\nInclude <!here> to notify the channel."
         else:
@@ -267,8 +264,6 @@ def generate_fallback_special_day_message(special_days: List, personality_config
     Returns:
         Fallback message string
     """
-    from config import SPECIAL_DAY_MENTION_ENABLED
-
     mention = "<!here> " if SPECIAL_DAY_MENTION_ENABLED else ""
 
     if len(special_days) == 1:
@@ -316,8 +311,6 @@ def generate_weekly_digest_message(
     days_with_observances = len(upcoming_days)
 
     # Get emoji context for AI message generation
-    from slack.emoji import get_emoji_context_for_ai
-
     emoji_ctx = get_emoji_context_for_ai(app)
     emoji_examples = emoji_ctx["emoji_examples"]
 
@@ -377,8 +370,6 @@ TONE: Informative but not overwhelming. This is a summary, not a detailed announ
     except Exception as e:
         logger.error(f"Error generating weekly digest message: {e}")
         # Return fallback message
-        from config import SPECIAL_DAY_MENTION_ENABLED
-
         mention = "<!here> " if SPECIAL_DAY_MENTION_ENABLED else ""
         return (
             f"{mention}📅 *Weekly Special Days Digest*\n\n"
@@ -486,8 +477,6 @@ def generate_special_day_details(
     )
 
     # Get emoji context for AI message generation
-    from slack.emoji import get_emoji_context_for_ai
-
     emoji_ctx = get_emoji_context_for_ai(app)
     emoji_examples = emoji_ctx["emoji_examples"]
 
@@ -761,62 +750,6 @@ def generate_special_day_image(
     except Exception as e:
         logger.error(f"Error generating special day image: {e}")
         return None
-
-
-async def send_special_day_announcement(app, special_days: List, test_mode: bool = False):
-    """
-    Send special day announcement to the configured channel.
-
-    Args:
-        app: Slack app instance
-        special_days: List of SpecialDay objects to announce
-        test_mode: Whether this is a test
-
-    Returns:
-        True if successful, False otherwise
-    """
-    from slack.messaging import send_message, send_message_with_image
-
-    try:
-        # Generate the message
-        message = generate_special_day_message(special_days, test_mode=test_mode, app=app)
-
-        if not message:
-            logger.error("Failed to generate special day message")
-            return False
-
-        # Generate image if enabled
-        image_data = None
-        if SPECIAL_DAYS_IMAGE_ENABLED or test_mode:
-            image_data = generate_special_day_image(special_days, test_mode=test_mode)
-
-        # Send to channel
-        channel = SPECIAL_DAYS_CHANNEL
-        if not channel:
-            logger.error("No special days channel configured")
-            return False
-
-        # Send message with image if available
-        if image_data:
-            await send_message_with_image(
-                app,
-                channel,
-                message,
-                image_data=image_data,
-                context={
-                    "message_type": "special_day",
-                    "title": f"Today's Special Observance{'s' if len(special_days) > 1 else ''}",
-                },
-            )
-        else:
-            await send_message(app, channel, message)
-
-        logger.info(f"Successfully sent special day announcement for {len(special_days)} day(s)")
-        return True
-
-    except Exception as e:
-        logger.error(f"Error sending special day announcement: {e}")
-        return False
 
 
 # Test function

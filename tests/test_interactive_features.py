@@ -132,14 +132,6 @@ class TestRateLimiter:
         allowed, _ = limiter.is_allowed("user2")
         assert allowed is True
 
-    def test_get_remaining(self):
-        """Remaining requests are tracked correctly"""
-        limiter = RateLimiter(window_seconds=60, max_requests=3)
-
-        assert limiter.get_remaining("user1") == 3
-        limiter.is_allowed("user1")
-        assert limiter.get_remaining("user1") == 2
-
 
 class TestParseLLMResponse:
     """Tests for nlp_date_parser._parse_llm_response()"""

@@ -131,9 +131,6 @@ Rules:
 
                 # Generate URL slug from name
                 slug = name.lower().replace(" ", "-").replace("'", "")
-                # Remove common prefixes for cleaner URLs
-                slug = re.sub(r"^world-", "world-", slug)
-                slug = re.sub(r"^international-", "international-", slug)
                 full_url = f"https://www.who.int/campaigns/{slug}"
 
                 observances.append(

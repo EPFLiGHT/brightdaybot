@@ -299,6 +299,72 @@ def handle_dm_admin_help(say, user_id, app):
     logger.info(f"HELP: Sent admin help to {user_id}")
 
 
+def _send_birthday_confirmation(
+    user_id, username, date, date_words, age_text, updated, say, source=""
+):
+    """
+    Send birthday confirmation with Block Kit, falling back to plain text.
+
+    Args:
+        user_id: Slack user ID
+        username: Display name
+        date: Birthday date string (DD/MM)
+        date_words: Human-readable date
+        age_text: Age string like " (Age: 25)" or ""
+        updated: Whether this was an update vs new addition
+        say: Slack say function
+        source: Log suffix like " via date input" or ""
+    """
+    try:
+        from slack.blocks import build_confirmation_blocks
+
+        star_sign = get_star_sign(date)
+        prefs = get_user_preferences(user_id) or {}
+        celebration_style = prefs.get("celebration_style", "standard")
+        style_emoji = CELEBRATION_STYLE_EMOJIS.get(celebration_style, "🎊")
+        style_desc = CELEBRATION_STYLES.get(celebration_style, "Standard celebration")
+
+        details = {
+            "📅 Birthday": date_words,
+            "⭐ Star Sign": star_sign,
+        }
+        if age_text:
+            details["🎈 Age"] = age_text.replace(" (Age: ", "").replace(")", "")
+        details[f"{style_emoji} Style"] = f"{celebration_style.title()} - {style_desc}"
+
+        hint = "\n\nIf this is incorrect, please send the correct date." if source else ""
+        if updated:
+            title, action = "Birthday Updated!", "BIRTHDAY_UPDATE"
+            message = f"Your birthday has been updated successfully.{hint}"
+        else:
+            title, action = "Birthday Saved!", "BIRTHDAY_ADD"
+            message = f"Your birthday has been saved successfully!{hint}"
+
+        blocks, fallback = build_confirmation_blocks(
+            title=title, message=message, action_type="success", details=details
+        )
+        say(blocks=blocks, text=fallback)
+        logger.info(
+            f"{action}: Successfully notified {username} ({user_id}) of birthday {'update to' if updated else ''} {date_words}{source}"
+        )
+    except Exception as e:
+        logger.error(
+            f"NOTIFICATION_ERROR: Failed to send birthday confirmation to {username} ({user_id}){source}: {e}"
+        )
+        try:
+            if updated:
+                say(f"Your birthday has been updated to {date_words}{age_text}")
+            else:
+                say(f"Your birthday ({date_words}{age_text}) has been saved!")
+            logger.info(
+                f"BIRTHDAY_FALLBACK: Sent fallback confirmation to {username} ({user_id}){source}"
+            )
+        except Exception as fallback_error:
+            logger.error(
+                f"NOTIFICATION_CRITICAL: Complete failure to notify {username} ({user_id}){source}: {fallback_error}"
+            )
+
+
 def handle_dm_date(say, user, result, app):
     """
     Handle a date sent in a DM to set or update user's birthday.
@@ -333,88 +399,14 @@ def handle_dm_date(say, user, result, app):
             user, username, date, year, date_words, age_text, say, app
         )
     else:
-        # Enhanced confirmation messages with Block Kit
-        try:
-            from slack.blocks import build_confirmation_blocks
-
-            # Get star sign and celebration style for confirmation
-            star_sign = get_star_sign(date)
-            prefs = get_user_preferences(user) or {}
-            celebration_style = prefs.get("celebration_style", "standard")
-            style_emoji = CELEBRATION_STYLE_EMOJIS.get(celebration_style, "🎊")
-            style_desc = CELEBRATION_STYLES.get(celebration_style, "Standard celebration")
-
-            # Build details dict
-            details = {
-                "📅 Birthday": date_words,
-                "⭐ Star Sign": star_sign,
-            }
-            if age_text:
-                details["🎈 Age"] = age_text.replace(" (Age: ", "").replace(")", "")
-            details[f"{style_emoji} Style"] = f"{celebration_style.title()} - {style_desc}"
-
-            if updated:
-                blocks, fallback = build_confirmation_blocks(
-                    title="Birthday Updated!",
-                    message="Your birthday has been updated successfully.\n\nIf this is incorrect, please send the correct date.",
-                    action_type="success",
-                    details=details,
-                )
-                say(blocks=blocks, text=fallback)
-                logger.info(
-                    f"BIRTHDAY_UPDATE: Successfully notified {username} ({user}) of birthday update to {date_words} via date input"
-                )
-            else:
-                blocks, fallback = build_confirmation_blocks(
-                    title="Birthday Saved!",
-                    message="Your birthday has been saved successfully!\n\nIf this is incorrect, please send the correct date.",
-                    action_type="success",
-                    details=details,
-                )
-                say(blocks=blocks, text=fallback)
-                logger.info(
-                    f"BIRTHDAY_ADD: Successfully notified {username} ({user}) of new birthday {date_words} via date input"
-                )
-        except Exception as e:
-            logger.error(
-                f"NOTIFICATION_ERROR: Failed to send birthday confirmation to {username} ({user}) via date input: {e}"
-            )
-            # Fallback to simple message without formatting
-            try:
-                if updated:
-                    say(
-                        f"Birthday updated to {date_words}{age_text}. If this is incorrect, please try again with the correct date."
-                    )
-                else:
-                    say(
-                        f"{date_words}{age_text} has been saved as your birthday. If this is incorrect, please try again."
-                    )
-                logger.info(
-                    f"BIRTHDAY_FALLBACK: Sent fallback confirmation to {username} ({user}) via date input"
-                )
-            except Exception as fallback_error:
-                logger.error(
-                    f"NOTIFICATION_CRITICAL: Complete failure to notify {username} ({user}) via date input: {fallback_error}"
-                )
+        _send_birthday_confirmation(
+            user, username, date, date_words, age_text, updated, say, source=" via date input"
+        )
 
     # Send external backup after user confirmation to avoid API conflicts
-    _send_external_backup_if_enabled(updated, username, app, user_id=user)
-
-
-def _send_external_backup_if_enabled(updated, username, app, change_type=None, user_id=None):
-    """
-    Send external backup after birthday changes if enabled.
-
-    Args:
-        updated: Whether this was an update (True) or new addition (False)
-        username: Username of the person whose birthday changed
-        app: Slack app instance for sending backup
-        change_type: Optional override for change type ("add", "update", "remove")
-        user_id: User ID of the person whose birthday changed (for preferences lookup)
-    """
     from storage.birthdays import trigger_external_backup
 
-    trigger_external_backup(updated, username, app, change_type, user_id)
+    trigger_external_backup(updated, username, app, user_id=user)
 
 
 def handle_command(text, user_id, say, app):
@@ -550,68 +542,12 @@ def _handle_add_command(parts, user_id, username, say, app):
             user_id, username, date, year, date_words, age_text, say, app
         )
     else:
-        # Enhanced confirmation messages with Block Kit
-        try:
-            from slack.blocks import build_confirmation_blocks
-
-            # Get star sign and celebration style for confirmation
-            star_sign = get_star_sign(date)
-            prefs = get_user_preferences(user_id) or {}
-            celebration_style = prefs.get("celebration_style", "standard")
-            style_emoji = CELEBRATION_STYLE_EMOJIS.get(celebration_style, "🎊")
-            style_desc = CELEBRATION_STYLES.get(celebration_style, "Standard celebration")
-
-            # Build details dict
-            details = {
-                "📅 Birthday": date_words,
-                "⭐ Star Sign": star_sign,
-            }
-            if age_text:
-                details["🎈 Age"] = age_text.replace(" (Age: ", "").replace(")", "")
-            details[f"{style_emoji} Style"] = f"{celebration_style.title()} - {style_desc}"
-
-            if updated:
-                blocks, fallback = build_confirmation_blocks(
-                    title="Birthday Updated!",
-                    message="Your birthday has been updated successfully.",
-                    action_type="success",
-                    details=details,
-                )
-                say(blocks=blocks, text=fallback)
-                logger.info(
-                    f"BIRTHDAY_UPDATE: Successfully notified {username} ({user_id}) of birthday update to {date_words}"
-                )
-            else:
-                blocks, fallback = build_confirmation_blocks(
-                    title="Birthday Saved!",
-                    message="Your birthday has been saved successfully!",
-                    action_type="success",
-                    details=details,
-                )
-                say(blocks=blocks, text=fallback)
-                logger.info(
-                    f"BIRTHDAY_ADD: Successfully notified {username} ({user_id}) of new birthday {date_words}"
-                )
-        except Exception as e:
-            logger.error(
-                f"NOTIFICATION_ERROR: Failed to send birthday confirmation to {username} ({user_id}): {e}"
-            )
-            # Fallback to simple message without formatting
-            try:
-                if updated:
-                    say(f"Your birthday has been updated to {date_words}{age_text}")
-                else:
-                    say(f"Your birthday ({date_words}{age_text}) has been saved!")
-                logger.info(
-                    f"BIRTHDAY_FALLBACK: Sent fallback confirmation to {username} ({user_id})"
-                )
-            except Exception as fallback_error:
-                logger.error(
-                    f"NOTIFICATION_CRITICAL: Complete failure to notify {username} ({user_id}): {fallback_error}"
-                )
+        _send_birthday_confirmation(user_id, username, date, date_words, age_text, updated, say)
 
     # Send external backup after user confirmation
-    _send_external_backup_if_enabled(updated, username, app, user_id=user_id)
+    from storage.birthdays import trigger_external_backup
+
+    trigger_external_backup(updated, username, app, user_id=user_id)
 
 
 def _handle_remove_command(user_id, username, say, app):
@@ -671,7 +607,9 @@ def _handle_remove_command(user_id, username, say, app):
 
     # Send external backup after user confirmation (only if birthday was actually removed)
     if removed:
-        _send_external_backup_if_enabled(True, username, app, change_type="remove")
+        from storage.birthdays import trigger_external_backup
+
+        trigger_external_backup(True, username, app, change_type="remove")
 
 
 def _handle_pause_command(user_id, say):
