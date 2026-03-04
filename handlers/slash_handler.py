@@ -202,7 +202,7 @@ def _handle_slash_list(respond, app):
     birthdays = load_birthdays()
     reference_date = datetime.now(timezone.utc)
 
-    # Build list of upcoming birthdays
+    # Build list of upcoming birthdays (defer username resolution until after slicing)
     upcoming = []
     for uid, data in birthdays.items():
         days = calculate_days_until_birthday(data["date"], reference_date)
@@ -210,7 +210,6 @@ def _handle_slash_list(respond, app):
             upcoming.append(
                 {
                     "user_id": uid,
-                    "username": get_username(app, uid),
                     "date": data["date"],
                     "year": data.get("year"),
                     "days_until": days,
@@ -220,10 +219,12 @@ def _handle_slash_list(respond, app):
     # Sort by days until birthday
     upcoming.sort(key=lambda x: x["days_until"])
 
-    # Limit to configured number
+    # Limit to configured number, then resolve usernames only for displayed entries
     from config import SLASH_UPCOMING_BIRTHDAYS_LIMIT
 
     upcoming = upcoming[:SLASH_UPCOMING_BIRTHDAYS_LIMIT]
+    for entry in upcoming:
+        entry["username"] = get_username(app, entry["user_id"])
 
     blocks, fallback = build_upcoming_birthdays_blocks(upcoming)
     respond(blocks=blocks, text=fallback)

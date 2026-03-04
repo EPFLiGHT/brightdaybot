@@ -15,8 +15,7 @@ Features:
 """
 
 import re
-import threading
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from config import (
     UN_OBSERVANCES_CACHE_DIR,
@@ -27,6 +26,7 @@ from config import (
 from integrations.observances.base import (
     MONTH_ABBR_TO_NUM,
     ObservanceScraperBase,
+    _get_client,
     logger,
 )
 
@@ -120,34 +120,16 @@ Rules:
             except ValueError:
                 continue
 
-        # Remove duplicates by name
-        seen = set()
-        unique = []
-        for obs in observances:
-            if obs["name"] not in seen:
-                seen.add(obs["name"])
-                unique.append(obs)
-
+        unique = self._deduplicate_by_name(observances)
         logger.info(f"UN_OBSERVANCES: Parsed {len(unique)} observances from UN page")
         return unique
 
 
-# Singleton instance with thread lock
-_client: Optional[UNObservancesClient] = None
-_client_lock = threading.Lock()
-
-
 def get_un_client() -> UNObservancesClient:
     """Get or create the UN observances client singleton (thread-safe)."""
-    global _client
-    if _client is None:
-        with _client_lock:
-            if _client is None:
-                _client = UNObservancesClient()
-    return _client
+    return _get_client(UNObservancesClient)
 
 
-# Convenience functions
 def get_un_observances_for_date(date) -> List:
     """Get UN observances for a specific date."""
     return get_un_client().get_observances_for_date(date)

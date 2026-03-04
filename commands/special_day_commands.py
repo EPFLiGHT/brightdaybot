@@ -18,12 +18,24 @@ from config import (
     CALENDARIFIC_PREFETCH_DAYS,
     DATE_FORMAT,
     DEFAULT_ANNOUNCEMENT_TIME,
+    UPCOMING_DAYS_DEFAULT,
     UPCOMING_DAYS_EXTENDED,
     get_logger,
 )
 from slack.client import get_username
 
 logger = get_logger("commands")
+
+
+def _sort_upcoming_by_date(upcoming, days):
+    """Build a chronologically ordered dict from upcoming special days."""
+    today = datetime.now()
+    sorted_upcoming = {}
+    for i in range(days):
+        date_str = (today + timedelta(days=i)).strftime("%d/%m")
+        if date_str in upcoming:
+            sorted_upcoming[date_str] = upcoming[date_str]
+    return sorted_upcoming
 
 
 def handle_special_command(args, user_id, say, app):
@@ -58,18 +70,9 @@ def handle_special_command(args, user_id, say, app):
 
     elif subcommand in ["week", "upcoming"]:
         # Show upcoming special days for the week using Block Kit
-        upcoming = get_upcoming_special_days(7)
+        upcoming = get_upcoming_special_days(UPCOMING_DAYS_DEFAULT)
 
-        # Build dict structure for Block Kit (date_str -> [days])
-        # Sort by actual date objects for proper chronological order
-        today = datetime.now()
-        sorted_upcoming = {}
-        for i in range(7):
-            check_date = today + timedelta(days=i)
-            date_str = check_date.strftime("%d/%m")
-            if date_str in upcoming:
-                sorted_upcoming[date_str] = upcoming[date_str]
-
+        sorted_upcoming = _sort_upcoming_by_date(upcoming, UPCOMING_DAYS_DEFAULT)
         blocks, fallback = build_special_days_list_blocks(sorted_upcoming, view_mode="week")
         say(blocks=blocks, text=fallback)
 
@@ -77,16 +80,7 @@ def handle_special_command(args, user_id, say, app):
         # Show special days for the extended lookahead period using Block Kit
         upcoming = get_upcoming_special_days(UPCOMING_DAYS_EXTENDED)
 
-        # Build dict structure for Block Kit (date_str -> [days])
-        # Sort by actual date objects for proper chronological order
-        today = datetime.now()
-        sorted_upcoming = {}
-        for i in range(UPCOMING_DAYS_EXTENDED):
-            check_date = today + timedelta(days=i)
-            date_str = check_date.strftime("%d/%m")
-            if date_str in upcoming:
-                sorted_upcoming[date_str] = upcoming[date_str]
-
+        sorted_upcoming = _sort_upcoming_by_date(upcoming, UPCOMING_DAYS_EXTENDED)
         blocks, fallback = build_special_days_list_blocks(sorted_upcoming, view_mode="month")
         say(blocks=blocks, text=fallback)
 

@@ -6,6 +6,7 @@ batch file uploads with processing polling, and fallback strategies.
 """
 
 import os
+import time
 from datetime import datetime
 
 from slack_sdk.errors import SlackApiError
@@ -14,6 +15,24 @@ from config import RETRY_LIMITS, SLACK_MAX_BLOCKS, get_logger
 from slack.client import get_username
 
 logger = get_logger("slack")
+
+
+def _resolve_dm_channel(app, channel):
+    """Resolve a user ID to its DM channel ID. Returns channel unchanged if not a user ID."""
+    if not channel.startswith("U"):
+        return channel
+    try:
+        dm_response = app.client.conversations_open(users=channel)
+        if dm_response["ok"]:
+            dm_id = dm_response["channel"]["id"]
+            logger.debug(f"DM: Opened channel {dm_id} for user {channel}")
+            return dm_id
+        logger.error(
+            f"DM_ERROR: Failed to open DM channel for {channel}: {dm_response.get('error')}"
+        )
+    except Exception as e:
+        logger.error(f"DM_ERROR: Exception opening DM channel for {channel}: {e}")
+    return None
 
 
 # =============================================================================
@@ -118,19 +137,9 @@ def send_message_with_file(app, channel: str, text: str, file_path: str, context
         bool: True if successful, False otherwise
     """
     try:
-        # For DMs with user IDs, we need to get the DM channel ID first
-        target_channel = channel
-        if channel.startswith("U"):
-            # Open a DM channel to get the proper channel ID
-            dm_response = app.client.conversations_open(users=channel)
-            if dm_response["ok"]:
-                target_channel = dm_response["channel"]["id"]
-                logger.debug(f"FILE_UPLOAD: Opened DM channel {target_channel} for user {channel}")
-            else:
-                logger.error(
-                    f"FILE_UPLOAD_ERROR: Failed to open DM channel: {dm_response.get('error')}"
-                )
-                return False
+        target_channel = _resolve_dm_channel(app, channel)
+        if target_channel is None:
+            return False
 
         # Upload file with message
         with open(file_path, "rb") as file_content:
@@ -174,6 +183,111 @@ def send_message_with_file(app, channel: str, text: str, file_path: str, context
 # =============================================================================
 
 
+def _resolve_image_title(image_data, person_name=None, user_profile=None):
+    """
+    Resolve the display title for an uploaded birthday image.
+
+    Checks for a pre-generated custom_title first, then generates an AI title,
+    then falls back to a static title.
+
+    Args:
+        image_data: Image result dict (may contain custom_title, personality, generated_for, user_profile)
+        person_name: Name of the birthday person (extracted by caller or from image_data)
+        user_profile: User profile dict (extracted by caller or from image_data)
+
+    Returns:
+        str: Final title string with emoji prefix
+    """
+    custom_title = image_data.get("custom_title")
+    if custom_title and custom_title.strip():
+        logger.info(f"IMAGE_TITLE: Using custom title: '{custom_title}'")
+        return f"🎂 {custom_title}"
+
+    # Resolve person_name and user_profile from image_data if not provided
+    if person_name is None:
+        person_name = image_data.get("generated_for", "Birthday Person")
+    if user_profile is None:
+        user_profile = image_data.get("user_profile")
+
+    personality = image_data.get("personality", "standard")
+
+    try:
+        from services.message_generator import generate_birthday_image_title
+
+        is_multiple = " and " in person_name or " , " in person_name
+        ai_title = generate_birthday_image_title(
+            name=person_name,
+            personality=personality,
+            user_profile=user_profile,
+            is_multiple_people=is_multiple,
+        )
+        logger.info(f"IMAGE_TITLE: Generated AI title for {person_name}: '{ai_title}'")
+        return f"🎂 {ai_title}"
+    except Exception as e:
+        logger.error(f"IMAGE_TITLE_ERROR: Failed to generate AI title for {person_name}: {e}")
+        personality_name = personality.replace("_", " ").title()
+        return f"🎂 {person_name}'s Birthday - {personality_name} Style"
+
+
+def _extract_person_name(image_data, index=0):
+    """Extract display name from image data with fallbacks."""
+    image_user_profile = image_data.get("user_profile")
+    if image_user_profile:
+        return (
+            image_user_profile.get(
+                "preferred_name",
+                image_data.get("generated_for", f"Person {index + 1}"),
+            ),
+            image_user_profile,
+        )
+    return image_data.get("generated_for", f"Person {index + 1}"), image_user_profile
+
+
+def _make_birthday_filename(person_name, index=0):
+    """Create a safe filename for a birthday image upload."""
+    safe_name = (
+        "".join(c for c in person_name if c.isalnum() or c in (" ", "-", "_"))
+        .rstrip()
+        .replace(" ", "_")
+    )
+    timestamp = datetime.now().strftime("%H%M%S")
+    return f"birthday_{safe_name}_{index + 1}_{timestamp}.png"
+
+
+def _poll_file_processing(app, file_id, file_name):
+    """Poll Slack until an uploaded file is processed or max attempts reached.
+
+    Returns True if file was processed, False otherwise.
+    """
+    max_attempts = RETRY_LIMITS["file_processing"]
+    for attempt in range(max_attempts):
+        try:
+            file_info_response = app.client.files_info(file=file_id)
+            if file_info_response["ok"]:
+                mimetype = file_info_response.get("file", {}).get("mimetype")
+                if mimetype:
+                    logger.info(
+                        f"FILE_POLL: File {file_name} (ID: {file_id}) processed after {attempt}s"
+                    )
+                    return True
+                elif attempt < max_attempts - 1:
+                    time.sleep(1)
+                else:
+                    logger.warning(
+                        f"FILE_POLL: File {file_name} (ID: {file_id}) not processed after {max_attempts}s, using anyway"
+                    )
+                    return True
+            else:
+                logger.error(
+                    f"FILE_POLL: files.info failed for {file_id}: {file_info_response.get('error')}"
+                )
+                return False
+        except Exception as e:
+            logger.error(f"FILE_POLL: Error checking file status for {file_id}: {e}")
+            return False
+    return False
+
+
 def send_message_with_image(
     app, channel: str, text: str, image_data=None, blocks=None, context: dict = None
 ):
@@ -204,58 +318,12 @@ def send_message_with_image(
             filename = f"birthday_{image_data.get('personality', 'standard')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{file_format}"
 
             try:
-                # For DMs with user IDs, we need to get the DM channel ID first
-                target_channel = channel
-                if channel.startswith("U"):
-                    # Open a DM channel to get the proper channel ID
-                    dm_response = app.client.conversations_open(users=channel)
-                    if dm_response["ok"]:
-                        target_channel = dm_response["channel"]["id"]
-                        logger.debug(
-                            f"IMAGE: Opened DM channel {target_channel} for user {channel}"
-                        )
-                    else:
-                        logger.error(
-                            f"IMAGE_ERROR: Failed to open DM channel: {dm_response.get('error')}"
-                        )
-                        # Fallback to text-only message
-                        return send_message(app, channel, text, blocks, context)["success"]
+                target_channel = _resolve_dm_channel(app, channel)
+                if target_channel is None:
+                    # Fallback to text-only message
+                    return send_message(app, channel, text, blocks, context)["success"]
 
-                # Check for pre-generated custom title first, then generate AI title
-                custom_title = image_data.get("custom_title")
-                if custom_title and custom_title.strip():
-                    final_title = f"🎂 {custom_title}"
-                    logger.info(f"IMAGE_TITLE: Using custom title: '{custom_title}'")
-                else:
-                    # Generate AI-powered title for the image
-                    try:
-                        from services.message_generator import (
-                            generate_birthday_image_title,
-                        )
-
-                        # Extract name and context from image_data
-                        name = image_data.get("generated_for", "Birthday Person")
-                        personality = image_data.get("personality", "standard")
-                        user_profile = image_data.get(
-                            "user_profile"
-                        )  # This will need to be added to image_data
-                        is_multiple = " and " in name or " , " in name  # Detect multiple people
-
-                        ai_title = generate_birthday_image_title(
-                            name=name,
-                            personality=personality,
-                            user_profile=user_profile,
-                            is_multiple_people=is_multiple,
-                        )
-
-                        # Add emoji prefix to AI title
-                        final_title = f"🎂 {ai_title}"
-                        logger.info(f"IMAGE_TITLE: Generated AI title for {name}: '{ai_title}'")
-
-                    except Exception as e:
-                        logger.error(f"IMAGE_TITLE_ERROR: Failed to generate AI title: {e}")
-                        # Fallback to original static title
-                        final_title = f"🎂 Birthday Image - {image_data.get('personality', 'standard').title()} Style"
+                final_title = _resolve_image_title(image_data)
 
                 # Strategy: If blocks provided, send structured message first, then image
                 if blocks:
@@ -359,17 +427,7 @@ def send_message_with_multiple_images(
                     results["images_failed"] += 1
                     continue
 
-                # Generate title for this individual image
-                # Extract name from where it was stored during image generation
-                image_user_profile = image_data.get("user_profile")
-                person_name = (
-                    image_user_profile.get(
-                        "preferred_name",
-                        image_data.get("generated_for", f"Person {i+1}"),
-                    )
-                    if image_user_profile
-                    else image_data.get("generated_for", f"Person {i+1}")
-                )
+                person_name, image_user_profile = _extract_person_name(image_data, i)
 
                 # Send individual image (no additional text - just the title)
                 image_success = send_message_with_image(app, channel, "", image_data, blocks=None)
@@ -439,48 +497,11 @@ def upload_birthday_images_for_blocks(app, channel: str, image_list: list, conte
                     logger.warning(f"BLOCK_IMAGE_UPLOAD: Skipping attachment {i+1} - no image data")
                     continue
 
-                # Generate personalized filename for each image
-                # Extract name from where it was stored during image generation
-                image_user_profile = image_data.get("user_profile")
-                person_name = (
-                    image_user_profile.get(
-                        "preferred_name",
-                        image_data.get("generated_for", f"Person {i+1}"),
-                    )
-                    if image_user_profile
-                    else image_data.get("generated_for", f"Person {i+1}")
-                )
+                person_name, image_user_profile = _extract_person_name(image_data, i)
 
-                # Create safe filename
-                safe_name = (
-                    "".join(c for c in person_name if c.isalnum() or c in (" ", "-", "_"))
-                    .rstrip()
-                    .replace(" ", "_")
-                )
-                timestamp = datetime.now().strftime("%H%M%S")
-                filename = f"birthday_{safe_name}_{i+1}_{timestamp}.png"
+                filename = _make_birthday_filename(person_name, i)
 
-                # Generate AI title for this image
-                try:
-                    from services.message_generator import generate_birthday_image_title
-
-                    ai_title = generate_birthday_image_title(
-                        person_name,
-                        image_data.get("personality", "standard"),
-                        image_user_profile,
-                        None,  # birthday_message - not needed for individual titles
-                        False,  # is_multiple_people - each image is individual
-                    )
-                    final_title = f"🎂 {ai_title}"
-                except Exception as e:
-                    logger.error(
-                        f"BLOCK_IMAGE_UPLOAD_TITLE_ERROR: Failed to generate AI title for {person_name}: {e}"
-                    )
-                    # Fallback to simple title
-                    personality_name = (
-                        image_data.get("personality", "standard").replace("_", " ").title()
-                    )
-                    final_title = f"🎂 {person_name}'s Birthday - {personality_name} Style"
+                final_title = _resolve_image_title(image_data, person_name, image_user_profile)
 
                 # Add to file uploads list
                 file_uploads.append(
@@ -504,19 +525,9 @@ def upload_birthday_images_for_blocks(app, channel: str, image_list: list, conte
             logger.warning("BLOCK_IMAGE_UPLOAD: No valid files prepared for upload")
             return []
 
-        # Get target channel (handle DMs - reuse existing logic)
-        target_channel = channel
-        if channel.startswith("U"):
-            # Open a DM channel to get the proper channel ID for files_upload_v2
-            dm_response = app.client.conversations_open(users=channel)
-            if dm_response["ok"]:
-                target_channel = dm_response["channel"]["id"]
-                logger.info(
-                    f"BLOCK_IMAGE_UPLOAD: Opened DM channel {target_channel} for user {channel}"
-                )
-            else:
-                logger.error(f"BLOCK_IMAGE_UPLOAD: Failed to open DM channel for {channel}")
-                return []
+        target_channel = _resolve_dm_channel(app, channel)
+        if target_channel is None:
+            return []
 
         # Upload files using files_upload_v2 WITHOUT channel parameter (private upload)
         # This matches the working pattern from admin test-blockkit private/simple modes
@@ -531,69 +542,26 @@ def upload_birthday_images_for_blocks(app, channel: str, image_list: list, conte
             # Extract file info from response
             uploaded_files = upload_response.get("files", [])
 
-            # CRITICAL: Wait for Slack to process files before using in Block Kit
-            # Per community forum: files need processing time before they're usable in slack_file property
-            # Poll files.info API until mimetype is populated (indicates processing complete)
-            import time
+            # Build mapping of filename to title for fallback lookup
+            file_id_to_title = {
+                fu.get("filename", ""): fu.get("title", "")
+                for fu in file_uploads
+                if fu.get("filename") and fu.get("title")
+            }
 
-            # Build mapping of file_id to title from our upload list
-            file_id_to_title = {}
-            for file_upload in file_uploads:
-                # We'll match by filename since we don't have file_id yet
-                filename = file_upload.get("filename", "")
-                title = file_upload.get("title", "")
-                if filename and title:
-                    file_id_to_title[filename] = title
-
-            processed_file_data = []  # List of (file_id, title) tuples
+            # Poll each file until processed, then collect (file_id, title) tuples
+            processed_file_data = []
             for uploaded_file in uploaded_files:
                 file_id = uploaded_file.get("id")
                 file_name = uploaded_file.get("name", "unknown")
-                file_title = uploaded_file.get("title", "")  # Get title from upload response
+                file_title = uploaded_file.get("title", "") or file_id_to_title.get(file_name, "")
 
                 if not file_id:
                     logger.warning(f"BLOCK_IMAGE_UPLOAD: No file ID for {file_name}, skipping")
                     continue
 
-                # If title not in response, try to get it from our mapping
-                if not file_title:
-                    file_title = file_id_to_title.get(file_name, "")
-
-                # Poll for file processing completion (max 10 seconds)
-                max_attempts = RETRY_LIMITS["file_processing"]
-                for attempt in range(max_attempts):
-                    try:
-                        file_info_response = app.client.files_info(file=file_id)
-                        if file_info_response["ok"]:
-                            file_data = file_info_response.get("file", {})
-                            mimetype = file_data.get("mimetype")
-
-                            if mimetype:
-                                # File is processed and ready for Block Kit
-                                logger.info(
-                                    f"BLOCK_IMAGE_UPLOAD: File {file_name} (ID: {file_id}) processed after {attempt}s"
-                                )
-                                processed_file_data.append((file_id, file_title))
-                                break
-                            else:
-                                # File still processing, wait 1 second
-                                if attempt < max_attempts - 1:
-                                    time.sleep(1)
-                                else:
-                                    logger.warning(
-                                        f"BLOCK_IMAGE_UPLOAD: File {file_name} (ID: {file_id}) not processed after {max_attempts}s, using anyway"
-                                    )
-                                    processed_file_data.append((file_id, file_title))
-                        else:
-                            logger.error(
-                                f"BLOCK_IMAGE_UPLOAD: files.info failed for {file_id}: {file_info_response.get('error')}"
-                            )
-                            break
-                    except Exception as e:
-                        logger.error(
-                            f"BLOCK_IMAGE_UPLOAD: Error checking file status for {file_id}: {e}"
-                        )
-                        break
+                _poll_file_processing(app, file_id, file_name)
+                processed_file_data.append((file_id, file_title))
 
             logger.info(
                 f"BLOCK_IMAGE_UPLOAD: Successfully uploaded and processed {len(processed_file_data)} files for Block Kit"
@@ -657,48 +625,11 @@ def send_message_with_multiple_attachments(
                     results["attachments_failed"] += 1
                     continue
 
-                # Generate personalized filename and title for each image
-                # Extract name from where it was stored during image generation
-                image_user_profile = image_data.get("user_profile")
-                person_name = (
-                    image_user_profile.get(
-                        "preferred_name",
-                        image_data.get("generated_for", f"Person {i+1}"),
-                    )
-                    if image_user_profile
-                    else image_data.get("generated_for", f"Person {i+1}")
-                )
+                person_name, image_user_profile = _extract_person_name(image_data, i)
 
-                # Create safe filename
-                safe_name = (
-                    "".join(c for c in person_name if c.isalnum() or c in (" ", "-", "_"))
-                    .rstrip()
-                    .replace(" ", "_")
-                )
-                timestamp = datetime.now().strftime("%H%M%S")
-                filename = f"birthday_{safe_name}_{i+1}_{timestamp}.png"
+                filename = _make_birthday_filename(person_name, i)
 
-                # Generate AI title for this image
-                try:
-                    from services.message_generator import generate_birthday_image_title
-
-                    ai_title = generate_birthday_image_title(
-                        person_name,
-                        image_data.get("personality", "standard"),
-                        image_user_profile,
-                        None,  # birthday_message - not needed for individual titles
-                        False,  # is_multiple_people - each image is individual
-                    )
-                    final_title = f"🎂 {ai_title}"
-                except Exception as e:
-                    logger.error(
-                        f"MULTI_ATTACH_TITLE_ERROR: Failed to generate AI title for {person_name}: {e}"
-                    )
-                    # Fallback to simple title
-                    personality_name = (
-                        image_data.get("personality", "standard").replace("_", " ").title()
-                    )
-                    final_title = f"🎂 {person_name}'s Birthday - {personality_name} Style"
+                final_title = _resolve_image_title(image_data, person_name, image_user_profile)
 
                 # Add to file uploads list
                 file_uploads.append(
@@ -726,20 +657,10 @@ def send_message_with_multiple_attachments(
             results["message_sent"] = result["success"]
             return results
 
-        # Get target channel (handle DMs)
-        target_channel = channel
-        if channel.startswith("U"):
-            # Open a DM channel to get the proper channel ID for files_upload_v2
-            dm_response = app.client.conversations_open(users=channel)
-            if dm_response["ok"]:
-                target_channel = dm_response["channel"]["id"]
-                logger.info(f"MULTI_ATTACH: Opened DM channel {target_channel} for user {channel}")
-            else:
-                logger.error(f"MULTI_ATTACH: Failed to open DM channel for {channel}")
-                # Fallback to sequential method
-                return _fallback_to_sequential_images(
-                    app, channel, text, image_list, blocks, context
-                )
+        target_channel = _resolve_dm_channel(app, channel)
+        if target_channel is None:
+            # Fallback to sequential method
+            return _fallback_to_sequential_images(app, channel, text, image_list, blocks, context)
 
         # Upload all files in a single message using files_upload_v2
         logger.info(f"MULTI_ATTACH: Uploading {len(file_uploads)} files to {target_channel}")
@@ -765,54 +686,16 @@ def send_message_with_multiple_attachments(
             )
 
         if upload_response["ok"]:
-            # CRITICAL: Wait for Slack to process files before they're usable
-            # Per community forum: files need processing time before they're fully available
-            # This prevents issues when files are immediately accessed/displayed
-            import time
-
             uploaded_files = upload_response.get("files", [])
             processed_count = 0
 
             for uploaded_file in uploaded_files:
                 file_id = uploaded_file.get("id")
                 file_name = uploaded_file.get("name", "unknown")
-
                 if not file_id:
                     continue
-
-                # Poll for file processing completion (max 10 seconds)
-                max_attempts = RETRY_LIMITS["file_processing"]
-                for attempt in range(max_attempts):
-                    try:
-                        file_info_response = app.client.files_info(file=file_id)
-                        if file_info_response["ok"]:
-                            file_data = file_info_response.get("file", {})
-                            mimetype = file_data.get("mimetype")
-
-                            if mimetype:
-                                # File is processed and ready
-                                logger.info(
-                                    f"MULTI_ATTACH: File {file_name} (ID: {file_id}) processed after {attempt}s"
-                                )
-                                processed_count += 1
-                                break
-                            else:
-                                # File still processing, wait 1 second
-                                if attempt < max_attempts - 1:
-                                    time.sleep(1)
-                                else:
-                                    logger.warning(
-                                        f"MULTI_ATTACH: File {file_name} (ID: {file_id}) not processed after {max_attempts}s, continuing anyway"
-                                    )
-                                    processed_count += 1
-                        else:
-                            logger.error(
-                                f"MULTI_ATTACH: files.info failed for {file_id}: {file_info_response.get('error')}"
-                            )
-                            break
-                    except Exception as e:
-                        logger.error(f"MULTI_ATTACH: Error checking file status for {file_id}: {e}")
-                        break
+                _poll_file_processing(app, file_id, file_name)
+                processed_count += 1
 
             results["success"] = True
             results["message_sent"] = True

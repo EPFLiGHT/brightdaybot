@@ -55,6 +55,13 @@ _recent_personalities = []
 _recent_personalities = load_recent_personalities()
 
 
+def _join_names(names):
+    """Join a list of names in natural English: 'A and B' or 'A, B, and C'."""
+    if len(names) == 2:
+        return f"{names[0]} and {names[1]}"
+    return ", ".join(names[:-1]) + f", and {names[-1]}"
+
+
 # Birthday announcement formats
 BIRTHDAY_INTROS = [
     ":birthday: ATTENTION WONDERFUL HUMANS! :tada:",
@@ -936,16 +943,14 @@ def _build_consolidated_birthday_prompt(
         people_info.append(f"{username} ({user_mention}){age_info}{name_info}{profile_info}")
 
     # Format mentions
+    mention_text = _join_names(mentions)
     if len(mentions) == 2:
-        mention_text = f"{mentions[0]} and {mentions[1]}"
         count_word = "both"
         relationship = "twins"
     elif len(mentions) == 3:
-        mention_text = f"{mentions[0]}, {mentions[1]}, and {mentions[2]}"
         count_word = "all three"
         relationship = "triplets"
     else:
-        mention_text = ", ".join(mentions[:-1]) + f", and {mentions[-1]}"
         count_word = f"all {len(mentions)}"
         relationship = f"{len(mentions)}-way birthday celebration"
 
@@ -1218,12 +1223,7 @@ def create_consolidated_profile(birthday_people):
             titles.append(person["profile"]["title"])
 
     # Create a consolidated name and title
-    if len(names) == 2:
-        consolidated_name = f"{names[0]} and {names[1]}"
-    elif len(names) == 3:
-        consolidated_name = f"{names[0]}, {names[1]}, and {names[2]}"
-    else:
-        consolidated_name = f"{', '.join(names[:-1])}, and {names[-1]}"
+    consolidated_name = _join_names(names)
 
     # Use most common job type or generic description
     if titles:
@@ -1343,14 +1343,12 @@ def _generate_fallback_consolidated_message(birthday_people):
     """Generate fallback consolidated message when AI fails"""
     mentions = [f"<@{person['user_id']}>" for person in birthday_people]
 
+    mention_text = _join_names(mentions)
     if len(mentions) == 2:
-        mention_text = f"{mentions[0]} and {mentions[1]}"
         title = "Birthday Twins"
     elif len(mentions) == 3:
-        mention_text = f"{mentions[0]}, {mentions[1]}, and {mentions[2]}"
         title = "Birthday Triplets"
     else:
-        mention_text = ", ".join(mentions[:-1]) + f", and {mentions[-1]}"
         title = f"Birthday {len(mentions)}-Celebration"
 
     # Simple but elegant fallback
@@ -1438,7 +1436,7 @@ def generate_birthday_image_title(
                     messages=[
                         {
                             "role": "system",
-                            "content": "You are a creative title generator for birthday image uploads. STRICT LIMIT: Keep titles 2-8 words and under 100 characters total. CRITICAL: You MUST include the person's name(s) prominently in every title. Be creative but keep it workplace appropriate. Do not include emojis - they will be added separately. Output ONLY the title, nothing else.",
+                            "content": "You are a creative title generator for birthday image uploads. STRICT LIMIT: Keep titles 2-8 words and under 100 characters total. CRITICAL: You MUST include the person's name(s) prominently in every title. Be creative but keep it workplace appropriate. Do not include emojis - they will be added separately. Do not use any formatting such as bold, italic, or markdown — output plain text only. Output ONLY the title, nothing else.",
                         },
                         {"role": "user", "content": formatted_prompt},
                     ],

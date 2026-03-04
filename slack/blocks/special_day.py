@@ -10,6 +10,15 @@ from config import SLACK_BUTTON_VALUE_CHAR_LIMIT, UPCOMING_DAYS_DEFAULT, UPCOMIN
 from config.personality import get_personality_display_name
 
 
+def _get_attr(obj, attr, default=None):
+    """Get attribute from object or dict uniformly."""
+    if hasattr(obj, attr):
+        return getattr(obj, attr, default)
+    elif isinstance(obj, dict):
+        return obj.get(attr, default)
+    return default
+
+
 def build_special_day_blocks(
     special_days_or_name,  # Can be List[Any] or str (backward compat)
     message: str,
@@ -68,19 +77,11 @@ def build_special_day_blocks(
     if not special_days:
         return [], ""
 
-    # Helper to get attribute from object or dict
-    def get_attr(obj, attr, default=None):
-        if hasattr(obj, attr):
-            return getattr(obj, attr, default)
-        elif isinstance(obj, dict):
-            return obj.get(attr, default)
-        return default
-
     # Build header with specific emoji for the observance
     # Note: Always single day since we send separate announcements
     special_day = special_days[0]
-    emoji = get_attr(special_day, "emoji", "🌍") or "🌍"
-    header_text = f"{emoji} {get_attr(special_day, 'name', 'Special Day')}"
+    emoji = _get_attr(special_day, "emoji", "🌍") or "🌍"
+    header_text = f"{emoji} {_get_attr(special_day, 'name', 'Special Day')}"
 
     blocks = [
         {
@@ -94,7 +95,7 @@ def build_special_day_blocks(
     context_elements = []
 
     # Get date
-    date_str = get_attr(special_day, "date")
+    date_str = _get_attr(special_day, "date")
     if date_str:
         from datetime import datetime
 
@@ -109,7 +110,7 @@ def build_special_day_blocks(
         context_elements.append({"type": "mrkdwn", "text": f"📅 *Date:* {formatted_date}"})
 
     # Display source
-    source = get_attr(special_day, "source")
+    source = _get_attr(special_day, "source")
     if source:
         context_elements.append({"type": "mrkdwn", "text": f"📋 *Source:* {source}"})
 
@@ -123,7 +124,7 @@ def build_special_day_blocks(
         blocks.append({"type": "context", "elements": context_elements})
 
     # Add interactive buttons if detailed content or URL available
-    url = get_attr(special_day, "url")
+    url = _get_attr(special_day, "url")
 
     if detailed_content or url:
         actions = []
@@ -160,7 +161,7 @@ def build_special_day_blocks(
             blocks.append({"type": "actions", "elements": actions})
 
     # Generate fallback text
-    fallback_text = f"{emoji} {get_attr(special_day, 'name', 'Special Day')}"
+    fallback_text = f"{emoji} {_get_attr(special_day, 'name', 'Special Day')}"
 
     return blocks, fallback_text
 
@@ -203,14 +204,6 @@ def build_weekly_special_days_blocks(
         {"type": "divider"},
     ]
 
-    # Helper to get attribute from object or dict
-    def get_attr(obj, attr, default=None):
-        if hasattr(obj, attr):
-            return getattr(obj, attr, default)
-        elif isinstance(obj, dict):
-            return obj.get(attr, default)
-        return default
-
     # Sort dates chronologically
     today = datetime.now()
     sorted_dates = []
@@ -240,10 +233,10 @@ def build_weekly_special_days_blocks(
         # Build observance list for this day
         observance_lines = []
         for day in special_days:
-            emoji = get_attr(day, "emoji", "🌍") or "🌍"
-            name = get_attr(day, "name", "Special Day")
-            url = get_attr(day, "url", "")
-            source = get_attr(day, "source", "")
+            emoji = _get_attr(day, "emoji", "🌍") or "🌍"
+            name = _get_attr(day, "name", "Special Day")
+            url = _get_attr(day, "url", "")
+            source = _get_attr(day, "source", "")
 
             # Hyperlink the name if URL available
             name_text = f"<{url}|{name}>" if url else name

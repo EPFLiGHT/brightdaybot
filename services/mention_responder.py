@@ -120,9 +120,14 @@ def _get_birthday_context(app: Any) -> List[Dict[str, str]]:
         today = datetime.now()
         upcoming = []
 
-        for user_id, date_str in birthdays.items():
+        for user_id, birthday_data in birthdays.items():
             try:
                 # Parse date
+                date_str = (
+                    birthday_data.get("date", "")
+                    if isinstance(birthday_data, dict)
+                    else birthday_data
+                )
                 day, month = date_str.split("/")[:2]
                 birthday_date = datetime(today.year, int(month), int(day))
 

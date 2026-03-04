@@ -9,9 +9,10 @@ Handles @-mention events to answer questions about:
 Includes rate limiting to prevent abuse.
 """
 
+import re
 import time
 from collections import defaultdict
-from typing import Dict, Optional, Tuple
+from typing import Dict, Tuple
 
 from slack_sdk.errors import SlackApiError
 
@@ -54,16 +55,9 @@ class RateLimiter:
         self._requests[user_id].append(now)
         return True, 0
 
-    def get_remaining(self, user_id: str) -> int:
-        """Get remaining requests for a user."""
-        now = time.time()
-        window_start = now - self.window_seconds
-        current_requests = len([ts for ts in self._requests[user_id] if ts > window_start])
-        return max(0, self.max_requests - current_requests)
-
 
 # Global rate limiter instance
-_rate_limiter: Optional[RateLimiter] = None
+_rate_limiter: RateLimiter | None = None
 
 
 def get_rate_limiter() -> RateLimiter:
@@ -203,8 +197,6 @@ def handle_mention(app, event: dict, say) -> dict:
 
         # Remove bot mention from text
         # Pattern: <@BOTID> or <@BOTID|botname>
-        import re
-
         clean_text = re.sub(r"<@[A-Z0-9]+(\|[^>]+)?>", "", text).strip()
 
         if not clean_text:
