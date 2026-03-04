@@ -149,7 +149,7 @@ class TestImageTitle:
 
     def test_birthday_image_title(self):
         """Generate a birthday image title for a person."""
-        from services.image_generator import generate_birthday_image_title
+        from services.message_generator import generate_birthday_image_title
 
         title = generate_birthday_image_title(
             name="Alice",
@@ -165,8 +165,11 @@ class TestImageTitle:
 class TestDateParsing:
     """Test NLP date parsing via LLM."""
 
-    def test_nlp_date_parsing(self):
+    def test_nlp_date_parsing(self, monkeypatch):
         """Parse a natural language date."""
+        import config
+
+        monkeypatch.setattr(config, "NLP_DATE_PARSING_ENABLED", True)
         from utils.date_parsing import parse_date_with_nlp
 
         result = parse_date_with_nlp("July 14th")
@@ -176,8 +179,11 @@ class TestDateParsing:
         assert result["day"] == 14
         assert result["month"] == 7
 
-    def test_nlp_date_with_year(self):
+    def test_nlp_date_with_year(self, monkeypatch):
         """Parse a date with birth year."""
+        import config
+
+        monkeypatch.setattr(config, "NLP_DATE_PARSING_ENABLED", True)
         from utils.date_parsing import parse_date_with_nlp
 
         result = parse_date_with_nlp("March 5, 1990")
