@@ -1,6 +1,27 @@
-# BrightDayBot
+<p align="center">
+  <img src="assets/logo.png" alt="BrightDayBot" width="200">
+</p>
 
-A Slack bot that celebrates birthdays with AI-generated personalized messages and images.
+<h1 align="center">BrightDayBot</h1>
+
+<p align="center">
+  AI-driven Slack bot that orchestrates team birthday celebrations and curates international observances — with distinct personalities, face-accurate imagery, and web-scraped observance calendars.
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/python-3.11+-blue">
+  <img src="https://img.shields.io/github/license/EPFLiGHT/brightdaybot">
+  <img src="https://img.shields.io/github/actions/workflow/status/EPFLiGHT/brightdaybot/ci.yml?branch=main&label=CI">
+</p>
+
+<p align="center">
+  <a href="#quick-start"><strong>Get Started</strong></a> &middot;
+  <a href="#commands"><strong>Commands</strong></a> &middot;
+  <a href="#personalities"><strong>Personalities</strong></a> &middot;
+  <a href="#configuration"><strong>Configuration</strong></a>
+</p>
+
+---
 
 ## Features
 
@@ -8,7 +29,7 @@ A Slack bot that celebrates birthdays with AI-generated personalized messages an
 - **AI Images**: Face-accurate images using Slack profile photos
 - **Multiple Personalities**: Ludo the Mystic Dog, Captain BirthdayBeard, TechBot 3000, and more
 - **Multi-Timezone**: Celebrates at 9 AM in each user's timezone
-- **Special Days**: UN/WHO/UNESCO observances and national holidays with AI-generated content
+- **Special Days**: International observances and national holidays with AI-generated content
 - **Slash Commands**: `/birthday` and `/special-day` with modal forms
 - **App Home**: Dashboard with birthday status, statistics, and upcoming events
 - **Calendar Export**: Export team birthdays to ICS format
@@ -22,41 +43,41 @@ A Slack bot that celebrates birthdays with AI-generated personalized messages an
 
 ### 1. Create Slack App
 
-1. Go to [api.slack.com/apps](https://api.slack.com/apps) → Create New App
-2. Enable **Socket Mode** with `connections:write` scope
-3. Add **Bot Events**: `app_mention`, `member_joined_channel`, `message.channels`, `message.im`, `app_home_opened`
-4. Add **Bot Scopes**:
-   - Core: `chat:write`, `chat:write.public`, `chat:write.customize`
-   - Users: `users:read`, `users.profile:read`
-   - Channels: `channels:read`, `channels:history`, `channels:manage`, `groups:read`, `groups:history`, `groups:write`, `mpim:read`
-   - DMs: `im:write`, `im:read`, `im:history`
-   - Files: `files:read`, `files:write`
-   - Reactions: `reactions:read`, `reactions:write`
-   - Canvas: `canvases:write`, `pins:write`
-   - Other: `emoji:read`, `app_mentions:read`, `commands`
-5. Add **Slash Commands**: `/birthday`, `/special-day`
-6. Enable **Interactivity & Shortcuts** (for modal forms)
-7. Enable **App Home** → Home Tab
-8. Install to workspace
+Go to [api.slack.com/apps](https://api.slack.com/apps) → **Create New App**
+
+- Enable **Socket Mode** with `connections:write` scope
+- Add **Slash Commands**: `/birthday`, `/special-day`
+- Enable **Interactivity & Shortcuts** and **App Home** → Home Tab
+
+<details>
+<summary><strong>Required bot scopes</strong></summary>
+
+- **Core**: `chat:write`, `chat:write.public`, `chat:write.customize`
+- **Users**: `users:read`, `users.profile:read`
+- **Channels**: `channels:read`, `channels:history`, `channels:manage`, `groups:read`, `groups:history`, `groups:write`, `mpim:read`
+- **DMs**: `im:write`, `im:read`, `im:history`
+- **Files**: `files:read`, `files:write`
+- **Reactions**: `reactions:read`, `reactions:write`
+- **Canvas**: `canvases:write`, `pins:write`
+- **Other**: `emoji:read`, `app_mentions:read`, `commands`
+
+**Bot Events**: `app_mention`, `member_joined_channel`, `message.channels`, `message.im`, `app_home_opened`
+
+</details>
 
 ### 2. Install Dependencies
 
 ```bash
-# Install uv (if not installed)
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Install dependencies
-uv sync
-
-# Setup crawl4ai browser (for web-scraped observances)
-uv run crawl4ai-setup
+curl -LsSf https://astral.sh/uv/install.sh | sh   # Install uv (if needed)
+uv sync                                             # Install dependencies
+uv run crawl4ai-setup                               # Setup browser for observance scraping
 ```
 
 ### 3. Configure and Run
 
 ```bash
 cp .env.example .env
-# Edit .env with your actual tokens (see .env.example for all options)
+# Edit .env with your tokens
 ```
 
 **Required in `.env`:**
@@ -72,11 +93,13 @@ OPENAI_API_KEY="sk-..."
 uv run python app.py
 ```
 
-For production deployment, see [Production Deployment](#production-deployment).
+> [!TIP]
+> For production, see [Production Deployment](#production-deployment).
 
 ## Commands
 
-### Slash Commands
+<details open>
+<summary><strong>Slash Commands</strong></summary>
 
 | Command                        | Description                      |
 | ------------------------------ | -------------------------------- |
@@ -84,15 +107,16 @@ For production deployment, see [Production Deployment](#production-deployment).
 | `/birthday check [@user]`      | Check birthday                   |
 | `/birthday list`               | List upcoming birthdays          |
 | `/birthday export`             | Export birthdays to ICS calendar |
-| `/birthday pause`              | Pause birthday celebrations      |
-| `/birthday resume`             | Resume birthday celebrations     |
+| `/birthday pause` / `resume`   | Pause or resume celebrations     |
 | `/birthday help`               | Show birthday command help       |
 | `/special-day`                 | Today's special days             |
-| `/special-day week`            | Next 7 days                      |
-| `/special-day month`           | Next 30 days                     |
+| `/special-day week` / `month`  | Next 7 or 30 days                |
 | `/special-day export [source]` | Export special days to ICS       |
 
-### User Commands (DM the bot)
+</details>
+
+<details>
+<summary><strong>User Commands (DM)</strong></summary>
 
 > [!TIP]
 > Slash commands and App Home are the recommended ways to interact. DM commands are available as an alternative.
@@ -102,13 +126,15 @@ For production deployment, see [Production Deployment](#production-deployment).
 | `add DD/MM [YYYY]`                    | Set your birthday            |
 | `check [@user]`                       | View birthday                |
 | `remove`                              | Remove your birthday         |
-| `pause`                               | Pause birthday celebrations  |
-| `resume`                              | Resume birthday celebrations |
+| `pause` / `resume`                    | Pause or resume celebrations |
 | `test [quality] [size] [--text-only]` | Preview birthday message     |
 | `special`                             | Today's special days         |
 | `help`                                | Show commands                |
 
-### Admin Commands
+</details>
+
+<details>
+<summary><strong>Admin Commands</strong></summary>
 
 | Command                                        | Description                     |
 | ---------------------------------------------- | ------------------------------- |
@@ -120,45 +146,50 @@ For production deployment, see [Production Deployment](#production-deployment).
 | `admin announce [message]`                     | Send announcement               |
 | `admin canvas [status\|refresh\|reset\|clean]` | Manage ops canvas dashboard     |
 | `admin special [subcommand]`                   | Special days management         |
-| `admin backup`                                 | Manual birthday data backup     |
-| `admin restore latest`                         | Restore from latest backup      |
+| `admin backup` / `admin restore latest`        | Backup operations               |
 | `admin cache clear [DD/MM]`                    | Clear web search cache          |
 | `admin config`                                 | View/change command permissions |
 | `admin remind [new\|update\|all]`              | Send reminders to users         |
 | `admin list/add/remove`                        | Admin user management           |
 | `admin stats`                                  | Birthday statistics             |
-| `list`                                         | View all birthdays              |
+
+</details>
 
 ## Personalities
 
-| Name            | Style                     |
-| --------------- | ------------------------- |
-| `standard`      | Friendly default          |
-| `mystic_dog`    | Cosmic predictions (Ludo) |
-| `poet`          | Lyrical verses            |
-| `tech_guru`     | Programming themes        |
-| `chef`          | Culinary celebrations     |
-| `superhero`     | Comic book heroics        |
-| `time_traveler` | Sci-fi adventures         |
-| `pirate`        | Nautical swashbuckling    |
-| `gardener`      | Nature, growth themes     |
-| `philosopher`   | Wisdom, life's journey    |
-| `chronicler`    | Historical (special days) |
-| `random`        | Surprise selection        |
-| `custom`        | User-configurable         |
+Each personality brings a unique voice, writing style, and image aesthetic to celebrations.
+
+|     | ID              | Name                  | Style                     |
+| :-: | --------------- | --------------------- | ------------------------- |
+| 🌞  | `standard`      | BrightDay             | Friendly default          |
+| 🐕  | `mystic_dog`    | Ludo                  | Cosmic predictions        |
+| 📜  | `poet`          | The Verse-atile       | Lyrical verses            |
+| 💻  | `tech_guru`     | TechBot 3000          | Programming themes        |
+| 👨‍🍳  | `chef`          | Chef Confetti         | Culinary celebrations     |
+| 🦸  | `superhero`     | Captain Celebration   | Comic book heroics        |
+| ⏰  | `time_traveler` | Chrono                | Sci-fi adventures         |
+| 🏴‍☠️  | `pirate`        | Captain BirthdayBeard | Nautical swashbuckling    |
+| 🌿  | `gardener`      | Bloom                 | Nature, growth themes     |
+| 🦉  | `philosopher`   | The Sage              | Wisdom, life's journey    |
+| 📚  | `chronicler`    | The Chronicler        | Historical (special days) |
+| 🎲  | `random`        | Surprise Bot          | Random selection          |
+| ⚙️  | `custom`        | Custom Bot            | User-configurable         |
 
 ## Configuration
 
 All optional settings are documented in [`.env.example`](.env.example) with defaults and descriptions. Key categories:
 
 - **AI & Core**: Model selection, image generation, backups
-- **Special Days Sources**: UN/UNESCO/WHO cache TTLs, Calendarific API
+- **Special Days Sources**: Observance cache TTLs, Calendarific API
 - **Interactive Features**: Thread engagement, @-mention Q&A, NLP date parsing
 - **Announcements**: @-here mentions, channel topic updates
 - **Canvas Dashboard**: Ops channel with auto-updating system overview
 - **Custom Personality**: Name, description, style, formatting
 
 ## Project Structure
+
+<details>
+<summary><strong>View directory layout</strong></summary>
 
 ```text
 brightdaybot/
@@ -234,19 +265,21 @@ brightdaybot/
     └── cache/                    # Images, profiles, observances
 ```
 
+</details>
+
 ## Production Deployment
 
-### Option A: Docker + systemd (Recommended)
+<details open>
+<summary><strong>Option A: Docker + systemd (Recommended)</strong></summary>
 
-Docker handles dependencies, Playwright browsers, and isolation. systemd ensures the bot starts on boot and restarts on failure. Data is stored on the host via volume mounts, not inside the container.
+Docker handles dependencies, Playwright browsers, and isolation. systemd ensures the bot starts on boot and restarts on failure.
 
 ```bash
 cd /path/to/brightdaybot
 cp .env.example .env
 # Edit .env with your actual tokens
 
-# Test the setup
-docker compose up --build
+docker compose up --build    # Test the setup
 ```
 
 ```ini
@@ -274,33 +307,31 @@ WantedBy=multi-user.target
 sudo systemctl daemon-reload
 sudo systemctl enable --now brightdaybot
 
-# Useful commands
 sudo systemctl status brightdaybot     # Check status
 sudo journalctl -u brightdaybot -f     # Follow logs
-sudo systemctl restart brightdaybot    # Restart after code changes
+sudo systemctl restart brightdaybot    # Restart after changes
 ```
 
-### Option B: systemd with uv (No Docker)
+</details>
+
+<details>
+<summary><strong>Option B: systemd with uv (No Docker)</strong></summary>
 
 Run the bot directly with uv. Requires manual Playwright browser setup.
 
 ```bash
-# Install uv system-wide
 curl -LsSf https://astral.sh/uv/install.sh | sh
 sudo mv ~/.local/bin/uv /usr/local/bin/
 
-# Install dependencies and configure environment
 cd /path/to/brightdaybot
 uv sync
 cp .env.example .env
 # Edit .env with your actual tokens
 
-# Setup Playwright browsers
 sudo mkdir -p /opt/playwright && sudo chmod -R 777 /opt/playwright
 PLAYWRIGHT_BROWSERS_PATH=/opt/playwright uv run crawl4ai-setup
 
-# If crawl4ai-setup fails with permission errors on /opt/playwright/.links/,
-# install browsers manually:
+# If crawl4ai-setup fails with permission errors:
 PLAYWRIGHT_BROWSERS_PATH=/opt/playwright uv run python -m patchright install chromium --with-deps
 ```
 
@@ -327,6 +358,8 @@ WantedBy=multi-user.target
 sudo systemctl daemon-reload
 sudo systemctl enable --now brightdaybot
 ```
+
+</details>
 
 ## Troubleshooting
 

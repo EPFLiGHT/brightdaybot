@@ -900,11 +900,11 @@ _Run `admin special calendarific-refresh` to update cache_"""
 *Observance Sources:*
 • `admin special observances` - Combined status for all sources
 • `admin special all-refresh` - Force refresh all sources (UN/UNESCO/WHO)
-• `admin special un-status` - UN cache status (~220 days, weekly)
+• `admin special un-status` - UN cache status (weekly refresh)
 • `admin special un-refresh` - Force refresh UN cache
-• `admin special unesco-status` - UNESCO cache status (~75 days, monthly)
+• `admin special unesco-status` - UNESCO cache status (monthly refresh)
 • `admin special unesco-refresh` - Force refresh UNESCO cache
-• `admin special who-status` - WHO cache status (~26 days, monthly)
+• `admin special who-status` - WHO cache status (monthly refresh)
 • `admin special who-refresh` - Force refresh WHO cache
 
 *Calendarific API (national holidays):*
