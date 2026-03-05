@@ -235,28 +235,18 @@ def _update_channel_topic(app, channel_id):
 
 def _build_dashboard_markdown(app=None):
     """Build the full dashboard markdown from existing data sources."""
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    sections = [f"# 🤖 BrightDayBot Ops\n> 🕐 Last refreshed: {timestamp}\n\n---"]
+    timestamp = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+    sections = [
+        f"## 🕐 Last refreshed: {timestamp}",
+        _build_birthday_section(app),
+        _build_health_section(),
+        _build_scheduler_section(),
+        _build_observances_section(),
+        _build_backups_section(app),
+        "*🔄 Auto-updates on birthday changes and at :00 and :30.*",
+    ]
 
-    # Birthday data
-    sections.append(_build_birthday_section(app))
-
-    # System health
-    sections.append(_build_health_section())
-
-    # Scheduler
-    sections.append(_build_scheduler_section())
-
-    # Observance caches
-    sections.append(_build_observances_section())
-
-    # Backups
-    sections.append(_build_backups_section(app))
-
-    # Footer
-    sections.append("---\n*🔄 Auto-updates on birthday changes and at :00 and :30.*")
-
-    return "\n\n".join(sections)
+    return "\n\n---\n\n".join(sections)
 
 
 def _build_birthday_section(app=None):
@@ -326,9 +316,8 @@ def _build_birthday_section(app=None):
                 except (ValueError, IndexError):
                     pass
 
-        month_rows = "\n".join(
-            f"| {month_names[i]} | {months[i]} |" for i in range(12) if months[i] > 0
-        )
+        month_parts = [f"{month_names[i]}: {months[i]}" for i in range(12) if months[i] > 0]
+        month_line = " · ".join(month_parts) if month_parts else "No data"
 
         # Recent changes
         changes_text = ""
@@ -346,12 +335,9 @@ def _build_birthday_section(app=None):
 | 🚪 Left channel | {not_in_channel} |
 | 📅 With birth year | {with_year} ({year_pct}%) |
 
-**🎊 Styles:** {' | '.join(style_parts)}
+**🎊 Styles:** {' · '.join(style_parts)}
 
-### 📊 Monthly Distribution
-| Month | Count |
-|-------|-------|
-{month_rows}{changes_text}"""
+**📊 Monthly:** {month_line}{changes_text}"""
 
     except Exception as e:
         logger.error(f"CANVAS: Failed to build birthday section: {e}")
@@ -378,21 +364,16 @@ def _build_health_section():
         # Log sizes
         log_info = components.get("logs", {})
         total_log_mb = log_info.get("total_size_mb", "?")
-        log_files = log_info.get("files", {})
-        log_details = ""
-        if log_files:
-            log_rows = "\n".join(
-                f"| {name} | {info.get('size_kb', 0)} KB |"
-                for name, info in sorted(log_files.items())
-                if info.get("exists")
-            )
-            log_details = (
-                f"\n\n### Log Files\n| Component | Size |\n|-----------|------|\n{log_rows}"
-            )
 
         # Birthday channel
         channel_info = components.get("birthday_channel", {})
         channel_status = "configured" if channel_info.get("status") == "ok" else "not set"
+
+        # Timezone mode
+        from storage.settings import load_timezone_settings
+
+        tz_enabled, _tz_interval = load_timezone_settings()
+        tz_mode = "Per-user timezone" if tz_enabled else "Server time"
 
         # Feature flags
         from config import (
@@ -405,25 +386,22 @@ def _build_health_section():
         def _flag(val):
             return "✅" if val else "❌"
 
-        features = (
-            f"Thread engagement: {_flag(THREAD_ENGAGEMENT_ENABLED)} | "
-            f"@-Mention Q&A: {_flag(MENTION_QA_ENABLED)} | "
-            f"NLP dates: {_flag(NLP_DATE_PARSING_ENABLED)} | "
-            f"AI images: {_flag(AI_IMAGE_GENERATION_ENABLED)}"
-        )
-
         overall_emoji = "✅" if overall == "ok" else "⚠️"
 
         return f"""## 🏥 System Health
 - **Status:** {overall_emoji} {overall.title()}
-- **Environment:** {components.get('environment', {}).get('status', 'unknown')}
 - **Birthday Channel:** {channel_status}
 - **Admins:** {admin_count}
-- **Personality:** {personality}
-- **Model:** {model}
+- **Personality:** `{personality}`
+- **Model:** `{model}`
+- **Timezone:** {tz_mode}
 - **Logs:** {total_log_mb} MB total
 
-**🔧 Features:** {features}{log_details}"""
+**🔧 Features:**
+- Thread engagement: {_flag(THREAD_ENGAGEMENT_ENABLED)}
+- @-Mention Q&A: {_flag(MENTION_QA_ENABLED)}
+- NLP dates: {_flag(NLP_DATE_PARSING_ENABLED)}
+- AI images: {_flag(AI_IMAGE_GENERATION_ENABLED)}"""
 
     except Exception as e:
         logger.error(f"CANVAS: Failed to build health section: {e}")
@@ -446,18 +424,36 @@ def _build_scheduler_section():
         )
         total = health.get("total_executions", 0)
         failed = health.get("failed_executions", 0)
-        started = health.get("started_at", "?")
+        started_raw = health.get("started_at", "?")
+        started = started_raw
         if isinstance(started, str) and "T" in started:
             started = started.replace("T", " ")[:19]
 
+        # Calculate uptime
+        uptime_text = ""
+        if isinstance(started_raw, str):
+            try:
+                started_dt = datetime.fromisoformat(started_raw)
+                delta = datetime.now(started_dt.tzinfo) - started_dt
+                days = delta.days
+                hours = delta.seconds // 3600
+                if days > 0:
+                    uptime_text = f" ({days}d {hours}h)"
+                else:
+                    uptime_text = f" ({hours}h)"
+            except (ValueError, TypeError):
+                pass
+
         alive_emoji = "🟢" if thread_alive else "🔴"
-        heartbeat_text = f"{heartbeat_age}s ago" if isinstance(heartbeat_age, (int, float)) else "?"
+        heartbeat_text = (
+            f"{round(heartbeat_age)}s ago" if isinstance(heartbeat_age, (int, float)) else "?"
+        )
 
         return f"""## ⏰ Scheduler
 - **Status:** {alive_emoji} {status.title()} ({heartbeat_text})
-- **Jobs:** {jobs} | **Success rate:** {success_rate}%
-- **Executions:** {total} total, {failed} failed
-- **Started:** {started}"""
+- **Jobs:** {jobs} · **Success rate:** {success_rate}%
+- **Executions:** {total} total · {failed} failed
+- **Started:** {started}{uptime_text}"""
 
     except Exception as e:
         logger.error(f"CANVAS: Failed to build scheduler section: {e}")
@@ -503,6 +499,15 @@ def _build_observances_section():
         except Exception as e:
             logger.debug(f"CANVAS: Could not get Calendarific status: {e}")
 
+        # Total merged count (all sources, deduplicated)
+        try:
+            from storage.special_days import load_all_special_days
+
+            total_count = len(load_all_special_days())
+            rows.append(f"| **Total (deduplicated)** | | **{total_count}** | |")
+        except Exception:
+            pass
+
         table_rows = "\n".join(rows)
         return f"""## 🌍 Observance Caches
 | Source | Status | Count | Last Updated |
@@ -541,7 +546,11 @@ def _build_backups_section(app=None):
 
         latest = backup_files[0]
         latest_name = os.path.basename(latest)
-        latest_time = datetime.fromtimestamp(os.path.getmtime(latest)).strftime("%Y-%m-%d %H:%M:%S")
+        latest_time = (
+            datetime.fromtimestamp(os.path.getmtime(latest))
+            .astimezone()
+            .strftime("%Y-%m-%d %H:%M:%S %Z")
+        )
         latest_size_kb = round(os.path.getsize(latest) / 1024, 1)
 
         # Upload latest backup file to Slack and get permalink for canvas embed
@@ -556,7 +565,7 @@ def _build_backups_section(app=None):
 
         return f"""## 💾 Backups
 - **Files:** {count} backups ({total_size_kb} KB total)
-- **Latest:** {latest_name} ({latest_size_kb} KB)
+- **Latest:** `{latest_name}` ({latest_size_kb} KB)
 - **Last backup:** {latest_time}{file_embed}"""
 
     except Exception as e:
@@ -660,12 +669,66 @@ def _upload_backup_file(app, file_path, filename):
     return None
 
 
+def _replace_canvas_content(app, canvas_id, markdown):
+    """Replace entire canvas content, working around Slack API quirks.
+
+    The ``canvases.edit`` ``replace`` operation without a ``section_id`` is
+    unreliable — it sometimes concatenates instead of replacing.  This helper
+    first looks up all header-delimited sections, deletes them, and then
+    inserts the new content at the start so the canvas is fully refreshed.
+    """
+    # Step 1: find existing sections to delete
+    sections = []
+    try:
+        lookup = app.client.api_call(
+            "canvases.sections.lookup",
+            json={
+                "canvas_id": canvas_id,
+                "criteria": {"section_types": ["any_header"]},
+            },
+        )
+        sections = lookup.get("sections", [])
+    except SlackApiError as e:
+        logger.debug(f"CANVAS: Section lookup failed, using plain replace: {e}")
+
+    # Step 2: build changes — delete every old section, then insert fresh
+    if sections:
+        # Deduplicate section IDs (just in case)
+        seen = set()
+        unique = []
+        for s in sections:
+            sid = s.get("id")
+            if sid and sid not in seen:
+                seen.add(sid)
+                unique.append(sid)
+
+        changes = [{"operation": "delete", "section_id": sid} for sid in unique]
+        changes.append(
+            {
+                "operation": "insert_at_start",
+                "document_content": {"type": "markdown", "markdown": markdown},
+            }
+        )
+        app.client.canvases_edit(canvas_id=canvas_id, changes=changes)
+    else:
+        # Fallback: replace without section_id (original behaviour)
+        app.client.canvases_edit(
+            canvas_id=canvas_id,
+            changes=[
+                {
+                    "operation": "replace",
+                    "document_content": {"type": "markdown", "markdown": markdown},
+                }
+            ],
+        )
+
+
 # --- Public API ---
 
 
 def record_change(change_text):
     """Record a recent change for display in the dashboard."""
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    timestamp = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z")
     _recent_changes.append(f"{timestamp} — {change_text}")
 
 
@@ -699,19 +762,7 @@ def update_canvas(app, reason="periodic", force=False):
             return False
 
         markdown = _build_dashboard_markdown(app)
-
-        app.client.canvases_edit(
-            canvas_id=canvas_id,
-            changes=[
-                {
-                    "operation": "replace",
-                    "document_content": {
-                        "type": "markdown",
-                        "markdown": markdown,
-                    },
-                }
-            ],
-        )
+        _replace_canvas_content(app, canvas_id, markdown)
 
         _update_channel_topic(app, OPS_CHANNEL_ID)
         _save_settings({"canvas_updated_at": datetime.now().isoformat()})
@@ -727,18 +778,7 @@ def update_canvas(app, reason="periodic", force=False):
             try:
                 canvas_id = _ensure_canvas(app, OPS_CHANNEL_ID)
                 if canvas_id:
-                    app.client.canvases_edit(
-                        canvas_id=canvas_id,
-                        changes=[
-                            {
-                                "operation": "replace",
-                                "document_content": {
-                                    "type": "markdown",
-                                    "markdown": markdown,
-                                },
-                            }
-                        ],
-                    )
+                    _replace_canvas_content(app, canvas_id, markdown)
                     _save_settings({"canvas_updated_at": datetime.now().isoformat()})
                     logger.info(f"CANVAS: Recreated and updated (reason: {reason})")
                     return True

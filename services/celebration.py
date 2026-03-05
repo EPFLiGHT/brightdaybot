@@ -174,6 +174,31 @@ class BirthdayCelebrationPipeline:
             # Track timing if not provided
             processing_start = datetime.now(tz.utc)
 
+            # Pre-filter: skip people already celebrated by another process
+            # (cheap check before expensive AI generation)
+            if self.mode != "TEST":
+                pre_valid = [
+                    p for p in birthday_people if not is_user_celebrated_today(p["user_id"])
+                ]
+                if len(pre_valid) < len(birthday_people):
+                    skipped = len(birthday_people) - len(pre_valid)
+                    logger.info(
+                        f"{self.mode}: Pre-filter removed {skipped} already-celebrated "
+                        f"user(s) before AI generation"
+                    )
+                    birthday_people = pre_valid
+
+                if not birthday_people:
+                    logger.info(f"{self.mode}: All people already celebrated, skipping pipeline")
+                    return {
+                        "success": False,
+                        "celebrated_people": [],
+                        "filtered_people": [],
+                        "message_sent": False,
+                        "images_sent": 0,
+                        "error": "All people already celebrated",
+                    }
+
             # Analyze celebration styles to determine image and mention behavior
             style_summary = self._analyze_celebration_styles(birthday_people)
 

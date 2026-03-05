@@ -8,6 +8,9 @@ services:
     env_file:
       - .env
     volumes:
+      # Inherit host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
       # Persist data directories
       - ./data/storage:/app/data/storage
       - ./data/logs:/app/data/logs
