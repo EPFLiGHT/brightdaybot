@@ -382,6 +382,9 @@ def _build_health_section():
             NLP_DATE_PARSING_ENABLED,
             THREAD_ENGAGEMENT_ENABLED,
         )
+        from storage.settings import load_bot_celebration_setting
+
+        bot_celebration = load_bot_celebration_setting()
 
         def _flag(val):
             return "✅" if val else "❌"
@@ -401,7 +404,8 @@ def _build_health_section():
 - Thread engagement: {_flag(THREAD_ENGAGEMENT_ENABLED)}
 - @-Mention Q&A: {_flag(MENTION_QA_ENABLED)}
 - NLP dates: {_flag(NLP_DATE_PARSING_ENABLED)}
-- AI images: {_flag(AI_IMAGE_GENERATION_ENABLED)}"""
+- AI images: {_flag(AI_IMAGE_GENERATION_ENABLED)}
+- Bot self-celebration: {_flag(bot_celebration)}"""
 
     except Exception as e:
         logger.error(f"CANVAS: Failed to build health section: {e}")

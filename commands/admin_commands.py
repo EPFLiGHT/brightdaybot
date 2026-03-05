@@ -572,6 +572,51 @@ def handle_timezone_command(args, user_id, say, app, username):
         say("Invalid timezone command. Use: `admin timezone [enable|disable|status]`")
 
 
+def handle_bot_celebration_command(args, user_id, say, _app, username):
+    """
+    Toggle bot self-celebration feature.
+
+    Args:
+        args: Subcommand [enable|disable] or empty for status
+        user_id: Slack user ID for logging
+        say: Slack say function
+        _app: Slack app instance (unused)
+        username: Display name for logging
+    """
+    from storage.settings import load_bot_celebration_setting, save_bot_celebration_setting
+
+    current = load_bot_celebration_setting()
+
+    if not args:
+        status = "ENABLED" if current else "DISABLED"
+        say(
+            f"*Bot Self-Celebration:* {status}\n\n"
+            f"Use `admin bot-celebration enable` or `admin bot-celebration disable` to change."
+        )
+        logger.info(f"ADMIN: {username} ({user_id}) checked bot celebration status")
+
+    elif args[0].lower() == "enable":
+        if save_bot_celebration_setting(enabled=True):
+            say(
+                "✅ Bot self-celebration ENABLED\n\nBrightDayBot will celebrate its own birthday on March 5th."
+            )
+            logger.info(f"ADMIN: {username} ({user_id}) ENABLED bot self-celebration")
+        else:
+            say("❌ Failed to enable bot self-celebration. Check logs.")
+
+    elif args[0].lower() == "disable":
+        if save_bot_celebration_setting(enabled=False):
+            say(
+                "✅ Bot self-celebration DISABLED\n\nBrightDayBot will no longer celebrate its own birthday."
+            )
+            logger.info(f"ADMIN: {username} ({user_id}) DISABLED bot self-celebration")
+        else:
+            say("❌ Failed to disable bot self-celebration. Check logs.")
+
+    else:
+        say("Invalid command. Use: `admin bot-celebration [enable|disable]`")
+
+
 def handle_backup_command(_args, user_id, say, app, username):
     """
     Create a manual backup of birthday data.

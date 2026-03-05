@@ -493,6 +493,13 @@ def build_health_status_blocks(
             f"\n• NLP date parsing: {'✅ enabled' if NLP_DATE_PARSING_ENABLED else '❌ disabled'}"
         )
         features_text += f"\n• AI image generation: {'✅ enabled' if AI_IMAGE_GENERATION_ENABLED else '❌ disabled'}"
+
+        from storage.settings import load_bot_celebration_setting
+
+        bot_celebration = load_bot_celebration_setting()
+        features_text += (
+            f"\n• Bot self-celebration: {'✅ enabled' if bot_celebration else '❌ disabled'}"
+        )
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": features_text}})
 
         # Log file details

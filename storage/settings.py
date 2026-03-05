@@ -37,6 +37,9 @@ logger = get_logger("config")
 # =============================================================================
 
 TIMEZONE_SETTINGS_FILE = os.path.join(os.path.dirname(ADMINS_FILE), "timezone_settings.json")
+BOT_CELEBRATION_SETTINGS_FILE = os.path.join(
+    os.path.dirname(ADMINS_FILE), "bot_celebration_settings.json"
+)
 OPENAI_MODEL_SETTINGS_FILE = os.path.join(
     os.path.dirname(ADMINS_FILE), "openai_model_settings.json"
 )
@@ -557,6 +560,55 @@ def load_timezone_settings():
     except Exception as e:
         logger.error(f"CONFIG_ERROR: Failed to load timezone settings: {e}")
         return True, 1
+
+
+def save_bot_celebration_setting(enabled=True):
+    """
+    Save bot self-celebration enabled/disabled setting.
+
+    Args:
+        enabled: Whether bot self-celebration is enabled
+
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        data = {
+            "enabled": enabled,
+            "updated_at": datetime.now().isoformat(),
+        }
+
+        with open(BOT_CELEBRATION_SETTINGS_FILE, "w") as f:
+            json.dump(data, f, indent=2, sort_keys=True)
+
+        logger.info(f"CONFIG: Saved bot celebration setting - enabled: {enabled}")
+        return True
+    except Exception as e:
+        logger.error(f"CONFIG_ERROR: Failed to save bot celebration setting: {e}")
+        return False
+
+
+def load_bot_celebration_setting():
+    """
+    Load bot self-celebration setting from file.
+
+    Falls back to BOT_CELEBRATION_ENABLED env var / config default.
+
+    Returns:
+        bool: Whether bot self-celebration is enabled
+    """
+    from config import BOT_CELEBRATION_ENABLED
+
+    try:
+        if not os.path.exists(BOT_CELEBRATION_SETTINGS_FILE):
+            return BOT_CELEBRATION_ENABLED
+
+        with open(BOT_CELEBRATION_SETTINGS_FILE, "r") as f:
+            data = json.load(f)
+            return data.get("enabled", BOT_CELEBRATION_ENABLED)
+    except Exception as e:
+        logger.error(f"CONFIG_ERROR: Failed to load bot celebration setting: {e}")
+        return BOT_CELEBRATION_ENABLED
 
 
 def save_openai_model_setting(model_name):

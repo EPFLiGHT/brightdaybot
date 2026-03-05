@@ -142,6 +142,7 @@ uv run python app.py
 | `admin model set <model>`                      | Change AI model                 |
 | `admin personality [name]`                     | View or change bot personality  |
 | `admin timezone enable/disable`                | Toggle timezone mode            |
+| `admin bot-celebration enable/disable`         | Toggle bot self-celebration     |
 | `admin test @user [--text-only]`               | Test for specific user          |
 | `admin announce [message]`                     | Send announcement               |
 | `admin canvas [status\|refresh\|reset\|clean]` | Manage ops canvas dashboard     |
