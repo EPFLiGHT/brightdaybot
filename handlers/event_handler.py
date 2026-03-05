@@ -194,7 +194,7 @@ def _handle_channel_message(app, event, channel):
                     events_logger.debug(f"CHANNEL_MESSAGE: Could not add reaction: {react_error}")
 
     except ImportError:
-        pass
+        events_logger.warning("CHANNEL_MESSAGE: Could not import thread reaction handler")
     except Exception as e:
         events_logger.debug(f"CHANNEL_MESSAGE: Error handling channel message: {e}")
 

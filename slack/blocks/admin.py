@@ -372,12 +372,12 @@ def build_health_status_blocks(
     sched_jobs = sched.get("scheduled_jobs", "?")
 
     # Calculate uptime
+    from datetime import datetime
+
     sched_uptime = ""
     started_raw = sched.get("started_at")
     if isinstance(started_raw, str):
         try:
-            from datetime import datetime
-
             started_dt = datetime.fromisoformat(started_raw)
             delta = datetime.now(started_dt.tzinfo) - started_dt
             days = delta.days

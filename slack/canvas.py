@@ -315,7 +315,7 @@ def _build_birthday_section(app=None):
                     month = int(date_str.split("/")[1]) - 1
                     months[month] += 1
                 except (ValueError, IndexError):
-                    pass
+                    logger.debug(f"CANVAS: Skipped birthday with invalid date format: {date_str}")
 
         month_parts = [f"{month_names[i]}: {months[i]}" for i in range(12) if months[i] > 0]
         month_line = " · ".join(month_parts) if month_parts else "No data"
@@ -530,8 +530,8 @@ def _build_observances_section():
 
             total_count = len(load_all_special_days())
             rows.append(f"| **Total (deduplicated)** | | **{total_count}** | |")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"CANVAS: Could not load deduplicated special days count: {e}")
 
         table_rows = "\n".join(rows)
         return f"""## 🌍 Observance Caches

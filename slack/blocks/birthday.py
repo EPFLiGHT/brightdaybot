@@ -13,6 +13,9 @@ from config.personality import (
     get_personality_display_name,
 )
 from utils.date_utils import date_to_words
+from utils.log_setup import get_logger
+
+logger = get_logger("slack")
 
 
 def build_birthday_blocks(
@@ -573,8 +576,8 @@ def build_birthday_modal(user_id: str) -> Dict[str, Any]:
                 "show_age": prefs.get("show_age", True),
                 "celebration_style": prefs.get("celebration_style", "standard"),
             }
-        except (ValueError, AttributeError):
-            pass
+        except (ValueError, AttributeError) as e:
+            logger.warning(f"BIRTHDAY_MODAL: Failed to parse existing birthday for {user_id}: {e}")
 
     # Month options using calendar module
     month_options = [

@@ -145,7 +145,9 @@ Rules:
                     }
                 )
         except ValueError:
-            pass
+            logger.debug(
+                f"WHO_OBSERVANCES: Skipped invalid date for '{name}': day={day}, month={month}"
+            )
 
 
 def get_who_client() -> WHOObservancesClient:
