@@ -1092,12 +1092,14 @@ def simple_daily_check(app, moment):
 
     birthdays = load_birthdays()
 
-    # Use shared helper for birthday detection
+    # Use shared helper for birthday detection (skip already-celebrated to avoid
+    # wasting AI generation on restart when celebrate_missed_birthdays ran first)
     birthday_people_today = _find_birthdays_today(
         app=app,
         birthdays=birthdays,
         channel_member_set=channel_member_set,
         reference_moment=moment,
+        check_already_celebrated=True,
         log_prefix="SIMPLE_DAILY",
     )
 
@@ -1132,26 +1134,34 @@ def celebrate_missed_birthdays(app):
 
     This works for both simple and timezone-aware modes and ensures that no
     matter how long the system was down, missed birthdays are always celebrated.
-    Respects announcement timing — won't fire before the configured hour.
+
+    Timing guards:
+    - Daily mode: won't fire before DAILY_CHECK_TIME (server local time).
+    - Timezone mode: uses the same consolidation rule as timezone_aware_check —
+      if ANY person's 9 AM has passed, celebrate ALL of them together.
+      If nobody's 9 AM has arrived yet, defer to the hourly scheduler.
 
     Args:
         app: Slack app instance
     """
     logger.info("MISSED_BIRTHDAYS: Starting check for missed birthday celebrations")
 
-    # Respect announcement timing — don't announce before scheduled time
+    # Respect announcement timing based on mode
     from storage.settings import load_timezone_settings
+    from utils.date_utils import is_celebration_time_for_user
 
     local_now = datetime.now()
     tz_enabled, _ = load_timezone_settings()
-    required_hour = TIMEZONE_CELEBRATION_TIME.hour if tz_enabled else DAILY_CHECK_TIME.hour
-    if local_now.hour < required_hour:
-        logger.info(
-            f"MISSED_BIRTHDAYS: Too early for catch-up announcements "
-            f"(current: {local_now.hour:02d}:00, required: {required_hour:02d}:00), "
-            f"regular scheduler will handle it later"
-        )
-        return
+
+    if not tz_enabled:
+        # Daily mode: simple server-time guard
+        if local_now.hour < DAILY_CHECK_TIME.hour:
+            logger.info(
+                f"MISSED_BIRTHDAYS: Too early for catch-up announcements "
+                f"(current: {local_now.hour:02d}:00, required: {DAILY_CHECK_TIME.hour:02d}:00), "
+                f"regular scheduler will handle it later"
+            )
+            return
 
     # Profile cache for this check to reduce API calls
     profile_cache = {}
@@ -1183,6 +1193,24 @@ def celebrate_missed_birthdays(app):
             check_already_celebrated=True,
             log_prefix="MISSED_BIRTHDAYS",
         )
+
+        # In timezone mode, apply the same consolidation rule as timezone_aware_check:
+        # if ANY person's 9 AM has passed, celebrate ALL of them together.
+        # If nobody's 9 AM has passed yet, skip entirely — the hourly scheduler will handle it.
+        if tz_enabled and birthday_people_today:
+            utc_now = datetime.now(timezone.utc)
+            has_trigger = any(
+                is_celebration_time_for_user(
+                    person.get("timezone", "UTC"), TIMEZONE_CELEBRATION_TIME, utc_now
+                )
+                for person in birthday_people_today
+            )
+            if not has_trigger:
+                logger.info(
+                    f"MISSED_BIRTHDAYS: No one's {TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')} "
+                    f"has arrived yet, deferring to hourly scheduler"
+                )
+                birthday_people_today = []
 
         # If we found missed birthdays, celebrate them now
         if birthday_people_today:

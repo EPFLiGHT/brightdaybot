@@ -419,12 +419,18 @@ def run_now():
     startup_birthday_catchup(_app_instance, current_time)
 
     # Then run appropriate check based on stored timezone settings
+    # This covers: user birthdays, bot birthday, and daily special days
     if _timezone_enabled and _timezone_aware_callback:
         _timezone_aware_callback(_app_instance, current_time)
     elif not _timezone_enabled and _simple_daily_callback:
         _simple_daily_callback(_app_instance, current_time)
     else:
         logger.error("SCHEDULER: No appropriate callback registered for current mode")
+
+    # Catch up weekly special day digest if missed (has its own day/time/dedup guards)
+    from services.birthday import check_and_announce_weekly_special_days
+
+    check_and_announce_weekly_special_days(_app_instance, current_time)
 
 
 def startup_birthday_catchup(app, current_time):
