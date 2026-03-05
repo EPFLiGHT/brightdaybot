@@ -179,6 +179,7 @@ def celebrate_bot_birthday(app, moment):
     """
     Check if today is BrightDayBot's birthday and celebrate if so.
     Uses Ludo personality to celebrate the bot's creation and mention all personalities.
+    Respects timezone-aware/daily mode timing so the announcement doesn't fire at midnight UTC.
 
     Args:
         app: Slack app instance
@@ -188,6 +189,19 @@ def celebrate_bot_birthday(app, moment):
         bool: True if bot birthday was celebrated, False otherwise
     """
     if not check_if_birthday_today(BOT_BIRTHDAY, moment):
+        return False
+
+    # Respect announcement timing — don't celebrate at midnight UTC
+    from storage.settings import load_timezone_settings
+
+    local_now = datetime.now()
+    tz_enabled, _ = load_timezone_settings()
+    required_hour = TIMEZONE_CELEBRATION_TIME.hour if tz_enabled else DAILY_CHECK_TIME.hour
+    if local_now.hour < required_hour:
+        logger.debug(
+            f"BOT_BIRTHDAY: Too early for announcement "
+            f"(current: {local_now.hour:02d}:00, required: {required_hour:02d}:00)"
+        )
         return False
 
     from storage.birthdays import try_mark_birthday_announced
@@ -1118,11 +1132,26 @@ def celebrate_missed_birthdays(app):
 
     This works for both simple and timezone-aware modes and ensures that no
     matter how long the system was down, missed birthdays are always celebrated.
+    Respects announcement timing — won't fire before the configured hour.
 
     Args:
         app: Slack app instance
     """
     logger.info("MISSED_BIRTHDAYS: Starting check for missed birthday celebrations")
+
+    # Respect announcement timing — don't announce before scheduled time
+    from storage.settings import load_timezone_settings
+
+    local_now = datetime.now()
+    tz_enabled, _ = load_timezone_settings()
+    required_hour = TIMEZONE_CELEBRATION_TIME.hour if tz_enabled else DAILY_CHECK_TIME.hour
+    if local_now.hour < required_hour:
+        logger.info(
+            f"MISSED_BIRTHDAYS: Too early for catch-up announcements "
+            f"(current: {local_now.hour:02d}:00, required: {required_hour:02d}:00), "
+            f"regular scheduler will handle it later"
+        )
+        return
 
     # Profile cache for this check to reduce API calls
     profile_cache = {}

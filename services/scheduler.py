@@ -443,8 +443,7 @@ def startup_birthday_catchup(app, current_time):
         f"STARTUP: Checking for missed birthday celebrations due to server downtime at {current_time}"
     )
 
-    # Use the dedicated missed birthday function that bypasses time checks
-    # and celebrates all uncelebrated birthdays for today
+    # Celebrate uncelebrated birthdays for today (respects announcement timing)
     celebrate_missed_birthdays(app)
 
 
