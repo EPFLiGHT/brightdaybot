@@ -190,6 +190,7 @@ COMMAND_PERMISSIONS = {
 username_cache = {}
 USERNAME_CACHE_MAX_SIZE = 1000  # Maximum number of cached usernames
 USERNAME_CACHE_TTL_HOURS = 24  # Cache entries expire after 24 hours
+USERNAME_CACHE_EVICTION_FRACTION = 4  # Evict oldest 1/N of cache when full
 
 # ----- OPENAI MODEL CONFIGURATION -----
 
@@ -280,6 +281,7 @@ TIMEOUTS = {
     "http_request": 30,  # HTTP request timeout
     "file_lock": 10,  # File lock acquisition timeout
     "confirmation_minutes": 5,  # Admin command confirmation timeout
+    "file_poll_sleep": 1,  # Seconds between Slack file processing polls
 }
 
 # Scheduler timing constants
@@ -545,6 +547,8 @@ THREAD_TTL_HOURS = 24  # Hours to track birthday/special day threads for engagem
 
 # Slack API limits
 SLACK_MAX_BLOCKS = 50  # Maximum blocks per message (Slack API limit)
+SLACK_MEMBERS_PAGE_SIZE = 1000  # Pagination limit for conversations_members
+SLACK_HISTORY_PAGE_SIZE = 100  # Pagination limit for conversations_history
 SLACK_FILE_TITLE_MAX_LENGTH = 100  # Max chars for readable Slack file titles
 SLACK_BUTTON_VALUE_CHAR_LIMIT = 1950  # Slack button value max chars (2000 limit with safety buffer)
 SLACK_BUTTON_DISPLAY_CHAR_LIMIT = 1850  # Safe display limit for button content

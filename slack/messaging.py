@@ -11,7 +11,7 @@ from datetime import datetime
 
 from slack_sdk.errors import SlackApiError
 
-from config import RETRY_LIMITS, SLACK_MAX_BLOCKS, get_logger
+from config import RETRY_LIMITS, SLACK_MAX_BLOCKS, TIMEOUTS, get_logger
 from slack.client import get_username
 
 logger = get_logger("slack")
@@ -271,7 +271,7 @@ def _poll_file_processing(app, file_id, file_name):
                     )
                     return True
                 elif attempt < max_attempts - 1:
-                    time.sleep(1)
+                    time.sleep(TIMEOUTS["file_poll_sleep"])
                 else:
                     logger.warning(
                         f"FILE_POLL: File {file_name} (ID: {file_id}) not processed after {max_attempts}s, using anyway"

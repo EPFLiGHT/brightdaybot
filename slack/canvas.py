@@ -19,6 +19,7 @@ from config import (
     CANVAS_RECENT_CHANGES_MAX,
     CANVAS_SETTINGS_FILE,
     OPS_CHANNEL_ID,
+    SLACK_HISTORY_PAGE_SIZE,
 )
 from utils.log_setup import get_logger
 
@@ -902,7 +903,7 @@ def clean_channel(app, channel_id=None):
         cursor = None
 
         while True:
-            kwargs = {"channel": channel_id, "limit": 100}
+            kwargs = {"channel": channel_id, "limit": SLACK_HISTORY_PAGE_SIZE}
             if cursor:
                 kwargs["cursor"] = cursor
 
