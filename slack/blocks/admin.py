@@ -360,6 +360,66 @@ def build_health_status_blocks(
     )
 
     blocks.append({"type": "section", "fields": feature_fields})
+    blocks.append({"type": "divider"})
+
+    # Scheduler & Backup summary (always shown)
+    from services.scheduler import get_scheduler_health
+
+    sched = get_scheduler_health()
+    sched_emoji = "✅" if sched.get("status") == "ok" else "❌"
+    sched_rate = sched.get("success_rate_percent")
+    sched_rate_str = f"{sched_rate:.1f}%" if isinstance(sched_rate, (int, float)) else "N/A"
+    sched_jobs = sched.get("scheduled_jobs", "?")
+
+    # Calculate uptime
+    sched_uptime = ""
+    started_raw = sched.get("started_at")
+    if isinstance(started_raw, str):
+        try:
+            from datetime import datetime
+
+            started_dt = datetime.fromisoformat(started_raw)
+            delta = datetime.now(started_dt.tzinfo) - started_dt
+            days = delta.days
+            hours = delta.seconds // 3600
+            sched_uptime = f" · Up {days}d {hours}h" if days > 0 else f" · Up {hours}h"
+        except (ValueError, TypeError):
+            pass
+
+    quick_fields = []
+    quick_fields.append(
+        {
+            "type": "mrkdwn",
+            "text": f"{sched_emoji} *Scheduler*\n{sched_jobs} jobs · {sched_rate_str} success{sched_uptime}",
+        }
+    )
+
+    # Backup summary
+    import os
+
+    from config import BACKUP_DIR
+
+    backup_text = "No backups"
+    if os.path.exists(BACKUP_DIR):
+        backup_files = [
+            f for f in os.listdir(BACKUP_DIR) if f.startswith("birthdays_") and f.endswith(".json")
+        ]
+        if backup_files:
+            backup_count = len(backup_files)
+            latest_path = max(
+                (os.path.join(BACKUP_DIR, f) for f in backup_files),
+                key=os.path.getmtime,
+            )
+            latest_time = (
+                datetime.fromtimestamp(os.path.getmtime(latest_path))
+                .astimezone()
+                .strftime("%Y-%m-%d %H:%M")
+            )
+            backup_text = f"{backup_count} files · Last: {latest_time}"
+
+    quick_fields.append({"type": "mrkdwn", "text": f"💾 *Backups*\n{backup_text}"})
+
+    blocks.append({"type": "section", "fields": quick_fields})
 
     if detailed:
         blocks.append({"type": "divider"})
@@ -460,7 +520,9 @@ def build_health_status_blocks(
 
                     calendarific_status = get_calendarific_client().get_api_status()
                     cached_dates = calendarific_status.get("cached_dates", 0)
-                    sd_text += f"\n• Calendarific: {cached_dates} cached dates"
+                    month_calls = calendarific_status.get("month_calls", 0)
+                    monthly_limit = calendarific_status.get("monthly_limit", 500)
+                    sd_text += f"\n• Calendarific: {cached_dates} cached dates ({month_calls}/{monthly_limit} API calls this month)"
                 except (ImportError, AttributeError, KeyError, TypeError):
                     sd_text += "\n• Calendarific: cache error"
 
@@ -501,6 +563,33 @@ def build_health_status_blocks(
             f"\n• Bot self-celebration: {'✅ enabled' if bot_celebration else '❌ disabled'}"
         )
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": features_text}})
+
+        # Backup details
+        backup_text = "*Backups:*"
+        if os.path.exists(BACKUP_DIR):
+            backup_files = sorted(
+                [
+                    f
+                    for f in os.listdir(BACKUP_DIR)
+                    if f.startswith("birthdays_") and f.endswith(".json")
+                ],
+                key=lambda f: os.path.getmtime(os.path.join(BACKUP_DIR, f)),
+                reverse=True,
+            )
+            if backup_files:
+                total_size = sum(os.path.getsize(os.path.join(BACKUP_DIR, f)) for f in backup_files)
+                total_size_kb = round(total_size / 1024, 1)
+                latest_name = backup_files[0]
+                latest_size_kb = round(
+                    os.path.getsize(os.path.join(BACKUP_DIR, latest_name)) / 1024, 1
+                )
+                backup_text += f"\n• Files: {len(backup_files)} ({total_size_kb} KB total)"
+                backup_text += f"\n• Latest: `{latest_name}` ({latest_size_kb} KB)"
+            else:
+                backup_text += "\n• No backup files yet"
+        else:
+            backup_text += "\n• Backup directory not found"
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": backup_text}})
 
         # Log file details
         logs_detail = components.get("logs", {})

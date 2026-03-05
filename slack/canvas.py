@@ -240,6 +240,7 @@ def _build_dashboard_markdown(app=None):
         f"## 🕐 Last refreshed: {timestamp}",
         _build_birthday_section(app),
         _build_health_section(),
+        _build_engagement_section(),
         _build_scheduler_section(),
         _build_observances_section(),
         _build_backups_section(app),
@@ -410,6 +411,26 @@ def _build_health_section():
     except Exception as e:
         logger.error(f"CANVAS: Failed to build health section: {e}")
         return "## 🏥 System Health\n*Error loading health data.*"
+
+
+def _build_engagement_section():
+    """Build thread engagement stats section."""
+    try:
+        from storage.thread_tracking import get_thread_tracker
+
+        tracker = get_thread_tracker()
+        stats = tracker.get_all_stats()
+        active = stats.get("active_threads", 0)
+        total_tracked = stats.get("total_tracked", 0)
+        reactions = stats.get("total_reactions", 0)
+
+        return f"""## 💬 Thread Engagement
+- **Active threads:** {active} (of {total_tracked} tracked)
+- **Total reactions:** {reactions}"""
+
+    except Exception as e:
+        logger.error(f"CANVAS: Failed to build engagement section: {e}")
+        return "## 💬 Thread Engagement\n*Error loading engagement data.*"
 
 
 def _build_scheduler_section():
