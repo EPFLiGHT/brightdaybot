@@ -69,8 +69,8 @@ Go to [api.slack.com/apps](https://api.slack.com/apps) → **Create New App**
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh   # Install uv (if needed)
-uv sync                                             # Install dependencies
-uv run crawl4ai-setup                               # Setup browser for observance scraping
+uv sync                                           # Install dependencies
+uv run crawl4ai-setup                             # Setup browser for observance scraping
 ```
 
 ### 3. Configure and Run
@@ -118,8 +118,7 @@ uv run python app.py
 <details>
 <summary><strong>User Commands (DM)</strong></summary>
 
-> [!TIP]
-> Slash commands and App Home are the recommended ways to interact. DM commands are available as an alternative.
+**💡 Tip:** Slash commands and App Home are the recommended ways to interact. DM commands are available as an alternative.
 
 | Command                               | Description                  |
 | ------------------------------------- | ---------------------------- |
@@ -142,6 +141,7 @@ uv run python app.py
 | `admin model set <model>`                      | Change AI model                 |
 | `admin personality [name]`                     | View or change bot personality  |
 | `admin timezone enable/disable`                | Toggle timezone mode            |
+| `admin bot-celebration enable/disable`         | Toggle bot self-celebration     |
 | `admin test @user [--text-only]`               | Test for specific user          |
 | `admin announce [message]`                     | Send announcement               |
 | `admin canvas [status\|refresh\|reset\|clean]` | Manage ops canvas dashboard     |

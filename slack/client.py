@@ -10,6 +10,8 @@ from slack_sdk.errors import SlackApiError
 
 from config import (
     COMMAND_PERMISSIONS,
+    SLACK_MEMBERS_PAGE_SIZE,
+    USERNAME_CACHE_EVICTION_FRACTION,
     USERNAME_CACHE_MAX_SIZE,
     USERNAME_CACHE_TTL_HOURS,
     get_logger,
@@ -23,7 +25,9 @@ logger = get_logger("slack")
 def _evict_username_cache():
     """Remove oldest 25% of username cache entries when cache is full."""
     sorted_entries = sorted(username_cache.items(), key=lambda x: x[1][1])
-    entries_to_remove = sorted_entries[: USERNAME_CACHE_MAX_SIZE // 4]
+    entries_to_remove = sorted_entries[
+        : USERNAME_CACHE_MAX_SIZE // USERNAME_CACHE_EVICTION_FRACTION
+    ]
     for key, _ in entries_to_remove:
         del username_cache[key]
     logger.info(f"CACHE: Cleaned up {len(entries_to_remove)} old username cache entries")
@@ -340,10 +344,12 @@ def get_channel_members(app, channel_id):
             # Make API call with cursor if we have one
             if next_cursor:
                 result = app.client.conversations_members(
-                    channel=channel_id, cursor=next_cursor, limit=1000
+                    channel=channel_id, cursor=next_cursor, limit=SLACK_MEMBERS_PAGE_SIZE
                 )
             else:
-                result = app.client.conversations_members(channel=channel_id, limit=1000)
+                result = app.client.conversations_members(
+                    channel=channel_id, limit=SLACK_MEMBERS_PAGE_SIZE
+                )
 
             # Add members from this page
             if result.get("members"):

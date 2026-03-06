@@ -19,6 +19,7 @@ from config import (
     CANVAS_RECENT_CHANGES_MAX,
     CANVAS_SETTINGS_FILE,
     OPS_CHANNEL_ID,
+    SLACK_HISTORY_PAGE_SIZE,
 )
 from utils.log_setup import get_logger
 
@@ -240,6 +241,7 @@ def _build_dashboard_markdown(app=None):
         f"## 🕐 Last refreshed: {timestamp}",
         _build_birthday_section(app),
         _build_health_section(),
+        _build_engagement_section(),
         _build_scheduler_section(),
         _build_observances_section(),
         _build_backups_section(app),
@@ -314,7 +316,7 @@ def _build_birthday_section(app=None):
                     month = int(date_str.split("/")[1]) - 1
                     months[month] += 1
                 except (ValueError, IndexError):
-                    pass
+                    logger.debug(f"CANVAS: Skipped birthday with invalid date format: {date_str}")
 
         month_parts = [f"{month_names[i]}: {months[i]}" for i in range(12) if months[i] > 0]
         month_line = " · ".join(month_parts) if month_parts else "No data"
@@ -382,6 +384,9 @@ def _build_health_section():
             NLP_DATE_PARSING_ENABLED,
             THREAD_ENGAGEMENT_ENABLED,
         )
+        from storage.settings import load_bot_celebration_setting
+
+        bot_celebration = load_bot_celebration_setting()
 
         def _flag(val):
             return "✅" if val else "❌"
@@ -401,11 +406,32 @@ def _build_health_section():
 - Thread engagement: {_flag(THREAD_ENGAGEMENT_ENABLED)}
 - @-Mention Q&A: {_flag(MENTION_QA_ENABLED)}
 - NLP dates: {_flag(NLP_DATE_PARSING_ENABLED)}
-- AI images: {_flag(AI_IMAGE_GENERATION_ENABLED)}"""
+- AI images: {_flag(AI_IMAGE_GENERATION_ENABLED)}
+- Bot self-celebration: {_flag(bot_celebration)}"""
 
     except Exception as e:
         logger.error(f"CANVAS: Failed to build health section: {e}")
         return "## 🏥 System Health\n*Error loading health data.*"
+
+
+def _build_engagement_section():
+    """Build thread engagement stats section."""
+    try:
+        from storage.thread_tracking import get_thread_tracker
+
+        tracker = get_thread_tracker()
+        stats = tracker.get_all_stats()
+        active = stats.get("active_threads", 0)
+        total_tracked = stats.get("total_tracked", 0)
+        reactions = stats.get("total_reactions", 0)
+
+        return f"""## 💬 Thread Engagement
+- **Active threads:** {active} (of {total_tracked} tracked)
+- **Total reactions:** {reactions}"""
+
+    except Exception as e:
+        logger.error(f"CANVAS: Failed to build engagement section: {e}")
+        return "## 💬 Thread Engagement\n*Error loading engagement data.*"
 
 
 def _build_scheduler_section():
@@ -505,8 +531,8 @@ def _build_observances_section():
 
             total_count = len(load_all_special_days())
             rows.append(f"| **Total (deduplicated)** | | **{total_count}** | |")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"CANVAS: Could not load deduplicated special days count: {e}")
 
         table_rows = "\n".join(rows)
         return f"""## 🌍 Observance Caches
@@ -877,7 +903,7 @@ def clean_channel(app, channel_id=None):
         cursor = None
 
         while True:
-            kwargs = {"channel": channel_id, "limit": 100}
+            kwargs = {"channel": channel_id, "limit": SLACK_HISTORY_PAGE_SIZE}
             if cursor:
                 kwargs["cursor"] = cursor
 

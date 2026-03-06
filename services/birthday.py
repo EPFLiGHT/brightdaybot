@@ -188,6 +188,11 @@ def celebrate_bot_birthday(app, moment):
     Returns:
         bool: True if bot birthday was celebrated, False otherwise
     """
+    from storage.settings import load_bot_celebration_setting
+
+    if not load_bot_celebration_setting():
+        return False
+
     if not check_if_birthday_today(BOT_BIRTHDAY, moment):
         return False
 

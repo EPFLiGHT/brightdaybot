@@ -247,7 +247,9 @@ def build_help_blocks(is_admin: bool = False) -> tuple[List[Dict[str, Any]], str
         )
         timezone = """• `admin timezone` - View current timezone status
 • `admin timezone enable` - Enable timezone-aware mode (hourly checks)
-• `admin timezone disable` - Disable timezone-aware mode (daily check)"""
+• `admin timezone disable` - Disable timezone-aware mode (daily check)
+• `admin bot-celebration` - View bot self-celebration status
+• `admin bot-celebration enable/disable` - Toggle bot birthday celebration"""
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": timezone}})
 
         blocks.append({"type": "divider"})

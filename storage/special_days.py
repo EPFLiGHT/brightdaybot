@@ -987,8 +987,8 @@ def get_pending_mode_transition() -> Optional[dict]:
                 "effective_date": effective_date,
                 "current_mode": transition["previous_mode"],
             }
-    except (KeyError, ValueError):
-        pass
+    except (KeyError, ValueError) as e:
+        logger.debug(f"SPECIAL_DAYS: Invalid mode transition config: {e}")
 
     return None
 

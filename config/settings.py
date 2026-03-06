@@ -190,23 +190,27 @@ COMMAND_PERMISSIONS = {
 username_cache = {}
 USERNAME_CACHE_MAX_SIZE = 1000  # Maximum number of cached usernames
 USERNAME_CACHE_TTL_HOURS = 24  # Cache entries expire after 24 hours
+USERNAME_CACHE_EVICTION_FRACTION = 4  # Evict oldest 1/N of cache when full
 
 # ----- OPENAI MODEL CONFIGURATION -----
 
 # Centralized list of supported OpenAI models
 SUPPORTED_OPENAI_MODELS = [
+    "gpt-5.4",
     "gpt-5.2",
     "gpt-5.1",
     "gpt-5",
     "gpt-5-mini",
+    "gpt-5-nano",
     "gpt-4.1",
     "gpt-4.1-mini",
+    "gpt-4.1-nano",
     "gpt-4o",
     "gpt-4o-mini",
 ]
 
 # Default OpenAI models
-DEFAULT_OPENAI_MODEL = "gpt-5.2"
+DEFAULT_OPENAI_MODEL = "gpt-5.4"
 DEFAULT_IMAGE_MODEL = "gpt-image-1.5"
 
 # ----- OPENAI API PARAMETERS -----
@@ -240,7 +244,7 @@ TEMPERATURE_SETTINGS = {
 # Models have different supported levels:
 #   GPT-5/5-mini:  minimal, low, medium, high (default: medium, always-on)
 #   GPT-5.1:       none, low, medium, high (default: none, opt-in)
-#   GPT-5.2:       none, low, medium, high, xhigh (default: none, opt-in)
+#   GPT-5.2+:      none, low, medium, high, xhigh (default: none, opt-in)
 REASONING_EFFORT = {
     "default": None,  # Don't send param — model uses its own default
     "analytical": "low",  # Light reasoning for factual content (web search, special days)
@@ -277,6 +281,7 @@ TIMEOUTS = {
     "http_request": 30,  # HTTP request timeout
     "file_lock": 10,  # File lock acquisition timeout
     "confirmation_minutes": 5,  # Admin command confirmation timeout
+    "file_poll_sleep": 1,  # Seconds between Slack file processing polls
 }
 
 # Scheduler timing constants
@@ -316,6 +321,7 @@ BOT_NAME = "BrightDay"  # Default bot name
 BOT_BIRTHDAY = "05/03"  # DD/MM format
 BOT_BIRTH_YEAR = 2025  # Year the bot was created
 BOT_USER_ID = "BRIGHTDAYBOT"  # Special identifier for the bot itself
+BOT_CELEBRATION_ENABLED = os.getenv("BOT_CELEBRATION_ENABLED", "true").lower() == "true"
 
 # ----- SPECIAL DAYS CONFIGURATION -----
 
@@ -541,6 +547,8 @@ THREAD_TTL_HOURS = 24  # Hours to track birthday/special day threads for engagem
 
 # Slack API limits
 SLACK_MAX_BLOCKS = 50  # Maximum blocks per message (Slack API limit)
+SLACK_MEMBERS_PAGE_SIZE = 1000  # Pagination limit for conversations_members
+SLACK_HISTORY_PAGE_SIZE = 100  # Pagination limit for conversations_history
 SLACK_FILE_TITLE_MAX_LENGTH = 100  # Max chars for readable Slack file titles
 SLACK_BUTTON_VALUE_CHAR_LIMIT = 1950  # Slack button value max chars (2000 limit with safety buffer)
 SLACK_BUTTON_DISPLAY_CHAR_LIMIT = 1850  # Safe display limit for button content

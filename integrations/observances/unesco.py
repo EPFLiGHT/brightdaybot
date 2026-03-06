@@ -139,7 +139,9 @@ Rules:
                     }
                 )
         except ValueError:
-            pass
+            logger.debug(
+                f"UNESCO_OBSERVANCES: Skipped invalid date for '{name}': day={day}, month={month}"
+            )
 
 
 def get_unesco_client() -> UNESCOObservancesClient:

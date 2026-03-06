@@ -54,6 +54,7 @@ from commands.admin_commands import (
     handle_admin_remove_command,
     handle_announce_command,
     handle_backup_command,
+    handle_bot_celebration_command,
     handle_cache_command,
     handle_canvas_command,
     handle_config_command,
@@ -740,6 +741,9 @@ def handle_admin_command(
 
     elif subcommand == "timezone":
         handle_timezone_command(args, user_id, say, app, username)
+
+    elif subcommand == "bot-celebration":
+        handle_bot_celebration_command(args, user_id, say, app, username)
 
     elif subcommand == "config":
         handle_config_command(args, user_id, say, app)
