@@ -601,6 +601,24 @@ class TestCanvasHealthSection:
         assert "AI images" in md
         assert "Bot self-celebration" in md
 
+    def test_shows_image_model_config(
+        self, mock_model_info, mock_timezone_settings, mock_bot_celebration
+    ):
+        md = self._build(mock_model_info, mock_timezone_settings, mock_bot_celebration)
+        assert "Image model" in md
+        assert "Quality" in md
+        assert "Size" in md
+
+    def test_shows_expanded_feature_flags(
+        self, mock_model_info, mock_timezone_settings, mock_bot_celebration
+    ):
+        md = self._build(mock_model_info, mock_timezone_settings, mock_bot_celebration)
+        assert "Special day images" in md
+        assert "Profile analysis" in md
+        assert "Web search cache" in md
+        assert "External backups" in md
+        assert "Custom emojis" in md
+
 
 class TestCanvasEngagementSection:
     """Tests for canvas _build_engagement_section()."""
@@ -698,6 +716,26 @@ class TestCanvasObservancesSection:
             assert "Fresh" in md
             assert "2025-03-15" in md
 
+    def test_shows_config_line(self):
+        mock_status = {
+            "cache_fresh": True,
+            "observance_count": 10,
+            "last_updated": "2025-03-15T10:00:00",
+        }
+        sources = [("UN", MagicMock(), MagicMock(return_value=mock_status))]
+        with (
+            patch("integrations.observances.get_enabled_sources", return_value=sources),
+            patch("storage.special_days.load_all_special_days", return_value=[{"name": "x"}] * 10),
+        ):
+            from slack.canvas import _build_observances_section
+
+            md = _build_observances_section()
+            assert "Config" in md
+            assert "Mode" in md
+            assert "@-here" in md
+            assert "Topic update" in md
+            assert "Thread replies" in md
+
     def test_handles_source_error(self):
         def _raise():
             raise RuntimeError("fail")
@@ -737,6 +775,150 @@ class TestCanvasBackupsSection:
 
             md = _build_backups_section(app=None)
         assert "No backup files" in md
+
+
+class TestCanvasWarningsSection:
+    """Tests for canvas _build_warnings_section()."""
+
+    def test_no_warnings_returns_none(self):
+        from slack import canvas
+
+        canvas._recent_warnings.clear()
+        result = canvas._build_warnings_section()
+        assert result is None
+
+    def test_shows_warnings(self):
+        from slack import canvas
+
+        canvas._recent_warnings.clear()
+        canvas.record_warning("Test warning 1")
+        canvas.record_warning("Test warning 2")
+        result = canvas._build_warnings_section()
+        assert result is not None
+        assert "Recent Warnings" in result
+        assert "Test warning 1" in result
+        assert "Test warning 2" in result
+        canvas._recent_warnings.clear()
+
+    def test_record_warning_adds_timestamp(self):
+        from slack import canvas
+
+        canvas._recent_warnings.clear()
+        canvas.record_warning("Something broke")
+        assert len(canvas._recent_warnings) == 1
+        entry = canvas._recent_warnings[0]
+        assert "Something broke" in entry
+        assert "—" in entry  # timestamp separator
+        canvas._recent_warnings.clear()
+
+
+class TestAdminTimingConfiguration:
+    """Tests for Timing & Configuration section in detailed admin status."""
+
+    def _build(
+        self,
+        system_status,
+        mock_scheduler,
+        mock_model_info,
+        mock_timezone_settings,
+        mock_thread_tracker,
+        mock_bot_celebration,
+        backup_dir,
+    ):
+        with patch("config.BACKUP_DIR", backup_dir):
+            from slack.blocks.admin import build_health_status_blocks
+
+            return build_health_status_blocks(system_status, detailed=True)
+
+    def test_has_timing_section(
+        self,
+        system_status,
+        mock_scheduler,
+        mock_model_info,
+        mock_timezone_settings,
+        mock_thread_tracker,
+        mock_bot_celebration,
+        backup_dir,
+    ):
+        blocks, _ = self._build(
+            system_status,
+            mock_scheduler,
+            mock_model_info,
+            mock_timezone_settings,
+            mock_thread_tracker,
+            mock_bot_celebration,
+            backup_dir,
+        )
+        texts = _extract_section_texts(blocks)
+        assert any("Timing & Configuration" in t for t in texts)
+
+    def test_shows_birthday_check_time(
+        self,
+        system_status,
+        mock_scheduler,
+        mock_model_info,
+        mock_timezone_settings,
+        mock_thread_tracker,
+        mock_bot_celebration,
+        backup_dir,
+    ):
+        blocks, _ = self._build(
+            system_status,
+            mock_scheduler,
+            mock_model_info,
+            mock_timezone_settings,
+            mock_thread_tracker,
+            mock_bot_celebration,
+            backup_dir,
+        )
+        texts = _extract_section_texts(blocks)
+        assert any("Birthday check" in t for t in texts)
+
+    def test_shows_special_days_config(
+        self,
+        system_status,
+        mock_scheduler,
+        mock_model_info,
+        mock_timezone_settings,
+        mock_thread_tracker,
+        mock_bot_celebration,
+        backup_dir,
+    ):
+        blocks, _ = self._build(
+            system_status,
+            mock_scheduler,
+            mock_model_info,
+            mock_timezone_settings,
+            mock_thread_tracker,
+            mock_bot_celebration,
+            backup_dir,
+        )
+        texts = _extract_section_texts(blocks)
+        assert any("Special days check" in t for t in texts)
+        assert any("@-here" in t for t in texts)
+        assert any("Image model" in t for t in texts)
+
+    def test_shows_rate_limit(
+        self,
+        system_status,
+        mock_scheduler,
+        mock_model_info,
+        mock_timezone_settings,
+        mock_thread_tracker,
+        mock_bot_celebration,
+        backup_dir,
+    ):
+        blocks, _ = self._build(
+            system_status,
+            mock_scheduler,
+            mock_model_info,
+            mock_timezone_settings,
+            mock_thread_tracker,
+            mock_bot_celebration,
+            backup_dir,
+        )
+        texts = _extract_section_texts(blocks)
+        assert any("rate limit" in t for t in texts)
 
 
 class TestCanvasFullDashboard:

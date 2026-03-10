@@ -455,6 +455,46 @@ def build_health_status_blocks(
             }
         )
 
+        # Timing & Configuration
+        from config import (
+            DAILY_CHECK_TIME,
+            DEFAULT_IMAGE_MODEL,
+            IMAGE_GENERATION_PARAMS,
+            MENTION_RATE_LIMIT_MAX,
+            MENTION_RATE_LIMIT_WINDOW,
+            PROFILE_ANALYSIS_ENABLED,
+            SPECIAL_DAY_MENTION_ENABLED,
+            SPECIAL_DAY_THREAD_ENABLED,
+            SPECIAL_DAY_TOPIC_UPDATE_ENABLED,
+            SPECIAL_DAYS_CHECK_TIME,
+            SPECIAL_DAYS_IMAGE_ENABLED,
+            SPECIAL_DAYS_MODE,
+            SPECIAL_DAYS_WEEKLY_DAY,
+            TIMEZONE_CELEBRATION_TIME,
+        )
+
+        tz_enabled, _ = load_timezone_settings()
+        day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        sd_mode = SPECIAL_DAYS_MODE.title()
+        if SPECIAL_DAYS_MODE == "weekly":
+            sd_mode += f" ({day_names[SPECIAL_DAYS_WEEKLY_DAY]})"
+
+        timing_text = "*Timing & Configuration:*"
+        if tz_enabled:
+            timing_text += f"\n• Birthday check: {TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')} (per-user timezone)"
+        else:
+            timing_text += f"\n• Birthday check: {DAILY_CHECK_TIME.strftime('%H:%M')} (server time)"
+        timing_text += (
+            f"\n• Special days check: {SPECIAL_DAYS_CHECK_TIME.strftime('%H:%M')} · Mode: {sd_mode}"
+        )
+        timing_text += f"\n• Special days: @-here {'✅' if SPECIAL_DAY_MENTION_ENABLED else '❌'} · Topic update {'✅' if SPECIAL_DAY_TOPIC_UPDATE_ENABLED else '❌'} · Thread replies {'✅' if SPECIAL_DAY_THREAD_ENABLED else '❌'} · Images {'✅' if SPECIAL_DAYS_IMAGE_ENABLED else '❌'}"
+
+        img_quality = IMAGE_GENERATION_PARAMS["quality"]["default"]
+        img_size = IMAGE_GENERATION_PARAMS["size"]["default"]
+        timing_text += f"\n• Image model: {DEFAULT_IMAGE_MODEL} · Quality: {img_quality} · Size: {img_size} · Profile analysis {'✅' if PROFILE_ANALYSIS_ENABLED else '❌'}"
+        timing_text += f"\n• @-Mention rate limit: {MENTION_RATE_LIMIT_MAX} requests / {MENTION_RATE_LIMIT_WINDOW}s"
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": timing_text}})
+
         # Special Days Sources
         special_days = components.get("special_days", {})
         if special_days.get("enabled"):

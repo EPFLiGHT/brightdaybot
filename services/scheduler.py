@@ -310,6 +310,12 @@ def run_scheduler():
         except Exception as e:
             _failed_executions += 1
             logger.error(f"SCHEDULER_HEALTH: Error in scheduler loop: {e}")
+            try:
+                from slack.canvas import record_warning
+
+                record_warning(f"Scheduler error: {e}")
+            except Exception:
+                pass
             # Save stats on error to persist failure count
             save_scheduler_stats(_total_executions, _failed_executions, _last_heartbeat)
             time.sleep(SCHEDULER_CHECK_INTERVAL_SECONDS)  # Continue running even after errors

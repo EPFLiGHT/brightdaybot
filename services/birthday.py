@@ -227,6 +227,12 @@ def celebrate_bot_birthday(app, moment):
         )
     else:
         logger.error(f"BOT_BIRTHDAY_ERROR: Celebration failed: {result.get('error')}")
+        try:
+            from slack.canvas import record_warning
+
+            record_warning(f"Bot birthday celebration failed: {result.get('error')}")
+        except Exception:
+            pass
 
     return result["success"]
 
@@ -590,6 +596,12 @@ def check_and_announce_special_days(app, moment):
 
     except Exception as e:
         logger.error(f"SPECIAL_DAYS_ERROR: Failed to announce special days: {e}")
+        try:
+            from slack.canvas import record_warning
+
+            record_warning(f"Special days announcement failed: {e}")
+        except Exception:
+            pass
         return False
 
 
@@ -1035,6 +1047,12 @@ def timezone_aware_check(app, moment):
 
         if not result["success"] and result["error"]:
             logger.error(f"TIMEZONE_ERROR: Celebration pipeline failed: {result['error']}")
+            try:
+                from slack.canvas import record_warning
+
+                record_warning(f"Timezone celebration failed: {result['error']}")
+            except Exception:
+                pass
 
     elif all_birthday_people_today:
         # Enhanced logging: Show who has birthdays but no triggers
@@ -1125,6 +1143,12 @@ def simple_daily_check(app, moment):
 
         if not result["success"] and result["error"]:
             logger.error(f"SIMPLE_DAILY_ERROR: Celebration pipeline failed: {result['error']}")
+            try:
+                from slack.canvas import record_warning
+
+                record_warning(f"Daily celebration failed: {result['error']}")
+            except Exception:
+                pass
     else:
         logger.info("SIMPLE_DAILY: No birthdays to celebrate today")
 

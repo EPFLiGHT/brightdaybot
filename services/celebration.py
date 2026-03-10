@@ -316,6 +316,12 @@ class BirthdayCelebrationPipeline:
 
         except Exception as e:
             logger.error(f"{self.mode}_ERROR: Failed to celebrate birthdays: {e}")
+            try:
+                from slack.canvas import record_warning
+
+                record_warning(f"Celebration failed ({self.mode}): {e}")
+            except Exception:
+                pass
 
             # DO NOT mark as celebrated on failure - let celebrate_missed_birthdays retry
             # The missed birthday check exists specifically to handle celebration failures
@@ -575,7 +581,7 @@ class BirthdayCelebrationPipeline:
                 f"{self.mode}: Tracking birthday thread {message_ts} for {len(user_ids)} people"
             )
 
-        except ImportError:
+        except Exception:
             # THREAD_ENGAGEMENT_ENABLED not yet added to config - skip silently
             logger.debug(f"{self.mode}: Thread engagement config not available, skipping")
         except Exception as e:

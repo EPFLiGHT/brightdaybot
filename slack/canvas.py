@@ -18,6 +18,7 @@ from config import (
     CANVAS_MIN_UPDATE_INTERVAL_SECONDS,
     CANVAS_RECENT_CHANGES_MAX,
     CANVAS_SETTINGS_FILE,
+    CANVAS_WARNINGS_MAX,
     OPS_CHANNEL_ID,
     SLACK_HISTORY_PAGE_SIZE,
 )
@@ -27,6 +28,7 @@ logger = get_logger("slack")
 
 # Module state
 _recent_changes = collections.deque(maxlen=CANVAS_RECENT_CHANGES_MAX)
+_recent_warnings = collections.deque(maxlen=CANVAS_WARNINGS_MAX)
 _last_update_time = None
 _update_lock = threading.Lock()
 
@@ -237,6 +239,7 @@ def _update_channel_topic(app, channel_id):
 def _build_dashboard_markdown(app=None):
     """Build the full dashboard markdown from existing data sources."""
     timestamp = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+    warnings_section = _build_warnings_section()
     sections = [
         f"## 🕐 Last refreshed: {timestamp}",
         _build_birthday_section(app),
@@ -245,8 +248,10 @@ def _build_dashboard_markdown(app=None):
         _build_scheduler_section(),
         _build_observances_section(),
         _build_backups_section(app),
-        "*🔄 Auto-updates on birthday changes and at :00 and :30.*",
     ]
+    if warnings_section:
+        sections.append(warnings_section)
+    sections.append("*🔄 Auto-updates on birthday changes and at :00 and :30.*")
 
     return "\n\n---\n\n".join(sections)
 
@@ -323,8 +328,9 @@ def _build_birthday_section(app=None):
 
         # Recent changes
         changes_text = ""
-        if _recent_changes:
-            changes_lines = "\n".join(f"- {c}" for c in reversed(_recent_changes))
+        changes_snapshot = list(_recent_changes)
+        if changes_snapshot:
+            changes_lines = "\n".join(f"- {c}" for c in reversed(changes_snapshot))
             changes_text = f"\n\n### 📝 Recent Changes\n{changes_lines}"
 
         return f"""## 🎂 Birthday Data
@@ -380,9 +386,16 @@ def _build_health_section():
         # Feature flags
         from config import (
             AI_IMAGE_GENERATION_ENABLED,
+            DEFAULT_IMAGE_MODEL,
+            EXTERNAL_BACKUP_ENABLED,
+            IMAGE_GENERATION_PARAMS,
             MENTION_QA_ENABLED,
             NLP_DATE_PARSING_ENABLED,
+            PROFILE_ANALYSIS_ENABLED,
+            SPECIAL_DAYS_IMAGE_ENABLED,
             THREAD_ENGAGEMENT_ENABLED,
+            USE_CUSTOM_EMOJIS,
+            WEB_SEARCH_CACHE_ENABLED,
         )
         from storage.settings import load_bot_celebration_setting
 
@@ -393,21 +406,25 @@ def _build_health_section():
 
         overall_emoji = "✅" if overall == "ok" else "⚠️"
 
+        img_quality = IMAGE_GENERATION_PARAMS["quality"]["default"]
+        img_size = IMAGE_GENERATION_PARAMS["size"]["default"]
+
         return f"""## 🏥 System Health
 - **Status:** {overall_emoji} {overall.title()}
 - **Birthday Channel:** {channel_status}
 - **Admins:** {admin_count}
 - **Personality:** `{personality}`
 - **Model:** `{model}`
+- **Image model:** `{DEFAULT_IMAGE_MODEL}` · Quality: {img_quality} · Size: {img_size}
 - **Timezone:** {tz_mode}
 - **Logs:** {total_log_mb} MB total
 
 **🔧 Features:**
-- Thread engagement: {_flag(THREAD_ENGAGEMENT_ENABLED)}
-- @-Mention Q&A: {_flag(MENTION_QA_ENABLED)}
-- NLP dates: {_flag(NLP_DATE_PARSING_ENABLED)}
-- AI images: {_flag(AI_IMAGE_GENERATION_ENABLED)}
-- Bot self-celebration: {_flag(bot_celebration)}"""
+- Thread engagement: {_flag(THREAD_ENGAGEMENT_ENABLED)} · @-Mention Q&A: {_flag(MENTION_QA_ENABLED)}
+- NLP dates: {_flag(NLP_DATE_PARSING_ENABLED)} · Custom emojis: {_flag(USE_CUSTOM_EMOJIS)}
+- AI images: {_flag(AI_IMAGE_GENERATION_ENABLED)} · Special day images: {_flag(SPECIAL_DAYS_IMAGE_ENABLED)}
+- Profile analysis: {_flag(PROFILE_ANALYSIS_ENABLED)} · Web search cache: {_flag(WEB_SEARCH_CACHE_ENABLED)}
+- Bot self-celebration: {_flag(bot_celebration)} · External backups: {_flag(EXTERNAL_BACKUP_ENABLED)}"""
 
     except Exception as e:
         logger.error(f"CANVAS: Failed to build health section: {e}")
@@ -475,10 +492,20 @@ def _build_scheduler_section():
             f"{round(heartbeat_age)}s ago" if isinstance(heartbeat_age, (int, float)) else "?"
         )
 
+        from config import DAILY_CHECK_TIME, SPECIAL_DAYS_CHECK_TIME, TIMEZONE_CELEBRATION_TIME
+        from storage.settings import load_timezone_settings
+
+        tz_enabled, _ = load_timezone_settings()
+        if tz_enabled:
+            timing_line = f"- **Timing:** Birthdays at {TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')} (per-user tz) · Special days at {SPECIAL_DAYS_CHECK_TIME.strftime('%H:%M')}"
+        else:
+            timing_line = f"- **Timing:** Birthdays at {DAILY_CHECK_TIME.strftime('%H:%M')} · Special days at {SPECIAL_DAYS_CHECK_TIME.strftime('%H:%M')} (server time)"
+
         return f"""## ⏰ Scheduler
 - **Status:** {alive_emoji} {status.title()} ({heartbeat_text})
 - **Jobs:** {jobs} · **Success rate:** {success_rate}%
 - **Executions:** {total} total · {failed} failed
+{timing_line}
 - **Started:** {started}{uptime_text}"""
 
     except Exception as e:
@@ -535,10 +562,30 @@ def _build_observances_section():
             logger.debug(f"CANVAS: Could not load deduplicated special days count: {e}")
 
         table_rows = "\n".join(rows)
+
+        # Special day announcement config
+        from config import (
+            SPECIAL_DAY_MENTION_ENABLED,
+            SPECIAL_DAY_THREAD_ENABLED,
+            SPECIAL_DAY_TOPIC_UPDATE_ENABLED,
+            SPECIAL_DAYS_MODE,
+            SPECIAL_DAYS_WEEKLY_DAY,
+        )
+
+        def _flag(val):
+            return "✅" if val else "❌"
+
+        day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        mode_text = SPECIAL_DAYS_MODE.title()
+        if SPECIAL_DAYS_MODE == "weekly":
+            mode_text += f" ({day_names[SPECIAL_DAYS_WEEKLY_DAY]})"
+
+        config_line = f"\n\n**📋 Config:** Mode: {mode_text} · @-here: {_flag(SPECIAL_DAY_MENTION_ENABLED)} · Topic update: {_flag(SPECIAL_DAY_TOPIC_UPDATE_ENABLED)} · Thread replies: {_flag(SPECIAL_DAY_THREAD_ENABLED)}"
+
         return f"""## 🌍 Observance Caches
 | Source | Status | Count | Last Updated |
 |--------|--------|-------|-------------|
-{table_rows}"""
+{table_rows}{config_line}"""
 
     except Exception as e:
         logger.error(f"CANVAS: Failed to build observances section: {e}")
@@ -749,6 +796,16 @@ def _replace_canvas_content(app, canvas_id, markdown):
         )
 
 
+def _build_warnings_section():
+    """Build recent warnings section, or return None if no warnings."""
+    snapshot = list(_recent_warnings)
+    if not snapshot:
+        return None
+    lines = "\n".join(f"- {w}" for w in reversed(snapshot))
+    return f"""## ⚠️ Recent Warnings
+{lines}"""
+
+
 # --- Public API ---
 
 
@@ -756,6 +813,12 @@ def record_change(change_text):
     """Record a recent change for display in the dashboard."""
     timestamp = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z")
     _recent_changes.append(f"{timestamp} — {change_text}")
+
+
+def record_warning(warning_text):
+    """Record a warning for display in the canvas dashboard."""
+    timestamp = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z")
+    _recent_warnings.append(f"{timestamp} — {warning_text}")
 
 
 def update_canvas(app, reason="periodic", force=False):
