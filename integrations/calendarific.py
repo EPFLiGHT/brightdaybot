@@ -596,11 +596,23 @@ class CalendarificClient:
                 os.remove(CALENDARIFIC_CACHE_FILE)
             logger.info("CALENDARIFIC: Cleared all cache")
 
+    def get_cached_holiday_count(self) -> int:
+        """Count cached holidays that have valid dates."""
+        cache_data = self._load_consolidated_cache()
+        count = 0
+        for entry in cache_data.get("entries", {}).values():
+            for h in entry.get("holidays", []):
+                date_info = h.get("date", {})
+                if isinstance(date_info, dict) and date_info.get("iso"):
+                    count += 1
+        return count
+
     def get_api_status(self) -> Dict:
         """Get current API status and statistics."""
         month_calls = self._get_rate_count()
         cache_data = self._load_consolidated_cache()
         cached_dates = len(cache_data.get("entries", {}))
+        holiday_count = self.get_cached_holiday_count()
         last_prefetch = self.get_last_prefetch()
 
         return {
@@ -613,6 +625,7 @@ class CalendarificClient:
             "monthly_limit": CALENDARIFIC_RATE_LIMIT_MONTHLY,
             "calls_remaining": CALENDARIFIC_RATE_LIMIT_MONTHLY - month_calls,
             "cached_dates": cached_dates,
+            "holiday_count": holiday_count,
             "cache_ttl_days": self.cache_ttl_days,
             "last_prefetch": last_prefetch.isoformat() if last_prefetch else None,
             "needs_prefetch": self.needs_prefetch(),

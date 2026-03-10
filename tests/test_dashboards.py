@@ -595,29 +595,27 @@ class TestCanvasHealthSection:
         self, mock_model_info, mock_timezone_settings, mock_bot_celebration
     ):
         md = self._build(mock_model_info, mock_timezone_settings, mock_bot_celebration)
-        assert "Thread engagement" in md
-        assert "@-Mention Q&A" in md
+        assert "Threads" in md
+        assert "@-Mentions" in md
         assert "NLP dates" in md
         assert "AI images" in md
-        assert "Bot self-celebration" in md
+        assert "Bot birthday" in md
 
     def test_shows_image_model_config(
         self, mock_model_info, mock_timezone_settings, mock_bot_celebration
     ):
         md = self._build(mock_model_info, mock_timezone_settings, mock_bot_celebration)
-        assert "Image model" in md
-        assert "Quality" in md
-        assert "Size" in md
+        assert "Image:" in md
 
     def test_shows_expanded_feature_flags(
         self, mock_model_info, mock_timezone_settings, mock_bot_celebration
     ):
         md = self._build(mock_model_info, mock_timezone_settings, mock_bot_celebration)
-        assert "Special day images" in md
-        assert "Profile analysis" in md
-        assert "Web search cache" in md
-        assert "External backups" in md
-        assert "Custom emojis" in md
+        assert "SD images" in md
+        assert "Profiles" in md
+        assert "Web cache" in md
+        assert "Ext. backups" in md
+        assert "Custom emoji" in md
 
 
 class TestCanvasEngagementSection:

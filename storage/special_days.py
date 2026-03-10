@@ -746,22 +746,11 @@ def get_special_days_for_date(
         except Exception as e:
             logger.error(f"RELIGIOUS: Failed to fetch for {date_str}: {e}")
 
-    # Source 6: Custom Company days from JSON (use pre-loaded if available)
+    # Source 6: Custom days from JSON (use pre-loaded if available)
     if custom_days is None:
         custom_days = load_special_days()
-    company_days = [d for d in custom_days if d.date == date_str and d.category == "Company"]
-    special_days.extend(company_days)
-
-    # If no external sources provided data, fall back to full JSON
-    if (
-        not UN_OBSERVANCES_ENABLED
-        and not UNESCO_OBSERVANCES_ENABLED
-        and not WHO_OBSERVANCES_ENABLED
-        and not (CALENDARIFIC_ENABLED and CALENDARIFIC_API_KEY)
-    ):
-        # Legacy mode: use custom JSON for everything
-        all_custom_days = [d for d in custom_days if d.date == date_str]
-        special_days = all_custom_days
+    matching_custom = [d for d in custom_days if d.date == date_str]
+    special_days.extend(matching_custom)
 
     # Filter by enabled status and enabled categories
     filtered_days = [

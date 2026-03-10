@@ -170,6 +170,7 @@ def _update_channel_topic(app, channel_id):
         from services.scheduler import get_scheduler_health
         from slack.client import get_channel_members
         from storage.birthdays import load_birthdays
+        from storage.special_days import load_all_special_days
 
         birthdays = load_birthdays()
         total = len(birthdays)
@@ -191,12 +192,19 @@ def _update_channel_topic(app, channel_id):
         health = get_scheduler_health()
         sched_ok = health.get("status") == "ok"
 
+        # Total special days count
+        sd_total = len(load_all_special_days())
+
         # Data fingerprint for change detection (emoji-free to avoid
         # Slack's Unicode → :emoji: conversion mismatch on readback)
         data_fingerprint = f"{active}/{total} active"
+        sd_fingerprint = f"{sd_total} special days"
 
         topic = (
-            f"🤖 BrightDayBot Ops | " f"🎂 {data_fingerprint} | " f"⚙️ {'✅' if sched_ok else '⚠️'}"
+            f"🤖 BrightDayBot Ops | "
+            f"🎂 {data_fingerprint} | "
+            f"🌍 {sd_fingerprint} | "
+            f"⚙️ {'✅' if sched_ok else '⚠️'}"
         )
 
         # Read current topic/purpose to decide whether to update
@@ -212,7 +220,9 @@ def _update_channel_topic(app, channel_id):
         # Compare on data content only — Slack converts Unicode emojis to
         # :emoji: format so direct string comparison always fails.
         topic_data_unchanged = (
-            "BrightDayBot Ops" in current_topic and data_fingerprint in current_topic
+            "BrightDayBot Ops" in current_topic
+            and data_fingerprint in current_topic
+            and sd_fingerprint in current_topic
         )
 
         if not topic_data_unchanged:
@@ -225,7 +235,7 @@ def _update_channel_topic(app, channel_id):
                 )
 
         # Set purpose if empty or ours
-        expected_purpose = "BrightDayBot ops hub — canvas dashboard auto-refreshes at :00 and :30 with system health, birthday data, scheduler, caches, and backups."
+        expected_purpose = "BrightDayBot ops hub — canvas dashboard auto-refreshes every half hour with system health, birthday data, scheduler, caches, and backups."
         if not current_purpose or "BrightDayBot ops hub" in current_purpose:
             if current_purpose != expected_purpose:
                 try:
@@ -249,7 +259,7 @@ def _build_dashboard_markdown(app=None):
     timestamp = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
     warnings_section = _build_warnings_section()
     sections = [
-        f"## 🕐 Last refreshed: {timestamp}",
+        f"## 🕐 Last refreshed: `{timestamp}`",
         _build_birthday_section(app),
         _build_health_section(),
         _build_engagement_section(),
@@ -259,7 +269,7 @@ def _build_dashboard_markdown(app=None):
     ]
     if warnings_section:
         sections.append(warnings_section)
-    sections.append("*🔄 Auto-updates on birthday changes and at :00 and :30.*")
+    sections.append("*🔄 Auto-updates on birthday changes and every half hour.*")
 
     return "\n\n---\n\n".join(sections)
 
@@ -421,18 +431,11 @@ def _build_health_section():
 - **Status:** {overall_emoji} {overall.title()}
 - **Birthday Channel:** {channel_status}
 - **Admins:** {admin_count}
-- **Personality:** `{personality}`
-- **Model:** `{model}`
-- **Image model:** `{DEFAULT_IMAGE_MODEL}` · Quality: {img_quality} · Size: {img_size}
-- **Timezone:** {tz_mode}
+- **Personality:** `{personality}` · **Timezone:** {tz_mode}
+- **Model:** `{model}` · **Image:** `{DEFAULT_IMAGE_MODEL}` ({img_quality}, {img_size})
 - **Logs:** {total_log_mb} MB total
 
-**🔧 Features:**
-- Thread engagement: {_flag(THREAD_ENGAGEMENT_ENABLED)} · @-Mention Q&A: {_flag(MENTION_QA_ENABLED)}
-- NLP dates: {_flag(NLP_DATE_PARSING_ENABLED)} · Custom emojis: {_flag(USE_CUSTOM_EMOJIS)}
-- AI images: {_flag(AI_IMAGE_GENERATION_ENABLED)} · Special day images: {_flag(SPECIAL_DAYS_IMAGE_ENABLED)}
-- Profile analysis: {_flag(PROFILE_ANALYSIS_ENABLED)} · Web search cache: {_flag(WEB_SEARCH_CACHE_ENABLED)}
-- Bot self-celebration: {_flag(bot_celebration)} · External backups: {_flag(EXTERNAL_BACKUP_ENABLED)}"""
+**🔧 Features:** {_flag(THREAD_ENGAGEMENT_ENABLED)} Threads · {_flag(MENTION_QA_ENABLED)} @-Mentions · {_flag(NLP_DATE_PARSING_ENABLED)} NLP dates · {_flag(AI_IMAGE_GENERATION_ENABLED)} AI images · {_flag(SPECIAL_DAYS_IMAGE_ENABLED)} SD images · {_flag(PROFILE_ANALYSIS_ENABLED)} Profiles · {_flag(WEB_SEARCH_CACHE_ENABLED)} Web cache · {_flag(USE_CUSTOM_EMOJIS)} Custom emoji · {_flag(bot_celebration)} Bot birthday · {_flag(EXTERNAL_BACKUP_ENABLED)} Ext. backups"""
 
     except Exception as e:
         logger.error(f"CANVAS: Failed to build health section: {e}")
@@ -505,9 +508,9 @@ def _build_scheduler_section():
 
         tz_enabled, _ = load_timezone_settings()
         if tz_enabled:
-            timing_line = f"- **Timing:** Birthdays at {TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')} (per-user tz) · Special days at {SPECIAL_DAYS_CHECK_TIME.strftime('%H:%M')}"
+            timing_line = f"- **Timing:** Birthdays at `{TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')}` (per-user tz) · Special days at `{SPECIAL_DAYS_CHECK_TIME.strftime('%H:%M')}`"
         else:
-            timing_line = f"- **Timing:** Birthdays at {DAILY_CHECK_TIME.strftime('%H:%M')} · Special days at {SPECIAL_DAYS_CHECK_TIME.strftime('%H:%M')} (server time)"
+            timing_line = f"- **Timing:** Birthdays at `{DAILY_CHECK_TIME.strftime('%H:%M')}` · Special days at `{SPECIAL_DAYS_CHECK_TIME.strftime('%H:%M')}` (server time)"
 
         return f"""## ⏰ Scheduler
 - **Status:** {alive_emoji} {status.title()} ({heartbeat_text})
@@ -552,13 +555,23 @@ def _build_observances_section():
 
                 cal_status = get_calendarific_client().get_api_status()
                 cal_fresh = "🟢 Fresh" if not cal_status.get("needs_prefetch") else "🟡 Stale"
-                cal_count = cal_status.get("cached_dates", "?")
+                cal_count = cal_status.get("holiday_count", cal_status.get("cached_dates", "?"))
                 cal_updated = cal_status.get("last_prefetch", "?")
                 if isinstance(cal_updated, str) and "T" in cal_updated:
                     cal_updated = cal_updated[:10]
                 rows.append(f"| Calendarific | {cal_fresh} | {cal_count} | {cal_updated} |")
         except Exception as e:
             logger.debug(f"CANVAS: Could not get Calendarific status: {e}")
+
+        # Custom/CSV days
+        try:
+            from storage.special_days import load_special_days
+
+            custom_days = load_special_days()
+            custom_count = len(custom_days)
+            rows.append(f"| Custom | — | {custom_count} | — |")
+        except Exception as e:
+            logger.debug(f"CANVAS: Could not load custom special days: {e}")
 
         # Total merged count (all sources, deduplicated)
         try:
@@ -647,7 +660,7 @@ def _build_backups_section(app=None):
         return f"""## 💾 Backups
 - **Files:** {count} backups ({total_size_kb} KB total)
 - **Latest:** `{latest_name}` ({latest_size_kb} KB)
-- **Last backup:** {latest_time}{file_embed}"""
+- **Last backup:** `{latest_time}`{file_embed}"""
 
     except Exception as e:
         logger.error(f"CANVAS: Failed to build backups section: {e}")
@@ -820,13 +833,13 @@ def _build_warnings_section():
 def record_change(change_text):
     """Record a recent change for display in the dashboard."""
     timestamp = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z")
-    _recent_changes.append(f"{timestamp} — {change_text}")
+    _recent_changes.append(f"`{timestamp}` — {change_text}")
 
 
 def record_warning(warning_text):
     """Record a warning for display in the canvas dashboard."""
     timestamp = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z")
-    _recent_warnings.append(f"{timestamp} — {warning_text}")
+    _recent_warnings.append(f"`{timestamp}` — {warning_text}")
 
 
 def update_canvas(app, reason="periodic", force=False):

@@ -498,9 +498,7 @@ def build_health_status_blocks(
         # Special Days Sources
         special_days = components.get("special_days", {})
         if special_days.get("enabled"):
-            sd_text = (
-                f"*Special Days:*\n• CSV observances: {special_days.get('observance_count', 0)}"
-            )
+            sd_text = f"*Special Days:*\n• Custom: {special_days.get('observance_count', 0)}"
 
             # Check UN observances cache
             import json
@@ -559,12 +557,23 @@ def build_health_status_blocks(
                     from integrations.calendarific import get_calendarific_client
 
                     calendarific_status = get_calendarific_client().get_api_status()
-                    cached_dates = calendarific_status.get("cached_dates", 0)
+                    holiday_count = calendarific_status.get(
+                        "holiday_count", calendarific_status.get("cached_dates", 0)
+                    )
                     month_calls = calendarific_status.get("month_calls", 0)
                     monthly_limit = calendarific_status.get("monthly_limit", 500)
-                    sd_text += f"\n• Calendarific: {cached_dates} cached dates ({month_calls}/{monthly_limit} API calls this month)"
+                    sd_text += f"\n• Calendarific: {holiday_count} holidays ({month_calls}/{monthly_limit} API calls this month)"
                 except (ImportError, AttributeError, KeyError, TypeError):
                     sd_text += "\n• Calendarific: cache error"
+
+            # Total deduplicated count
+            try:
+                from storage.special_days import load_all_special_days
+
+                total_sd = len(load_all_special_days())
+                sd_text += f"\n• *Total (deduplicated): {total_sd}*"
+            except Exception:
+                pass
 
             blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": sd_text}})
 
