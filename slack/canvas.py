@@ -191,10 +191,12 @@ def _update_channel_topic(app, channel_id):
         health = get_scheduler_health()
         sched_ok = health.get("status") == "ok"
 
+        # Data fingerprint for change detection (emoji-free to avoid
+        # Slack's Unicode → :emoji: conversion mismatch on readback)
+        data_fingerprint = f"{active}/{total} active"
+
         topic = (
-            f"🤖 BrightDayBot Ops | "
-            f"🎂 {active}/{total} active | "
-            f"⚙️ {'✅' if sched_ok else '⚠️'}"
+            f"🤖 BrightDayBot Ops | " f"🎂 {data_fingerprint} | " f"⚙️ {'✅' if sched_ok else '⚠️'}"
         )
 
         # Read current topic/purpose to decide whether to update
@@ -207,18 +209,24 @@ def _update_channel_topic(app, channel_id):
             current_topic = ""
             current_purpose = ""
 
-        # Only update topic if it's ours (starts with bot prefix) or empty.
-        # If someone manually set a different topic, respect it.
-        if current_topic != topic:
-            if not current_topic or current_topic.startswith("🤖 BrightDayBot Ops"):
+        # Compare on data content only — Slack converts Unicode emojis to
+        # :emoji: format so direct string comparison always fails.
+        topic_data_unchanged = (
+            "BrightDayBot Ops" in current_topic and data_fingerprint in current_topic
+        )
+
+        if not topic_data_unchanged:
+            if not current_topic or "BrightDayBot Ops" in current_topic:
                 app.client.conversations_setTopic(channel=channel_id, topic=topic)
                 logger.info(f"CANVAS: Updated channel topic for {channel_id}")
             else:
-                logger.debug("CANVAS: Skipping topic update — manually set by user")
+                logger.info(
+                    f"CANVAS: Skipping topic update — manually set by user: {current_topic!r}"
+                )
 
         # Set purpose if empty or ours
         expected_purpose = "BrightDayBot ops hub — canvas dashboard auto-refreshes at :00 and :30 with system health, birthday data, scheduler, caches, and backups."
-        if not current_purpose or current_purpose.startswith("BrightDayBot ops hub"):
+        if not current_purpose or "BrightDayBot ops hub" in current_purpose:
             if current_purpose != expected_purpose:
                 try:
                     app.client.conversations_setPurpose(
