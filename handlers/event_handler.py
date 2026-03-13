@@ -491,7 +491,7 @@ def register_event_handlers(app):
             events_logger.debug(f"DM_THREAD: Ignoring thread reply from user {event.get('user')}")
             return
 
-        text = event.get("text", "").lower()
+        text = event.get("text", "").strip("`").strip().lower()
         user = event["user"]
 
         # Use our custom logger for events.log

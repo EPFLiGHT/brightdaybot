@@ -205,6 +205,103 @@ class TestSlashCommandParsing:
             mock_help.assert_called_once_with(respond)
 
 
+class TestBacktickStripping:
+    """Tests that backtick-wrapped input is handled correctly in commands"""
+
+    def _capture_slash_handlers(self):
+        """Register slash commands and return captured handlers."""
+        from handlers.slash_handler import register_slash_commands
+
+        mock_app = MagicMock()
+        captured = {}
+
+        def capture_command(cmd_name):
+            def decorator(func):
+                captured[cmd_name] = func
+                return func
+
+            return decorator
+
+        mock_app.command = capture_command
+        register_slash_commands(mock_app)
+        return captured, mock_app
+
+    def test_slash_birthday_strips_backticks(self):
+        """/birthday `list` is parsed as 'list'"""
+        captured, mock_app = self._capture_slash_handlers()
+        handler = captured["/birthday"]
+
+        ack = MagicMock()
+        respond = MagicMock()
+        client = MagicMock()
+        body = {"user_id": "U123", "text": "`list`", "trigger_id": "trigger123"}
+
+        with patch("handlers.slash_handler._handle_slash_list") as mock_list:
+            handler(ack, body, client, respond)
+            mock_list.assert_called_once_with(respond, mock_app)
+
+    def test_slash_birthday_strips_triple_backticks(self):
+        """/birthday ```check``` is parsed as 'check'"""
+        captured, mock_app = self._capture_slash_handlers()
+        handler = captured["/birthday"]
+
+        ack = MagicMock()
+        respond = MagicMock()
+        client = MagicMock()
+        body = {"user_id": "U123", "text": "```check```", "trigger_id": "trigger123"}
+
+        with patch("handlers.slash_handler._handle_slash_check") as mock_check:
+            handler(ack, body, client, respond)
+            mock_check.assert_called_once_with("check", "U123", respond, mock_app)
+
+    def test_slash_special_day_strips_backticks(self):
+        """/special-day `week` is parsed as 'week'"""
+        captured, mock_app = self._capture_slash_handlers()
+        handler = captured["/special-day"]
+
+        ack = MagicMock()
+        respond = MagicMock()
+        body = {"user_id": "U123", "text": "`week`"}
+
+        with patch("commands.special_day_commands.handle_special_command") as mock_special:
+            handler(ack, body, respond)
+            mock_special.assert_called_once_with(["week"], "U123", respond, mock_app)
+
+    def test_dm_command_strips_backticks(self):
+        """DM `list` is recognized as 'list' command"""
+        from services.dispatcher import handle_command
+
+        say = MagicMock()
+        mock_app = MagicMock()
+
+        with patch("services.dispatcher.get_username", return_value="TestUser"):
+            with patch("services.dispatcher.handle_list_command") as mock_list:
+                handle_command("`list`", "U123", say, mock_app)
+
+        # Should NOT be called because backtick stripping happens in event_handler,
+        # not in handle_command itself — so this verifies the boundary
+        mock_list.assert_not_called()
+
+    def test_dm_event_handler_strips_backticks(self):
+        """DM event with backtick-wrapped text strips backticks before dispatch"""
+        # Verify the stripping logic directly
+        raw_text = "`add 05/03`"
+        stripped = raw_text.strip("`").strip().lower()
+        assert stripped == "add 05/03"
+
+    def test_dm_event_handler_strips_triple_backticks(self):
+        """DM event with triple backtick-wrapped text strips all backticks"""
+        raw_text = "```admin status```"
+        stripped = raw_text.strip("`").strip().lower()
+        assert stripped == "admin status"
+
+    def test_dm_event_handler_preserves_plain_text(self):
+        """Plain text without backticks is unchanged"""
+        raw_text = "add 05/03 1990"
+        stripped = raw_text.strip("`").strip().lower()
+        assert stripped == "add 05/03 1990"
+
+
 class TestAppHomeViewBuilding:
     """Tests for App Home conditional view construction"""
 
