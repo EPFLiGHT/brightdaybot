@@ -674,7 +674,7 @@ _Use `admin special [un|unesco|who]-refresh` or `all-refresh` to force update._"
             last_updated = status.get("last_updated")
             if last_updated:
                 last_dt = datetime.fromisoformat(last_updated)
-                last_str = last_dt.strftime("%Y-%m-%d %H:%M")
+                last_str = f"`{last_dt.strftime('%Y-%m-%d %H:%M')}`"
             else:
                 last_str = "Never"
 
@@ -723,7 +723,7 @@ _Cache refreshes weekly. Use `admin special un-refresh` to force update._"""
             last_updated = status.get("last_updated")
             if last_updated:
                 last_dt = datetime.fromisoformat(last_updated)
-                last_str = last_dt.strftime("%Y-%m-%d %H:%M")
+                last_str = f"`{last_dt.strftime('%Y-%m-%d %H:%M')}`"
             else:
                 last_str = "Never"
 
@@ -772,7 +772,7 @@ _Cache refreshes monthly. Use `admin special unesco-refresh` to force update._""
             last_updated = status.get("last_updated")
             if last_updated:
                 last_dt = datetime.fromisoformat(last_updated)
-                last_str = last_dt.strftime("%Y-%m-%d %H:%M")
+                last_str = f"`{last_dt.strftime('%Y-%m-%d %H:%M')}`"
             else:
                 last_str = "Never"
 
@@ -853,7 +853,7 @@ _Cache refreshes monthly. Use `admin special who-refresh` to force update._"""
             last_prefetch = status.get("last_prefetch")
             if last_prefetch:
                 last_dt = datetime.fromisoformat(last_prefetch)
-                last_str = last_dt.strftime("%Y-%m-%d %H:%M")
+                last_str = f"`{last_dt.strftime('%Y-%m-%d %H:%M')}`"
             else:
                 last_str = "Never"
 

@@ -504,9 +504,9 @@ def handle_timezone_command(args, user_id, say, app, username):
         status_msg += f"• Status: {'ENABLED' if current_enabled else 'DISABLED'}\n"
         if current_enabled:
             status_msg += f"• Check Interval: Every {current_interval} hour(s)\n"
-            status_msg += f"• Mode: Users receive birthday announcements at {TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')} in their timezone\n"
+            status_msg += f"• Mode: Users receive birthday announcements at `{TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')}` in their timezone\n"
         else:
-            status_msg += f"• Mode: All birthdays announced at {DAILY_CHECK_TIME.strftime('%H:%M')} server time\n"
+            status_msg += f"• Mode: All birthdays announced at `{DAILY_CHECK_TIME.strftime('%H:%M')}` server time\n"
 
         status_msg += (
             "\nUse `admin timezone enable` or `admin timezone disable` to change settings."
@@ -528,7 +528,7 @@ def handle_timezone_command(args, user_id, say, app, username):
         if save_timezone_settings(enabled=True):
             say(
                 f"✅ Timezone-aware announcements ENABLED\n\n"
-                f"Birthday announcements will now be sent at {TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')} in each user's timezone. "
+                f"Birthday announcements will now be sent at `{TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')}` in each user's timezone. "
                 f"The scheduler will check hourly for birthdays.\n\n"
                 f"Change takes effect immediately."
             )
@@ -541,7 +541,7 @@ def handle_timezone_command(args, user_id, say, app, username):
         if save_timezone_settings(enabled=False):
             say(
                 f"✅ Timezone-aware announcements DISABLED\n\n"
-                f"All birthday announcements will now be sent at {DAILY_CHECK_TIME.strftime('%H:%M')} server time, "
+                f"All birthday announcements will now be sent at `{DAILY_CHECK_TIME.strftime('%H:%M')}` server time, "
                 f"regardless of user timezones.\n\n"
                 f"Change takes effect immediately."
             )
@@ -555,7 +555,7 @@ def handle_timezone_command(args, user_id, say, app, username):
         status_msg += f"• Status: {'ENABLED' if current_enabled else 'DISABLED'}\n"
         if current_enabled:
             status_msg += f"• Check Interval: Every {current_interval} hour(s)\n"
-            status_msg += f"• Mode: Users receive birthday announcements at {TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')} in their timezone\n\n"
+            status_msg += f"• Mode: Users receive birthday announcements at `{TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')}` in their timezone\n\n"
             try:
                 schedule_info = format_timezone_schedule(app)
                 status_msg += schedule_info
@@ -563,7 +563,7 @@ def handle_timezone_command(args, user_id, say, app, username):
                 status_msg += f"Failed to get timezone schedule: {e}"
                 logger.error(f"ADMIN_ERROR: Failed to get timezone schedule: {e}")
         else:
-            status_msg += f"• Mode: All birthdays announced at {DAILY_CHECK_TIME.strftime('%H:%M')} server time\n"
+            status_msg += f"• Mode: All birthdays announced at `{DAILY_CHECK_TIME.strftime('%H:%M')}` server time\n"
 
         say(status_msg)
         logger.info(f"ADMIN: {username} ({user_id}) requested detailed timezone status")

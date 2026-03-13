@@ -415,7 +415,7 @@ def build_health_status_blocks(
                 .astimezone()
                 .strftime("%Y-%m-%d %H:%M")
             )
-            backup_text = f"{backup_count} files · Last: {latest_time}"
+            backup_text = f"{backup_count} files · Last: `{latest_time}`"
 
     quick_fields.append({"type": "mrkdwn", "text": f"💾 *Backups*\n{backup_text}"})
 
@@ -481,12 +481,12 @@ def build_health_status_blocks(
 
         timing_text = "*Timing & Configuration:*"
         if tz_enabled:
-            timing_text += f"\n• Birthday check: {TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')} (per-user timezone)"
+            timing_text += f"\n• Birthday check: `{TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')}` (per-user timezone)"
         else:
-            timing_text += f"\n• Birthday check: {DAILY_CHECK_TIME.strftime('%H:%M')} (server time)"
-        timing_text += (
-            f"\n• Special days check: {SPECIAL_DAYS_CHECK_TIME.strftime('%H:%M')} · Mode: {sd_mode}"
-        )
+            timing_text += (
+                f"\n• Birthday check: `{DAILY_CHECK_TIME.strftime('%H:%M')}` (server time)"
+            )
+        timing_text += f"\n• Special days check: `{SPECIAL_DAYS_CHECK_TIME.strftime('%H:%M')}` · Mode: {sd_mode}"
         timing_text += f"\n• Special days: @-here {'✅' if SPECIAL_DAY_MENTION_ENABLED else '❌'} · Topic update {'✅' if SPECIAL_DAY_TOPIC_UPDATE_ENABLED else '❌'} · Thread replies {'✅' if SPECIAL_DAY_THREAD_ENABLED else '❌'} · Images {'✅' if SPECIAL_DAYS_IMAGE_ENABLED else '❌'}"
 
         img_quality = IMAGE_GENERATION_PARAMS["quality"]["default"]
