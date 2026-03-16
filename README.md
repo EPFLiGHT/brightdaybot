@@ -29,7 +29,7 @@
 - **AI Images**: Face-accurate images using Slack profile photos
 - **Multiple Personalities**: Ludo the Mystic Dog, Captain BirthdayBeard, TechBot 3000, and more
 - **Multi-Timezone**: Celebrates at 9 AM in each user's timezone
-- **Special Days**: International observances and national holidays with AI-generated content
+- **Special Days**: International observances and national holidays with AI-generated content, consolidated into a single daily announcement
 - **Slash Commands**: `/birthday` and `/special-day` with modal forms
 - **App Home**: Dashboard with birthday status, statistics, and upcoming events
 - **Calendar Export**: Export team birthdays to ICS format
@@ -182,7 +182,7 @@ All optional settings are documented in [`.env.example`](.env.example) with defa
 - **AI & Core**: Model selection, image generation, backups
 - **Special Days Sources**: Observance cache TTLs, Calendarific API
 - **Interactive Features**: Thread engagement, @-mention Q&A, NLP date parsing
-- **Announcements**: @-here mentions, channel topic updates
+- **Announcements**: @-here mentions, channel topic updates, consolidated special days
 - **Canvas Dashboard**: Ops channel with auto-updating system overview
 - **Custom Personality**: Name, description, style, formatting
 
