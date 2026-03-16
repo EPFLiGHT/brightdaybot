@@ -56,9 +56,13 @@ CANVAS_DASHBOARD_ENABLED = os.getenv("CANVAS_DASHBOARD_ENABLED", "true").lower()
 CANVAS_SETTINGS_FILE = os.path.join(STORAGE_DIR, "canvas_settings.json")
 CANVAS_REFRESH_INTERVAL_MINUTES = 30
 CANVAS_MIN_UPDATE_INTERVAL_SECONDS = 30
-CANVAS_RECENT_CHANGES_MAX = 10
-CANVAS_WARNINGS_MAX = 10
+CANVAS_RECENT_CHANGES_MAX = 8
+CANVAS_WARNINGS_MAX = 8
 CANVAS_WARNINGS_TTL_HOURS = 24
+SPECIAL_DAY_DETAILS_CACHE_TTL_DAYS = (
+    60  # How long cached details stay valid (matches thread tracking TTL)
+)
+SPECIAL_DAY_DETAILS_CACHE_FILE = os.path.join(CACHE_DIR, "special_day_details.json")
 
 # ----- EMOJI CONSTANTS -----
 
@@ -190,7 +194,7 @@ COMMAND_PERMISSIONS = {
 # Cache for username lookups to reduce API calls
 # Structure: {user_id: (username, timestamp)}
 username_cache = {}
-USERNAME_CACHE_MAX_SIZE = 1000  # Maximum number of cached usernames
+USERNAME_CACHE_MAX_SIZE = 1024  # Maximum number of cached usernames
 USERNAME_CACHE_TTL_HOURS = 24  # Cache entries expire after 24 hours
 USERNAME_CACHE_EVICTION_FRACTION = 4  # Evict oldest 1/N of cache when full
 
@@ -223,8 +227,8 @@ TOKEN_LIMITS = {
     "consolidated_birthday": 2000,  # Multiple birthday messages
     "web_search_facts": 1200,  # Historical date summarization (+buffer for reasoning tokens)
     "image_title_generation": 200,  # AI-generated image titles
-    "special_day_details": 800,  # Single special day details (+buffer for reasoning tokens, 1950 char Slack limit)
-    "special_day_details_consolidated": 1200,  # Multiple special day details (+buffer for reasoning tokens)
+    "special_day_details": 1200,  # Single special day details (cached, no button value limit)
+    "special_day_details_consolidated": 1600,  # Multiple special day details (cached)
     # Interactive features
     "mention_response": 300,  # Responses to @-mentions
     "special_day_thread_response": 400,  # Responses to special day thread replies
@@ -296,6 +300,41 @@ TIMEOUTS = {
     "confirmation_minutes": 5,  # Admin command confirmation timeout
     "file_poll_sleep": 1,  # Seconds between Slack file processing polls
 }
+
+# Parallel AI generation
+AI_MAX_WORKERS = int(
+    os.getenv("AI_MAX_WORKERS", "4")
+)  # Max concurrent threads for parallel AI calls
+
+
+def run_parallel(fn, items, max_workers=None):
+    """Run fn(item) for each item, parallel if multiple, direct if single.
+
+    Returns dict mapping item to fn result. Failed items get None.
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    if max_workers is None:
+        max_workers = AI_MAX_WORKERS
+
+    results = {}
+    if len(items) <= 1:
+        for item in items:
+            try:
+                results[item] = fn(item)
+            except Exception:
+                results[item] = None
+    else:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(fn, item): item for item in items}
+            for future in as_completed(futures):
+                item = futures[future]
+                try:
+                    results[item] = future.result()
+                except Exception:
+                    results[item] = None
+    return results
+
 
 # Scheduler timing constants
 SCHEDULER_CHECK_INTERVAL_SECONDS = 60  # How often scheduler checks for birthdays
@@ -408,6 +447,12 @@ SPECIAL_DAY_MENTION_ENABLED = os.getenv("SPECIAL_DAY_MENTION_ENABLED", "true").l
 SPECIAL_DAY_TOPIC_UPDATE_ENABLED = (
     os.getenv("SPECIAL_DAY_TOPIC_UPDATE_ENABLED", "false").lower() == "true"
 )
+
+# Consolidated announcements: one message for all observances (vs. separate messages)
+SPECIAL_DAY_CONSOLIDATED_ENABLED = (
+    os.getenv("SPECIAL_DAY_CONSOLIDATED_ENABLED", "true").lower() == "true"
+)
+SPECIAL_DAY_COMPACT_THRESHOLD = 8  # Switch to compact blocks above this count
 
 # ----- CALENDARIFIC API CONFIGURATION -----
 
@@ -575,7 +620,7 @@ THREAD_TTL_HOURS = 24  # Hours to track birthday/special day threads for engagem
 # Slack API limits
 SLACK_MAX_BLOCKS = 50  # Maximum blocks per message (Slack API limit)
 SLACK_MEMBERS_PAGE_SIZE = 1000  # Pagination limit for conversations_members
-SLACK_HISTORY_PAGE_SIZE = 100  # Pagination limit for conversations_history
+SLACK_HISTORY_PAGE_SIZE = 128  # Pagination limit for conversations_history
 SLACK_FILE_TITLE_MAX_LENGTH = 100  # Max chars for readable Slack file titles
 SLACK_BUTTON_VALUE_CHAR_LIMIT = 1950  # Slack button value max chars (2000 limit with safety buffer)
 SLACK_BUTTON_DISPLAY_CHAR_LIMIT = 1850  # Safe display limit for button content

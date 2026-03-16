@@ -765,94 +765,77 @@ DO NOT include a signature - the bot's identity will be shown in the message foo
         # SHORT TEASER for main announcement (2-4 lines for individual observances)
         "special_day_teaser": """Generate a SHORT, compelling teaser for {day_name} ({category}).
 
-CRITICAL SLACK FORMATTING RULES:
-- Use *single asterisks* for bold text, NOT **double asterisks**
-- Use _single underscores_ for italic text, NOT __double underscores__
-- For links: use <URL|text> format of Slack, e.g., <https://example.com|Example Organization>
-- NEVER use markdown links like [text](url)
-- NEVER use HTML tags
+SLACK FORMATTING:
+- Use *single asterisks* for bold, _single underscores_ for italic
+- For links: <URL|text> format. NEVER use [text](url) or HTML tags
 
 EMOJI USAGE: Include 2-4 emojis for visual appeal, starting with {emoji} if provided.
 
 STRUCTURE (Keep BRIEF - 2-4 lines MAXIMUM):
-[One powerful opening sentence that captures the essence and significance of this observance]
+[One powerful opening sentence that captures the essence and significance]
 [Why this matters today - modern relevance, workplace connection, or call to awareness]
-[Optional: Brief reflection or action prompt that invites engagement]
+[Optional: Brief reflection or question that invites engagement]
 
 Description summary: {description}
 Source: {source}
 
-TONE GUIDANCE BY CATEGORY:
-- *Culture*: Emphasize human dignity, social justice, inclusion, cultural heritage
-- *Tech*: Highlight innovation, digital transformation, connectivity, future-forward thinking
-- *Global Health*: Focus on health equity, prevention, awareness, community well-being
+TONE: Adapt your voice to the category "{category}" — let the subject matter guide whether you lean warmer, more curious, more celebratory, or more reflective. Be authentic to the observance.
 
 IMPORTANT RULES:
 - DO NOT repeat the name "{day_name}" (it's already in the header)
 - DO NOT include date or "today" references (already shown in metadata)
 - DO NOT use "📅" emoji (already used in header)
 - DO NOT include historical details or long explanations (save for "View Details")
-- DO NOT mention the "View Details" button - it's self-explanatory
+- DO NOT mention the "View Details" button
 - DO use powerful, specific language that reflects the observance's significance
-- DO create intrigue that makes readers want to learn more
-- DO include <!here> to notify the channel
+- DO create intrigue that makes readers want to click "View Details"
 - Make the teaser naturally complete and compelling on its own.""",
         # DETAILED CONTENT for "View Details" button (comprehensive)
-        "special_day_details": """Generate comprehensive, detailed content about {day_name} ({category}).
+        "special_day_details": """Generate engaging, detailed content about {day_name} ({category}).
 
-CRITICAL SLACK FORMATTING RULES:
-- Use *single asterisks* for bold text, NOT **double asterisks**
-- Use _single underscores_ for italic text, NOT __double underscores__
-- Combine for bold+italic: *_text_* (asterisks outside, underscores inside)
-- For links: use <URL|text> format of Slack, e.g., <https://example.com|Example Organization>
-- NEVER use markdown links like [text](url)
-- NEVER use HTML tags
+SLACK FORMATTING:
+- Use *single asterisks* for bold, _single underscores_ for italic
+- Combine: *_bold italic_* (asterisks outside, underscores inside)
+- For links: <URL|text> format. NEVER use [text](url) or HTML tags
 
-VISUAL FORMATTING REQUIREMENTS:
-- Section titles: Use *_bold and italic_* (e.g., *_Historical Context:_*, *_Global Impact:_*, *_Core Challenge:_*, *_Strategic Actions:_*)
-- Subsection labels: Use *bold* only (e.g., *Individual:*, *Team:*, *Organization:*)
+SECTION TITLES: Use *_bold italic_* (e.g., *_Why This Day Matters:_*)
+EMOJIS: Use 🔹 for bullet lists. Include 6-10 relevant emojis naturally. Place emojis at START of bullet points, sparingly in paragraphs.
 
-EMOJI USAGE:
-- Include 6-8 relevant emojis throughout for visual appeal
-- Place emojis at the START of bullet points, not at the end of sentences
-- Use emojis sparingly in paragraph text
+STRUCTURE (14-20 lines):
 
-STRUCTURE (Concise - 10-14 lines total to fit 1950 character Slack button limit):
+*_Why This Day Matters:_*
+[2-3 sentences covering: when/why established, who championed it, and what it represents today. Draw on {source} and description. Write with warmth — this is storytelling, not a report.]
 
-*_Historical Context:_*
-[Brief context about when/why this observance was established, drawing on description and {source}. 1-2 sentences. NO emojis in paragraphs.]
+*_Key Facts:_*
+🔹 [Surprising or compelling fact that makes someone pause]
+🔹 [A human-scale detail — how this touches real lives or communities]
+🔹 [A forward-looking insight — what's changing, what's at stake]
 
-*_Global Impact:_*
-🌍 [Scope and significance based on {source} and description - 1 concise sentence]
-📊 [Why this matters, using qualifiers like "typically," "often" for general knowledge - 1 sentence]
+*_How It Connects To Us:_*
+[1-2 sentences relating this to the workplace, our industry, or daily lives. Make it personal and concrete — not generic corporate language.]
 
-*_Core Challenge:_*
-✨ [The central issue this observance addresses - 1-2 sentences, no fabricated statistics]
+*_Take Action:_*
+💡 [One specific, immediate personal action anyone can do today]
+👥 [One team discussion topic or activity idea]
+📚 [One way to learn more — describe the resource, don't link it]
 
-*_Strategic Actions - How to Engage:_*
-👤 *Individual:* [1-2 specific, tactical actions anyone can take immediately]
-👥 *Team:* [1 team-based initiative aligned with this observance]
-🏢 *Organization:* [1 company-wide opportunity for policy/culture alignment]
+Description: {description}
+Source: {source}
 
-CRITICAL LENGTH REQUIREMENT:
-- STRICT MAXIMUM: 1850 characters total. Do NOT exceed this limit.
-- MAXIMUM 10-14 lines total
-- Be CONCISE and TACTICAL - every line must add value
-- Prioritize actionable insights over background details
+TONE: Adapt your voice to the category "{category}" — let the subject matter guide your tone naturally. Be authentic to the observance.
 
-HONESTY REQUIREMENTS:
-- Use ONLY facts from the provided description
-- Qualify general knowledge with "typically," "often," "generally," "can involve"
-- DO NOT fabricate numbers, percentages, years, or statistics
-- Be transparent about uncertainty
+LENGTH: MAXIMUM 2800 characters. Be vivid but concise — every line should earn its place.
 
-STRICT PROHIBITIONS:
-- DO NOT add "Learn More", "Official Source", or "Description" sections (handled separately)
-- DO NOT include actual URLs (source link added automatically)
+HONESTY:
+- Use ONLY facts from the provided description and source
+- Qualify general knowledge with "typically," "often," "generally"
+- DO NOT fabricate statistics, dates, or numbers
+
+PROHIBITIONS:
+- DO NOT add "Learn More" or "Official Source" sections (handled by buttons)
+- DO NOT include URLs (source link added automatically)
 - DO NOT use **double asterisks** or __double underscores__
-- DO NOT add title/header (added automatically by Block Kit)
-- DO NOT add emojis at end of sentences in paragraphs
-- DO NOT exceed 14 lines total""",
+- DO NOT add a title/header (added automatically)""",
         # DEPRECATED - Keeping for backward compatibility but will be replaced by teaser
         "special_day_single": """Generate an announcement for {day_name} ({category}).
 

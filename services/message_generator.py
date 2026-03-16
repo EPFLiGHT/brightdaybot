@@ -685,10 +685,12 @@ def _generate_birthday_message(
                     )
                 return None
 
-            # Use parallel execution for multiple people (3 workers to avoid API overload)
+            # Use parallel execution for multiple people
             if count > 1:
+                from config import AI_MAX_WORKERS
+
                 logger.info(f"IMAGE: Starting parallel generation for {count} people")
-                with ThreadPoolExecutor(max_workers=3) as executor:
+                with ThreadPoolExecutor(max_workers=AI_MAX_WORKERS) as executor:
                     future_to_person = {
                         executor.submit(_generate_image_for_person, person): person
                         for person in birthday_people
