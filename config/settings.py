@@ -58,6 +58,7 @@ CANVAS_REFRESH_INTERVAL_MINUTES = 30
 CANVAS_MIN_UPDATE_INTERVAL_SECONDS = 30
 CANVAS_RECENT_CHANGES_MAX = 10
 CANVAS_WARNINGS_MAX = 10
+CANVAS_WARNINGS_TTL_HOURS = 24
 
 # ----- EMOJI CONSTANTS -----
 
@@ -241,7 +242,7 @@ TEMPERATURE_SETTINGS = {
     "factual": 0.3,  # Lower temperature for factual content (future use)
 }
 
-# Reasoning effort for GPT-5+ models (controls thinking tokens)
+# Reasoning effort for supported models (controls thinking tokens)
 # Models have different supported levels:
 #   GPT-5/5-mini:  minimal, low, medium, high (default: medium, always-on)
 #   GPT-5.1:       none, low, medium, high (default: none, opt-in)
@@ -250,6 +251,17 @@ REASONING_EFFORT = {
     "default": None,  # Don't send param — model uses its own default
     "analytical": "low",  # Light reasoning for factual content (web search, special days)
 }
+
+# Model prefixes that support the reasoning.effort parameter
+# Supported: gpt-5 family, o1/o1-mini, o3/o3-mini, o4-mini
+# Not supported: gpt-4o, gpt-4.1, gpt-4-turbo, and older
+REASONING_SUPPORTED_PREFIXES = ("gpt-5", "o1", "o3", "o4-mini")
+
+
+def supports_reasoning(model: str) -> bool:
+    """Check if a model supports the reasoning.effort parameter."""
+    return model.startswith(REASONING_SUPPORTED_PREFIXES)
+
 
 # Image generation parameters
 IMAGE_GENERATION_PARAMS = {

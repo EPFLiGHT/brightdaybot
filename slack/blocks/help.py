@@ -281,7 +281,8 @@ def build_help_blocks(is_admin: bool = False) -> tuple[List[Dict[str, Any]], str
         canvas_cmds = """• `admin canvas` or `admin canvas status` - Dashboard status and backup info
 • `admin canvas refresh` - Force immediate update (bypasses debounce)
 • `admin canvas reset` - Delete and recreate canvas from scratch
-• `admin canvas clean` - Remove bot messages from ops channel (keeps backup thread)"""
+• `admin canvas clean` - Remove bot messages from ops channel (keeps backup thread)
+• `admin canvas dismiss-warnings` - Dismiss all canvas warnings"""
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": canvas_cmds}})
 
         blocks.append({"type": "divider"})

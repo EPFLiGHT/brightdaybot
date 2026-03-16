@@ -20,6 +20,7 @@ from datetime import datetime
 from openai import APIConnectionError, APIError, APITimeoutError, OpenAI, RateLimitError
 
 from config import get_logger
+from config.settings import supports_reasoning
 from storage.settings import get_configured_openai_model
 
 logger = get_logger("ai")
@@ -105,7 +106,7 @@ def _build_api_params(
 
     if max_tokens:
         params["max_output_tokens"] = max_tokens
-    if reasoning_effort is not None:
+    if reasoning_effort is not None and supports_reasoning(model):
         params["reasoning"] = {"effort": reasoning_effort}
     elif temperature is not None:
         params["temperature"] = temperature

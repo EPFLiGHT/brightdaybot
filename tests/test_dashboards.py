@@ -804,10 +804,38 @@ class TestCanvasWarningsSection:
         canvas._recent_warnings.clear()
         canvas.record_warning("Something broke")
         assert len(canvas._recent_warnings) == 1
-        entry = canvas._recent_warnings[0]
-        assert "Something broke" in entry
-        assert "—" in entry  # timestamp separator
+        ts, display = canvas._recent_warnings[0]
+        assert "Something broke" in display
+        assert "—" in display  # timestamp separator
+        assert hasattr(ts, "timestamp")  # is a datetime
         canvas._recent_warnings.clear()
+
+    def test_warnings_expire_after_ttl(self):
+        from datetime import timedelta
+
+        from slack import canvas
+
+        canvas._recent_warnings.clear()
+        # Add an expired warning (25h ago)
+        old_ts = datetime.now().astimezone() - timedelta(hours=25)
+        canvas._recent_warnings.append((old_ts, "`old` — Expired warning"))
+        # Add a fresh warning
+        canvas.record_warning("Fresh warning")
+
+        result = canvas._build_warnings_section()
+        assert "Fresh warning" in result
+        assert "Expired warning" not in result
+        canvas._recent_warnings.clear()
+
+    def test_clear_warnings(self):
+        from slack import canvas
+
+        canvas._recent_warnings.clear()
+        canvas.record_warning("Warning 1")
+        canvas.record_warning("Warning 2")
+        assert len(canvas._recent_warnings) == 2
+        canvas.clear_warnings()
+        assert len(canvas._recent_warnings) == 0
 
 
 class TestAdminTimingConfiguration:

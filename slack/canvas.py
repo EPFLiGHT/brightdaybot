@@ -19,6 +19,7 @@ from config import (
     CANVAS_RECENT_CHANGES_MAX,
     CANVAS_SETTINGS_FILE,
     CANVAS_WARNINGS_MAX,
+    CANVAS_WARNINGS_TTL_HOURS,
     OPS_CHANNEL_ID,
     SLACK_HISTORY_PAGE_SIZE,
 )
@@ -29,7 +30,9 @@ logger = get_logger("slack")
 # Module state
 _recent_changes = collections.deque(maxlen=CANVAS_RECENT_CHANGES_MAX)
 _recent_warnings = collections.deque(maxlen=CANVAS_WARNINGS_MAX)
+_warnings_ttl_seconds = CANVAS_WARNINGS_TTL_HOURS * 3600
 _last_update_time = None
+_last_sched_ok = None
 _update_lock = threading.Lock()
 
 
@@ -195,7 +198,9 @@ def _update_channel_topic(app, channel_id):
         # Total special days count
         sd_total = len(load_all_special_days())
 
-        # Data fingerprint for change detection (emoji-free to avoid
+        global _last_sched_ok
+
+        # Data fingerprints for change detection (emoji-free to avoid
         # Slack's Unicode → :emoji: conversion mismatch on readback)
         data_fingerprint = f"{active}/{total} active"
         sd_fingerprint = f"{sd_total} special days"
@@ -206,6 +211,11 @@ def _update_channel_topic(app, channel_id):
             f"🌍 {sd_fingerprint} | "
             f"⚙️ {'✅' if sched_ok else '⚠️'}"
         )
+
+        # Track scheduler status changes in memory (can't use emoji in
+        # topic comparison — Slack converts Unicode to :emoji: shortcodes)
+        sched_changed = _last_sched_ok is not None and _last_sched_ok != sched_ok
+        _last_sched_ok = sched_ok
 
         # Read current topic/purpose to decide whether to update
         try:
@@ -223,6 +233,7 @@ def _update_channel_topic(app, channel_id):
             "BrightDayBot Ops" in current_topic
             and data_fingerprint in current_topic
             and sd_fingerprint in current_topic
+            and not sched_changed
         )
 
         if not topic_data_unchanged:
@@ -262,13 +273,15 @@ def _build_dashboard_markdown(app=None):
         f"## 🕐 Last refreshed: `{timestamp}`",
         _build_birthday_section(app),
         _build_health_section(),
+    ]
+    if warnings_section:
+        sections.append(warnings_section)
+    sections += [
         _build_engagement_section(),
         _build_scheduler_section(),
         _build_observances_section(),
         _build_backups_section(app),
     ]
-    if warnings_section:
-        sections.append(warnings_section)
     sections.append("*🔄 Auto-updates on birthday changes and every half hour.*")
 
     return "\n\n---\n\n".join(sections)
@@ -818,11 +831,17 @@ def _replace_canvas_content(app, canvas_id, markdown):
 
 
 def _build_warnings_section():
-    """Build recent warnings section, or return None if no warnings."""
-    snapshot = list(_recent_warnings)
-    if not snapshot:
+    """Build recent warnings section, or return None if no active warnings."""
+    now = datetime.now().astimezone()
+    ttl_seconds = _warnings_ttl_seconds
+    active = [
+        (ts, text)
+        for ts, text in list(_recent_warnings)
+        if (now - ts).total_seconds() < ttl_seconds
+    ]
+    if not active:
         return None
-    lines = "\n".join(f"- {w}" for w in reversed(snapshot))
+    lines = "\n".join(f"- {text}" for _, text in reversed(active))
     return f"""## ⚠️ Recent Warnings
 {lines}"""
 
@@ -838,8 +857,14 @@ def record_change(change_text):
 
 def record_warning(warning_text):
     """Record a warning for display in the canvas dashboard."""
-    timestamp = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z")
-    _recent_warnings.append(f"`{timestamp}` — {warning_text}")
+    now = datetime.now().astimezone()
+    display = f"`{now.strftime('%Y-%m-%d %H:%M %Z')}` — {warning_text}"
+    _recent_warnings.append((now, display))
+
+
+def clear_warnings():
+    """Clear all warnings from the canvas dashboard."""
+    _recent_warnings.clear()
 
 
 def update_canvas(app, reason="periodic", force=False):
@@ -918,11 +943,19 @@ def get_canvas_status():
     last_update = (
         _last_update_time.isoformat() if _last_update_time else settings.get("canvas_updated_at")
     )
+    # Count only non-expired warnings
+    now = datetime.now().astimezone()
+    ttl_seconds = _warnings_ttl_seconds
+    active_warnings = sum(
+        1 for ts, _ in list(_recent_warnings) if (now - ts).total_seconds() < ttl_seconds
+    )
+
     return {
         "enabled": CANVAS_DASHBOARD_ENABLED,
         "canvas_id": settings.get("canvas_id"),
         "channel_id": OPS_CHANNEL_ID,
         "recent_changes": len(_recent_changes),
+        "active_warnings": active_warnings,
         "last_update": last_update,
         "backup_permalink": settings.get("backup_permalink"),
         "backup_cache_key": settings.get("backup_cache_key"),
