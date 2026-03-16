@@ -495,30 +495,126 @@ def check_and_announce_special_days(app, moment):
             logger.error("SPECIAL_DAYS: No channel configured for announcements")
             return False
 
-        # Always send separate announcements for each observance
-        if len(special_days) >= 1:
+        from config import SPECIAL_DAY_CONSOLIDATED_ENABLED, SPECIAL_DAYS_PERSONALITY
+        from services.special_day import generate_special_day_details
+
+        # Consolidated mode: one message for multiple observances
+        if SPECIAL_DAY_CONSOLIDATED_ENABLED and len(special_days) > 1:
+            logger.info(
+                f"SPECIAL_DAYS: Sending consolidated announcement ({len(special_days)} observances)"
+            )
+
+            from services.special_day import generate_consolidated_intro_message
+            from slack.blocks import build_consolidated_special_day_blocks
+
+            # Generate intro
+            intro = generate_consolidated_intro_message(special_days, app=app)
+
+            # Generate individual teasers and details (parallel if multiple)
+            from config.settings import run_parallel
+
+            def _generate_for_sd(sd):
+                teaser = generate_special_day_message(
+                    [sd], app=app, use_teaser=True, suppress_mention=True
+                )
+                details = generate_special_day_details([sd], app=app)
+                return teaser or "", details or ""
+
+            results = run_parallel(_generate_for_sd, special_days)
+
+            teasers = {}
+            detailed_contents = {}
+            for sd, result in results.items():
+                if result:
+                    teasers[sd.name] = result[0]
+                    detailed_contents[sd.name] = result[1]
+                else:
+                    logger.error(f"SPECIAL_DAYS: Failed to generate for {sd.name}")
+                    teasers[sd.name] = ""
+                    detailed_contents[sd.name] = ""
+
+            # Build and send consolidated message
+            blocks, fallback_text = build_consolidated_special_day_blocks(
+                special_days,
+                intro,
+                teasers,
+                detailed_contents,
+                personality=SPECIAL_DAYS_PERSONALITY,
+                observance_date=moment.strftime("%d/%m"),
+            )
+
+            result = send_message(app, channel, fallback_text, blocks)
+
+            if result["success"]:
+                message_ts = result.get("ts")
+                if message_ts:
+                    try:
+                        app.client.reactions_add(
+                            channel=channel, timestamp=message_ts, name="sparkles"
+                        )
+                    except Exception as react_error:
+                        if "already_reacted" not in str(react_error):
+                            logger.debug(f"SPECIAL_DAYS: Could not add reaction: {react_error}")
+
+                    if SPECIAL_DAY_THREAD_ENABLED:
+                        try:
+                            from storage.thread_tracking import get_thread_tracker
+
+                            tracker = get_thread_tracker()
+                            tracker.track_special_day_thread(
+                                channel=channel,
+                                thread_ts=message_ts,
+                                special_days=special_days,
+                                personality=SPECIAL_DAYS_PERSONALITY,
+                            )
+                        except Exception as track_error:
+                            logger.warning(f"SPECIAL_DAYS: Failed to track thread: {track_error}")
+
+                mark_special_day_announced(moment)
+                logger.info(
+                    f"SPECIAL_DAYS: Consolidated announcement sent ({len(special_days)} observances)"
+                )
+                _update_channel_topic_with_special_days(app, special_days, channel)
+                return True
+            else:
+                logger.error("SPECIAL_DAYS: Failed to send consolidated announcement")
+                return False
+
+        # Individual mode: separate messages per observance (single day or consolidated disabled)
+        elif len(special_days) >= 1:
             logger.info(f"SPECIAL_DAYS: Sending {len(special_days)} separate announcement(s)")
+
+            # Pre-generate all AI content, then send sequentially
+            from config.settings import run_parallel
+
+            def _generate_individual(sd):
+                teaser = generate_special_day_message([sd], app=app, use_teaser=True)
+                details = generate_special_day_details([sd], app=app)
+                return teaser, details
+
+            results = run_parallel(_generate_individual, special_days)
+
+            generated = {}
+            for sd, result in results.items():
+                if result:
+                    generated[sd.name] = result
+                else:
+                    logger.error(f"SPECIAL_DAYS: Failed to generate for {sd.name}")
+                    generated[sd.name] = (None, None)
+
+            # Send messages sequentially (preserves channel order)
+            from slack.blocks import build_special_day_blocks
 
             announcements_sent = 0
             for special_day in special_days:
                 try:
-                    # Generate individual message for this observance
-                    message = generate_special_day_message([special_day], app=app, use_teaser=True)
+                    message, detailed_content = generated.get(special_day.name, (None, None))
 
                     if not message:
                         logger.error(
                             f"SPECIAL_DAYS: Failed to generate message for {special_day.name}"
                         )
                         continue
-
-                    # Generate detailed content for this observance
-                    from services.special_day import generate_special_day_details
-
-                    detailed_content = generate_special_day_details([special_day], app=app)
-
-                    # Build blocks for this individual observance (unified function with list)
-                    from config import SPECIAL_DAYS_PERSONALITY
-                    from slack.blocks import build_special_day_blocks
 
                     blocks, fallback_text = build_special_day_blocks(
                         [special_day],
@@ -527,7 +623,6 @@ def check_and_announce_special_days(app, moment):
                         detailed_content=detailed_content,
                     )
 
-                    # Send this individual announcement
                     result = send_message(app, channel, fallback_text, blocks)
 
                     if result["success"]:
@@ -536,15 +631,11 @@ def check_and_announce_special_days(app, moment):
                             f"SPECIAL_DAYS: Sent announcement {announcements_sent}/{len(special_days)}: {special_day.name}"
                         )
 
-                        # Track thread for engagement (respond to replies)
                         message_ts = result.get("ts")
                         if message_ts:
-                            # Add reaction to special day announcement
                             try:
                                 app.client.reactions_add(
-                                    channel=channel,
-                                    timestamp=message_ts,
-                                    name="sparkles",  # ✨
+                                    channel=channel, timestamp=message_ts, name="sparkles"
                                 )
                             except Exception as react_error:
                                 if "already_reacted" not in str(react_error):
@@ -552,7 +643,6 @@ def check_and_announce_special_days(app, moment):
                                         f"SPECIAL_DAYS: Could not add reaction: {react_error}"
                                     )
 
-                            # Track thread if enabled
                             if SPECIAL_DAY_THREAD_ENABLED:
                                 try:
                                     from storage.thread_tracking import get_thread_tracker
@@ -577,15 +667,11 @@ def check_and_announce_special_days(app, moment):
                     logger.error(f"SPECIAL_DAYS: Error announcing {special_day.name}: {e}")
 
             if announcements_sent > 0:
-                # Mark as announced if at least one announcement succeeded
                 mark_special_day_announced(moment)
                 logger.info(
                     f"SPECIAL_DAYS: Successfully sent {announcements_sent}/{len(special_days)} announcement(s)"
                 )
-
-                # Update channel topic if enabled
                 _update_channel_topic_with_special_days(app, special_days, channel)
-
                 return True
             else:
                 logger.error("SPECIAL_DAYS: Failed to send any announcements")

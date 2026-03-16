@@ -349,56 +349,105 @@ def handle_admin_special_command(args, user_id, say, app):
             test_date_str = format_date_european_short(test_date)
             say(f"🧪 Testing special day announcement for {test_date_str}...")
 
-            # Always send separate announcements for each observance
-            if len(special_days) >= 1:
+            from config import SPECIAL_DAY_CONSOLIDATED_ENABLED, SPECIAL_DAYS_PERSONALITY
+            from services.special_day import generate_special_day_details
+            from slack.messaging import send_message
+
+            # Consolidated mode for multiple observances
+            if SPECIAL_DAY_CONSOLIDATED_ENABLED and len(special_days) > 1:
+                say(
+                    f"📋 Generating consolidated test announcement ({len(special_days)} observances)..."
+                )
+
+                from services.special_day import generate_consolidated_intro_message
+                from slack.blocks import build_consolidated_special_day_blocks
+
+                intro = generate_consolidated_intro_message(special_days, app=app)
+
+                from config.settings import run_parallel
+
+                def _generate_for_sd(sd):
+                    teaser = generate_special_day_message(
+                        [sd],
+                        test_mode=True,
+                        app=app,
+                        use_teaser=True,
+                        suppress_mention=True,
+                        test_date=test_date,
+                    )
+                    details = generate_special_day_details([sd], app=app, test_date=test_date)
+                    return teaser or "", details or ""
+
+                results = run_parallel(_generate_for_sd, special_days)
+
+                teasers = {}
+                detailed_contents = {}
+                for sd, result in results.items():
+                    if result:
+                        teasers[sd.name] = result[0]
+                        detailed_contents[sd.name] = result[1]
+                    else:
+                        logger.error(f"SPECIAL_DAYS: Failed to generate for {sd.name}")
+                        teasers[sd.name] = ""
+                        detailed_contents[sd.name] = ""
+
+                blocks, fallback_text = build_consolidated_special_day_blocks(
+                    special_days,
+                    intro,
+                    teasers,
+                    detailed_contents,
+                    personality=SPECIAL_DAYS_PERSONALITY,
+                    observance_date=test_date.strftime("%d/%m"),
+                )
+
+                send_message(app, user_id, fallback_text, blocks)
+                say(
+                    f"\n✅ Sent consolidated announcement ({len(special_days)} observances) to your DM"
+                )
+
+            # Individual mode: separate messages per observance
+            elif len(special_days) >= 1:
                 say(f"📋 Sending {len(special_days)} separate test announcement(s)")
 
-                for idx, special_day in enumerate(special_days, 1):
-                    try:
-                        # say(
-                        #     f"\n*{idx}/{len(special_days)}: {special_day.name}* ({special_day.category})"
-                        # )
+                # Pre-generate all AI content
+                from config.settings import run_parallel
 
-                        # Generate individual message
-                        message = generate_special_day_message(
+                def _generate_individual(sd):
+                    teaser = generate_special_day_message(
+                        [sd],
+                        test_mode=True,
+                        app=app,
+                        use_teaser=True,
+                        test_date=test_date,
+                    )
+                    details = generate_special_day_details([sd], app=app, test_date=test_date)
+                    return teaser, details
+
+                results = run_parallel(_generate_individual, special_days)
+
+                generated = {}
+                for sd, result in results.items():
+                    if result:
+                        generated[sd.name] = result
+                    else:
+                        logger.error(f"SPECIAL_DAYS: Failed to generate for {sd.name}")
+                        generated[sd.name] = (None, None)
+
+                # Send sequentially
+                from slack.blocks import build_special_day_blocks
+
+                for special_day in special_days:
+                    message, detailed_content = generated.get(special_day.name, (None, None))
+                    if message:
+                        blocks, fallback_text = build_special_day_blocks(
                             [special_day],
-                            test_mode=True,
-                            app=app,
-                            use_teaser=True,
-                            test_date=test_date,
+                            message,
+                            personality=SPECIAL_DAYS_PERSONALITY,
+                            detailed_content=detailed_content,
                         )
-
-                        # Generate detailed content
-                        from services.special_day import (
-                            generate_special_day_details,
-                        )
-
-                        detailed_content = generate_special_day_details(
-                            [special_day], app=app, test_date=test_date
-                        )
-
-                        if message:
-                            # Build blocks for individual observance (unified function with list)
-                            from config import SPECIAL_DAYS_PERSONALITY
-                            from slack.blocks import build_special_day_blocks
-
-                            blocks, fallback_text = build_special_day_blocks(
-                                [special_day],
-                                message,
-                                personality=SPECIAL_DAYS_PERSONALITY,
-                                detailed_content=detailed_content,
-                            )
-
-                            # Send individual announcement to admin DM
-                            from slack.messaging import send_message
-
-                            send_message(app, user_id, fallback_text, blocks)
-
-                        else:
-                            say(f"❌ Failed to generate message for {special_day.name}")
-
-                    except Exception as e:
-                        say(f"❌ Error testing {special_day.name}: {e}")
+                        send_message(app, user_id, fallback_text, blocks)
+                    else:
+                        say(f"❌ Failed to generate message for {special_day.name}")
 
                 say(f"\n✅ Sent {len(special_days)} separate announcement(s) to your DM")
         else:
