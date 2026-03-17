@@ -490,7 +490,7 @@ RELIGIOUS_HOLIDAYS_WHITELIST = [
 # Uses crawl4ai for intelligent scraping (pip install crawl4ai && crawl4ai-setup)
 UN_OBSERVANCES_ENABLED = os.getenv("UN_OBSERVANCES_ENABLED", "true").lower() == "true"
 UN_OBSERVANCES_URL = "https://www.un.org/en/observances/list-days-weeks"
-UN_OBSERVANCES_CACHE_TTL_DAYS = int(os.getenv("UN_OBSERVANCES_CACHE_TTL_DAYS", "7"))
+UN_OBSERVANCES_CACHE_TTL_DAYS = int(os.getenv("UN_OBSERVANCES_CACHE_TTL_DAYS", "180"))
 UN_OBSERVANCES_CACHE_DIR = os.path.join(CACHE_DIR, "un_observances")
 UN_OBSERVANCES_CACHE_FILE = os.path.join(UN_OBSERVANCES_CACHE_DIR, "un_days.json")
 
@@ -499,7 +499,7 @@ UN_OBSERVANCES_CACHE_FILE = os.path.join(UN_OBSERVANCES_CACHE_DIR, "un_days.json
 # UNESCO International Days scraped from official UNESCO website
 UNESCO_OBSERVANCES_ENABLED = os.getenv("UNESCO_OBSERVANCES_ENABLED", "true").lower() == "true"
 UNESCO_OBSERVANCES_URL = "https://www.unesco.org/en/days/list"
-UNESCO_OBSERVANCES_CACHE_TTL_DAYS = int(os.getenv("UNESCO_OBSERVANCES_CACHE_TTL_DAYS", "30"))
+UNESCO_OBSERVANCES_CACHE_TTL_DAYS = int(os.getenv("UNESCO_OBSERVANCES_CACHE_TTL_DAYS", "180"))
 UNESCO_OBSERVANCES_CACHE_DIR = os.path.join(CACHE_DIR, "unesco_observances")
 UNESCO_OBSERVANCES_CACHE_FILE = os.path.join(UNESCO_OBSERVANCES_CACHE_DIR, "unesco_days.json")
 
@@ -508,7 +508,7 @@ UNESCO_OBSERVANCES_CACHE_FILE = os.path.join(UNESCO_OBSERVANCES_CACHE_DIR, "unes
 # WHO Health Days scraped from official WHO website
 WHO_OBSERVANCES_ENABLED = os.getenv("WHO_OBSERVANCES_ENABLED", "true").lower() == "true"
 WHO_OBSERVANCES_URL = "https://www.who.int/campaigns"
-WHO_OBSERVANCES_CACHE_TTL_DAYS = int(os.getenv("WHO_OBSERVANCES_CACHE_TTL_DAYS", "30"))
+WHO_OBSERVANCES_CACHE_TTL_DAYS = int(os.getenv("WHO_OBSERVANCES_CACHE_TTL_DAYS", "180"))
 WHO_OBSERVANCES_CACHE_DIR = os.path.join(CACHE_DIR, "who_observances")
 WHO_OBSERVANCES_CACHE_FILE = os.path.join(WHO_OBSERVANCES_CACHE_DIR, "who_days.json")
 
