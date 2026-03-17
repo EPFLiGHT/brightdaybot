@@ -597,15 +597,22 @@ class CalendarificClient:
             logger.info("CALENDARIFIC: Cleared all cache")
 
     def get_cached_holiday_count(self) -> int:
-        """Count cached holidays that have valid dates."""
+        """Count unique cached holidays by DD/MM + name (recurring yearly)."""
         cache_data = self._load_consolidated_cache()
-        count = 0
+        seen = set()
         for entry in cache_data.get("entries", {}).values():
             for h in entry.get("holidays", []):
                 date_info = h.get("date", {})
                 if isinstance(date_info, dict) and date_info.get("iso"):
-                    count += 1
-        return count
+                    try:
+                        iso = date_info["iso"].split("T")[0]
+                        dt = datetime.fromisoformat(iso)
+                        dd_mm = dt.strftime("%d/%m")
+                    except (ValueError, KeyError):
+                        continue
+                    name = h.get("name", "").lower().strip()
+                    seen.add((dd_mm, name))
+        return len(seen)
 
     def get_api_status(self) -> Dict:
         """Get current API status and statistics."""
