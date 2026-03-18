@@ -612,10 +612,10 @@ def format_timezone_schedule(app=None):
                 user_mentions = f"({', '.join(mentions)})"
 
         # More compact and readable format
-        lines.append(f"• *{utc_time.strftime('%H:%M')} UTC* ({offset_display}) {user_mentions}")
+        lines.append(f"• *`{utc_time.strftime('%H:%M')}` UTC* ({offset_display}) {user_mentions}")
 
     lines.append(
-        f"\n_Celebrations happen at {TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')} local time in each timezone_"
+        f"\n_Celebrations happen at `{TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')}` local time in each timezone_"
     )
 
     return "\n".join(lines)
