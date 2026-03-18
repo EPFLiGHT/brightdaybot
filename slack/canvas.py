@@ -530,7 +530,7 @@ def _build_scheduler_section():
 - **Jobs:** {jobs} · **Success rate:** {success_rate}%
 - **Executions:** {total} total · {failed} failed
 {timing_line}
-- **Started:** {started}{uptime_text}"""
+- **Started:** `{started}`{uptime_text}"""
 
     except Exception as e:
         logger.error(f"CANVAS: Failed to build scheduler section: {e}")
