@@ -634,6 +634,9 @@ SLACK_MAX_BLOCKS = 50  # Maximum blocks per message (Slack API limit)
 SLACK_MEMBERS_PAGE_SIZE = 1000  # Pagination limit for conversations_members
 SLACK_HISTORY_PAGE_SIZE = 128  # Pagination limit for conversations_history
 SLACK_FILE_TITLE_MAX_LENGTH = 100  # Max chars for readable Slack file titles
+SLACK_SECTION_TEXT_MAX_LENGTH = (
+    2800  # Safe limit for mrkdwn section blocks (Slack hard limit: 3000)
+)
 
 # Announcement tracking
 ANNOUNCEMENT_RETENTION_DAYS = 60  # Days to keep announcement history

@@ -12,6 +12,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 from config import (
+    SLACK_SECTION_TEXT_MAX_LENGTH,
     SPECIAL_DAY_DETAILS_CACHE_FILE,
     SPECIAL_DAY_DETAILS_CACHE_TTL_DAYS,
     UPCOMING_DAYS_DEFAULT,
@@ -35,11 +36,14 @@ def _load_details_cache():
 
 
 def _save_details_cache(cache):
-    """Save the details cache to disk."""
+    """Save the details cache to disk atomically (write-to-temp-then-rename)."""
     try:
-        os.makedirs(os.path.dirname(SPECIAL_DAY_DETAILS_CACHE_FILE), exist_ok=True)
-        with open(SPECIAL_DAY_DETAILS_CACHE_FILE, "w") as f:
+        cache_dir = os.path.dirname(SPECIAL_DAY_DETAILS_CACHE_FILE)
+        os.makedirs(cache_dir, exist_ok=True)
+        tmp_path = SPECIAL_DAY_DETAILS_CACHE_FILE + ".tmp"
+        with open(tmp_path, "w") as f:
             json.dump(cache, f, indent=2)
+        os.replace(tmp_path, SPECIAL_DAY_DETAILS_CACHE_FILE)
     except OSError:
         pass
 
@@ -684,8 +688,8 @@ def build_special_days_list_blocks(
                         # User view: simple format with bullet points
                         entry = f"• {emoji}{day.date} - {day.name}\n"
 
-                    # Check if adding this entry would exceed limit (2800 to be safe)
-                    if len(month_text) + len(entry) > 2800:
+                    # Check if adding this entry would exceed Slack section text limit
+                    if len(month_text) + len(entry) > SLACK_SECTION_TEXT_MAX_LENGTH:
                         # Flush current text and start new block
                         blocks.append(
                             {

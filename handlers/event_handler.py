@@ -288,26 +288,27 @@ def register_event_handlers(app):
 
             blocks.append({"type": "divider"})
 
-            # Split long content across section blocks (Slack 3000-char limit per block)
-            if len(description) > 2800:
-                # Split at a paragraph boundary near the midpoint
-                mid = len(description) // 2
-                split_pos = description.rfind("\n\n", 0, mid + 200)
+            # Split long content across section blocks (Slack limit per block)
+            from config import SLACK_SECTION_TEXT_MAX_LENGTH
+
+            remaining = description
+            while remaining:
+                if len(remaining) <= SLACK_SECTION_TEXT_MAX_LENGTH:
+                    blocks.append(
+                        {"type": "section", "text": {"type": "mrkdwn", "text": remaining}}
+                    )
+                    break
+                # Find a paragraph or line boundary within the safe range
+                limit = SLACK_SECTION_TEXT_MAX_LENGTH
+                split_pos = remaining.rfind("\n\n", 0, limit)
                 if split_pos == -1:
-                    split_pos = description.rfind("\n", 0, mid + 200)
+                    split_pos = remaining.rfind("\n", 0, limit)
                 if split_pos == -1:
-                    split_pos = mid
+                    split_pos = limit
                 blocks.append(
-                    {"type": "section", "text": {"type": "mrkdwn", "text": description[:split_pos]}}
+                    {"type": "section", "text": {"type": "mrkdwn", "text": remaining[:split_pos]}}
                 )
-                blocks.append(
-                    {
-                        "type": "section",
-                        "text": {"type": "mrkdwn", "text": description[split_pos:].lstrip()},
-                    }
-                )
-            else:
-                blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": description}})
+                remaining = remaining[split_pos:].lstrip()
 
             # Official source button at the bottom
             if url:
