@@ -595,11 +595,27 @@ class TestCanvasHealthSection:
         self, mock_model_info, mock_timezone_settings, mock_bot_celebration
     ):
         md = self._build(mock_model_info, mock_timezone_settings, mock_bot_celebration)
-        assert "Thread engagement" in md
-        assert "@-Mention Q&A" in md
+        assert "Threads" in md
+        assert "@-Mentions" in md
         assert "NLP dates" in md
         assert "AI images" in md
-        assert "Bot self-celebration" in md
+        assert "Bot birthday" in md
+
+    def test_shows_image_model_config(
+        self, mock_model_info, mock_timezone_settings, mock_bot_celebration
+    ):
+        md = self._build(mock_model_info, mock_timezone_settings, mock_bot_celebration)
+        assert "Image:" in md
+
+    def test_shows_expanded_feature_flags(
+        self, mock_model_info, mock_timezone_settings, mock_bot_celebration
+    ):
+        md = self._build(mock_model_info, mock_timezone_settings, mock_bot_celebration)
+        assert "SD images" in md
+        assert "Profiles" in md
+        assert "Web cache" in md
+        assert "Ext. backups" in md
+        assert "Custom emoji" in md
 
 
 class TestCanvasEngagementSection:
@@ -698,6 +714,26 @@ class TestCanvasObservancesSection:
             assert "Fresh" in md
             assert "2025-03-15" in md
 
+    def test_shows_config_line(self):
+        mock_status = {
+            "cache_fresh": True,
+            "observance_count": 10,
+            "last_updated": "2025-03-15T10:00:00",
+        }
+        sources = [("UN", MagicMock(), MagicMock(return_value=mock_status))]
+        with (
+            patch("integrations.observances.get_enabled_sources", return_value=sources),
+            patch("storage.special_days.load_all_special_days", return_value=[{"name": "x"}] * 10),
+        ):
+            from slack.canvas import _build_observances_section
+
+            md = _build_observances_section()
+            assert "Config" in md
+            assert "Mode" in md
+            assert "@-here" in md
+            assert "Topic update" in md
+            assert "Thread replies" in md
+
     def test_handles_source_error(self):
         def _raise():
             raise RuntimeError("fail")
@@ -737,6 +773,178 @@ class TestCanvasBackupsSection:
 
             md = _build_backups_section(app=None)
         assert "No backup files" in md
+
+
+class TestCanvasWarningsSection:
+    """Tests for canvas _build_warnings_section()."""
+
+    def test_no_warnings_returns_none(self):
+        from slack import canvas
+
+        canvas._recent_warnings.clear()
+        result = canvas._build_warnings_section()
+        assert result is None
+
+    def test_shows_warnings(self):
+        from slack import canvas
+
+        canvas._recent_warnings.clear()
+        canvas.record_warning("Test warning 1")
+        canvas.record_warning("Test warning 2")
+        result = canvas._build_warnings_section()
+        assert result is not None
+        assert "Recent Warnings" in result
+        assert "Test warning 1" in result
+        assert "Test warning 2" in result
+        canvas._recent_warnings.clear()
+
+    def test_record_warning_adds_timestamp(self):
+        from slack import canvas
+
+        canvas._recent_warnings.clear()
+        canvas.record_warning("Something broke")
+        assert len(canvas._recent_warnings) == 1
+        ts, display = canvas._recent_warnings[0]
+        assert "Something broke" in display
+        assert "—" in display  # timestamp separator
+        assert hasattr(ts, "timestamp")  # is a datetime
+        canvas._recent_warnings.clear()
+
+    def test_warnings_expire_after_ttl(self):
+        from datetime import timedelta
+
+        from slack import canvas
+
+        canvas._recent_warnings.clear()
+        # Add an expired warning (25h ago)
+        old_ts = datetime.now().astimezone() - timedelta(hours=25)
+        canvas._recent_warnings.append((old_ts, "`old` — Expired warning"))
+        # Add a fresh warning
+        canvas.record_warning("Fresh warning")
+
+        result = canvas._build_warnings_section()
+        assert "Fresh warning" in result
+        assert "Expired warning" not in result
+        canvas._recent_warnings.clear()
+
+    def test_clear_warnings(self):
+        from slack import canvas
+
+        canvas._recent_warnings.clear()
+        canvas.record_warning("Warning 1")
+        canvas.record_warning("Warning 2")
+        assert len(canvas._recent_warnings) == 2
+        canvas.clear_warnings()
+        assert len(canvas._recent_warnings) == 0
+
+
+class TestAdminTimingConfiguration:
+    """Tests for Timing & Configuration section in detailed admin status."""
+
+    def _build(
+        self,
+        system_status,
+        mock_scheduler,
+        mock_model_info,
+        mock_timezone_settings,
+        mock_thread_tracker,
+        mock_bot_celebration,
+        backup_dir,
+    ):
+        with patch("config.BACKUP_DIR", backup_dir):
+            from slack.blocks.admin import build_health_status_blocks
+
+            return build_health_status_blocks(system_status, detailed=True)
+
+    def test_has_timing_section(
+        self,
+        system_status,
+        mock_scheduler,
+        mock_model_info,
+        mock_timezone_settings,
+        mock_thread_tracker,
+        mock_bot_celebration,
+        backup_dir,
+    ):
+        blocks, _ = self._build(
+            system_status,
+            mock_scheduler,
+            mock_model_info,
+            mock_timezone_settings,
+            mock_thread_tracker,
+            mock_bot_celebration,
+            backup_dir,
+        )
+        texts = _extract_section_texts(blocks)
+        assert any("Timing & Configuration" in t for t in texts)
+
+    def test_shows_birthday_check_time(
+        self,
+        system_status,
+        mock_scheduler,
+        mock_model_info,
+        mock_timezone_settings,
+        mock_thread_tracker,
+        mock_bot_celebration,
+        backup_dir,
+    ):
+        blocks, _ = self._build(
+            system_status,
+            mock_scheduler,
+            mock_model_info,
+            mock_timezone_settings,
+            mock_thread_tracker,
+            mock_bot_celebration,
+            backup_dir,
+        )
+        texts = _extract_section_texts(blocks)
+        assert any("Birthday check" in t for t in texts)
+
+    def test_shows_special_days_config(
+        self,
+        system_status,
+        mock_scheduler,
+        mock_model_info,
+        mock_timezone_settings,
+        mock_thread_tracker,
+        mock_bot_celebration,
+        backup_dir,
+    ):
+        blocks, _ = self._build(
+            system_status,
+            mock_scheduler,
+            mock_model_info,
+            mock_timezone_settings,
+            mock_thread_tracker,
+            mock_bot_celebration,
+            backup_dir,
+        )
+        texts = _extract_section_texts(blocks)
+        assert any("Special days check" in t for t in texts)
+        assert any("@-here" in t for t in texts)
+        assert any("Image model" in t for t in texts)
+
+    def test_shows_rate_limit(
+        self,
+        system_status,
+        mock_scheduler,
+        mock_model_info,
+        mock_timezone_settings,
+        mock_thread_tracker,
+        mock_bot_celebration,
+        backup_dir,
+    ):
+        blocks, _ = self._build(
+            system_status,
+            mock_scheduler,
+            mock_model_info,
+            mock_timezone_settings,
+            mock_thread_tracker,
+            mock_bot_celebration,
+            backup_dir,
+        )
+        texts = _extract_section_texts(blocks)
+        assert any("rate limit" in t for t in texts)
 
 
 class TestCanvasFullDashboard:

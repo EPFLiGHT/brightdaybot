@@ -30,6 +30,7 @@ from slack.blocks.help import (
     build_welcome_blocks,
 )
 from slack.blocks.special_day import (
+    build_consolidated_special_day_blocks,
     build_special_day_blocks,
     build_special_day_stats_blocks,
     build_special_days_list_blocks,
@@ -48,6 +49,7 @@ __all__ = [
     "build_upcoming_birthdays_blocks",
     # Special day
     "build_special_day_blocks",
+    "build_consolidated_special_day_blocks",
     "build_weekly_special_days_blocks",
     "build_special_days_list_blocks",
     "build_special_day_stats_blocks",

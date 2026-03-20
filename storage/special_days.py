@@ -28,7 +28,6 @@ from config import (
     DEDUP_SIGNIFICANT_WORD_MIN_LENGTH,
     DEFAULT_ANNOUNCEMENT_TIME,
     MAX_BACKUPS,
-    RELIGIOUS_HOLIDAYS_ENABLED,
     SPECIAL_DAYS_CATEGORIES,
     SPECIAL_DAYS_CONFIG_FILE,
     SPECIAL_DAYS_ENABLED,
@@ -46,8 +45,8 @@ from config import (
     WEEKDAY_NAMES,
     WHO_OBSERVANCES_CACHE_FILE,
     WHO_OBSERVANCES_ENABLED,
+    get_logger,
 )
-from utils.log_setup import get_logger
 
 # Get dedicated logger for special days
 logger = get_logger("special_days")
@@ -257,31 +256,12 @@ def load_all_special_days() -> List[SpecialDay]:
         except Exception as e:
             logger.warning(f"Failed to load {source_name} observances cache: {e}")
 
-    # 3. Load Calendarific from consolidated cache
-    # Uses the same _dict_to_special_day() method as get_holidays_for_date()
+    # 3. Load Calendarific (all configured sources)
     if CALENDARIFIC_ENABLED and CALENDARIFIC_API_KEY:
         try:
-            from config import CALENDARIFIC_CACHE_FILE
             from integrations.calendarific import get_calendarific_client
 
-            client = get_calendarific_client()
-
-            if os.path.exists(CALENDARIFIC_CACHE_FILE):
-                try:
-                    with open(CALENDARIFIC_CACHE_FILE, "r") as f:
-                        cache_data = json.load(f)
-                        entries = cache_data.get("entries", {})
-                        # Iterate through all cached dates
-                        for date_key, entry in entries.items():
-                            holidays = entry.get("holidays", [])
-                            # Use client's conversion method for proper field mapping
-                            for h in holidays:
-                                special_day = client._dict_to_special_day(h)
-                                if special_day.date:  # Only add if date is valid
-                                    all_days.append(special_day)
-                except (json.JSONDecodeError, IOError) as e:
-                    logger.debug(f"Failed to read Calendarific cache: {e}")
-
+            all_days.extend(get_calendarific_client().get_all_cached_special_days())
         except Exception as e:
             logger.warning(f"Failed to load Calendarific cache: {e}")
 
@@ -587,12 +567,16 @@ def _deduplicate_special_days(special_days: List[SpecialDay]) -> List[SpecialDay
     if not special_days:
         return []
 
-    # Sort by source priority: UN first, then Calendarific, then others
-    source_priority = {"UN": 0, "WHO": 0, "UNESCO": 0, "Calendarific": 1}
+    # Sort by source priority: UN/WHO/UNESCO first, then Calendarific, then others
+    source_priority = {"UN": 0, "WHO": 0, "UNESCO": 0}
 
     def get_priority(day: SpecialDay) -> int:
         source = getattr(day, "source", "") or ""
-        return source_priority.get(source, 2)
+        if source in source_priority:
+            return source_priority[source]
+        if source.startswith("Calendarific"):
+            return 1
+        return 2
 
     sorted_days = sorted(special_days, key=get_priority)
 
@@ -720,48 +704,23 @@ def get_special_days_for_date(
         except Exception as e:
             logger.error(f"WHO_OBSERVANCES: Failed to fetch for {date_str}: {e}")
 
-    # Source 4: Calendarific API (if enabled) - Swiss national holidays
+    # Source 4: Calendarific (all configured sources)
     if CALENDARIFIC_ENABLED and CALENDARIFIC_API_KEY:
         try:
             from integrations.calendarific import get_calendarific_client
 
-            client = get_calendarific_client()
-            api_days = client.get_holidays_for_date(date)
-            special_days.extend(api_days)
-            if api_days:
-                logger.debug(f"CALENDARIFIC: Found {len(api_days)} holiday(s) for {date_str}")
+            cal_days = get_calendarific_client().get_holidays_for_date(date)
+            special_days.extend(cal_days)
+            if cal_days:
+                logger.debug(f"CALENDARIFIC: Found {len(cal_days)} holiday(s) for {date_str}")
         except Exception as e:
             logger.error(f"CALENDARIFIC: Failed to fetch for {date_str}: {e}")
 
-    # Source 5: Religious holidays from Saudi Arabia (if enabled)
-    if RELIGIOUS_HOLIDAYS_ENABLED and CALENDARIFIC_ENABLED and CALENDARIFIC_API_KEY:
-        try:
-            from integrations.calendarific import get_calendarific_client
-
-            client = get_calendarific_client()
-            religious_days = client.get_religious_holidays_for_date(date)
-            special_days.extend(religious_days)
-            if religious_days:
-                logger.debug(f"RELIGIOUS: Found {len(religious_days)} holiday(s) for {date_str}")
-        except Exception as e:
-            logger.error(f"RELIGIOUS: Failed to fetch for {date_str}: {e}")
-
-    # Source 6: Custom Company days from JSON (use pre-loaded if available)
+    # Source 5: Custom days from JSON (use pre-loaded if available)
     if custom_days is None:
         custom_days = load_special_days()
-    company_days = [d for d in custom_days if d.date == date_str and d.category == "Company"]
-    special_days.extend(company_days)
-
-    # If no external sources provided data, fall back to full JSON
-    if (
-        not UN_OBSERVANCES_ENABLED
-        and not UNESCO_OBSERVANCES_ENABLED
-        and not WHO_OBSERVANCES_ENABLED
-        and not (CALENDARIFIC_ENABLED and CALENDARIFIC_API_KEY)
-    ):
-        # Legacy mode: use custom JSON for everything
-        all_custom_days = [d for d in custom_days if d.date == date_str]
-        special_days = all_custom_days
+    matching_custom = [d for d in custom_days if d.date == date_str]
+    special_days.extend(matching_custom)
 
     # Filter by enabled status and enabled categories
     filtered_days = [
@@ -1094,17 +1053,15 @@ def update_category_status(category: str, enabled: bool) -> bool:
     return save_special_days_config(config)
 
 
-def has_announced_special_day_today(date: Optional[datetime] = None) -> bool:
+def get_announced_special_day_names(date: Optional[datetime] = None) -> set:
     """
-    Check if we've already announced special days for today.
-
-    Uses consolidated JSON tracking via storage/birthdays.py.
+    Get the set of special day names already announced today.
 
     Args:
         date: Optional date to check (defaults to today)
 
     Returns:
-        True if already announced, False otherwise
+        Set of announced special day names (lowercase), or empty set
     """
     from storage.birthdays import _load_announcements
 
@@ -1114,17 +1071,22 @@ def has_announced_special_day_today(date: Optional[datetime] = None) -> bool:
     date_str = date.strftime("%Y-%m-%d")
     data = _load_announcements()
 
-    return date_str in data.get("special_days", {})
+    entry = data.get("special_days", {}).get(date_str)
+    if isinstance(entry, dict):
+        return set(n.lower() for n in entry.get("names", []))
+    # Legacy format (just a timestamp string) — treat as "all announced"
+    if isinstance(entry, str):
+        return {"__all__"}
+    return set()
 
 
-def mark_special_day_announced(date: Optional[datetime] = None) -> bool:
+def mark_special_day_announced(date: Optional[datetime] = None, names: list = None) -> bool:
     """
-    Mark that we've announced special days for today.
-
-    Uses consolidated JSON tracking via storage/birthdays.py.
+    Mark specific special days as announced for today.
 
     Args:
         date: Optional date to mark (defaults to today)
+        names: List of special day names that were announced
 
     Returns:
         True if successful, False otherwise
@@ -1140,7 +1102,23 @@ def mark_special_day_announced(date: Optional[datetime] = None) -> bool:
     if "special_days" not in data:
         data["special_days"] = {}
 
-    data["special_days"][date_str] = datetime.now().isoformat()
+    # Merge with existing announced names
+    entry = data["special_days"].get(date_str)
+    if isinstance(entry, dict):
+        existing = set(entry.get("names", []))
+    elif isinstance(entry, str):
+        # Legacy format (timestamp string) — migrate: load all current day names
+        # to preserve the "all announced" semantics
+        current_days = get_special_days_for_date(date)
+        existing = set(d.name for d in current_days)
+    else:
+        existing = set()
+
+    new_names = list(existing | set(names or []))
+    data["special_days"][date_str] = {
+        "names": new_names,
+        "last_announced": datetime.now().isoformat(),
+    }
 
     if _save_announcements(data):
         logger.info(f"Marked special days as announced for {date_str}")

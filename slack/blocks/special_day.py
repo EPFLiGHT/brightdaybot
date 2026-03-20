@@ -2,12 +2,85 @@
 Special day-related Block Kit builders.
 
 Handles daily announcements, weekly digests, list displays, and statistics.
+Includes a file-backed cache for detailed content (avoids Slack button value limit,
+survives bot restarts).
 """
 
+import json
+import os
+import time
 from typing import Any, Dict, List, Optional
 
-from config import SLACK_BUTTON_VALUE_CHAR_LIMIT, UPCOMING_DAYS_DEFAULT, UPCOMING_DAYS_EXTENDED
+from config import (
+    SLACK_SECTION_TEXT_MAX_LENGTH,
+    SPECIAL_DAY_DETAILS_CACHE_FILE,
+    SPECIAL_DAY_DETAILS_CACHE_TTL_DAYS,
+    UPCOMING_DAYS_DEFAULT,
+    UPCOMING_DAYS_EXTENDED,
+)
 from config.personality import get_personality_display_name
+
+# --- Details cache (JSON file-backed) ---
+_details_cache_ttl = SPECIAL_DAY_DETAILS_CACHE_TTL_DAYS * 86400
+
+
+def _load_details_cache():
+    """Load the details cache from disk."""
+    try:
+        if os.path.exists(SPECIAL_DAY_DETAILS_CACHE_FILE):
+            with open(SPECIAL_DAY_DETAILS_CACHE_FILE, "r") as f:
+                return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        pass
+    return {}
+
+
+def _save_details_cache(cache):
+    """Save the details cache to disk atomically (write-to-temp-then-rename)."""
+    try:
+        cache_dir = os.path.dirname(SPECIAL_DAY_DETAILS_CACHE_FILE)
+        os.makedirs(cache_dir, exist_ok=True)
+        tmp_path = SPECIAL_DAY_DETAILS_CACHE_FILE + ".tmp"
+        with open(tmp_path, "w") as f:
+            json.dump(cache, f, indent=2)
+        os.replace(tmp_path, SPECIAL_DAY_DETAILS_CACHE_FILE)
+    except OSError:
+        pass
+
+
+def store_special_day_details(action_id, content, name=None, source=None, url=None):
+    """Store detailed content for a special day View Details button (persisted to disk)."""
+    store_special_day_details_batch(
+        {action_id: {"content": content, "name": name, "source": source, "url": url}}
+    )
+
+
+def store_special_day_details_batch(entries: Dict[str, dict]):
+    """Store multiple details entries in one file read/write cycle.
+
+    Args:
+        entries: Dict mapping action_id to {content, name, source, url}
+    """
+    if not entries:
+        return
+    cache = _load_details_cache()
+    now = time.time()
+    for action_id, data in entries.items():
+        cache[action_id] = {**data, "stored_at": now}
+    # Prune expired entries
+    cache = {k: v for k, v in cache.items() if (now - v.get("stored_at", 0)) < _details_cache_ttl}
+    _save_details_cache(cache)
+
+
+def get_special_day_details(action_id):
+    """Retrieve cached details by action_id. Returns dict or None if expired/missing."""
+    cache = _load_details_cache()
+    entry = cache.get(action_id)
+    if not entry:
+        return None
+    if (time.time() - entry.get("stored_at", 0)) >= _details_cache_ttl:
+        return None
+    return entry
 
 
 def _get_attr(obj, attr, default=None):
@@ -128,21 +201,27 @@ def build_special_day_blocks(
 
     if detailed_content or url:
         actions = []
+        name = _get_attr(special_day, "name", "Special Day")
+        name_slug = name.lower().replace(" ", "_")[:20]
 
-        # "View Details" button for detailed content
+        # "View Details" button — store content in cache, button value is just the name
+        # Include name slug in action_id to avoid collision when multiple days share a date
         if detailed_content:
-            # Slack button value limit: 2000 chars (using safety buffer)
-            truncated_details = detailed_content[:SLACK_BUTTON_VALUE_CHAR_LIMIT]
-            if len(detailed_content) > SLACK_BUTTON_VALUE_CHAR_LIMIT:
-                truncated_details += "...\n\nSee official source for complete information."
-
+            action_id = f"special_day_details_{date_str.replace('/', '_') if date_str else 'unknown'}_{name_slug}"
+            store_special_day_details(
+                action_id,
+                detailed_content,
+                name=name,
+                source=source,
+                url=url,
+            )
             actions.append(
                 {
                     "type": "button",
                     "text": {"type": "plain_text", "text": "📖 View Details"},
                     "style": "primary",
-                    "action_id": f"special_day_details_{date_str.replace('/', '_') if date_str else 'unknown'}",
-                    "value": truncated_details,
+                    "action_id": action_id,
+                    "value": name,
                 }
             )
 
@@ -152,7 +231,7 @@ def build_special_day_blocks(
                 {
                     "type": "button",
                     "text": {"type": "plain_text", "text": "🔗 Official Source"},
-                    "action_id": f"link_official_source_{date_str.replace('/', '_') if date_str else 'unknown'}",
+                    "action_id": f"link_official_source_{date_str.replace('/', '_') if date_str else 'unknown'}_{name_slug}",
                     "url": url,
                 }
             )
@@ -163,6 +242,156 @@ def build_special_day_blocks(
     # Generate fallback text
     fallback_text = f"{emoji} {_get_attr(special_day, 'name', 'Special Day')}"
 
+    return blocks, fallback_text
+
+
+def build_consolidated_special_day_blocks(
+    special_days: List[Any],
+    intro_message: str,
+    teasers: Dict[str, str],
+    detailed_contents: Dict[str, str],
+    personality: str = "chronicler",
+    observance_date: Optional[str] = None,
+) -> tuple[List[Dict[str, Any]], str]:
+    """
+    Build Block Kit structure for consolidated special day announcements.
+
+    Groups all observances for a given date into one message, each with its own
+    section (teaser, metadata, buttons) under a shared header.
+
+    Args:
+        special_days: List of SpecialDay objects/dicts for today
+        intro_message: AI-generated intro with @-here mention
+        teasers: Dict mapping observance name to AI teaser text
+        detailed_contents: Dict mapping observance name to detailed content
+        personality: Bot personality name
+        observance_date: Date string in DD/MM format
+
+    Returns:
+        Tuple of (blocks list, fallback_text string)
+    """
+    from config import SLACK_MAX_BLOCKS, SPECIAL_DAY_COMPACT_THRESHOLD
+
+    if not special_days:
+        return [], ""
+
+    count = len(special_days)
+    compact = count >= SPECIAL_DAY_COMPACT_THRESHOLD
+    personality_name = get_personality_display_name(personality)
+
+    # Format date for header
+    header_date = ""
+    if observance_date:
+        from datetime import datetime
+
+        from utils.date_utils import format_date_european_short
+
+        try:
+            date_obj = datetime.strptime(observance_date, "%d/%m")
+            header_date = f" — {format_date_european_short(date_obj)}"
+        except ValueError:
+            pass
+
+    # Header + intro (matches single-day: header block → section block)
+    blocks = [
+        {
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": f"📅 {count} Special Observances Today{header_date}",
+            },
+        },
+        {"type": "section", "text": {"type": "mrkdwn", "text": intro_message}},
+    ]
+
+    # Per-observance sections — mirrors single-day structure:
+    #   section (name + teaser) → context (source + personality) → actions (buttons)
+    cache_entries = {}  # Collect for batch write
+    for idx, day in enumerate(special_days):
+        name = _get_attr(day, "name", "Special Day")
+        emoji = _get_attr(day, "emoji", "🌍") or "🌍"
+        source = _get_attr(day, "source")
+        url = _get_attr(day, "url")
+        date_str = observance_date or _get_attr(day, "date")
+
+        # Subsection header with numbering + teaser
+        teaser = teasers.get(name, "")
+        label = f"*{emoji}  {idx + 1}/{count} · {name}*"
+        section_text = f"{label}\n{teaser}" if teaser else label
+
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": section_text}})
+
+        # Context block — matches single-day context (source + personality)
+        if not compact:
+            context_elements = []
+            if source:
+                context_elements.append({"type": "mrkdwn", "text": f"📋 *Source:* {source}"})
+            context_elements.append(
+                {"type": "mrkdwn", "text": f"✨ _Brought to you by {personality_name}_"}
+            )
+            blocks.append({"type": "context", "elements": context_elements})
+        else:
+            if source:
+                blocks[-1]["text"]["text"] += f"\n📋 _Source: {source}_"
+
+        # Buttons — collect cache entries for batch write
+        details = detailed_contents.get(name, "")
+        if details or url:
+            actions = []
+            if details:
+                action_id = f"special_day_details_{date_str.replace('/', '_') if date_str else 'unknown'}_{idx}"
+                cache_entries[action_id] = {
+                    "content": details,
+                    "name": name,
+                    "source": source,
+                    "url": url,
+                }
+                actions.append(
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "📖 View Details"},
+                        "style": "primary",
+                        "action_id": action_id,
+                        "value": name,
+                    }
+                )
+            if url:
+                actions.append(
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "🔗 Official Source"},
+                        "action_id": f"link_official_source_{date_str.replace('/', '_') if date_str else 'unknown'}_{idx}",
+                        "url": url,
+                    }
+                )
+            if actions:
+                blocks.append({"type": "actions", "elements": actions})
+
+    # Closing divider + footer
+    blocks.append({"type": "divider"})
+    # Batch write all cached details in one file I/O cycle
+    if cache_entries:
+        store_special_day_details_batch(cache_entries)
+
+    footer = f"📊 *{count} observance{'s' if count != 1 else ''}* today"
+    blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": footer}]})
+
+    # Safety: trim blocks to Slack limit
+    if len(blocks) > SLACK_MAX_BLOCKS:
+        blocks = blocks[: SLACK_MAX_BLOCKS - 1]
+        blocks.append(
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": f"_...and more. Use `/special-day` to see all {count} observances._",
+                    }
+                ],
+            }
+        )
+
+    fallback_text = f"📅 {count} Special Observances Today{header_date}"
     return blocks, fallback_text
 
 
@@ -459,8 +688,8 @@ def build_special_days_list_blocks(
                         # User view: simple format with bullet points
                         entry = f"• {emoji}{day.date} - {day.name}\n"
 
-                    # Check if adding this entry would exceed limit (2800 to be safe)
-                    if len(month_text) + len(entry) > 2800:
+                    # Check if adding this entry would exceed Slack section text limit
+                    if len(month_text) + len(entry) > SLACK_SECTION_TEXT_MAX_LENGTH:
                         # Flush current text and start new block
                         blocks.append(
                             {

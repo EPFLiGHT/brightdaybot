@@ -745,7 +745,7 @@ def handle_test_external_backup_command(user_id, say, app):
     backup_info = f"""📁 *Latest Backup File:*
 • File: {os.path.basename(latest_backup)}
 • Size: {round(os.path.getsize(latest_backup) / 1024, 1)} KB
-• Modified: {datetime.fromtimestamp(os.path.getmtime(latest_backup)).strftime('%Y-%m-%d %H:%M:%S')}"""
+• Modified: `{datetime.fromtimestamp(os.path.getmtime(latest_backup)).strftime('%Y-%m-%d %H:%M:%S')}`"""
 
     say(backup_info)
 

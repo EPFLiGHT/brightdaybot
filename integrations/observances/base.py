@@ -22,9 +22,8 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
-from config import HEALTH_CATEGORY_KEYWORDS, TECH_CATEGORY_KEYWORDS
+from config import HEALTH_CATEGORY_KEYWORDS, TECH_CATEGORY_KEYWORDS, get_logger
 from storage.special_days import SpecialDay
-from utils.log_setup import get_logger
 
 logger = get_logger("special_days")
 

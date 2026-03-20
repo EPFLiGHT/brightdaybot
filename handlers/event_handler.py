@@ -223,22 +223,39 @@ def register_event_handlers(app):
         events_logger.info("BUTTON_CLICKED: Acknowledged interaction")
 
         try:
-            # Extract the description from the button value
-            description = action.get("value", "No description available")
+            from slack.blocks.special_day import get_special_day_details
 
-            # Get the observance name from the button text context (with safe access)
-            blocks = body.get("message", {}).get("blocks", [])
-            observance_name = "Special Day"
-            if blocks and len(blocks) > 0:
-                first_block = blocks[0]
-                if isinstance(first_block, dict):
-                    observance_name = first_block.get("text", {}).get("text", "Special Day")
+            action_id = action.get("action_id", "")
+            button_value = action.get("value", "")
 
-            # Remove the emoji prefix if present
-            if observance_name.startswith("🌍 "):
-                observance_name = observance_name[3:]
+            # Try cache first (new flow), fall back to button value (legacy)
+            cached = get_special_day_details(action_id)
+            if cached:
+                description = cached["content"]
+                observance_name = cached.get("name") or button_value or "Special Day"
+                source = cached.get("source")
+                url = cached.get("url")
+            elif "\n---\n" in button_value:
+                # Legacy consolidated format
+                observance_name, description = button_value.split("\n---\n", 1)
+                source = None
+                url = None
+            else:
+                # Legacy single-observance format (details in button value)
+                description = button_value if len(button_value) > 50 else "No details available"
+                observance_name = button_value if len(button_value) <= 50 else "Special Day"
+                # Try header block for name
+                msg_blocks = body.get("message", {}).get("blocks", [])
+                if msg_blocks:
+                    first = msg_blocks[0]
+                    if isinstance(first, dict):
+                        header_text = first.get("text", {}).get("text", "")
+                        if header_text and len(header_text) < 100:
+                            observance_name = header_text.removeprefix("🌍 ")
+                source = None
+                url = None
 
-            # Safely extract channel and user IDs with None checks
+            # Safely extract channel and user IDs
             channel_id = body.get("channel", {}).get("id")
             user_id = body.get("user", {}).get("id")
 
@@ -249,49 +266,76 @@ def register_event_handlers(app):
                 return
 
             events_logger.info(
-                f"SPECIAL_DAY_DETAILS: User {user_id} clicked View Details for {observance_name} in channel {channel_id}"
+                f"SPECIAL_DAY_DETAILS: User {user_id} clicked View Details for {observance_name}"
             )
-            events_logger.info(f"SPECIAL_DAY_DETAILS: Description length: {len(description)} chars")
 
-            # Check if this is a DM (channel type is "im")
             channel_type = body.get("channel", {}).get("type", "unknown")
-            events_logger.info(f"SPECIAL_DAY_DETAILS: Channel type: {channel_type}")
 
-            # Build Block Kit structure for detailed content
+            # Build rich ephemeral display
             blocks = [
                 {
                     "type": "header",
-                    "text": {
-                        "type": "plain_text",
-                        "text": f"📖 {observance_name}",
-                    },
+                    "text": {"type": "plain_text", "text": f"📖 {observance_name}"},
                 },
-                {"type": "divider"},
-                {"type": "section", "text": {"type": "mrkdwn", "text": description}},
             ]
 
+            # Source context
+            context_elements = []
+            if source:
+                context_elements.append({"type": "mrkdwn", "text": f"📋 *Source:* {source}"})
+            if context_elements:
+                blocks.append({"type": "context", "elements": context_elements})
+
+            blocks.append({"type": "divider"})
+
+            # Split long content across section blocks (Slack limit per block)
+            from config import SLACK_SECTION_TEXT_MAX_LENGTH
+
+            remaining = description
+            while remaining:
+                if len(remaining) <= SLACK_SECTION_TEXT_MAX_LENGTH:
+                    blocks.append(
+                        {"type": "section", "text": {"type": "mrkdwn", "text": remaining}}
+                    )
+                    break
+                # Find a paragraph or line boundary within the safe range
+                limit = SLACK_SECTION_TEXT_MAX_LENGTH
+                split_pos = remaining.rfind("\n\n", 0, limit)
+                if split_pos == -1:
+                    split_pos = remaining.rfind("\n", 0, limit)
+                if split_pos == -1:
+                    split_pos = limit
+                blocks.append(
+                    {"type": "section", "text": {"type": "mrkdwn", "text": remaining[:split_pos]}}
+                )
+                remaining = remaining[split_pos:].lstrip()
+
+            # Official source button at the bottom
+            if url:
+                blocks.append(
+                    {
+                        "type": "actions",
+                        "elements": [
+                            {
+                                "type": "button",
+                                "text": {"type": "plain_text", "text": "🔗 Official Source"},
+                                "action_id": f"link_details_{action_id}",
+                                "url": url,
+                            }
+                        ],
+                    }
+                )
+
+            fallback = f"📖 {observance_name} - Details"
+
             if channel_type == "im":
-                # For DMs, send a regular message instead of ephemeral
-                # (ephemeral messages don't work well in DMs)
-                client.chat_postMessage(
-                    channel=channel_id,
-                    blocks=blocks,
-                    text=f"📖 {observance_name} - Details",  # Fallback text
-                )
-                events_logger.info(
-                    f"SPECIAL_DAY_DETAILS: Sent Block Kit message to DM for user {user_id}"
-                )
+                client.chat_postMessage(channel=channel_id, blocks=blocks, text=fallback)
+                events_logger.info(f"SPECIAL_DAY_DETAILS: Sent to DM for user {user_id}")
             else:
-                # For channels, use ephemeral message (only visible to the user who clicked)
                 client.chat_postEphemeral(
-                    channel=channel_id,
-                    user=user_id,
-                    blocks=blocks,
-                    text=f"📖 {observance_name} - Details",  # Fallback text
+                    channel=channel_id, user=user_id, blocks=blocks, text=fallback
                 )
-                events_logger.info(
-                    f"SPECIAL_DAY_DETAILS: Sent Block Kit ephemeral message in channel for user {user_id}"
-                )
+                events_logger.info(f"SPECIAL_DAY_DETAILS: Sent ephemeral for user {user_id}")
 
         except Exception as e:
             events_logger.error(f"SPECIAL_DAY_DETAILS_ERROR: Failed to show details: {e}")
@@ -491,7 +535,7 @@ def register_event_handlers(app):
             events_logger.debug(f"DM_THREAD: Ignoring thread reply from user {event.get('user')}")
             return
 
-        text = event.get("text", "").lower()
+        text = event.get("text", "").strip("`").strip().lower()
         user = event["user"]
 
         # Use our custom logger for events.log

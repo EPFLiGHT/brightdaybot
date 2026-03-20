@@ -1,21 +1,18 @@
 """
 Calendarific API Client for BrightDayBot
 
-Fetches international observances and holidays from Calendarific API
-with intelligent caching and rate limit management.
+Multi-source holiday fetcher with per-source caching and shared rate limiting.
+Each source represents a country/region with its own fetch strategy,
+category, emoji, and optional holiday name whitelist.
 
-Strategy: Weekly prefetch with 7-day cache
-- Fetch next 7 days once per week (~52 API calls/year)
-- Cache valid for 7 days
-- Daily checks read from cache only (no API calls)
-- Well under the 500 calls/month free tier limit
-
+Sources are configured in config/settings.py CALENDARIFIC_SOURCES.
 API docs: https://calendarific.com/api-documentation
 """
 
 import json
 import os
 import threading
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
@@ -25,28 +22,22 @@ from config import (
     CACHE_RETENTION_DAYS,
     CALENDARIFIC_API_KEY,
     CALENDARIFIC_CACHE_DIR,
-    CALENDARIFIC_CACHE_FILE,
     CALENDARIFIC_CACHE_TTL_DAYS,
-    CALENDARIFIC_COUNTRY,
     CALENDARIFIC_ENABLED,
     CALENDARIFIC_PREFETCH_DAYS,
     CALENDARIFIC_RATE_LIMIT_MONTHLY,
     CALENDARIFIC_RATE_WARNING_THRESHOLD,
-    CALENDARIFIC_STATE,
+    CALENDARIFIC_SOURCES,
+    CALENDARIFIC_SOURCES_STATE_FILE,
     CALENDARIFIC_STATS_FILE,
     HEALTH_CATEGORY_KEYWORDS,
-    RELIGIOUS_HOLIDAYS_CACHE_FILE,
-    RELIGIOUS_HOLIDAYS_COUNTRY,
-    RELIGIOUS_HOLIDAYS_ENABLED,
-    RELIGIOUS_HOLIDAYS_WHITELIST,
     TECH_CATEGORY_KEYWORDS,
     TIMEOUTS,
+    get_logger,
 )
-from utils.log_setup import get_logger
 
 logger = get_logger("calendarific")
 
-# Singleton client instance with thread lock
 _client: Optional["CalendarificClient"] = None
 _client_lock = threading.Lock()
 
@@ -61,766 +52,663 @@ def get_calendarific_client() -> "CalendarificClient":
     return _client
 
 
-class CalendarificClient:
-    """
-    Calendarific API client with weekly prefetch and caching.
+@dataclass
+class CalendarificSource:
+    """A configured Calendarific holiday source (country/region)."""
 
-    Strategy:
-    - Weekly prefetch: Fetch next 7 days once per week
-    - Cache-only reads: Daily checks never call API directly
-    - Rate limit: ~52 calls/year (well under 500/month free tier)
-    """
+    id: str
+    country: str
+    state: Optional[str] = None
+    enabled: bool = True
+    label: str = ""
+    category: str = "Holiday"
+    emoji: str = "📅"
+    whitelist: List[str] = field(default_factory=list)
+    fetch_strategy: str = "daily"  # "daily" or "yearly"
+    api_type: str = "national,local"
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "CalendarificSource":
+        return cls(
+            id=d["id"],
+            country=d["country"],
+            state=d.get("state"),
+            enabled=d.get("enabled", True),
+            label=d.get("label", d["country"]),
+            category=d.get("category", "Holiday"),
+            emoji=d.get("emoji", "📅"),
+            whitelist=d.get("whitelist", []),
+            fetch_strategy=d.get("fetch_strategy", "daily"),
+            api_type=d.get("api_type", "national,local"),
+        )
+
+    @property
+    def cache_file(self) -> str:
+        return os.path.join(CALENDARIFIC_CACHE_DIR, f"{self.id}_cache.json")
+
+    @property
+    def source_label(self) -> str:
+        return f"Calendarific ({self.country})"
+
+
+class CalendarificClient:
+    """Multi-source Calendarific API client with per-source caching."""
 
     BASE_URL = "https://calendarific.com/api/v2/holidays"
 
-    def __init__(self, api_key: str = None, country: str = None, state: str = None):
-        """
-        Initialize the Calendarific client.
-
-        Args:
-            api_key: API key (defaults to config)
-            country: Country code (defaults to config, e.g., "CH" for Switzerland)
-            state: State/canton code (defaults to config, e.g., "VD" for Vaud)
-        """
-        self.api_key = api_key or CALENDARIFIC_API_KEY
-        self.country = country or CALENDARIFIC_COUNTRY
-        self.state = state or CALENDARIFIC_STATE
+    def __init__(self):
+        self.api_key = CALENDARIFIC_API_KEY
         self.cache_dir = CALENDARIFIC_CACHE_DIR
         self.cache_ttl_days = CALENDARIFIC_CACHE_TTL_DAYS
+        self.sources = [CalendarificSource.from_dict(s) for s in CALENDARIFIC_SOURCES]
 
-        # Ensure cache directory exists
+        # Validate unique source IDs
+        ids = [s.id for s in self.sources]
+        if len(ids) != len(set(ids)):
+            dupes = [sid for sid in ids if ids.count(sid) > 1]
+            logger.error(f"CALENDARIFIC: Duplicate source IDs detected: {set(dupes)}")
+
+        # Apply persisted enabled/disabled state from file
+        self._apply_saved_state()
+
         if not os.path.exists(self.cache_dir):
             os.makedirs(self.cache_dir)
-            logger.info(f"CALENDARIFIC: Created cache directory {self.cache_dir}")
+
+    def _apply_saved_state(self):
+        """Override source enabled flags from persisted state file."""
+        try:
+            if os.path.exists(CALENDARIFIC_SOURCES_STATE_FILE):
+                with open(CALENDARIFIC_SOURCES_STATE_FILE, "r") as f:
+                    saved = json.load(f)
+                for src in self.sources:
+                    if src.id in saved:
+                        src.enabled = saved[src.id]
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    def save_source_state(self):
+        """Persist current enabled/disabled state to file."""
+        state = {src.id: src.enabled for src in self.sources}
+        try:
+            os.makedirs(os.path.dirname(CALENDARIFIC_SOURCES_STATE_FILE), exist_ok=True)
+            with open(CALENDARIFIC_SOURCES_STATE_FILE, "w") as f:
+                json.dump(state, f, indent=2)
+        except OSError:
+            pass
+
+    def get_enabled_sources(self) -> List[CalendarificSource]:
+        return [s for s in self.sources if s.enabled]
+
+    # ---- Per-date holiday access ----
 
     def get_holidays_for_date(self, date: datetime) -> List["SpecialDay"]:
-        """
-        Get holidays/observances for a specific date.
+        """Get holidays from all enabled sources for a specific date."""
+        results = []
+        for source in self.get_enabled_sources():
+            results.extend(self._get_source_holidays_for_date(source, date))
+        return results
 
-        Auto-fetches from API if cache is missing or stale (conserves rate limit
-        by only fetching the specific date, not the full weekly prefetch).
+    def _get_source_holidays_for_date(
+        self, source: CalendarificSource, date: datetime
+    ) -> List["SpecialDay"]:
+        cache_data = self._load_cache(source)
+        date_key = date.strftime("%Y-%m-%d")
 
-        Args:
-            date: Date to fetch holidays for
+        if source.fetch_strategy == "yearly":
+            cached_year = cache_data.get("year")
+            if not cache_data.get("cached_at") or cached_year != date.year:
+                logger.info(f"CALENDARIFIC [{source.id}]: Auto-populating yearly cache...")
+                self._prefetch_yearly(source, force=True)
+                cache_data = self._load_cache(source)
 
-        Returns:
-            List of SpecialDay objects
-        """
+            entry = cache_data.get("entries", {}).get(date_key)
+            if not entry:
+                return []
+            return [
+                self._dict_to_special_day(h, source)
+                for h in entry.get("holidays", [])
+                if self._matches_source_filter(h, source)
+            ]
 
-        # Check cache first
-        cached = self._load_from_cache(date)
+        # Daily strategy
+        entry = cache_data.get("entries", {}).get(date_key)
+        cached = entry.get("holidays") if entry else None
 
-        if cached is not None and self._is_cache_fresh(date):
-            logger.debug(f"CALENDARIFIC: Using cache for {date.strftime('%Y-%m-%d')}")
-            return [self._dict_to_special_day(h) for h in cached]
+        if cached is not None and self._is_entry_fresh(entry):
+            return [
+                self._dict_to_special_day(h, source)
+                for h in cached
+                if self._matches_source_filter(h, source)
+            ]
 
-        # Cache missing or stale - auto-fetch this specific date
         if not self.api_key:
-            logger.warning("CALENDARIFIC: No API key configured, cannot auto-fetch")
-            # Return stale cache if available
             if cached is not None:
-                return [self._dict_to_special_day(h) for h in cached]
+                return [
+                    self._dict_to_special_day(h, source)
+                    for h in cached
+                    if self._matches_source_filter(h, source)
+                ]
             return []
 
         try:
             self._check_rate_limit()
-            logger.info(f"CALENDARIFIC: Auto-fetching {date.strftime('%Y-%m-%d')}...")
-            holidays = self._fetch_from_api(date.year, date.month, date.day)
-            self._save_to_cache(date, holidays)
+            holidays = self._fetch_from_api(source, date.year, date.month, date.day)
+            self._save_entry(source, date, holidays)
             self._increment_rate_counter()
-            logger.info(
-                f"CALENDARIFIC: Fetched {len(holidays)} holidays for {date.strftime('%Y-%m-%d')}"
-            )
-            return [self._dict_to_special_day(h) for h in holidays]
-
-        except RateLimitExceeded as e:
-            logger.error(f"CALENDARIFIC: Rate limit exceeded: {e}")
-            # Return stale cache if available
-            if cached is not None:
-                return [self._dict_to_special_day(h) for h in cached]
-            return []
-
+            return [
+                self._dict_to_special_day(h, source)
+                for h in holidays
+                if self._matches_source_filter(h, source)
+            ]
         except Exception as e:
-            logger.warning(f"CALENDARIFIC: Auto-fetch failed: {e}")
-            # Return stale cache if available
+            logger.warning(f"CALENDARIFIC [{source.id}]: Fetch failed for {date_key}: {e}")
             if cached is not None:
-                return [self._dict_to_special_day(h) for h in cached]
+                return [self._dict_to_special_day(h, source) for h in cached]
             return []
 
-    def weekly_prefetch(self, days_ahead: int = None, force: bool = False) -> Dict[str, int]:
-        """
-        Prefetch holidays for upcoming days. Call this weekly (or manually).
+    # ---- Prefetching ----
 
-        This is the ONLY method that calls the API. It fetches the next N days
-        and caches them. Daily checks then read from this cache.
+    def prefetch_all(self, force: bool = False) -> Dict[str, dict]:
+        """Prefetch all enabled sources. Returns per-source stats."""
+        results = {}
+        for source in self.get_enabled_sources():
+            if source.fetch_strategy == "yearly":
+                results[source.id] = self._prefetch_yearly(source, force=force)
+            else:
+                results[source.id] = self._prefetch_daily(source, force=force)
+        self._update_last_prefetch()
+        return results
 
-        Args:
-            days_ahead: Number of days to prefetch (defaults to config)
-            force: If True, refresh even if cache is fresh
+    # Backward compatibility
+    def weekly_prefetch(self, days_ahead: int = None, force: bool = False) -> Dict:
+        return self.prefetch_all(force=force)
 
-        Returns:
-            Dictionary with prefetch statistics
-        """
+    def _prefetch_daily(
+        self, source: CalendarificSource, days_ahead: int = None, force: bool = False
+    ) -> Dict[str, int]:
         if days_ahead is None:
             days_ahead = CALENDARIFIC_PREFETCH_DAYS
-
         if not self.api_key:
-            logger.error("CALENDARIFIC: No API key configured")
-            return {"error": "No API key configured"}
+            return {"error": "No API key"}
 
-        stats = {
-            "fetched": 0,
-            "skipped": 0,
-            "failed": 0,
-            "holidays_found": 0,
-            "api_calls": 0,
-        }
-
+        stats = {"fetched": 0, "skipped": 0, "failed": 0, "holidays_found": 0, "api_calls": 0}
         today = datetime.now()
+        cache_data = self._load_cache(source)
+
+        all_fetched = []  # Collect for batch emoji enrichment
+        fetched_dates = []
 
         for i in range(days_ahead):
-            target_date = today + timedelta(days=i)
+            target = today + timedelta(days=i)
+            date_key = target.strftime("%Y-%m-%d")
 
-            # Skip if fresh cache exists (unless force=True)
-            if not force and self._is_cache_fresh(target_date):
-                stats["skipped"] += 1
-                continue
+            if not force:
+                entry = cache_data.get("entries", {}).get(date_key)
+                if entry and self._is_entry_fresh(entry):
+                    stats["skipped"] += 1
+                    continue
 
             try:
                 self._check_rate_limit()
-                holidays = self._fetch_from_api(
-                    target_date.year, target_date.month, target_date.day
-                )
-                self._save_to_cache(target_date, holidays)
+                holidays = self._fetch_from_api(source, target.year, target.month, target.day)
+                all_fetched.extend(holidays)
+                fetched_dates.append((target, holidays))
                 self._increment_rate_counter()
-
                 stats["fetched"] += 1
                 stats["api_calls"] += 1
                 stats["holidays_found"] += len(holidays)
-
-                logger.info(
-                    f"CALENDARIFIC: Fetched {len(holidays)} holidays for "
-                    f"{target_date.strftime('%Y-%m-%d')}"
-                )
-
-            except RateLimitExceeded as e:
-                logger.error(f"CALENDARIFIC: Rate limit exceeded: {e}")
+            except RateLimitExceeded:
                 stats["failed"] += 1
-                break  # Stop prefetching if rate limit hit
-
-            except requests.RequestException as e:
-                logger.warning(
-                    f"CALENDARIFIC: API request failed for "
-                    f"{target_date.strftime('%Y-%m-%d')}: {e}"
-                )
+                break
+            except Exception:
                 stats["failed"] += 1
 
-            except (json.JSONDecodeError, KeyError) as e:
-                logger.error(f"CALENDARIFIC: Failed to parse API response: {e}")
-                stats["failed"] += 1
+        # Batch emoji enrichment, then save
+        if all_fetched:
+            self._enrich_holidays_with_emojis(all_fetched)
+        for target, holidays in fetched_dates:
+            self._save_entry(source, target, holidays)
 
         logger.info(
-            f"CALENDARIFIC: Weekly prefetch complete - "
+            f"CALENDARIFIC [{source.id}]: Prefetch done — "
             f"fetched: {stats['fetched']}, skipped: {stats['skipped']}, "
-            f"failed: {stats['failed']}, holidays: {stats['holidays_found']}, "
-            f"API calls: {stats['api_calls']}"
+            f"holidays: {stats['holidays_found']}"
         )
-
-        # Update last prefetch timestamp
-        self._update_last_prefetch()
-
         return stats
 
-    def _fetch_from_api(self, year: int, month: int, day: int) -> List[Dict]:
-        """
-        Fetch holidays from Calendarific API.
+    def _prefetch_yearly(self, source: CalendarificSource, force: bool = False) -> Dict:
+        if not self.api_key:
+            return {"error": "No API key"}
 
-        Args:
-            year: Year to query
-            month: Month to query
-            day: Day to query
+        if not force:
+            cache_data = self._load_cache(source)
+            # Yearly sources: fresh if cached for the current year
+            cached_year = cache_data.get("year")
+            if cached_year == datetime.now().year and cache_data.get("cached_at"):
+                return {"skipped": "Cache fresh (current year)"}
 
-        Returns:
-            List of holiday dictionaries from API
-        """
+        try:
+            self._check_rate_limit()
+            year = datetime.now().year
+            holidays = self._fetch_from_api(source, year)
+            self._increment_rate_counter()
+
+            if source.whitelist:
+                wl = [w.lower() for w in source.whitelist]
+                holidays = [
+                    h
+                    for h in holidays
+                    if any(w in h.get("name", "").lower() for w in wl)
+                    and "holiday" not in h.get("name", "").lower()
+                ]
+
+            # Assign emojis via LLM (with keyword fallback)
+            holidays = self._enrich_holidays_with_emojis(holidays)
+
+            cache_data = {"entries": {}, "cached_at": datetime.now().isoformat(), "year": year}
+            for h in holidays:
+                date_info = h.get("date", {})
+                iso = date_info.get("iso", "").split("T")[0] if isinstance(date_info, dict) else ""
+                if iso:
+                    cache_data["entries"].setdefault(iso, {"holidays": []})["holidays"].append(h)
+
+            self._save_cache(source, cache_data)
+            logger.info(
+                f"CALENDARIFIC [{source.id}]: Yearly prefetch — "
+                f"{len(holidays)} holidays across {len(cache_data['entries'])} dates"
+            )
+            return {"fetched": len(holidays), "dates": len(cache_data["entries"]), "api_calls": 1}
+
+        except Exception as e:
+            logger.warning(f"CALENDARIFIC [{source.id}]: Yearly prefetch failed: {e}")
+            return {"error": str(e)}
+
+    # ---- API ----
+
+    def _fetch_from_api(
+        self, source: CalendarificSource, year: int, month: int = None, day: int = None
+    ) -> List[Dict]:
         params = {
             "api_key": self.api_key,
-            "country": self.country,
+            "country": source.country,
             "year": year,
-            "month": month,
-            "day": day,
-            "type": "national,local",  # Focus on national/local holidays (UN observances come from un_observances.py)
+            "type": source.api_type,
         }
+        if month is not None:
+            params["month"] = month
+        if day is not None:
+            params["day"] = day
 
-        # Note: Location filter disabled - Calendarific returns empty for Swiss cantons
-        # The API returns "Common local holiday" at national level without canton-specific data
-        # if self.state:
-        #     params["location"] = f"{self.country}-{self.state}".lower()
-
-        response = requests.get(
-            self.BASE_URL,
-            params=params,
-            timeout=TIMEOUTS.get("http_request", 30),
-        )
-        response.raise_for_status()
-
-        data = response.json()
+        resp = requests.get(self.BASE_URL, params=params, timeout=TIMEOUTS.get("http_request", 30))
+        resp.raise_for_status()
+        data = resp.json()
 
         if data.get("meta", {}).get("code") != 200:
-            error_msg = data.get("meta", {}).get("error_detail", "Unknown error")
-            raise requests.RequestException(f"API error: {error_msg}")
+            raise requests.RequestException(
+                f"API error: {data.get('meta', {}).get('error_detail', 'Unknown')}"
+            )
 
-        # API returns [] when no holidays, or {"holidays": [...]} when there are holidays
-        response = data.get("response", {})
-        if isinstance(response, list):
-            holidays = []  # Empty response
-        else:
-            holidays = response.get("holidays", [])
+        body = data.get("response", {})
+        holidays = body.get("holidays", []) if isinstance(body, dict) else []
 
-        # Keep national and local holidays (UN observances come from un_observances.py)
-        filtered = []
-        for h in holidays:
-            holiday_types = h.get("type", [])
-            # Convert to lowercase for case-insensitive matching
-            types_lower = [t.lower() for t in holiday_types]
-
-            # Include national, local (including "common local"), and observance types
-            # Exclude "Season" types (solstice, etc.)
+        return [
+            h
+            for h in holidays
             if any(
-                keyword in t for t in types_lower for keyword in ["national", "local", "observance"]
-            ):
-                filtered.append(h)
+                kw in t
+                for t in [t.lower() for t in h.get("type", [])]
+                for kw in ["national", "local", "observance"]
+            )
+        ]
 
-        return filtered
+    # ---- Filtering & Conversion ----
 
-    def _dict_to_special_day(self, holiday: Dict) -> "SpecialDay":
-        """Convert Calendarific API holiday to SpecialDay object."""
+    def _matches_source_filter(self, holiday: Dict, source: CalendarificSource) -> bool:
+        """Check if a holiday passes the source's whitelist/exclusion filter."""
+        name = holiday.get("name", "").lower()
+        if not source.whitelist:
+            return True
+        # Whitelist: name must contain a whitelist term, but exclude "Holiday" extensions
+        wl = [w.lower() for w in source.whitelist]
+        return any(w in name for w in wl) and "holiday" not in name
+
+    def _dict_to_special_day(self, holiday: Dict, source: CalendarificSource) -> "SpecialDay":
         from storage.special_days import SpecialDay
 
         name = holiday.get("name", "Unknown Observance")
         description = holiday.get("description", "")
 
-        # Extract date
+        date_str = ""
         date_info = holiday.get("date", {})
-        if isinstance(date_info, dict):
-            iso_date = date_info.get("iso", "")
-            if iso_date:
-                try:
-                    dt = datetime.fromisoformat(iso_date.split("T")[0])
-                    date_str = dt.strftime("%d/%m")
-                except ValueError:
-                    date_str = ""
-            else:
-                date_str = ""
-        else:
-            date_str = ""
+        if isinstance(date_info, dict) and date_info.get("iso"):
+            try:
+                dt = datetime.fromisoformat(date_info["iso"].split("T")[0])
+                date_str = dt.strftime("%d/%m")
+            except ValueError:
+                pass
 
-        category = self._map_type_to_category(holiday)
-        emoji = self._select_emoji(category, name, description)
-        source = self._extract_source(description)
+        # Use LLM-assigned emoji if available, then source default, then keyword fallback
+        emoji = holiday.get("_emoji") or (
+            source.emoji if source.whitelist else self._select_emoji(name)
+        )
+        category = (
+            source.category
+            if source.whitelist
+            else self._map_type_to_category(holiday, default=source.category)
+        )
 
         return SpecialDay(
             date=date_str,
             name=name,
             category=category,
-            description=description or f"International observance: {name}",
+            description=description or f"{source.label}: {name}",
             emoji=emoji,
             enabled=True,
-            source=source,
+            source=source.source_label,
             url="",
         )
 
-    def _map_type_to_category(self, holiday: Dict) -> str:
-        """Map Calendarific holiday to BrightDayBot category."""
-        name = holiday.get("name", "").lower()
-        description = holiday.get("description", "").lower()
-        combined = f"{name} {description}"
-
-        if any(term in combined for term in HEALTH_CATEGORY_KEYWORDS):
+    def _map_type_to_category(self, holiday: Dict, default: str = "Culture") -> str:
+        combined = f"{holiday.get('name', '')} {holiday.get('description', '')}".lower()
+        if any(t in combined for t in HEALTH_CATEGORY_KEYWORDS):
             return "Global Health"
-
-        if any(term in combined for term in TECH_CATEGORY_KEYWORDS):
+        if any(t in combined for t in TECH_CATEGORY_KEYWORDS):
             return "Tech"
+        return default
 
-        return "Culture"
-
-    def _select_emoji(self, category: str, name: str, description: str) -> str:
-        """Select emoji for Calendarific entries - uses calendar emoji for all."""
-        # Simple approach: calendar emoji for all Calendarific sources
-        # since they're calendar-based holidays/observances
+    def _select_emoji(self, name: str) -> str:
+        n = name.lower()
+        if "eid" in n:
+            return "🌙"
+        if "ramadan" in n:
+            return "🕌"
+        if "christmas" in n:
+            return "🎄"
+        if "easter" in n:
+            return "🐣"
+        if "new year" in n:
+            return "🎆"
         return "📅"
 
-    def _extract_source(self, description: str) -> str:
-        """Extract source organization from description."""
-        description_lower = description.lower()
+    def _assign_emojis_via_llm(self, holidays: List[Dict]) -> Dict[str, str]:
+        """Use LLM to assign emojis for holiday names. Returns {name: emoji} mapping.
 
-        if "world health organization" in description_lower or "who" in description_lower:
-            return "WHO"
-        if "united nations" in description_lower or " un " in description_lower:
-            return "UN"
-        if "unesco" in description_lower:
-            return "UNESCO"
-        if "unicef" in description_lower:
-            return "UNICEF"
+        Retries once on parse failure before falling back to keyword matching.
+        """
+        names = list({h.get("name", "") for h in holidays if h.get("name")})
+        if not names:
+            return {}
 
-        return "Calendarific"
+        from integrations.openai import complete
 
-    def _load_consolidated_cache(self) -> Dict:
-        """Load the consolidated cache file."""
-        # Migrate legacy per-date files on first access
-        self._migrate_legacy_cache()
+        prompt = (
+            "Assign exactly one emoji to each holiday/observance below. "
+            "Pick the most representative emoji for each.\n\n"
+            + "\n".join(f"- {name}" for name in names)
+        )
+        instructions = (
+            "Return ONLY a JSON object mapping each holiday name to one emoji. "
+            'Example: {"Christmas Day": "🎄", "New Year": "🎆"}. '
+            "No explanation, no markdown, just the JSON object."
+        )
 
-        if not os.path.exists(CALENDARIFIC_CACHE_FILE):
-            return {"entries": {}, "last_saved": None}
+        from config import LLM_PARSE_MAX_RETRIES
 
+        for attempt in range(LLM_PARSE_MAX_RETRIES):
+            try:
+                response = complete(
+                    input_text=prompt,
+                    instructions=instructions,
+                    max_tokens=len(names) * 20,
+                    temperature=0.3,
+                    context="EMOJI_ASSIGNMENT",
+                )
+
+                if response:
+                    import json as _json
+
+                    text = response.strip()
+                    if text.startswith("```"):
+                        text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+                    mapping = _json.loads(text)
+                    if isinstance(mapping, dict):
+                        logger.info(
+                            f"CALENDARIFIC: LLM assigned emojis for {len(mapping)} holidays"
+                        )
+                        return mapping
+                    logger.debug(f"CALENDARIFIC: LLM returned non-dict: {type(mapping)}")
+                else:
+                    logger.debug("CALENDARIFIC: LLM returned empty response")
+            except (ValueError, KeyError) as e:
+                logger.debug(
+                    f"CALENDARIFIC: Emoji parse failed (attempt {attempt + 1}/{LLM_PARSE_MAX_RETRIES}): {e}"
+                )
+            except Exception as e:
+                logger.debug(f"CALENDARIFIC: Emoji LLM call failed: {e}")
+                break  # Don't retry on API/network errors
+
+        return {}
+
+    def _enrich_holidays_with_emojis(self, holidays: List[Dict]) -> List[Dict]:
+        """Add '_emoji' field to holidays via LLM, falling back to keyword matching."""
+        llm_emojis = self._assign_emojis_via_llm(holidays)
+
+        for h in holidays:
+            name = h.get("name", "")
+            if name in llm_emojis:
+                h["_emoji"] = llm_emojis[name]
+            else:
+                h["_emoji"] = self._select_emoji(name)
+        return holidays
+
+    # ---- Cache I/O ----
+
+    def _load_cache(self, source: CalendarificSource) -> Dict:
+        if not os.path.exists(source.cache_file):
+            return {"entries": {}}
         try:
-            with open(CALENDARIFIC_CACHE_FILE, "r", encoding="utf-8") as f:
+            with open(source.cache_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                # Ensure entries key exists
-                if "entries" not in data:
-                    data["entries"] = {}
-                return data
-        except (json.JSONDecodeError, OSError) as e:
-            logger.warning(f"CALENDARIFIC: Failed to load consolidated cache: {e}")
-            return {"entries": {}, "last_saved": None}
+                return data if "entries" in data else {"entries": {}}
+        except (json.JSONDecodeError, OSError):
+            return {"entries": {}}
 
-    def _save_consolidated_cache(self, cache_data: Dict):
-        """Save the consolidated cache file."""
+    def _save_cache(self, source: CalendarificSource, cache_data: Dict):
         cache_data["last_saved"] = datetime.now().isoformat()
         try:
-            os.makedirs(os.path.dirname(CALENDARIFIC_CACHE_FILE), exist_ok=True)
-            with open(CALENDARIFIC_CACHE_FILE, "w", encoding="utf-8") as f:
+            os.makedirs(os.path.dirname(source.cache_file), exist_ok=True)
+            tmp = source.cache_file + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
                 json.dump(cache_data, f, indent=2, ensure_ascii=False, sort_keys=True)
+            os.replace(tmp, source.cache_file)
         except OSError as e:
-            logger.warning(f"CALENDARIFIC: Failed to save consolidated cache: {e}")
+            logger.warning(f"CALENDARIFIC [{source.id}]: Failed to save cache: {e}")
 
-    def _migrate_legacy_cache(self):
-        """Migrate legacy per-date cache files to consolidated format."""
-        # Check for legacy files (YYYY_MM_DD.json pattern)
-        legacy_files = [
-            f
-            for f in os.listdir(self.cache_dir)
-            if f.endswith(".json") and f != "holidays_cache.json"
-        ]
-
-        if not legacy_files:
-            return
-
-        logger.info(f"CALENDARIFIC: Migrating {len(legacy_files)} legacy cache files...")
-
-        # Load existing consolidated cache or create new
-        if os.path.exists(CALENDARIFIC_CACHE_FILE):
-            try:
-                with open(CALENDARIFIC_CACHE_FILE, "r", encoding="utf-8") as f:
-                    cache_data = json.load(f)
-                    if "entries" not in cache_data:
-                        cache_data["entries"] = {}
-            except (json.JSONDecodeError, OSError):
-                cache_data = {"entries": {}}
-        else:
-            cache_data = {"entries": {}}
-
-        migrated = 0
-        for filename in legacy_files:
-            # Parse date from filename (YYYY_MM_DD.json -> YYYY-MM-DD)
-            try:
-                date_part = filename.replace(".json", "")
-                date_key = date_part.replace("_", "-")
-                filepath = os.path.join(self.cache_dir, filename)
-
-                # Get file modification time for cached_at
-                mtime = datetime.fromtimestamp(os.path.getmtime(filepath))
-
-                with open(filepath, "r", encoding="utf-8") as f:
-                    holidays = json.load(f)
-
-                cache_data["entries"][date_key] = {
-                    "holidays": holidays,
-                    "cached_at": mtime.isoformat(),
-                }
-
-                # Remove legacy file after migration
-                os.remove(filepath)
-                migrated += 1
-
-            except (json.JSONDecodeError, OSError, ValueError) as e:
-                logger.warning(f"CALENDARIFIC: Failed to migrate {filename}: {e}")
-                continue
-
-        if migrated > 0:
-            cache_data["last_saved"] = datetime.now().isoformat()
-            try:
-                with open(CALENDARIFIC_CACHE_FILE, "w", encoding="utf-8") as f:
-                    json.dump(cache_data, f, indent=2, ensure_ascii=False, sort_keys=True)
-                logger.info(f"CALENDARIFIC: Migrated {migrated} legacy cache files")
-            except OSError as e:
-                logger.warning(f"CALENDARIFIC: Failed to save migrated cache: {e}")
-
-    def _load_from_cache(self, date: datetime) -> Optional[List[Dict]]:
-        """Load holidays from consolidated cache."""
-        cache_data = self._load_consolidated_cache()
-        date_key = date.strftime("%Y-%m-%d")
-
-        entry = cache_data.get("entries", {}).get(date_key)
-        if entry is None:
-            return None
-
-        return entry.get("holidays")
-
-    def _save_to_cache(self, date: datetime, holidays: List[Dict]):
-        """Save holidays to consolidated cache."""
-        cache_data = self._load_consolidated_cache()
-        date_key = date.strftime("%Y-%m-%d")
-
-        cache_data["entries"][date_key] = {
+    def _save_entry(self, source: CalendarificSource, date: datetime, holidays: List[Dict]):
+        cache_data = self._load_cache(source)
+        cache_data["entries"][date.strftime("%Y-%m-%d")] = {
             "holidays": holidays,
             "cached_at": datetime.now().isoformat(),
         }
+        self._save_cache(source, cache_data)
 
-        self._save_consolidated_cache(cache_data)
-        logger.debug(f"CALENDARIFIC: Saved {len(holidays)} holidays to cache for {date_key}")
-
-    def _is_cache_fresh(self, date: datetime) -> bool:
-        """Check if cache for date is within TTL (CALENDARIFIC_CACHE_TTL_DAYS)."""
-        cache_data = self._load_consolidated_cache()
-        date_key = date.strftime("%Y-%m-%d")
-
-        entry = cache_data.get("entries", {}).get(date_key)
-        if entry is None:
-            return False
-
+    def _is_entry_fresh(self, entry: Dict) -> bool:
         cached_at = entry.get("cached_at")
         if not cached_at:
             return False
-
         try:
-            cache_time = datetime.fromisoformat(cached_at)
-            cache_age_days = (datetime.now() - cache_time).total_seconds() / 86400
-            return cache_age_days < self.cache_ttl_days
+            age = (datetime.now() - datetime.fromisoformat(cached_at)).total_seconds() / 86400
+            return age < self.cache_ttl_days
         except (ValueError, TypeError):
             return False
 
-    def _load_stats(self) -> Dict:
-        """Load calendarific stats from consolidated JSON file."""
-        if not os.path.exists(CALENDARIFIC_STATS_FILE):
-            return {"monthly_calls": {}, "last_prefetch": None, "last_saved": None}
+    def _is_source_cache_fresh(self, source: CalendarificSource, cache_data: Dict = None) -> bool:
+        """Check if a source's cache is within TTL."""
+        if cache_data is None:
+            cache_data = self._load_cache(source)
+        ts = cache_data.get("last_saved") or cache_data.get("cached_at")
+        if not ts:
+            return bool(cache_data.get("entries"))  # Has data but no timestamp
+        try:
+            age = (datetime.now() - datetime.fromisoformat(ts)).total_seconds() / 86400
+            return age < self.cache_ttl_days
+        except (ValueError, TypeError):
+            return False
 
+    # ---- Rate limiting ----
+
+    def _load_stats(self) -> Dict:
+        if not os.path.exists(CALENDARIFIC_STATS_FILE):
+            return {"monthly_calls": {}, "last_prefetch": None}
         try:
             with open(CALENDARIFIC_STATS_FILE, "r") as f:
                 return json.load(f)
         except (json.JSONDecodeError, OSError):
-            return {"monthly_calls": {}, "last_prefetch": None, "last_saved": None}
+            return {"monthly_calls": {}, "last_prefetch": None}
 
     def _save_stats(self, stats: Dict):
-        """Save calendarific stats to consolidated JSON file."""
         stats["last_saved"] = datetime.now().isoformat()
         try:
             os.makedirs(os.path.dirname(CALENDARIFIC_STATS_FILE), exist_ok=True)
             with open(CALENDARIFIC_STATS_FILE, "w") as f:
                 json.dump(stats, f, indent=2, sort_keys=True)
-        except OSError as e:
-            logger.warning(f"CALENDARIFIC: Failed to save stats: {e}")
+        except OSError:
+            pass
 
     def _get_rate_count(self) -> int:
-        """Get current monthly API call count."""
-        stats = self._load_stats()
-        month = datetime.now().strftime("%Y-%m")
-        return stats.get("monthly_calls", {}).get(month, 0)
+        return self._load_stats().get("monthly_calls", {}).get(datetime.now().strftime("%Y-%m"), 0)
 
     def _increment_rate_counter(self):
-        """Increment monthly API call counter."""
         stats = self._load_stats()
         month = datetime.now().strftime("%Y-%m")
-
-        if "monthly_calls" not in stats:
-            stats["monthly_calls"] = {}
-
-        stats["monthly_calls"][month] = stats["monthly_calls"].get(month, 0) + 1
+        stats.setdefault("monthly_calls", {})[month] = (
+            stats.get("monthly_calls", {}).get(month, 0) + 1
+        )
         self._save_stats(stats)
 
     def _check_rate_limit(self):
-        """Check if we're approaching or have hit monthly rate limit."""
         count = self._get_rate_count()
-
         if count >= CALENDARIFIC_RATE_LIMIT_MONTHLY:
-            raise RateLimitExceeded(
-                f"Monthly limit of {CALENDARIFIC_RATE_LIMIT_MONTHLY} requests reached"
-            )
-
+            raise RateLimitExceeded(f"Monthly limit of {CALENDARIFIC_RATE_LIMIT_MONTHLY} reached")
         if count >= CALENDARIFIC_RATE_WARNING_THRESHOLD:
             logger.warning(
                 f"CALENDARIFIC: {count}/{CALENDARIFIC_RATE_LIMIT_MONTHLY} API calls this month"
             )
 
     def _update_last_prefetch(self):
-        """Update last prefetch timestamp."""
         stats = self._load_stats()
         stats["last_prefetch"] = datetime.now().isoformat()
         self._save_stats(stats)
 
     def get_last_prefetch(self) -> Optional[datetime]:
-        """Get timestamp of last prefetch."""
-        stats = self._load_stats()
-        last_prefetch = stats.get("last_prefetch")
-
-        if not last_prefetch:
+        lp = self._load_stats().get("last_prefetch")
+        if not lp:
             return None
-
         try:
-            return datetime.fromisoformat(last_prefetch)
+            return datetime.fromisoformat(lp)
         except (ValueError, TypeError):
             return None
 
     def needs_prefetch(self) -> bool:
-        """Check if weekly prefetch is needed (based on cache TTL)."""
         last = self.get_last_prefetch()
+        return last is None or (datetime.now() - last).days >= self.cache_ttl_days
 
-        if last is None:
-            return True
+    # ---- Aggregation ----
 
-        days_since = (datetime.now() - last).days
-        return days_since >= self.cache_ttl_days
+    def get_all_cached_special_days(self) -> list:
+        """All cached SpecialDay objects from all enabled sources."""
+        days = []
+        for source in self.get_enabled_sources():
+            try:
+                cache_data = self._load_cache(source)
+                for entry in cache_data.get("entries", {}).values():
+                    for h in entry.get("holidays", []):
+                        if self._matches_source_filter(h, source):
+                            sd = self._dict_to_special_day(h, source)
+                            if sd.date:
+                                days.append(sd)
+            except Exception as e:
+                logger.debug(f"CALENDARIFIC [{source.id}]: Cache load failed: {e}")
+        return days
 
-    def clear_cache(self, date: datetime = None):
-        """Clear cache for a specific date or all cache."""
-        if date:
-            cache_data = self._load_consolidated_cache()
-            date_key = date.strftime("%Y-%m-%d")
-            if date_key in cache_data.get("entries", {}):
-                del cache_data["entries"][date_key]
-                self._save_consolidated_cache(cache_data)
-                logger.info(f"CALENDARIFIC: Cleared cache for {date_key}")
-        else:
-            # Clear entire consolidated cache
-            if os.path.exists(CALENDARIFIC_CACHE_FILE):
-                os.remove(CALENDARIFIC_CACHE_FILE)
-            logger.info("CALENDARIFIC: Cleared all cache")
+    def get_cached_holiday_count(self, source: CalendarificSource = None) -> int:
+        """Unique holiday count by (DD/MM, name). If source is None, count all."""
+        sources = [source] if source else self.get_enabled_sources()
+        seen = set()
+        for src in sources:
+            for entry in self._load_cache(src).get("entries", {}).values():
+                for h in entry.get("holidays", []):
+                    if not self._matches_source_filter(h, src):
+                        continue
+                    date_info = h.get("date", {})
+                    if isinstance(date_info, dict) and date_info.get("iso"):
+                        try:
+                            dt = datetime.fromisoformat(date_info["iso"].split("T")[0])
+                            seen.add((dt.strftime("%d/%m"), h.get("name", "").lower().strip()))
+                        except (ValueError, KeyError):
+                            continue
+        return len(seen)
 
     def get_api_status(self) -> Dict:
-        """Get current API status and statistics."""
+        """Aggregated API status across all sources."""
         month_calls = self._get_rate_count()
-        cache_data = self._load_consolidated_cache()
-        cached_dates = len(cache_data.get("entries", {}))
         last_prefetch = self.get_last_prefetch()
+
+        per_source = {}
+        for src in self.sources:
+            cache_data = self._load_cache(src) if src.enabled else {}
+            last_saved = cache_data.get("last_saved") or cache_data.get("cached_at")
+            per_source[src.id] = {
+                "label": src.label,
+                "country": src.country,
+                "enabled": src.enabled,
+                "holiday_count": self.get_cached_holiday_count(src) if src.enabled else 0,
+                "fetch_strategy": src.fetch_strategy,
+                "last_updated": last_saved,
+                "cache_fresh": (
+                    self._is_source_cache_fresh(src, cache_data) if src.enabled else False
+                ),
+            }
 
         return {
             "enabled": CALENDARIFIC_ENABLED,
             "api_key_configured": bool(self.api_key),
-            "country": self.country,
-            "state": self.state,
-            "location": f"{self.country}-{self.state}" if self.state else self.country,
+            "sources": per_source,
             "month_calls": month_calls,
             "monthly_limit": CALENDARIFIC_RATE_LIMIT_MONTHLY,
             "calls_remaining": CALENDARIFIC_RATE_LIMIT_MONTHLY - month_calls,
-            "cached_dates": cached_dates,
+            "holiday_count": self.get_cached_holiday_count(),
             "cache_ttl_days": self.cache_ttl_days,
             "last_prefetch": last_prefetch.isoformat() if last_prefetch else None,
             "needs_prefetch": self.needs_prefetch(),
         }
 
+    def clear_cache(self, source_id: str = None):
+        targets = self.sources if not source_id else [s for s in self.sources if s.id == source_id]
+        for src in targets:
+            if os.path.exists(src.cache_file):
+                os.remove(src.cache_file)
+                logger.info(f"CALENDARIFIC [{src.id}]: Cache cleared")
+
     def cleanup_old_cache(self, max_age_days: int = None):
-        """Remove cache entries older than specified days (default from CACHE_RETENTION_DAYS)."""
         if max_age_days is None:
             max_age_days = CACHE_RETENTION_DAYS.get("calendarific", 30)
-
-        cache_data = self._load_consolidated_cache()
-        entries = cache_data.get("entries", {})
         cutoff = datetime.now() - timedelta(days=max_age_days)
-        removed = 0
 
-        # Find entries to remove based on cached_at timestamp
-        dates_to_remove = []
-        for date_key, entry in entries.items():
-            cached_at = entry.get("cached_at")
-            if cached_at:
-                try:
-                    cache_time = datetime.fromisoformat(cached_at)
-                    if cache_time < cutoff:
-                        dates_to_remove.append(date_key)
-                except (ValueError, TypeError):
-                    continue
-
-        # Remove old entries
-        for date_key in dates_to_remove:
-            del entries[date_key]
-            removed += 1
-
-        if removed:
-            self._save_consolidated_cache(cache_data)
-            logger.info(f"CALENDARIFIC: Removed {removed} old cache entries")
-
-    # ----- RELIGIOUS HOLIDAYS (Saudi Arabia source) -----
-
-    def get_religious_holidays_for_date(self, date: datetime) -> List["SpecialDay"]:
-        """Get religious holidays for a specific date, auto-populating cache if needed."""
-        if not RELIGIOUS_HOLIDAYS_ENABLED:
-            return []
-
-        cached = self._load_religious_cache()
-
-        cached_year = cached.get("year")
-        if not cached.get("cached_at") or cached_year != date.year:
-            logger.info("RELIGIOUS: Cache empty or stale, auto-populating...")
-            self.religious_holidays_prefetch(force=True)
-            cached = self._load_religious_cache()
-
-        date_key = date.strftime("%Y-%m-%d")
-
-        entry = cached.get("entries", {}).get(date_key)
-        if entry is None:
-            return []
-
-        return [self._religious_dict_to_special_day(h) for h in entry.get("holidays", [])]
-
-    def religious_holidays_prefetch(self, force: bool = False) -> Dict[str, int]:
-        """Prefetch religious holidays from Saudi Arabia for the current year (1 API call)."""
-        if not RELIGIOUS_HOLIDAYS_ENABLED:
-            return {"skipped": "Religious holidays disabled"}
-
-        if not self.api_key:
-            return {"error": "No API key configured"}
-
-        if not force:
-            cached = self._load_religious_cache()
-            cached_at = cached.get("cached_at")
-            if cached_at:
-                try:
-                    cache_time = datetime.fromisoformat(cached_at)
-                    cache_age_days = (datetime.now() - cache_time).total_seconds() / 86400
-                    if cache_age_days < self.cache_ttl_days:
-                        logger.debug("RELIGIOUS: Cache is fresh, skipping prefetch")
-                        return {"skipped": "Cache fresh"}
-                except (ValueError, TypeError):
-                    pass
-
-        try:
-            self._check_rate_limit()
-
-            year = datetime.now().year
-            params = {
-                "api_key": self.api_key,
-                "country": RELIGIOUS_HOLIDAYS_COUNTRY,
-                "year": year,
-                "type": "national",
-            }
-
-            response = requests.get(
-                self.BASE_URL,
-                params=params,
-                timeout=TIMEOUTS.get("http_request", 30),
-            )
-            response.raise_for_status()
-            self._increment_rate_counter()
-
-            data = response.json()
-            if data.get("meta", {}).get("code") != 200:
-                error_msg = data.get("meta", {}).get("error_detail", "Unknown error")
-                return {"error": f"API error: {error_msg}"}
-
-            resp = data.get("response", {})
-            holidays = resp.get("holidays", []) if isinstance(resp, dict) else []
-
-            whitelist_lower = [name.lower() for name in RELIGIOUS_HOLIDAYS_WHITELIST]
-            filtered = []
-            for h in holidays:
-                name_lower = h.get("name", "").lower()
-                if any(w in name_lower for w in whitelist_lower):
-                    filtered.append(h)
-
-            cache_data = {"entries": {}, "cached_at": datetime.now().isoformat(), "year": year}
-            for h in filtered:
-                date_info = h.get("date", {})
-                iso_date = (
-                    date_info.get("iso", "").split("T")[0] if isinstance(date_info, dict) else ""
-                )
-                if iso_date:
-                    if iso_date not in cache_data["entries"]:
-                        cache_data["entries"][iso_date] = {"holidays": []}
-                    cache_data["entries"][iso_date]["holidays"].append(h)
-
-            self._save_religious_cache(cache_data)
-
-            logger.info(
-                f"RELIGIOUS: Prefetched {len(filtered)} holidays for {year} "
-                f"across {len(cache_data['entries'])} dates"
-            )
-
-            return {
-                "fetched": len(filtered),
-                "dates": len(cache_data["entries"]),
-                "api_calls": 1,
-                "holidays": [h.get("name") for h in filtered],
-            }
-
-        except RateLimitExceeded as e:
-            logger.error(f"RELIGIOUS: Rate limit exceeded: {e}")
-            return {"error": str(e)}
-        except Exception as e:
-            logger.warning(f"RELIGIOUS: Prefetch failed: {e}")
-            return {"error": str(e)}
-
-    def _religious_dict_to_special_day(self, holiday: Dict) -> "SpecialDay":
-        """Convert a Saudi Arabia holiday dict to a SpecialDay."""
-        from storage.special_days import SpecialDay
-
-        name = holiday.get("name", "Unknown")
-        description = holiday.get("description", "")
-
-        date_info = holiday.get("date", {})
-        date_str = ""
-        if isinstance(date_info, dict):
-            iso_date = date_info.get("iso", "")
-            if iso_date:
-                try:
-                    dt = datetime.fromisoformat(iso_date.split("T")[0])
-                    date_str = dt.strftime("%d/%m")
-                except ValueError:
-                    pass
-
-        name_lower = name.lower()
-        if "eid" in name_lower:
-            emoji = "🌙"
-        elif "ramadan" in name_lower:
-            emoji = "🕌"
-        elif "muharram" in name_lower:
-            emoji = "📿"
-        else:
-            emoji = "🌙"
-
-        return SpecialDay(
-            date=date_str,
-            name=name,
-            category="Religious",
-            description=description or f"Islamic observance: {name}",
-            emoji=emoji,
-            enabled=True,
-            source="Calendarific (SA)",
-            url="",
-        )
-
-    def _load_religious_cache(self) -> Dict:
-        """Load the religious holidays cache file."""
-        if not os.path.exists(RELIGIOUS_HOLIDAYS_CACHE_FILE):
-            return {"entries": {}, "cached_at": None}
-
-        try:
-            with open(RELIGIOUS_HOLIDAYS_CACHE_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, OSError) as e:
-            logger.warning(f"RELIGIOUS: Failed to load cache: {e}")
-            return {"entries": {}, "cached_at": None}
-
-    def _save_religious_cache(self, cache_data: Dict):
-        """Save the religious holidays cache file."""
-        try:
-            os.makedirs(os.path.dirname(RELIGIOUS_HOLIDAYS_CACHE_FILE), exist_ok=True)
-            with open(RELIGIOUS_HOLIDAYS_CACHE_FILE, "w", encoding="utf-8") as f:
-                json.dump(cache_data, f, indent=2, ensure_ascii=False, sort_keys=True)
-        except OSError as e:
-            logger.warning(f"RELIGIOUS: Failed to save cache: {e}")
+        for source in self.sources:
+            cache_data = self._load_cache(source)
+            entries = cache_data.get("entries", {})
+            to_remove = [
+                dk
+                for dk, entry in entries.items()
+                if entry.get("cached_at") and datetime.fromisoformat(entry["cached_at"]) < cutoff
+            ]
+            if to_remove:
+                for dk in to_remove:
+                    del entries[dk]
+                self._save_cache(source, cache_data)
+                logger.info(f"CALENDARIFIC [{source.id}]: Removed {len(to_remove)} old entries")
 
 
 class RateLimitExceeded(Exception):
-    """Raised when Calendarific API rate limit is exceeded."""
-
     pass

@@ -29,7 +29,7 @@
 - **AI Images**: Face-accurate images using Slack profile photos
 - **Multiple Personalities**: Ludo the Mystic Dog, Captain BirthdayBeard, TechBot 3000, and more
 - **Multi-Timezone**: Celebrates at 9 AM in each user's timezone
-- **Special Days**: International observances and national holidays with AI-generated content
+- **Special Days**: International observances and national holidays with AI-generated content, consolidated into a single daily announcement
 - **Slash Commands**: `/birthday` and `/special-day` with modal forms
 - **App Home**: Dashboard with birthday status, statistics, and upcoming events
 - **Calendar Export**: Export team birthdays to ICS format
@@ -135,23 +135,23 @@ uv run python app.py
 <details>
 <summary><strong>Admin Commands</strong></summary>
 
-| Command                                        | Description                     |
-| ---------------------------------------------- | ------------------------------- |
-| `admin status [detailed]`                      | System health check             |
-| `admin model set <model>`                      | Change AI model                 |
-| `admin personality [name]`                     | View or change bot personality  |
-| `admin timezone enable/disable`                | Toggle timezone mode            |
-| `admin bot-celebration enable/disable`         | Toggle bot self-celebration     |
-| `admin test @user [--text-only]`               | Test for specific user          |
-| `admin announce [message]`                     | Send announcement               |
-| `admin canvas [status\|refresh\|reset\|clean]` | Manage ops canvas dashboard     |
-| `admin special [subcommand]`                   | Special days management         |
-| `admin backup` / `admin restore latest`        | Backup operations               |
-| `admin cache clear [DD/MM]`                    | Clear web search cache          |
-| `admin config`                                 | View/change command permissions |
-| `admin remind [new\|update\|all]`              | Send reminders to users         |
-| `admin list/add/remove`                        | Admin user management           |
-| `admin stats`                                  | Birthday statistics             |
+| Command                                                          | Description                     |
+| ---------------------------------------------------------------- | ------------------------------- |
+| `admin status [detailed]`                                        | System health check             |
+| `admin model set <model>`                                        | Change AI model                 |
+| `admin personality [name]`                                       | View or change bot personality  |
+| `admin timezone enable/disable`                                  | Toggle timezone mode            |
+| `admin bot-celebration enable/disable`                           | Toggle bot self-celebration     |
+| `admin test @user [--text-only]`                                 | Test for specific user          |
+| `admin announce [message]`                                       | Send announcement               |
+| `admin canvas [status\|refresh\|reset\|clean\|dismiss-warnings]` | Manage ops canvas dashboard     |
+| `admin special [subcommand]`                                     | Special days management         |
+| `admin backup` / `admin restore latest`                          | Backup operations               |
+| `admin cache clear [DD/MM]`                                      | Clear web search cache          |
+| `admin config`                                                   | View/change command permissions |
+| `admin remind [new\|update\|all]`                                | Send reminders to users         |
+| `admin list/add/remove`                                          | Admin user management           |
+| `admin stats`                                                    | Birthday statistics             |
 
 </details>
 
@@ -180,9 +180,9 @@ Each personality brings a unique voice, writing style, and image aesthetic to ce
 All optional settings are documented in [`.env.example`](.env.example) with defaults and descriptions. Key categories:
 
 - **AI & Core**: Model selection, image generation, backups
-- **Special Days Sources**: Observance cache TTLs, Calendarific API
+- **Special Days Sources**: Observance cache TTLs, multi-source Calendarific holidays
 - **Interactive Features**: Thread engagement, @-mention Q&A, NLP date parsing
-- **Announcements**: @-here mentions, channel topic updates
+- **Announcements**: @-here mentions, channel topic updates, consolidated special days
 - **Canvas Dashboard**: Ops channel with auto-updating system overview
 - **Custom Personality**: Name, description, style, formatting
 
@@ -224,7 +224,7 @@ brightdaybot/
 │   ├── scheduler.py              # Background tasks
 │   └── special_day.py            # Special day messages
 ├── integrations/                 # External API clients
-│   ├── calendarific.py           # National holiday API
+│   ├── calendarific.py           # Multi-source holiday API
 │   ├── openai.py                 # OpenAI API
 │   ├── web_search.py             # Historical facts
 │   └── observances/              # Web-scraped sources

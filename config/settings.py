@@ -56,7 +56,13 @@ CANVAS_DASHBOARD_ENABLED = os.getenv("CANVAS_DASHBOARD_ENABLED", "true").lower()
 CANVAS_SETTINGS_FILE = os.path.join(STORAGE_DIR, "canvas_settings.json")
 CANVAS_REFRESH_INTERVAL_MINUTES = 30
 CANVAS_MIN_UPDATE_INTERVAL_SECONDS = 30
-CANVAS_RECENT_CHANGES_MAX = 10
+CANVAS_RECENT_CHANGES_MAX = 8
+CANVAS_WARNINGS_MAX = 8
+CANVAS_WARNINGS_TTL_HOURS = 24
+SPECIAL_DAY_DETAILS_CACHE_TTL_DAYS = (
+    60  # How long cached details stay valid (matches thread tracking TTL)
+)
+SPECIAL_DAY_DETAILS_CACHE_FILE = os.path.join(CACHE_DIR, "special_day_details.json")
 
 # ----- EMOJI CONSTANTS -----
 
@@ -188,7 +194,7 @@ COMMAND_PERMISSIONS = {
 # Cache for username lookups to reduce API calls
 # Structure: {user_id: (username, timestamp)}
 username_cache = {}
-USERNAME_CACHE_MAX_SIZE = 1000  # Maximum number of cached usernames
+USERNAME_CACHE_MAX_SIZE = 1024  # Maximum number of cached usernames
 USERNAME_CACHE_TTL_HOURS = 24  # Cache entries expire after 24 hours
 USERNAME_CACHE_EVICTION_FRACTION = 4  # Evict oldest 1/N of cache when full
 
@@ -221,8 +227,8 @@ TOKEN_LIMITS = {
     "consolidated_birthday": 2000,  # Multiple birthday messages
     "web_search_facts": 1200,  # Historical date summarization (+buffer for reasoning tokens)
     "image_title_generation": 200,  # AI-generated image titles
-    "special_day_details": 800,  # Single special day details (+buffer for reasoning tokens, 1950 char Slack limit)
-    "special_day_details_consolidated": 1200,  # Multiple special day details (+buffer for reasoning tokens)
+    "special_day_details": 1200,  # Single special day details (cached, no button value limit)
+    "special_day_details_consolidated": 1600,  # Multiple special day details (cached)
     # Interactive features
     "mention_response": 300,  # Responses to @-mentions
     "special_day_thread_response": 400,  # Responses to special day thread replies
@@ -233,6 +239,13 @@ TOKEN_LIMITS = {
     "profile_analysis": 100,  # Vision API profile photo element extraction
 }
 
+# Max characters for user input sanitization before embedding in AI prompts
+PROMPT_INPUT_LIMITS = {
+    "thread_response": 300,  # Special day thread replies
+    "mention_question": 300,  # @-mention questions
+    "date_parsing": 200,  # NLP date extraction input
+}
+
 # Temperature settings for creativity control
 TEMPERATURE_SETTINGS = {
     "default": 0.7,  # Standard temperature for most messages
@@ -240,7 +253,7 @@ TEMPERATURE_SETTINGS = {
     "factual": 0.3,  # Lower temperature for factual content (future use)
 }
 
-# Reasoning effort for GPT-5+ models (controls thinking tokens)
+# Reasoning effort for supported models (controls thinking tokens)
 # Models have different supported levels:
 #   GPT-5/5-mini:  minimal, low, medium, high (default: medium, always-on)
 #   GPT-5.1:       none, low, medium, high (default: none, opt-in)
@@ -249,6 +262,17 @@ REASONING_EFFORT = {
     "default": None,  # Don't send param — model uses its own default
     "analytical": "low",  # Light reasoning for factual content (web search, special days)
 }
+
+# Model prefixes that support the reasoning.effort parameter
+# Supported: gpt-5 family, o1/o1-mini, o3/o3-mini, o4-mini
+# Not supported: gpt-4o, gpt-4.1, gpt-4-turbo, and older
+REASONING_SUPPORTED_PREFIXES = ("gpt-5", "o1", "o3", "o4-mini")
+
+
+def supports_reasoning(model: str) -> bool:
+    """Check if a model supports the reasoning.effort parameter."""
+    return model.startswith(REASONING_SUPPORTED_PREFIXES)
+
 
 # Image generation parameters
 IMAGE_GENERATION_PARAMS = {
@@ -276,6 +300,9 @@ RETRY_LIMITS = {
     "date_resolution": 5,  # Years to search for valid date (Feb 29 handling)
 }
 
+# LLM structured output parsing
+LLM_PARSE_MAX_RETRIES = 2  # Max attempts for parsing structured LLM output (e.g., JSON)
+
 # Timeout values in seconds
 TIMEOUTS = {
     "http_request": 30,  # HTTP request timeout
@@ -283,6 +310,46 @@ TIMEOUTS = {
     "confirmation_minutes": 5,  # Admin command confirmation timeout
     "file_poll_sleep": 1,  # Seconds between Slack file processing polls
 }
+
+# Parallel AI generation
+AI_MAX_WORKERS = int(
+    os.getenv("AI_MAX_WORKERS", "4")
+)  # Max concurrent threads for parallel AI calls
+
+
+def run_parallel(fn, items, max_workers=None):
+    """Run fn(item) for each item, parallel if multiple, direct if single.
+
+    Returns dict mapping item to fn result. Failed items get None.
+    """
+    import logging
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    _logger = logging.getLogger("birthday_bot.parallel")
+
+    if max_workers is None:
+        max_workers = AI_MAX_WORKERS
+
+    results = {}
+    if len(items) <= 1:
+        for item in items:
+            try:
+                results[item] = fn(item)
+            except Exception as e:
+                _logger.warning(f"run_parallel: {fn.__name__}({item}) failed: {e}")
+                results[item] = None
+    else:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(fn, item): item for item in items}
+            for future in as_completed(futures):
+                item = futures[future]
+                try:
+                    results[item] = future.result()
+                except Exception as e:
+                    _logger.warning(f"run_parallel: {fn.__name__}({item}) failed: {e}")
+                    results[item] = None
+    return results
+
 
 # Scheduler timing constants
 SCHEDULER_CHECK_INTERVAL_SECONDS = 60  # How often scheduler checks for birthdays
@@ -396,34 +463,87 @@ SPECIAL_DAY_TOPIC_UPDATE_ENABLED = (
     os.getenv("SPECIAL_DAY_TOPIC_UPDATE_ENABLED", "false").lower() == "true"
 )
 
+# Consolidated announcements: one message for all observances (vs. separate messages)
+SPECIAL_DAY_CONSOLIDATED_ENABLED = (
+    os.getenv("SPECIAL_DAY_CONSOLIDATED_ENABLED", "true").lower() == "true"
+)
+SPECIAL_DAY_COMPACT_THRESHOLD = 8  # Switch to compact blocks above this count
+
 # ----- CALENDARIFIC API CONFIGURATION -----
 
-# Calendarific API for national/local holidays (NOT UN observances)
+# Calendarific API — multi-source holiday fetcher
 # Get free API key at: https://calendarific.com
-# Free tier: 500 requests/month - we use weekly prefetch strategy (~52 calls/year)
-# Note: UN/WHO/UNESCO observances come from integrations/observances/ (scraped from official sites)
+# Free tier: 500 requests/month — shared across all configured sources
 CALENDARIFIC_API_KEY = os.getenv("CALENDARIFIC_API_KEY")
 CALENDARIFIC_ENABLED = os.getenv("CALENDARIFIC_ENABLED", "false").lower() == "true"
-CALENDARIFIC_COUNTRY = os.getenv("CALENDARIFIC_COUNTRY", "CH")  # Switzerland
-CALENDARIFIC_STATE = os.getenv("CALENDARIFIC_STATE", "VD")  # Vaud canton
 CALENDARIFIC_CACHE_DIR = os.path.join(CACHE_DIR, "calendarific")
-CALENDARIFIC_CACHE_FILE = os.path.join(CALENDARIFIC_CACHE_DIR, "holidays_cache.json")
 CALENDARIFIC_CACHE_TTL_DAYS = int(os.getenv("CALENDARIFIC_CACHE_TTL_DAYS", "7"))
 CALENDARIFIC_PREFETCH_DAYS = int(os.getenv("CALENDARIFIC_PREFETCH_DAYS", "7"))
 CALENDARIFIC_RATE_LIMIT_MONTHLY = 500  # Free tier: 500 calls/month
+CALENDARIFIC_SOURCES_STATE_FILE = os.path.join(STORAGE_DIR, "calendarific_sources.json")
 CALENDARIFIC_RATE_WARNING_THRESHOLD = 400  # Warn when approaching limit
+CALENDARIFIC_STATS_FILE = os.path.join(STORAGE_DIR, "calendarific_stats.json")
 
-# ----- RELIGIOUS HOLIDAYS CONFIGURATION -----
-
-# Islamic holidays from Saudi Arabia (authoritative Hijri calendar source)
-RELIGIOUS_HOLIDAYS_ENABLED = os.getenv("RELIGIOUS_HOLIDAYS_ENABLED", "true").lower() == "true"
-RELIGIOUS_HOLIDAYS_COUNTRY = "SA"
-RELIGIOUS_HOLIDAYS_CACHE_FILE = os.path.join(CALENDARIFIC_CACHE_DIR, "religious_cache.json")
-RELIGIOUS_HOLIDAYS_WHITELIST = [
-    "Eid al-Fitr",
-    "Eid al-Adha",
-    "Ramadan",
-    "Muharram",
+# Multi-source configuration: each source fetches from a different country/region
+# fetch_strategy: "daily" = fetch day-by-day (N API calls), "yearly" = fetch entire year (1 API call)
+# whitelist: empty = include all holidays; non-empty = only matching names (case-insensitive)
+CALENDARIFIC_SOURCES = [
+    {
+        "id": "ch",
+        "country": "CH",
+        "state": os.getenv("CALENDARIFIC_STATE", "VD"),
+        "enabled": True,
+        "label": "Switzerland",
+        "category": "Holiday",
+        "emoji": "📅",
+        "whitelist": [],
+        "fetch_strategy": "yearly",
+        "api_type": "national,local",
+    },
+    {
+        "id": "sa",
+        "country": "SA",
+        "state": None,
+        "enabled": True,
+        "label": "Islamic Holidays",
+        "category": "Religious",
+        "emoji": "🌙",
+        "whitelist": ["Eid al-Fitr", "Eid al-Adha", "Ramadan", "Muharram"],
+        "fetch_strategy": "yearly",
+        "api_type": "national",
+    },
+    {
+        "id": "il",
+        "country": "IL",
+        "state": None,
+        "enabled": False,
+        "label": "Jewish Holidays",
+        "category": "Religious",
+        "emoji": "🕎",
+        "whitelist": [
+            "Hanukkah",
+            "Yom Kippur",
+            "Passover",
+            "Rosh Hashanah",
+            "Sukkot",
+            "Purim",
+            "Shavuot",
+        ],
+        "fetch_strategy": "yearly",
+        "api_type": "national",
+    },
+    {
+        "id": "in",
+        "country": "IN",
+        "state": None,
+        "enabled": False,
+        "label": "Hindu Holidays",
+        "category": "Religious",
+        "emoji": "🪔",
+        "whitelist": ["Diwali", "Holi", "Navratri", "Ganesh Chaturthi", "Raksha Bandhan", "Pongal"],
+        "fetch_strategy": "yearly",
+        "api_type": "national",
+    },
 ]
 
 # ----- UN OBSERVANCES CONFIGURATION -----
@@ -432,7 +552,7 @@ RELIGIOUS_HOLIDAYS_WHITELIST = [
 # Uses crawl4ai for intelligent scraping (pip install crawl4ai && crawl4ai-setup)
 UN_OBSERVANCES_ENABLED = os.getenv("UN_OBSERVANCES_ENABLED", "true").lower() == "true"
 UN_OBSERVANCES_URL = "https://www.un.org/en/observances/list-days-weeks"
-UN_OBSERVANCES_CACHE_TTL_DAYS = int(os.getenv("UN_OBSERVANCES_CACHE_TTL_DAYS", "7"))
+UN_OBSERVANCES_CACHE_TTL_DAYS = int(os.getenv("UN_OBSERVANCES_CACHE_TTL_DAYS", "180"))
 UN_OBSERVANCES_CACHE_DIR = os.path.join(CACHE_DIR, "un_observances")
 UN_OBSERVANCES_CACHE_FILE = os.path.join(UN_OBSERVANCES_CACHE_DIR, "un_days.json")
 
@@ -441,7 +561,7 @@ UN_OBSERVANCES_CACHE_FILE = os.path.join(UN_OBSERVANCES_CACHE_DIR, "un_days.json
 # UNESCO International Days scraped from official UNESCO website
 UNESCO_OBSERVANCES_ENABLED = os.getenv("UNESCO_OBSERVANCES_ENABLED", "true").lower() == "true"
 UNESCO_OBSERVANCES_URL = "https://www.unesco.org/en/days/list"
-UNESCO_OBSERVANCES_CACHE_TTL_DAYS = int(os.getenv("UNESCO_OBSERVANCES_CACHE_TTL_DAYS", "30"))
+UNESCO_OBSERVANCES_CACHE_TTL_DAYS = int(os.getenv("UNESCO_OBSERVANCES_CACHE_TTL_DAYS", "180"))
 UNESCO_OBSERVANCES_CACHE_DIR = os.path.join(CACHE_DIR, "unesco_observances")
 UNESCO_OBSERVANCES_CACHE_FILE = os.path.join(UNESCO_OBSERVANCES_CACHE_DIR, "unesco_days.json")
 
@@ -450,7 +570,7 @@ UNESCO_OBSERVANCES_CACHE_FILE = os.path.join(UNESCO_OBSERVANCES_CACHE_DIR, "unes
 # WHO Health Days scraped from official WHO website
 WHO_OBSERVANCES_ENABLED = os.getenv("WHO_OBSERVANCES_ENABLED", "true").lower() == "true"
 WHO_OBSERVANCES_URL = "https://www.who.int/campaigns"
-WHO_OBSERVANCES_CACHE_TTL_DAYS = int(os.getenv("WHO_OBSERVANCES_CACHE_TTL_DAYS", "30"))
+WHO_OBSERVANCES_CACHE_TTL_DAYS = int(os.getenv("WHO_OBSERVANCES_CACHE_TTL_DAYS", "180"))
 WHO_OBSERVANCES_CACHE_DIR = os.path.join(CACHE_DIR, "who_observances")
 WHO_OBSERVANCES_CACHE_FILE = os.path.join(WHO_OBSERVANCES_CACHE_DIR, "who_days.json")
 
@@ -562,10 +682,11 @@ THREAD_TTL_HOURS = 24  # Hours to track birthday/special day threads for engagem
 # Slack API limits
 SLACK_MAX_BLOCKS = 50  # Maximum blocks per message (Slack API limit)
 SLACK_MEMBERS_PAGE_SIZE = 1000  # Pagination limit for conversations_members
-SLACK_HISTORY_PAGE_SIZE = 100  # Pagination limit for conversations_history
+SLACK_HISTORY_PAGE_SIZE = 128  # Pagination limit for conversations_history
 SLACK_FILE_TITLE_MAX_LENGTH = 100  # Max chars for readable Slack file titles
-SLACK_BUTTON_VALUE_CHAR_LIMIT = 1950  # Slack button value max chars (2000 limit with safety buffer)
-SLACK_BUTTON_DISPLAY_CHAR_LIMIT = 1850  # Safe display limit for button content
+SLACK_SECTION_TEXT_MAX_LENGTH = (
+    2800  # Safe limit for mrkdwn section blocks (Slack hard limit: 3000)
+)
 
 # Announcement tracking
 ANNOUNCEMENT_RETENTION_DAYS = 60  # Days to keep announcement history

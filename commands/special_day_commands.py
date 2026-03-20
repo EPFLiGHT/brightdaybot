@@ -15,7 +15,6 @@ Main functions:
 from datetime import datetime, timedelta
 
 from config import (
-    CALENDARIFIC_PREFETCH_DAYS,
     DATE_FORMAT,
     DEFAULT_ANNOUNCEMENT_TIME,
     UPCOMING_DAYS_DEFAULT,
@@ -249,6 +248,70 @@ def handle_admin_special_command_with_quotes(command_text, user_id, say, app):
         handle_admin_special_command(simple_args, user_id, say, app)
 
 
+def _show_observance_status(source_name, source_key, say):
+    """Show cache status for an observance source (UN/UNESCO/WHO)."""
+    try:
+        from integrations.observances import get_enabled_sources
+
+        status_fn = None
+        for name, _refresh, status in get_enabled_sources():
+            if name == source_name:
+                status_fn = status
+                break
+
+        if not status_fn:
+            say(f"❌ {source_name} observances not enabled")
+            return
+
+        status = status_fn()
+        last_updated = status.get("last_updated")
+        last_str = "Never"
+        if last_updated:
+            last_dt = datetime.fromisoformat(last_updated)
+            last_str = f"`{last_dt.strftime('%Y-%m-%d %H:%M')}`"
+
+        say(
+            f"📊 *{source_name} Observances Cache Status*\n\n"
+            f"• Cache exists: {'✅ Yes' if status['cache_exists'] else '❌ No'}\n"
+            f"• Cache fresh: {'✅ Yes' if status['cache_fresh'] else '⚠️ Stale'}\n"
+            f"• Last updated: {last_str}\n"
+            f"• Observances cached: {status['observance_count']}\n\n"
+            f"*Source:* {status['source_url']}\n\n"
+            f"_Use `admin special {source_key}-refresh` to force update._"
+        )
+    except Exception as e:
+        say(f"❌ Failed to get {source_name} cache status: {e}")
+        logger.error(f"ADMIN_SPECIAL: Failed to get {source_name} status: {e}")
+
+
+def _refresh_observance(source_name, source_key, say, username):
+    """Force refresh an observance source cache (UN/UNESCO/WHO)."""
+    try:
+        from integrations.observances import get_enabled_sources
+
+        refresh_fn = None
+        for name, refresh, _status in get_enabled_sources():
+            if name == source_name:
+                refresh_fn = refresh
+                break
+
+        if not refresh_fn:
+            say(f"❌ {source_name} observances not enabled")
+            return
+
+        say(f"🔄 Refreshing {source_name} observances cache...")
+        stats = refresh_fn(force=True)
+
+        if stats.get("error"):
+            say(f"❌ Refresh failed: {stats['error']}")
+        else:
+            say(f"✅ {source_name} observances cache refreshed: {stats['fetched']} observances")
+            logger.info(f"ADMIN_SPECIAL: {username} refreshed {source_name} cache")
+    except Exception as e:
+        say(f"❌ Refresh error: {e}")
+        logger.error(f"ADMIN_SPECIAL: {source_name} refresh failed: {e}")
+
+
 def handle_admin_special_command(args, user_id, say, app):
     """Handle admin special days commands (non-add commands only)"""
     from config import CALENDARIFIC_API_KEY, CALENDARIFIC_ENABLED
@@ -349,56 +412,105 @@ def handle_admin_special_command(args, user_id, say, app):
             test_date_str = format_date_european_short(test_date)
             say(f"🧪 Testing special day announcement for {test_date_str}...")
 
-            # Always send separate announcements for each observance
-            if len(special_days) >= 1:
+            from config import SPECIAL_DAY_CONSOLIDATED_ENABLED, SPECIAL_DAYS_PERSONALITY
+            from services.special_day import generate_special_day_details
+            from slack.messaging import send_message
+
+            # Consolidated mode for multiple observances
+            if SPECIAL_DAY_CONSOLIDATED_ENABLED and len(special_days) > 1:
+                say(
+                    f"📋 Generating consolidated test announcement ({len(special_days)} observances)..."
+                )
+
+                from services.special_day import generate_consolidated_intro_message
+                from slack.blocks import build_consolidated_special_day_blocks
+
+                intro = generate_consolidated_intro_message(special_days, app=app)
+
+                from config import run_parallel
+
+                def _generate_for_sd(sd):
+                    teaser = generate_special_day_message(
+                        [sd],
+                        test_mode=True,
+                        app=app,
+                        use_teaser=True,
+                        suppress_mention=True,
+                        test_date=test_date,
+                    )
+                    details = generate_special_day_details([sd], app=app, test_date=test_date)
+                    return teaser or "", details or ""
+
+                results = run_parallel(_generate_for_sd, special_days)
+
+                teasers = {}
+                detailed_contents = {}
+                for sd, result in results.items():
+                    if result:
+                        teasers[sd.name] = result[0]
+                        detailed_contents[sd.name] = result[1]
+                    else:
+                        logger.error(f"SPECIAL_DAYS: Failed to generate for {sd.name}")
+                        teasers[sd.name] = ""
+                        detailed_contents[sd.name] = ""
+
+                blocks, fallback_text = build_consolidated_special_day_blocks(
+                    special_days,
+                    intro,
+                    teasers,
+                    detailed_contents,
+                    personality=SPECIAL_DAYS_PERSONALITY,
+                    observance_date=test_date.strftime("%d/%m"),
+                )
+
+                send_message(app, user_id, fallback_text, blocks)
+                say(
+                    f"\n✅ Sent consolidated announcement ({len(special_days)} observances) to your DM"
+                )
+
+            # Individual mode: separate messages per observance
+            elif len(special_days) >= 1:
                 say(f"📋 Sending {len(special_days)} separate test announcement(s)")
 
-                for idx, special_day in enumerate(special_days, 1):
-                    try:
-                        # say(
-                        #     f"\n*{idx}/{len(special_days)}: {special_day.name}* ({special_day.category})"
-                        # )
+                # Pre-generate all AI content
+                from config import run_parallel
 
-                        # Generate individual message
-                        message = generate_special_day_message(
+                def _generate_individual(sd):
+                    teaser = generate_special_day_message(
+                        [sd],
+                        test_mode=True,
+                        app=app,
+                        use_teaser=True,
+                        test_date=test_date,
+                    )
+                    details = generate_special_day_details([sd], app=app, test_date=test_date)
+                    return teaser, details
+
+                results = run_parallel(_generate_individual, special_days)
+
+                generated = {}
+                for sd, result in results.items():
+                    if result:
+                        generated[sd.name] = result
+                    else:
+                        logger.error(f"SPECIAL_DAYS: Failed to generate for {sd.name}")
+                        generated[sd.name] = (None, None)
+
+                # Send sequentially
+                from slack.blocks import build_special_day_blocks
+
+                for special_day in special_days:
+                    message, detailed_content = generated.get(special_day.name, (None, None))
+                    if message:
+                        blocks, fallback_text = build_special_day_blocks(
                             [special_day],
-                            test_mode=True,
-                            app=app,
-                            use_teaser=True,
-                            test_date=test_date,
+                            message,
+                            personality=SPECIAL_DAYS_PERSONALITY,
+                            detailed_content=detailed_content,
                         )
-
-                        # Generate detailed content
-                        from services.special_day import (
-                            generate_special_day_details,
-                        )
-
-                        detailed_content = generate_special_day_details(
-                            [special_day], app=app, test_date=test_date
-                        )
-
-                        if message:
-                            # Build blocks for individual observance (unified function with list)
-                            from config import SPECIAL_DAYS_PERSONALITY
-                            from slack.blocks import build_special_day_blocks
-
-                            blocks, fallback_text = build_special_day_blocks(
-                                [special_day],
-                                message,
-                                personality=SPECIAL_DAYS_PERSONALITY,
-                                detailed_content=detailed_content,
-                            )
-
-                            # Send individual announcement to admin DM
-                            from slack.messaging import send_message
-
-                            send_message(app, user_id, fallback_text, blocks)
-
-                        else:
-                            say(f"❌ Failed to generate message for {special_day.name}")
-
-                    except Exception as e:
-                        say(f"❌ Error testing {special_day.name}: {e}")
+                        send_message(app, user_id, fallback_text, blocks)
+                    else:
+                        say(f"❌ Failed to generate message for {special_day.name}")
 
                 say(f"\n✅ Sent {len(special_days)} separate announcement(s) to your DM")
         else:
@@ -606,29 +718,52 @@ In daily mode, individual announcements are posted each day with observances."""
         try:
             client = get_calendarific_client()
 
-            # Check if force refresh
-            force = len(args) > 1 and args[1].lower() == "force"
-            days = CALENDARIFIC_PREFETCH_DAYS  # Default from config
+            # Parse args: calendarific-refresh [source_id|force]
+            force = False
+            source_id = None
+            if len(args) > 1:
+                arg = args[1].lower()
+                if arg == "force":
+                    force = True
+                else:
+                    source_id = arg
+            if len(args) > 2 and args[2].lower() == "force":
+                force = True
 
-            if len(args) > 1 and args[1].isdigit():
-                days = min(int(args[1]), 14)  # Max 14 days to limit API calls
-
-            say(f"🔄 Refreshing Calendarific cache for next {days} days...")
-
-            stats = client.weekly_prefetch(days_ahead=days, force=force)
-
-            if "error" in stats:
-                say(f"❌ Prefetch failed: {stats['error']}")
+            if source_id:
+                # Refresh specific source
+                src = next((s for s in client.sources if s.id == source_id), None)
+                if not src:
+                    available = ", ".join(s.id for s in client.sources)
+                    say(f"❌ Source `{source_id}` not found. Available: {available}")
+                    return
+                say(f"🔄 Refreshing *{src.label}* ({source_id})...")
+                if src.fetch_strategy == "yearly":
+                    stats = client._prefetch_yearly(src, force=True)
+                else:
+                    stats = client._prefetch_daily(src, force=True)
+                results = {source_id: stats}
             else:
-                message = f"""✅ *Calendarific Prefetch Complete*
+                say("🔄 Refreshing Calendarific cache (all sources)...")
+                results = client.prefetch_all(force=force)
 
-• Days fetched: {stats["fetched"]}
-• Days skipped (cached): {stats["skipped"]}
-• Holidays found: {stats["holidays_found"]}
-• API calls made: {stats["api_calls"]}
-• Failed: {stats["failed"]}"""
-                say(message)
-                logger.info(f"ADMIN_SPECIAL: {username} ran Calendarific refresh")
+            # Aggregate stats across sources
+            lines = []
+            for src_id, stats in results.items():
+                src = next((s for s in client.sources if s.id == src_id), None)
+                label = src.label if src else src_id
+                if "error" in stats:
+                    lines.append(f"• ❌ *{label}*: {stats['error']}")
+                elif "skipped" in stats:
+                    lines.append(f"• ⏭️ *{label}*: {stats['skipped']}")
+                else:
+                    lines.append(
+                        f"• ✅ *{label}*: {stats.get('fetched', 0)} holidays, "
+                        f"{stats.get('api_calls', 0)} API calls"
+                    )
+
+            say("✅ *Calendarific Prefetch Complete*\n\n" + "\n".join(lines))
+            logger.info(f"ADMIN_SPECIAL: {username} ran Calendarific refresh")
 
         except Exception as e:
             say(f"❌ Prefetch error: {e}")
@@ -665,151 +800,17 @@ _Use `admin special [un|unesco|who]-refresh` or `all-refresh` to force update._"
             logger.error(f"ADMIN_SPECIAL: Failed to get observances status: {e}")
 
     elif subcommand in ["un-status", "un"]:
-        # UN Observances: Show cache status
-        try:
-            from integrations.observances.un import get_un_cache_status
-
-            status = get_un_cache_status()
-
-            last_updated = status.get("last_updated")
-            if last_updated:
-                last_dt = datetime.fromisoformat(last_updated)
-                last_str = last_dt.strftime("%Y-%m-%d %H:%M")
-            else:
-                last_str = "Never"
-
-            message = f"""📊 *UN Observances Cache Status*
-
-• Cache exists: {"✅ Yes" if status["cache_exists"] else "❌ No"}
-• Cache fresh: {"✅ Yes" if status["cache_fresh"] else "⚠️ Stale"}
-• Last updated: {last_str}
-• Observances cached: {status["observance_count"]}
-
-*Source:* {status["source_url"]}
-
-_Cache refreshes weekly. Use `admin special un-refresh` to force update._"""
-            say(message)
-
-        except Exception as e:
-            say(f"❌ Failed to get UN cache status: {e}")
-            logger.error(f"ADMIN_SPECIAL: Failed to get UN status: {e}")
-
+        _show_observance_status("UN", "un", say)
     elif subcommand == "un-refresh":
-        # UN Observances: Force refresh
-        try:
-            from integrations.observances.un import refresh_un_cache
-
-            say("🔄 Refreshing UN observances cache...")
-
-            stats = refresh_un_cache(force=True)
-
-            if stats.get("error"):
-                say(f"❌ Refresh failed: {stats['error']}")
-            else:
-                say(f"✅ UN observances cache refreshed: {stats['fetched']} observances")
-                logger.info(f"ADMIN_SPECIAL: {username} refreshed UN cache")
-
-        except Exception as e:
-            say(f"❌ Refresh error: {e}")
-            logger.error(f"ADMIN_SPECIAL: UN refresh failed: {e}")
-
+        _refresh_observance("UN", "un", say, username)
     elif subcommand in ["unesco-status", "unesco"]:
-        # UNESCO Observances: Show cache status
-        try:
-            from integrations.observances.unesco import get_unesco_cache_status
-
-            status = get_unesco_cache_status()
-
-            last_updated = status.get("last_updated")
-            if last_updated:
-                last_dt = datetime.fromisoformat(last_updated)
-                last_str = last_dt.strftime("%Y-%m-%d %H:%M")
-            else:
-                last_str = "Never"
-
-            message = f"""📊 *UNESCO Observances Cache Status*
-
-• Cache exists: {"✅ Yes" if status["cache_exists"] else "❌ No"}
-• Cache fresh: {"✅ Yes" if status["cache_fresh"] else "⚠️ Stale"}
-• Last updated: {last_str}
-• Observances cached: {status["observance_count"]}
-
-*Source:* {status["source_url"]}
-
-_Cache refreshes monthly. Use `admin special unesco-refresh` to force update._"""
-            say(message)
-
-        except Exception as e:
-            say(f"❌ Failed to get UNESCO cache status: {e}")
-            logger.error(f"ADMIN_SPECIAL: Failed to get UNESCO status: {e}")
-
+        _show_observance_status("UNESCO", "unesco", say)
     elif subcommand == "unesco-refresh":
-        # UNESCO Observances: Force refresh
-        try:
-            from integrations.observances.unesco import refresh_unesco_cache
-
-            say("🔄 Refreshing UNESCO observances cache...")
-
-            stats = refresh_unesco_cache(force=True)
-
-            if stats.get("error"):
-                say(f"❌ Refresh failed: {stats['error']}")
-            else:
-                say(f"✅ UNESCO observances cache refreshed: {stats['fetched']} observances")
-                logger.info(f"ADMIN_SPECIAL: {username} refreshed UNESCO cache")
-
-        except Exception as e:
-            say(f"❌ Refresh error: {e}")
-            logger.error(f"ADMIN_SPECIAL: UNESCO refresh failed: {e}")
-
+        _refresh_observance("UNESCO", "unesco", say, username)
     elif subcommand in ["who-status", "who"]:
-        # WHO Observances: Show cache status
-        try:
-            from integrations.observances.who import get_who_cache_status
-
-            status = get_who_cache_status()
-
-            last_updated = status.get("last_updated")
-            if last_updated:
-                last_dt = datetime.fromisoformat(last_updated)
-                last_str = last_dt.strftime("%Y-%m-%d %H:%M")
-            else:
-                last_str = "Never"
-
-            message = f"""📊 *WHO Observances Cache Status*
-
-• Cache exists: {"✅ Yes" if status["cache_exists"] else "❌ No"}
-• Cache fresh: {"✅ Yes" if status["cache_fresh"] else "⚠️ Stale"}
-• Last updated: {last_str}
-• Observances cached: {status["observance_count"]}
-
-*Source:* {status["source_url"]}
-
-_Cache refreshes monthly. Use `admin special who-refresh` to force update._"""
-            say(message)
-
-        except Exception as e:
-            say(f"❌ Failed to get WHO cache status: {e}")
-            logger.error(f"ADMIN_SPECIAL: Failed to get WHO status: {e}")
-
+        _show_observance_status("WHO", "who", say)
     elif subcommand == "who-refresh":
-        # WHO Observances: Force refresh
-        try:
-            from integrations.observances.who import refresh_who_cache
-
-            say("🔄 Refreshing WHO observances cache...")
-
-            stats = refresh_who_cache(force=True)
-
-            if stats.get("error"):
-                say(f"❌ Refresh failed: {stats['error']}")
-            else:
-                say(f"✅ WHO observances cache refreshed: {stats['fetched']} observances")
-                logger.info(f"ADMIN_SPECIAL: {username} refreshed WHO cache")
-
-        except Exception as e:
-            say(f"❌ Refresh error: {e}")
-            logger.error(f"ADMIN_SPECIAL: WHO refresh failed: {e}")
+        _refresh_observance("WHO", "who", say, username)
 
     elif subcommand == "all-refresh":
         # Refresh all observance sources at once
@@ -837,13 +838,8 @@ _Cache refreshes monthly. Use `admin special who-refresh` to force update._"""
         logger.info(f"ADMIN_SPECIAL: {username} refreshed all observance caches")
 
     elif subcommand == "calendarific-status":
-        # Calendarific: Show API status
         if not CALENDARIFIC_ENABLED:
-            say("""📊 *Calendarific API Status*
-
-• Status: ❌ Disabled
-• To enable: Set `CALENDARIFIC_ENABLED=true` in .env
-• Get free API key at: https://calendarific.com""")
+            say("📊 *Calendarific:* ❌ Disabled — set `CALENDARIFIC_ENABLED=true` in .env")
             return
 
         try:
@@ -851,68 +847,103 @@ _Cache refreshes monthly. Use `admin special who-refresh` to force update._"""
             status = client.get_api_status()
 
             last_prefetch = status.get("last_prefetch")
+            last_str = "Never"
             if last_prefetch:
                 last_dt = datetime.fromisoformat(last_prefetch)
-                last_str = last_dt.strftime("%Y-%m-%d %H:%M")
-            else:
-                last_str = "Never"
+                last_str = f"`{last_dt.strftime('%Y-%m-%d %H:%M')}`"
 
-            message = f"""📊 *Calendarific API Status*
+            # Per-source breakdown
+            source_lines = []
+            for sid, info in status.get("sources", {}).items():
+                flag = "✅" if info["enabled"] else "❌"
+                count = info.get("holiday_count", 0)
+                strategy = info.get("fetch_strategy", "daily")
+                fresh = "🟢" if info.get("cache_fresh") else "🟡"
+                updated = info.get("last_updated", "—")
+                if isinstance(updated, str) and "T" in updated:
+                    updated = f"`{updated[:10]}`"
+                source_lines.append(
+                    f"• {flag} *{info['label']}* ({info['country']}) — {fresh} {count} holidays, {strategy}, updated {updated}"
+                )
+            sources_text = "\n".join(source_lines) if source_lines else "• No sources configured"
 
-• Status: {"✅ Enabled" if status["enabled"] else "❌ Disabled"}
-• API Key: {"✅ Configured" if status["api_key_configured"] else "❌ Missing"}
-• Country: {status["country"]}
-
-*Usage This Month:*
-• API calls: {status["month_calls"]} / {status["monthly_limit"]}
-• Remaining: {status["calls_remaining"]}
-
-*Cache:*
-• Cached dates: {status["cached_dates"]}
-• Cache TTL: {status["cache_ttl_days"]} days
-• Last prefetch: {last_str}
-• Needs refresh: {"⚠️ Yes" if status["needs_prefetch"] else "✅ No"}
-
-_Run `admin special calendarific-refresh` to update cache_"""
-            say(message)
+            say(
+                f"📊 *Calendarific API Status*\n\n"
+                f"• API Key: {'✅ Configured' if status['api_key_configured'] else '❌ Missing'}\n"
+                f"• API calls: {status['month_calls']} / {status['monthly_limit']}\n"
+                f"• Total holidays: {status['holiday_count']}\n"
+                f"• Last prefetch: {last_str}\n"
+                f"• Needs refresh: {'⚠️ Yes' if status['needs_prefetch'] else '✅ No'}\n\n"
+                f"*Sources:*\n{sources_text}\n\n"
+                f"_Use `admin special calendarific-toggle <source_id>` to enable/disable a source_"
+            )
 
         except Exception as e:
             say(f"❌ Failed to get API status: {e}")
             logger.error(f"ADMIN_SPECIAL: Failed to get Calendarific status: {e}")
 
+    elif subcommand == "calendarific-emojis":
+        if not CALENDARIFIC_ENABLED:
+            say("❌ Calendarific not enabled")
+            return
+        try:
+            client = get_calendarific_client()
+            source_id = args[1].lower() if len(args) > 1 else None
+            targets = (
+                [s for s in client.get_enabled_sources() if s.id == source_id]
+                if source_id
+                else client.get_enabled_sources()
+            )
+            if not targets:
+                available = ", ".join(s.id for s in client.sources)
+                say(f"❌ Source not found. Available: {available}")
+                return
+
+            say(f"🎨 Assigning emojis via AI for {len(targets)} source(s)...")
+            total = 0
+            for src in targets:
+                cache_data = client._load_cache(src)
+                all_holidays = []
+                for entry in cache_data.get("entries", {}).values():
+                    all_holidays.extend(entry.get("holidays", []))
+                if all_holidays:
+                    client._enrich_holidays_with_emojis(all_holidays)
+                    client._save_cache(src, cache_data)
+                    total += len(all_holidays)
+                    say(f"• ✅ *{src.label}*: {len(all_holidays)} holidays enriched")
+                else:
+                    say(f"• ⏭️ *{src.label}*: no cached holidays")
+
+            logger.info(f"ADMIN_SPECIAL: {username} enriched {total} holidays with AI emojis")
+        except Exception as e:
+            say(f"❌ Emoji enrichment failed: {e}")
+
+    elif subcommand == "calendarific-toggle" and len(args) > 1:
+        source_id = args[1].lower()
+        try:
+            client = get_calendarific_client()
+            toggled = False
+            for src in client.sources:
+                if src.id == source_id:
+                    src.enabled = not src.enabled
+                    client.save_source_state()
+                    new_state = "✅ enabled" if src.enabled else "❌ disabled"
+                    say(f"Calendarific source *{src.label}* ({source_id}) is now {new_state}")
+                    logger.info(
+                        f"ADMIN_SPECIAL: {username} toggled Calendarific source {source_id}"
+                    )
+                    toggled = True
+                    break
+            if not toggled:
+                available = ", ".join(s.id for s in client.sources)
+                say(f"❌ Source `{source_id}` not found. Available: {available}")
+        except Exception as e:
+            say(f"❌ Toggle failed: {e}")
+
     else:
-        # Help message
-        help_text = """*Admin Special Days Commands:*
+        from slack.blocks.help import get_special_days_help_text
 
-• `admin special add DD/MM "Name" "Category" "Description" ["emoji"] ["source"] ["url"]` - Add a custom day
-• `admin special remove DD/MM [name]` - Remove a custom day
-• `admin special list [category]` - List all special days (all sources)
-• `admin special categories [enable/disable category]` - Manage categories
-• `admin special test [DD/MM]` - Test announcement for a date
-• `admin special config [setting value]` - View/update configuration
-• `admin special verify` - Verify CSV data accuracy
-
-*Announcement Mode:*
-• `admin special mode` - Show current mode (daily/weekly)
-• `admin special mode daily` - Switch to daily announcements
-• `admin special mode weekly [day]` - Switch to weekly digest (e.g., `weekly friday`)
-
-*Observance Sources:*
-• `admin special observances` - Combined status for all sources
-• `admin special all-refresh` - Force refresh all sources (UN/UNESCO/WHO)
-• `admin special un-status` - UN cache status (weekly refresh)
-• `admin special un-refresh` - Force refresh UN cache
-• `admin special unesco-status` - UNESCO cache status (monthly refresh)
-• `admin special unesco-refresh` - Force refresh UNESCO cache
-• `admin special who-status` - WHO cache status (monthly refresh)
-• `admin special who-refresh` - Force refresh WHO cache
-
-*Calendarific API (national holidays):*
-• `admin special calendarific-status` - Show Calendarific status
-• `admin special calendarific-refresh [days]` - Prefetch upcoming days
-
-*Categories:* Global Health, Tech, Culture, Company, Religious"""
-        say(help_text)
+        say(f"*🌟 Special Days Commands:*\n\n{get_special_days_help_text()}")
 
     logger.info(
         f"ADMIN_SPECIAL: {username} ({user_id}) used admin special command: {' '.join(args)}"

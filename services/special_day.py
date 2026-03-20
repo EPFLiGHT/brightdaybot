@@ -13,21 +13,19 @@ from config import (
     DIGEST_DESCRIPTION_LENGTH,
     IMAGE_GENERATION_PARAMS,
     REASONING_EFFORT,
-    SLACK_BUTTON_DISPLAY_CHAR_LIMIT,
-    SLACK_BUTTON_VALUE_CHAR_LIMIT,
     SPECIAL_DAY_MENTION_ENABLED,
     SPECIAL_DAYS_IMAGE_ENABLED,
     SPECIAL_DAYS_PERSONALITY,
     TEAM_NAME,
     TEMPERATURE_SETTINGS,
     TOKEN_LIMITS,
+    get_logger,
 )
 from config.personality import get_personality_config
 from integrations.openai import complete
 from integrations.web_search import get_birthday_facts
 from services.image_generator import generate_birthday_image
 from slack.emoji import get_emoji_context_for_ai
-from utils.log_setup import get_logger
 from utils.sanitization import markdown_to_slack_mrkdwn
 
 # Get dedicated logger
@@ -73,6 +71,7 @@ def generate_special_day_message(
     personality_name: Optional[str] = None,
     include_facts: bool = True,
     test_mode: bool = False,
+    suppress_mention: bool = False,
     app=None,
     use_teaser: bool = True,
     test_date=None,
@@ -163,7 +162,11 @@ def generate_special_day_message(
 
             # Add emoji instructions
             emoji_count = "2-3" if use_teaser else "3-5"
-            prompt += f"\n\nEMOJI USAGE: Include {emoji_count} relevant emojis throughout your message for visual appeal. Available emojis: {emoji_examples}"
+            if suppress_mention:
+                # Consolidated mode: emoji + name already in the header label
+                prompt += f"\n\nEMOJI OVERRIDE: Do NOT start lines with the observance emoji {day.emoji if len(special_days) == 1 else ''} — it's already shown in the header. Include {emoji_count} emojis naturally within the text instead. Available emojis: {emoji_examples}"
+            else:
+                prompt += f"\n\nEMOJI USAGE: Include {emoji_count} relevant emojis throughout your message for visual appeal. Available emojis: {emoji_examples}"
 
         else:
             # Multiple special days
@@ -208,8 +211,8 @@ def generate_special_day_message(
         if facts_text and not use_teaser:
             prompt += f"\n\nHistorical context for today: {facts_text}"
 
-        # Add channel mention (conditional based on config)
-        if SPECIAL_DAY_MENTION_ENABLED:
+        # Add channel mention (conditional based on config; suppressed in consolidated mode)
+        if SPECIAL_DAY_MENTION_ENABLED and not suppress_mention:
             prompt += "\n\nInclude <!here> to notify the channel."
         else:
             prompt += "\n\nDo NOT include <!here> or any channel mention."
@@ -251,6 +254,84 @@ def generate_special_day_message(
     except Exception as e:
         logger.error(f"Error generating special day message: {e}")
         return generate_fallback_special_day_message(special_days, personality_config)
+
+
+def generate_consolidated_intro_message(
+    special_days: List,
+    personality_name: Optional[str] = None,
+    app=None,
+) -> str:
+    """
+    Generate a short AI intro for consolidated special day announcements.
+
+    Args:
+        special_days: List of SpecialDay objects for today
+        personality_name: Optional personality override
+        app: Optional Slack app instance for custom emoji support
+
+    Returns:
+        Intro message string (2-3 lines)
+    """
+    personality = personality_name or SPECIAL_DAYS_PERSONALITY
+    personality_config = get_personality_config(personality)
+
+    count = len(special_days)
+    names = [d.name if hasattr(d, "name") else d.get("name", "") for d in special_days]
+    preview = ", ".join(names[:6])
+    if len(names) > 6:
+        preview += f" and {len(names) - 6} more"
+
+    emoji_ctx = get_emoji_context_for_ai(app)
+    emoji_examples = emoji_ctx["emoji_examples"]
+
+    mention = (
+        "Start with <!here> to notify the channel."
+        if SPECIAL_DAY_MENTION_ENABLED
+        else "Do NOT include <!here>."
+    )
+
+    try:
+        prompt = f"""Generate a BRIEF 2-3 line intro for a consolidated special day announcement.
+
+Today features {count} observance(s): {preview}
+
+REQUIREMENTS:
+- {mention}
+- Be concise (2-3 lines max)
+- Mention it's a day with multiple observances
+- Invite readers to explore each one below
+- Include 2-3 relevant emojis
+- Use *single asterisks* for bold, _single underscores_ for italic
+
+Available emojis: {emoji_examples}"""
+
+        message = complete(
+            messages=[
+                {
+                    "role": "system",
+                    "content": f"You are {personality_config['name']}, {personality_config['description']} for the {TEAM_NAME} workspace.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=150,
+            temperature=TEMPERATURE_SETTINGS.get("default", 0.7),
+            context="CONSOLIDATED_INTRO_MESSAGE",
+        )
+
+        if message:
+            logger.info("Successfully generated consolidated intro message")
+            return markdown_to_slack_mrkdwn(message.strip())
+
+    except Exception as e:
+        logger.error(f"Error generating consolidated intro message: {e}")
+
+    # Fallback
+    mention_text = "<!here> " if SPECIAL_DAY_MENTION_ENABLED else ""
+    return (
+        f"{mention_text}📅 *Today marks {count} special observances!*\n\n"
+        f"Featuring: {preview}\n"
+        f"Read on for details about each one."
+    )
 
 
 def generate_fallback_special_day_message(special_days: List, personality_config: dict) -> str:
@@ -528,80 +609,59 @@ def generate_special_day_details(
             # Create prompt for multiple observances
             # Calculate proportional length based on number of observances
             if len(special_days) == 2:
-                length_guidance = "12-16 lines"
+                length_guidance = "16-22 lines"
             elif len(special_days) >= 3:
-                length_guidance = "14-18 lines"
+                length_guidance = "20-28 lines"
             else:
-                length_guidance = "10-14 lines"
+                length_guidance = "14-20 lines"
 
-            prompt = f"""Generate comprehensive, detailed content for {len(special_days)} special day observances happening today.
+            prompt = f"""Generate engaging, detailed content for {len(special_days)} special day observances happening today.
 
-CRITICAL SLACK FORMATTING RULES:
-- Use *single asterisks* for bold text, NOT **double asterisks**
-- Use _single underscores_ for italic text, NOT __double underscores__
-- Combine for bold+italic: *_text_* (asterisks outside, underscores inside)
-- For links: use <URL|text> format of Slack, e.g., <https://example.com|Example Organization>
-- NEVER use markdown links like [text](url)
-- NEVER use HTML tags
+SLACK FORMATTING:
+- Use *single asterisks* for bold, _single underscores_ for italic
+- Combine: *_bold italic_* (asterisks outside, underscores inside)
+- For links: <URL|text> format. NEVER use [text](url) or HTML tags
+- Use 🔹 for bullet lists. Include 8-12 emojis naturally throughout.
 
-VISUAL FORMATTING REQUIREMENTS:
-- Observance names: Use *bold* (e.g., *Africa Industrialization Day*)
-- Section titles: Use *_bold and italic_* (e.g., *_Historical Context:_*, *_Global Impact & Challenge:_*, *_Strategic Actions:_*)
-- Subsection labels: Use *bold* only (e.g., *Individual:*, *Team:*, *Organization:*)
-
-EMOJI USAGE:
-- Include 6-8 relevant emojis throughout for visual appeal
-- Place emojis at the START of bullet points, not at the end of sentences
-- Use emojis sparingly in paragraph text
-- Available emojis: {emoji_examples}
+Available emojis: {emoji_examples}
 
 OBSERVANCES TODAY:
 {observances_text}
 
-STRUCTURE (Concise - {length_guidance} total to fit {SLACK_BUTTON_DISPLAY_CHAR_LIMIT} character Slack button limit):
+STRUCTURE ({length_guidance} total):
 
-*_Brief Connection:_*
-[1 sentence connecting all {len(special_days)} observances thematically. NO emojis in paragraph.]
+*_Common Thread:_*
+[1-2 sentences weaving all {len(special_days)} observances together thematically — find the human connection.]
 
-For EACH observance below, provide:
+Then for EACH observance:
 
-*[Observance Name]* - *_Historical Context:_*
-[When/why established, 1-2 concise sentences. NO emojis in paragraphs.]
+*_[Observance Name]:_*
 
-*_Global Impact & Challenge:_*
-🌍 [Scope and significance - 1 sentence using qualifiers like "typically," "often"]
-✨ [Central issue this addresses - 1 sentence, no fabricated statistics]
+*_Why It Matters:_*
+[2-3 sentences: when/why established, who championed it, and what it represents today. Storytelling, not reporting.]
 
-*_Strategic Actions - How to Engage:_*
-👤 *Individual:* [1-2 specific, tactical actions for all observances]
-👥 *Team:* [1 team-based initiative aligned with these observances]
-🏢 *Organization:* [1 company-wide opportunity for policy/culture alignment]
+*_Key Facts:_*
+🔹 [Surprising or compelling fact]
+🔹 [Human-scale detail — how this touches real lives]
 
-CRITICAL LENGTH REQUIREMENT:
-- STRICT MAXIMUM: {SLACK_BUTTON_DISPLAY_CHAR_LIMIT} characters total. Do NOT exceed this limit.
-- MAXIMUM {length_guidance} total
-- Be CONCISE and TACTICAL - every line must add value
-- Prioritize actionable insights over background details
+*_Take Action:_*
+💡 [One specific personal action]
+👥 [One team-level idea]
 
-HONESTY REQUIREMENTS:
-- Use ONLY facts from the provided descriptions and sources
-- Qualify general knowledge with "typically," "often," "generally," "can involve"
-- DO NOT fabricate numbers, percentages, years, or statistics
-- Be transparent about uncertainty
+LENGTH: MAXIMUM {length_guidance}. Be vivid but concise — every line should earn its place.
 
-STRICT PROHIBITIONS:
-- DO NOT add "Learn More", "Official Source", or "Description" sections (handled separately)
-- DO NOT include actual URLs (source links added automatically)
+HONESTY:
+- Use ONLY facts from provided descriptions and sources
+- Qualify general knowledge with "typically," "often," "generally"
+- DO NOT fabricate statistics, dates, or numbers
+
+PROHIBITIONS:
+- DO NOT add "Learn More" or "Official Source" sections (handled by buttons)
+- DO NOT include URLs (source links added automatically)
 - DO NOT use **double asterisks** or __double underscores__
-- DO NOT add title/header (added automatically by Block Kit)
-- DO NOT add emojis at end of sentences in paragraphs
-- DO NOT exceed {length_guidance} total
+- DO NOT add a title/header (added automatically)
 
-TONE & STYLE:
-- Chronicler personality: Keeper of human history, dignified yet accessible
-- Focus on historical significance and current relevance
-- Be CONCISE and TACTICAL - every line must add value
-- Connect observances to broader human progress where applicable"""
+TONE: Chronicler personality — keeper of human history, warm yet dignified. Connect observances to broader human progress."""
 
             if facts_text:
                 prompt += f"\n\nADDITIONAL CONTEXT: Historical events on this date that may provide relevant context:\n{facts_text}\n\nYou may reference these if they connect meaningfully to the observances, but they are not required."
@@ -639,18 +699,7 @@ TONE & STYLE:
             return None
         details = markdown_to_slack_mrkdwn(details.strip())
 
-        logger.info("Successfully generated special day details")
-
-        # Truncate if too long for Slack button value (2000 char limit, using safety buffer)
-        if len(details) > SLACK_BUTTON_VALUE_CHAR_LIMIT:
-            logger.warning(
-                f"Details too long ({len(details)} chars), truncating to {SLACK_BUTTON_VALUE_CHAR_LIMIT}"
-            )
-            details = (
-                details[:SLACK_BUTTON_VALUE_CHAR_LIMIT]
-                + "...\n\nSee official source for complete information."
-            )
-
+        logger.info(f"Successfully generated special day details ({len(details)} chars)")
         return details
 
     except Exception as e:

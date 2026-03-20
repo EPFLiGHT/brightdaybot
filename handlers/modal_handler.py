@@ -285,6 +285,23 @@ def _send_birthday_today_message(client, user_id, username, date_ddmm, birth_yea
 
     # Trigger immediate celebration via existing flow
     logger.info(f"MODAL: Birthday today for {username}, triggering immediate celebration")
+    try:
+        from commands.birthday_commands import send_immediate_birthday_announcement
+        from utils.date_utils import calculate_age
+        from utils.date_utils import date_to_words as dtw
+
+        age_text = f" (Age: {calculate_age(birth_year)})" if birth_year else ""
+        dw = dtw(date_ddmm, birth_year)
+
+        def modal_say(msg=None, **kwargs):
+            """Adapter: send to user DM since modal has no say()."""
+            client.chat_postMessage(channel=user_id, text=msg or "", **kwargs)
+
+        send_immediate_birthday_announcement(
+            user_id, username, date_ddmm, birth_year, dw, age_text, modal_say, app
+        )
+    except Exception as e:
+        logger.error(f"MODAL: Failed to trigger immediate celebration for {username}: {e}")
 
 
 def _send_modal_error(client, user_id, message):

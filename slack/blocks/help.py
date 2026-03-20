@@ -6,6 +6,25 @@ from config import UPCOMING_DAYS_DEFAULT, UPCOMING_DAYS_EXTENDED
 from config.personality import get_personality_descriptions
 
 
+def get_special_days_help_text() -> str:
+    """Shared help text for special days admin commands. Used by both block help and inline help."""
+    return """• `admin special list [category]` - List all observances (all sources)
+• `admin special add/remove` - Manage custom days
+• `admin special categories` - Manage category enable/disable
+• `admin special test [DD/MM]` - Test announcement
+• `admin special config` - View/update configuration
+• `admin special verify` - Verify data accuracy
+• `admin special mode [daily|weekly [day]]` - Announcement mode
+• `admin special observances` - Combined source status
+• `admin special [un|unesco|who]-status` - Individual cache status
+• `admin special [un|unesco|who]-refresh` - Force refresh individual source
+• `admin special all-refresh` - Refresh all observance sources
+• `admin special calendarific-status` - All sources and status
+• `admin special calendarific-refresh [source_id] [force]` - Prefetch all or one source
+• `admin special calendarific-toggle <source_id>` - Enable/disable a source
+• `admin special calendarific-emojis [source_id]` - Assign emojis via AI"""
+
+
 def build_welcome_blocks(
     user_mention: str, channel_mention: str
 ) -> tuple[List[Dict[str, Any]], str]:
@@ -184,21 +203,9 @@ def build_help_blocks(is_admin: bool = False) -> tuple[List[Dict[str, Any]], str
                 "text": {"type": "mrkdwn", "text": "*🌟 Special Days Management*"},
             }
         )
-        special_days = """• `admin special` - View full special days help
-• `admin special list [category]` - List all observances (all sources)
-• `admin special add/remove` - Manage custom days
-• `admin special categories` - Manage category enable/disable
-• `admin special test [DD/MM]` - Test announcement
-• `admin special config` - View/update configuration
-• `admin special verify` - Verify data accuracy
-• `admin special mode [daily|weekly [day]]` - Announcement mode
-• `admin special observances` - Combined source status
-• `admin special [un|unesco|who]-status` - Individual cache status
-• `admin special [un|unesco|who]-refresh` - Force refresh individual source
-• `admin special all-refresh` - Refresh all observance sources
-• `admin special calendarific-status` - Calendarific API status
-• `admin special calendarific-refresh [days]` - Prefetch Calendarific data"""
-        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": special_days}})
+        blocks.append(
+            {"type": "section", "text": {"type": "mrkdwn", "text": get_special_days_help_text()}}
+        )
 
         blocks.append({"type": "divider"})
 
@@ -281,7 +288,8 @@ def build_help_blocks(is_admin: bool = False) -> tuple[List[Dict[str, Any]], str
         canvas_cmds = """• `admin canvas` or `admin canvas status` - Dashboard status and backup info
 • `admin canvas refresh` - Force immediate update (bypasses debounce)
 • `admin canvas reset` - Delete and recreate canvas from scratch
-• `admin canvas clean` - Remove bot messages from ops channel (keeps backup thread)"""
+• `admin canvas clean` - Remove bot messages from ops channel (keeps backup thread)
+• `admin canvas dismiss-warnings` - Dismiss all canvas warnings"""
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": canvas_cmds}})
 
         blocks.append({"type": "divider"})

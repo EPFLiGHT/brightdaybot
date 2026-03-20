@@ -18,16 +18,28 @@ from config import (
     CANVAS_MIN_UPDATE_INTERVAL_SECONDS,
     CANVAS_RECENT_CHANGES_MAX,
     CANVAS_SETTINGS_FILE,
+    CANVAS_WARNINGS_MAX,
+    CANVAS_WARNINGS_TTL_HOURS,
     OPS_CHANNEL_ID,
     SLACK_HISTORY_PAGE_SIZE,
+    get_logger,
 )
-from utils.log_setup import get_logger
 
 logger = get_logger("slack")
 
+
+def _flag(val):
+    """Format a boolean as ✅/❌ for dashboard display."""
+    return "✅" if val else "❌"
+
+
 # Module state
 _recent_changes = collections.deque(maxlen=CANVAS_RECENT_CHANGES_MAX)
+_recent_warnings = collections.deque(maxlen=CANVAS_WARNINGS_MAX)
+_warnings_ttl_seconds = CANVAS_WARNINGS_TTL_HOURS * 3600
 _last_update_time = None
+_last_sched_ok = None
+_last_sd_total = None
 _update_lock = threading.Lock()
 
 
@@ -161,13 +173,14 @@ def _ensure_canvas(app, channel_id):
     return None
 
 
-def _update_channel_topic(app, channel_id):
+def _update_channel_topic(app, channel_id, sd_total=None):
     """Update channel topic only when data changes, to avoid system message spam."""
     try:
         from config import BIRTHDAY_CHANNEL
         from services.scheduler import get_scheduler_health
         from slack.client import get_channel_members
         from storage.birthdays import load_birthdays
+        from storage.special_days import load_all_special_days
 
         birthdays = load_birthdays()
         total = len(birthdays)
@@ -189,11 +202,28 @@ def _update_channel_topic(app, channel_id):
         health = get_scheduler_health()
         sched_ok = health.get("status") == "ok"
 
+        # Total special days count (use precomputed if available)
+        if sd_total is None:
+            sd_total = len(load_all_special_days())
+
+        global _last_sched_ok
+
+        # Data fingerprints for change detection (emoji-free to avoid
+        # Slack's Unicode → :emoji: conversion mismatch on readback)
+        data_fingerprint = f"{active}/{total} active"
+        sd_fingerprint = f"{sd_total} special days"
+
         topic = (
             f"🤖 BrightDayBot Ops | "
-            f"🎂 {active}/{total} active | "
+            f"🎂 {data_fingerprint} | "
+            f"🌍 {sd_fingerprint} | "
             f"⚙️ {'✅' if sched_ok else '⚠️'}"
         )
+
+        # Track scheduler status changes in memory (can't use emoji in
+        # topic comparison — Slack converts Unicode to :emoji: shortcodes)
+        sched_changed = _last_sched_ok is not None and _last_sched_ok != sched_ok
+        _last_sched_ok = sched_ok
 
         # Read current topic/purpose to decide whether to update
         try:
@@ -205,18 +235,27 @@ def _update_channel_topic(app, channel_id):
             current_topic = ""
             current_purpose = ""
 
-        # Only update topic if it's ours (starts with bot prefix) or empty.
-        # If someone manually set a different topic, respect it.
-        if current_topic != topic:
-            if not current_topic or current_topic.startswith("🤖 BrightDayBot Ops"):
+        # Compare on data content only — Slack converts Unicode emojis to
+        # :emoji: format so direct string comparison always fails.
+        topic_data_unchanged = (
+            "BrightDayBot Ops" in current_topic
+            and data_fingerprint in current_topic
+            and sd_fingerprint in current_topic
+            and not sched_changed
+        )
+
+        if not topic_data_unchanged:
+            if not current_topic or "BrightDayBot Ops" in current_topic:
                 app.client.conversations_setTopic(channel=channel_id, topic=topic)
                 logger.info(f"CANVAS: Updated channel topic for {channel_id}")
             else:
-                logger.debug("CANVAS: Skipping topic update — manually set by user")
+                logger.info(
+                    f"CANVAS: Skipping topic update — manually set by user: {current_topic!r}"
+                )
 
         # Set purpose if empty or ours
-        expected_purpose = "BrightDayBot ops hub — canvas dashboard auto-refreshes at :00 and :30 with system health, birthday data, scheduler, caches, and backups."
-        if not current_purpose or current_purpose.startswith("BrightDayBot ops hub"):
+        expected_purpose = "BrightDayBot ops hub — canvas dashboard auto-refreshes every half hour with system health, birthday data, scheduler, caches, and backups."
+        if not current_purpose or "BrightDayBot ops hub" in current_purpose:
             if current_purpose != expected_purpose:
                 try:
                     app.client.conversations_setPurpose(
@@ -237,16 +276,21 @@ def _update_channel_topic(app, channel_id):
 def _build_dashboard_markdown(app=None):
     """Build the full dashboard markdown from existing data sources."""
     timestamp = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+    warnings_section = _build_warnings_section()
     sections = [
-        f"## 🕐 Last refreshed: {timestamp}",
+        f"## 🕐 Last refreshed: `{timestamp}`",
         _build_birthday_section(app),
         _build_health_section(),
+    ]
+    if warnings_section:
+        sections.append(warnings_section)
+    sections += [
         _build_engagement_section(),
         _build_scheduler_section(),
         _build_observances_section(),
         _build_backups_section(app),
-        "*🔄 Auto-updates on birthday changes and at :00 and :30.*",
     ]
+    sections.append("*🔄 Auto-updates on birthday changes and every half hour.*")
 
     return "\n\n---\n\n".join(sections)
 
@@ -323,8 +367,9 @@ def _build_birthday_section(app=None):
 
         # Recent changes
         changes_text = ""
-        if _recent_changes:
-            changes_lines = "\n".join(f"- {c}" for c in reversed(_recent_changes))
+        changes_snapshot = list(_recent_changes)
+        if changes_snapshot:
+            changes_lines = "\n".join(f"- {c}" for c in reversed(changes_snapshot))
             changes_text = f"\n\n### 📝 Recent Changes\n{changes_lines}"
 
         return f"""## 🎂 Birthday Data
@@ -380,34 +425,35 @@ def _build_health_section():
         # Feature flags
         from config import (
             AI_IMAGE_GENERATION_ENABLED,
+            DEFAULT_IMAGE_MODEL,
+            EXTERNAL_BACKUP_ENABLED,
+            IMAGE_GENERATION_PARAMS,
             MENTION_QA_ENABLED,
             NLP_DATE_PARSING_ENABLED,
+            PROFILE_ANALYSIS_ENABLED,
+            SPECIAL_DAYS_IMAGE_ENABLED,
             THREAD_ENGAGEMENT_ENABLED,
+            USE_CUSTOM_EMOJIS,
+            WEB_SEARCH_CACHE_ENABLED,
         )
         from storage.settings import load_bot_celebration_setting
 
         bot_celebration = load_bot_celebration_setting()
 
-        def _flag(val):
-            return "✅" if val else "❌"
-
         overall_emoji = "✅" if overall == "ok" else "⚠️"
+
+        img_quality = IMAGE_GENERATION_PARAMS["quality"]["default"]
+        img_size = IMAGE_GENERATION_PARAMS["size"]["default"]
 
         return f"""## 🏥 System Health
 - **Status:** {overall_emoji} {overall.title()}
 - **Birthday Channel:** {channel_status}
 - **Admins:** {admin_count}
-- **Personality:** `{personality}`
-- **Model:** `{model}`
-- **Timezone:** {tz_mode}
+- **Personality:** `{personality}` · **Timezone:** {tz_mode}
+- **Model:** `{model}` · **Image:** `{DEFAULT_IMAGE_MODEL}` ({img_quality}, {img_size})
 - **Logs:** {total_log_mb} MB total
 
-**🔧 Features:**
-- Thread engagement: {_flag(THREAD_ENGAGEMENT_ENABLED)}
-- @-Mention Q&A: {_flag(MENTION_QA_ENABLED)}
-- NLP dates: {_flag(NLP_DATE_PARSING_ENABLED)}
-- AI images: {_flag(AI_IMAGE_GENERATION_ENABLED)}
-- Bot self-celebration: {_flag(bot_celebration)}"""
+**🔧 Features:** {_flag(THREAD_ENGAGEMENT_ENABLED)} Threads · {_flag(MENTION_QA_ENABLED)} @-Mentions · {_flag(NLP_DATE_PARSING_ENABLED)} NLP dates · {_flag(AI_IMAGE_GENERATION_ENABLED)} AI images · {_flag(SPECIAL_DAYS_IMAGE_ENABLED)} SD images · {_flag(PROFILE_ANALYSIS_ENABLED)} Profiles · {_flag(WEB_SEARCH_CACHE_ENABLED)} Web cache · {_flag(USE_CUSTOM_EMOJIS)} Custom emoji · {_flag(bot_celebration)} Bot birthday · {_flag(EXTERNAL_BACKUP_ENABLED)} Ext. backups"""
 
     except Exception as e:
         logger.error(f"CANVAS: Failed to build health section: {e}")
@@ -475,11 +521,21 @@ def _build_scheduler_section():
             f"{round(heartbeat_age)}s ago" if isinstance(heartbeat_age, (int, float)) else "?"
         )
 
+        from config import DAILY_CHECK_TIME, SPECIAL_DAYS_CHECK_TIME, TIMEZONE_CELEBRATION_TIME
+        from storage.settings import load_timezone_settings
+
+        tz_enabled, _ = load_timezone_settings()
+        if tz_enabled:
+            timing_line = f"- **Timing:** Birthdays at `{TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')}` (per-user tz) · Special days at `{SPECIAL_DAYS_CHECK_TIME.strftime('%H:%M')}`"
+        else:
+            timing_line = f"- **Timing:** Birthdays at `{DAILY_CHECK_TIME.strftime('%H:%M')}` · Special days at `{SPECIAL_DAYS_CHECK_TIME.strftime('%H:%M')}` (server time)"
+
         return f"""## ⏰ Scheduler
 - **Status:** {alive_emoji} {status.title()} ({heartbeat_text})
 - **Jobs:** {jobs} · **Success rate:** {success_rate}%
 - **Executions:** {total} total · {failed} failed
-- **Started:** {started}{uptime_text}"""
+{timing_line}
+- **Started:** `{started}`{uptime_text}"""
 
     except Exception as e:
         logger.error(f"CANVAS: Failed to build scheduler section: {e}")
@@ -508,7 +564,7 @@ def _build_observances_section():
             except Exception:
                 rows.append(f"| {name} | 🔴 Error | ? | ? |")
 
-        # Calendarific
+        # Calendarific (per-source rows)
         try:
             from config import CALENDARIFIC_ENABLED
 
@@ -516,29 +572,63 @@ def _build_observances_section():
                 from integrations.calendarific import get_calendarific_client
 
                 cal_status = get_calendarific_client().get_api_status()
-                cal_fresh = "🟢 Fresh" if not cal_status.get("needs_prefetch") else "🟡 Stale"
-                cal_count = cal_status.get("cached_dates", "?")
-                cal_updated = cal_status.get("last_prefetch", "?")
-                if isinstance(cal_updated, str) and "T" in cal_updated:
-                    cal_updated = cal_updated[:10]
-                rows.append(f"| Calendarific | {cal_fresh} | {cal_count} | {cal_updated} |")
+
+                for sid, info in cal_status.get("sources", {}).items():
+                    if info.get("enabled"):
+                        count = info.get("holiday_count", "?")
+                        fresh = "🟢 Fresh" if info.get("cache_fresh") else "🟡 Stale"
+                        updated = info.get("last_updated", "?")
+                        if isinstance(updated, str) and "T" in updated:
+                            updated = updated[:10]
+                        rows.append(
+                            f"| {info['label']} ({info['country']}) | {fresh} | {count} | {updated} |"
+                        )
         except Exception as e:
             logger.debug(f"CANVAS: Could not get Calendarific status: {e}")
 
+        # Custom/CSV days
+        try:
+            from storage.special_days import load_special_days
+
+            custom_days = load_special_days()
+            custom_count = len(custom_days)
+            rows.append(f"| Custom | — | {custom_count} | — |")
+        except Exception as e:
+            logger.debug(f"CANVAS: Could not load custom special days: {e}")
+
         # Total merged count (all sources, deduplicated)
+        global _last_sd_total
         try:
             from storage.special_days import load_all_special_days
 
             total_count = len(load_all_special_days())
+            _last_sd_total = total_count
             rows.append(f"| **Total (deduplicated)** | | **{total_count}** | |")
         except Exception as e:
             logger.debug(f"CANVAS: Could not load deduplicated special days count: {e}")
 
         table_rows = "\n".join(rows)
+
+        # Special day announcement config
+        from config import (
+            SPECIAL_DAY_MENTION_ENABLED,
+            SPECIAL_DAY_THREAD_ENABLED,
+            SPECIAL_DAY_TOPIC_UPDATE_ENABLED,
+            SPECIAL_DAYS_MODE,
+            SPECIAL_DAYS_WEEKLY_DAY,
+        )
+
+        day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        mode_text = SPECIAL_DAYS_MODE.title()
+        if SPECIAL_DAYS_MODE == "weekly":
+            mode_text += f" ({day_names[SPECIAL_DAYS_WEEKLY_DAY]})"
+
+        config_line = f"\n\n**📋 Config:** Mode: {mode_text} · @-here: {_flag(SPECIAL_DAY_MENTION_ENABLED)} · Topic update: {_flag(SPECIAL_DAY_TOPIC_UPDATE_ENABLED)} · Thread replies: {_flag(SPECIAL_DAY_THREAD_ENABLED)}"
+
         return f"""## 🌍 Observance Caches
 | Source | Status | Count | Last Updated |
 |--------|--------|-------|-------------|
-{table_rows}"""
+{table_rows}{config_line}"""
 
     except Exception as e:
         logger.error(f"CANVAS: Failed to build observances section: {e}")
@@ -592,7 +682,7 @@ def _build_backups_section(app=None):
         return f"""## 💾 Backups
 - **Files:** {count} backups ({total_size_kb} KB total)
 - **Latest:** `{latest_name}` ({latest_size_kb} KB)
-- **Last backup:** {latest_time}{file_embed}"""
+- **Last backup:** `{latest_time}`{file_embed}"""
 
     except Exception as e:
         logger.error(f"CANVAS: Failed to build backups section: {e}")
@@ -749,13 +839,49 @@ def _replace_canvas_content(app, canvas_id, markdown):
         )
 
 
+def _build_warnings_section():
+    """Build recent warnings section, or return None if no active warnings."""
+    now = datetime.now().astimezone()
+    ttl_seconds = _warnings_ttl_seconds
+    active = [
+        (ts, text)
+        for ts, text in list(_recent_warnings)
+        if (now - ts).total_seconds() < ttl_seconds
+    ]
+    if not active:
+        return None
+    lines = "\n".join(f"- {text}" for _, text in reversed(active))
+    return f"""## ⚠️ Recent Warnings
+{lines}"""
+
+
 # --- Public API ---
 
 
 def record_change(change_text):
     """Record a recent change for display in the dashboard."""
     timestamp = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z")
-    _recent_changes.append(f"{timestamp} — {change_text}")
+    _recent_changes.append(f"`{timestamp}` — {change_text}")
+
+
+def record_warning(warning_text):
+    """Record a warning for display in the canvas dashboard."""
+    now = datetime.now().astimezone()
+    display = f"`{now.strftime('%Y-%m-%d %H:%M %Z')}` — {warning_text}"
+    _recent_warnings.append((now, display))
+
+
+def clear_warnings():
+    """Clear all warnings from the canvas dashboard."""
+    _recent_warnings.clear()
+
+
+def safe_record_warning(warning_text):
+    """Fire-and-forget wrapper for record_warning. Never raises."""
+    try:
+        record_warning(warning_text)
+    except Exception:
+        pass
 
 
 def update_canvas(app, reason="periodic", force=False):
@@ -790,7 +916,8 @@ def update_canvas(app, reason="periodic", force=False):
         markdown = _build_dashboard_markdown(app)
         _replace_canvas_content(app, canvas_id, markdown)
 
-        _update_channel_topic(app, OPS_CHANNEL_ID)
+        # Reuse sd_total computed during _build_observances_section to avoid re-loading
+        _update_channel_topic(app, OPS_CHANNEL_ID, sd_total=_last_sd_total)
         _save_settings({"canvas_updated_at": datetime.now().isoformat()})
         logger.info(f"CANVAS: Dashboard updated successfully (reason: {reason})")
         return True
@@ -834,11 +961,19 @@ def get_canvas_status():
     last_update = (
         _last_update_time.isoformat() if _last_update_time else settings.get("canvas_updated_at")
     )
+    # Count only non-expired warnings
+    now = datetime.now().astimezone()
+    ttl_seconds = _warnings_ttl_seconds
+    active_warnings = sum(
+        1 for ts, _ in list(_recent_warnings) if (now - ts).total_seconds() < ttl_seconds
+    )
+
     return {
         "enabled": CANVAS_DASHBOARD_ENABLED,
         "canvas_id": settings.get("canvas_id"),
         "channel_id": OPS_CHANNEL_ID,
         "recent_changes": len(_recent_changes),
+        "active_warnings": active_warnings,
         "last_update": last_update,
         "backup_permalink": settings.get("backup_permalink"),
         "backup_cache_key": settings.get("backup_cache_key"),

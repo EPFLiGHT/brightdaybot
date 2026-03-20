@@ -181,12 +181,8 @@ def daily_task():
 
 
 def weekly_calendarific_refresh_task():
-    """
-    Weekly task - refreshes Calendarific cache for upcoming holidays.
-    Runs every Sunday at CACHE_REFRESH_TIME.
-    Also refreshes religious holidays cache (SA source) if enabled.
-    """
-    from config import CALENDARIFIC_ENABLED, RELIGIOUS_HOLIDAYS_ENABLED
+    """Weekly task — refreshes all Calendarific source caches."""
+    from config import CALENDARIFIC_ENABLED
 
     logger.info("SCHEDULER: Running weekly Calendarific cache refresh")
 
@@ -194,13 +190,8 @@ def weekly_calendarific_refresh_task():
         try:
             from integrations.calendarific import get_calendarific_client
 
-            client = get_calendarific_client()
-            stats = client.weekly_prefetch(force=True)
-            logger.info(f"SCHEDULER: Calendarific prefetch complete: {stats}")
-
-            if RELIGIOUS_HOLIDAYS_ENABLED:
-                religious_stats = client.religious_holidays_prefetch(force=True)
-                logger.info(f"SCHEDULER: Religious holidays prefetch complete: {religious_stats}")
+            results = get_calendarific_client().prefetch_all(force=True)
+            logger.info(f"SCHEDULER: Calendarific prefetch complete: {results}")
         except Exception as e:
             logger.error(f"SCHEDULER: Failed to refresh Calendarific cache: {e}")
     else:
@@ -310,6 +301,9 @@ def run_scheduler():
         except Exception as e:
             _failed_executions += 1
             logger.error(f"SCHEDULER_HEALTH: Error in scheduler loop: {e}")
+            from slack.canvas import safe_record_warning
+
+            safe_record_warning(f"Scheduler error: {e}")
             # Save stats on error to persist failure count
             save_scheduler_stats(_total_executions, _failed_executions, _last_heartbeat)
             time.sleep(SCHEDULER_CHECK_INTERVAL_SECONDS)  # Continue running even after errors

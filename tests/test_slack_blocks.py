@@ -16,6 +16,7 @@ from slack.blocks import (
     build_birthday_error_blocks,
     build_birthday_modal,
     build_birthday_not_found_blocks,
+    build_consolidated_special_day_blocks,
     build_permission_error_blocks,
     build_slash_help_blocks,
     build_special_day_blocks,
@@ -147,6 +148,113 @@ class TestBuildSpecialDayBlocks:
         for button in url_buttons:
             assert "action_id" in button
             assert button["action_id"].startswith("link_")
+
+
+class TestBuildConsolidatedSpecialDayBlocks:
+    """Tests for build_consolidated_special_day_blocks() structure"""
+
+    def _make_days(self, count):
+        return [
+            {
+                "name": f"Day {i}",
+                "date": "16/03",
+                "source": f"Source {i}",
+                "emoji": "🌍",
+                "url": f"https://example.com/{i}",
+            }
+            for i in range(count)
+        ]
+
+    def test_header_includes_count(self):
+        """Header shows observance count"""
+        days = self._make_days(3)
+        teasers = {f"Day {i}": f"Teaser {i}" for i in range(3)}
+        details = {f"Day {i}": f"Details {i}" for i in range(3)}
+        blocks, fallback = build_consolidated_special_day_blocks(
+            days, "Intro message", teasers, details
+        )
+        assert "3 Special Observances Today" in blocks[0]["text"]["text"]
+        assert "3 Special Observances Today" in fallback
+
+    def test_per_observance_sections_with_numbering(self):
+        """Each observance has numbered section with teaser"""
+        days = self._make_days(2)
+        teasers = {"Day 0": "Teaser zero", "Day 1": "Teaser one"}
+        details = {"Day 0": "D0", "Day 1": "D1"}
+        blocks, _ = build_consolidated_special_day_blocks(days, "Intro", teasers, details)
+        section_texts = " ".join(b["text"]["text"] for b in blocks if b.get("type") == "section")
+        assert "1/2 · Day 0" in section_texts
+        assert "2/2 · Day 1" in section_texts
+        assert "Teaser zero" in section_texts
+        assert "Teaser one" in section_texts
+
+    def test_unique_action_ids(self):
+        """Each observance gets unique button action_ids"""
+        days = self._make_days(3)
+        teasers = {f"Day {i}": f"T{i}" for i in range(3)}
+        details = {f"Day {i}": f"D{i}" for i in range(3)}
+        blocks, _ = build_consolidated_special_day_blocks(
+            days, "Intro", teasers, details, observance_date="16/03"
+        )
+        action_ids = []
+        for b in blocks:
+            if b.get("type") == "actions":
+                for el in b["elements"]:
+                    action_ids.append(el["action_id"])
+        assert len(action_ids) == len(set(action_ids)), "action_ids must be unique"
+        assert len(action_ids) == 6  # 2 buttons per observance * 3
+
+    def test_button_value_is_name_and_details_cached(self):
+        """Consolidated button stores name in value and details in cache"""
+        from slack.blocks.special_day import get_special_day_details
+
+        days = self._make_days(1)
+        teasers = {"Day 0": "T"}
+        details = {"Day 0": "Full details here"}
+        blocks, _ = build_consolidated_special_day_blocks(days, "Intro", teasers, details)
+        actions = next(b for b in blocks if b.get("type") == "actions")
+        detail_btn = next(e for e in actions["elements"] if "details" in e["action_id"])
+        # Button value is just the observance name
+        assert detail_btn["value"] == "Day 0"
+        # Details stored in cache
+        cached = get_special_day_details(detail_btn["action_id"])
+        assert cached is not None
+        assert cached["content"] == "Full details here"
+        assert cached["name"] == "Day 0"
+
+    def test_non_compact_has_per_observance_context(self):
+        """Non-compact mode has context block per observance (source + personality)"""
+        days = self._make_days(3)
+        teasers = {f"Day {i}": f"T{i}" for i in range(3)}
+        details = {f"Day {i}": f"D{i}" for i in range(3)}
+        blocks, _ = build_consolidated_special_day_blocks(days, "Intro", teasers, details)
+        context_blocks = [b for b in blocks if b.get("type") == "context"]
+        # 3 per-observance + 1 footer = 4
+        assert len(context_blocks) == 4
+
+    def test_compact_mode_skips_context(self):
+        """Compact mode (8+ observances) omits per-observance context blocks"""
+        days = self._make_days(9)
+        teasers = {f"Day {i}": f"T{i}" for i in range(9)}
+        details = {f"Day {i}": f"D{i}" for i in range(9)}
+        blocks, _ = build_consolidated_special_day_blocks(days, "Intro", teasers, details)
+        # Compact: only footer context (no per-observance context)
+        context_blocks = [b for b in blocks if b.get("type") == "context"]
+        assert len(context_blocks) == 1
+
+    def test_block_count_under_limit(self):
+        """Typical case stays under Slack's 50-block limit"""
+        days = self._make_days(6)
+        teasers = {f"Day {i}": f"T{i}" for i in range(6)}
+        details = {f"Day {i}": f"D{i}" for i in range(6)}
+        blocks, _ = build_consolidated_special_day_blocks(days, "Intro", teasers, details)
+        assert len(blocks) <= 50
+
+    def test_empty_returns_empty(self):
+        """Empty special days returns empty blocks"""
+        blocks, fallback = build_consolidated_special_day_blocks([], "Intro", {}, {})
+        assert blocks == []
+        assert fallback == ""
 
 
 class TestBuildBirthdayModal:

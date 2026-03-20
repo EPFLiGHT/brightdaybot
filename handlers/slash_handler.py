@@ -29,7 +29,7 @@ def register_slash_commands(app):
         ack()  # Must respond within 3 seconds
 
         user_id = body["user_id"]
-        text = body.get("text", "").strip().lower()
+        text = body.get("text", "").strip("`").strip().lower()
         trigger_id = body["trigger_id"]
 
         logger.info(f"SLASH: /birthday command from {user_id}: '{text}'")
@@ -64,7 +64,7 @@ def register_slash_commands(app):
         ack()  # Must respond within 3 seconds
 
         user_id = body["user_id"]
-        text = body.get("text", "").strip()
+        text = body.get("text", "").strip("`").strip()
 
         logger.info(f"SLASH: /special-day command from {user_id}: '{text}'")
 

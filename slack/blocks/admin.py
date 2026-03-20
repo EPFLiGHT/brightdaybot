@@ -415,7 +415,7 @@ def build_health_status_blocks(
                 .astimezone()
                 .strftime("%Y-%m-%d %H:%M")
             )
-            backup_text = f"{backup_count} files · Last: {latest_time}"
+            backup_text = f"{backup_count} files · Last: `{latest_time}`"
 
     quick_fields.append({"type": "mrkdwn", "text": f"💾 *Backups*\n{backup_text}"})
 
@@ -455,12 +455,50 @@ def build_health_status_blocks(
             }
         )
 
+        # Timing & Configuration
+        from config import (
+            DAILY_CHECK_TIME,
+            DEFAULT_IMAGE_MODEL,
+            IMAGE_GENERATION_PARAMS,
+            MENTION_RATE_LIMIT_MAX,
+            MENTION_RATE_LIMIT_WINDOW,
+            PROFILE_ANALYSIS_ENABLED,
+            SPECIAL_DAY_MENTION_ENABLED,
+            SPECIAL_DAY_THREAD_ENABLED,
+            SPECIAL_DAY_TOPIC_UPDATE_ENABLED,
+            SPECIAL_DAYS_CHECK_TIME,
+            SPECIAL_DAYS_IMAGE_ENABLED,
+            SPECIAL_DAYS_MODE,
+            SPECIAL_DAYS_WEEKLY_DAY,
+            TIMEZONE_CELEBRATION_TIME,
+        )
+
+        tz_enabled, _ = load_timezone_settings()
+        day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        sd_mode = SPECIAL_DAYS_MODE.title()
+        if SPECIAL_DAYS_MODE == "weekly":
+            sd_mode += f" ({day_names[SPECIAL_DAYS_WEEKLY_DAY]})"
+
+        timing_text = "*Timing & Configuration:*"
+        if tz_enabled:
+            timing_text += f"\n• Birthday check: `{TIMEZONE_CELEBRATION_TIME.strftime('%H:%M')}` (per-user timezone)"
+        else:
+            timing_text += (
+                f"\n• Birthday check: `{DAILY_CHECK_TIME.strftime('%H:%M')}` (server time)"
+            )
+        timing_text += f"\n• Special days check: `{SPECIAL_DAYS_CHECK_TIME.strftime('%H:%M')}` · Mode: {sd_mode}"
+        timing_text += f"\n• Special days: @-here {'✅' if SPECIAL_DAY_MENTION_ENABLED else '❌'} · Topic update {'✅' if SPECIAL_DAY_TOPIC_UPDATE_ENABLED else '❌'} · Thread replies {'✅' if SPECIAL_DAY_THREAD_ENABLED else '❌'} · Images {'✅' if SPECIAL_DAYS_IMAGE_ENABLED else '❌'}"
+
+        img_quality = IMAGE_GENERATION_PARAMS["quality"]["default"]
+        img_size = IMAGE_GENERATION_PARAMS["size"]["default"]
+        timing_text += f"\n• Image model: {DEFAULT_IMAGE_MODEL} · Quality: {img_quality} · Size: {img_size} · Profile analysis {'✅' if PROFILE_ANALYSIS_ENABLED else '❌'}"
+        timing_text += f"\n• @-Mention rate limit: {MENTION_RATE_LIMIT_MAX} requests / {MENTION_RATE_LIMIT_WINDOW}s"
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": timing_text}})
+
         # Special Days Sources
         special_days = components.get("special_days", {})
         if special_days.get("enabled"):
-            sd_text = (
-                f"*Special Days:*\n• CSV observances: {special_days.get('observance_count', 0)}"
-            )
+            sd_text = f"*Special Days:*\n• Custom: {special_days.get('observance_count', 0)}"
 
             # Check UN observances cache
             import json
@@ -511,20 +549,35 @@ def build_health_status_blocks(
                 except (json.JSONDecodeError, OSError, KeyError, TypeError):
                     sd_text += "\n• WHO observances: cache error"
 
-            # Check Calendarific cache (uses consolidated cache file)
+            # Check Calendarific sources
             from config import CALENDARIFIC_ENABLED
 
             if CALENDARIFIC_ENABLED:
                 try:
                     from integrations.calendarific import get_calendarific_client
 
-                    calendarific_status = get_calendarific_client().get_api_status()
-                    cached_dates = calendarific_status.get("cached_dates", 0)
-                    month_calls = calendarific_status.get("month_calls", 0)
-                    monthly_limit = calendarific_status.get("monthly_limit", 500)
-                    sd_text += f"\n• Calendarific: {cached_dates} cached dates ({month_calls}/{monthly_limit} API calls this month)"
+                    cal_status = get_calendarific_client().get_api_status()
+                    month_calls = cal_status.get("month_calls", 0)
+                    monthly_limit = cal_status.get("monthly_limit", 500)
+
+                    for sid, info in cal_status.get("sources", {}).items():
+                        if info.get("enabled"):
+                            count = info.get("holiday_count", 0)
+                            sd_text += f"\n• {info['label']}: {count} holidays"
+                    sd_text += (
+                        f"\n• _Calendarific API: {month_calls}/{monthly_limit} calls this month_"
+                    )
                 except (ImportError, AttributeError, KeyError, TypeError):
-                    sd_text += "\n• Calendarific: cache error"
+                    sd_text += "\n• Calendarific: error"
+
+            # Total deduplicated count
+            try:
+                from storage.special_days import load_all_special_days
+
+                total_sd = len(load_all_special_days())
+                sd_text += f"\n• *Total (deduplicated): {total_sd}*"
+            except Exception:
+                pass
 
             blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": sd_text}})
 
