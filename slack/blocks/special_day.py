@@ -189,13 +189,13 @@ def build_special_day_blocks(
 
     if detailed_content or url:
         actions = []
+        name = _get_attr(special_day, "name", "Special Day")
+        name_slug = name.lower().replace(" ", "_")[:20]
 
         # "View Details" button — store content in cache, button value is just the name
+        # Include name slug in action_id to avoid collision when multiple days share a date
         if detailed_content:
-            action_id = (
-                f"special_day_details_{date_str.replace('/', '_') if date_str else 'unknown'}"
-            )
-            name = _get_attr(special_day, "name", "Special Day")
+            action_id = f"special_day_details_{date_str.replace('/', '_') if date_str else 'unknown'}_{name_slug}"
             store_special_day_details(
                 action_id,
                 detailed_content,
@@ -219,7 +219,7 @@ def build_special_day_blocks(
                 {
                     "type": "button",
                     "text": {"type": "plain_text", "text": "🔗 Official Source"},
-                    "action_id": f"link_official_source_{date_str.replace('/', '_') if date_str else 'unknown'}",
+                    "action_id": f"link_official_source_{date_str.replace('/', '_') if date_str else 'unknown'}_{name_slug}",
                     "url": url,
                 }
             )

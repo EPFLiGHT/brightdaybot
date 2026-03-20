@@ -581,9 +581,6 @@ class BirthdayCelebrationPipeline:
                 f"{self.mode}: Tracking birthday thread {message_ts} for {len(user_ids)} people"
             )
 
-        except Exception:
-            # THREAD_ENGAGEMENT_ENABLED not yet added to config - skip silently
-            logger.debug(f"{self.mode}: Thread engagement config not available, skipping")
         except Exception as e:
             # Don't let tracking failures affect the celebration
             logger.warning(f"{self.mode}: Failed to track thread for engagement: {e}")

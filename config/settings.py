@@ -312,7 +312,10 @@ def run_parallel(fn, items, max_workers=None):
 
     Returns dict mapping item to fn result. Failed items get None.
     """
+    import logging
     from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    _logger = logging.getLogger("birthday_bot.parallel")
 
     if max_workers is None:
         max_workers = AI_MAX_WORKERS
@@ -322,7 +325,8 @@ def run_parallel(fn, items, max_workers=None):
         for item in items:
             try:
                 results[item] = fn(item)
-            except Exception:
+            except Exception as e:
+                _logger.warning(f"run_parallel: {fn.__name__}({item}) failed: {e}")
                 results[item] = None
     else:
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -331,7 +335,8 @@ def run_parallel(fn, items, max_workers=None):
                 item = futures[future]
                 try:
                     results[item] = future.result()
-                except Exception:
+                except Exception as e:
+                    _logger.warning(f"run_parallel: {fn.__name__}({item}) failed: {e}")
                     results[item] = None
     return results
 

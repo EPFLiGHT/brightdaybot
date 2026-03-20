@@ -1110,34 +1110,6 @@ def get_announced_special_day_names(date: Optional[datetime] = None) -> set:
     return set()
 
 
-def has_announced_special_day_today(date: Optional[datetime] = None) -> bool:
-    """
-    Check if we've already announced special days for today.
-
-    Returns True only if ALL current special days have been announced.
-    If new days were added mid-day, returns False so they get announced.
-
-    Args:
-        date: Optional date to check (defaults to today)
-
-    Returns:
-        True if all announced, False if there are unannounced days
-    """
-    announced = get_announced_special_day_names(date)
-    if not announced:
-        return False
-    # Legacy format — treat as fully announced
-    if "__all__" in announced:
-        return True
-
-    # Check if any current special days are NOT yet announced
-    current_days = get_special_days_for_date(date or datetime.now())
-    for day in current_days:
-        if day.name.lower() not in announced:
-            return False
-    return True
-
-
 def mark_special_day_announced(date: Optional[datetime] = None, names: list = None) -> bool:
     """
     Mark specific special days as announced for today.
@@ -1164,6 +1136,11 @@ def mark_special_day_announced(date: Optional[datetime] = None, names: list = No
     entry = data["special_days"].get(date_str)
     if isinstance(entry, dict):
         existing = set(entry.get("names", []))
+    elif isinstance(entry, str):
+        # Legacy format (timestamp string) — migrate: load all current day names
+        # to preserve the "all announced" semantics
+        current_days = get_special_days_for_date(date)
+        existing = set(d.name for d in current_days)
     else:
         existing = set()
 
