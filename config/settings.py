@@ -300,6 +300,9 @@ RETRY_LIMITS = {
     "date_resolution": 5,  # Years to search for valid date (Feb 29 handling)
 }
 
+# LLM structured output parsing
+LLM_PARSE_MAX_RETRIES = 2  # Max attempts for parsing structured LLM output (e.g., JSON)
+
 # Timeout values in seconds
 TIMEOUTS = {
     "http_request": 30,  # HTTP request timeout
@@ -468,32 +471,79 @@ SPECIAL_DAY_COMPACT_THRESHOLD = 8  # Switch to compact blocks above this count
 
 # ----- CALENDARIFIC API CONFIGURATION -----
 
-# Calendarific API for national/local holidays (NOT UN observances)
+# Calendarific API — multi-source holiday fetcher
 # Get free API key at: https://calendarific.com
-# Free tier: 500 requests/month - we use weekly prefetch strategy (~52 calls/year)
-# Note: UN/WHO/UNESCO observances come from integrations/observances/ (scraped from official sites)
+# Free tier: 500 requests/month — shared across all configured sources
 CALENDARIFIC_API_KEY = os.getenv("CALENDARIFIC_API_KEY")
 CALENDARIFIC_ENABLED = os.getenv("CALENDARIFIC_ENABLED", "false").lower() == "true"
-CALENDARIFIC_COUNTRY = os.getenv("CALENDARIFIC_COUNTRY", "CH")  # Switzerland
-CALENDARIFIC_STATE = os.getenv("CALENDARIFIC_STATE", "VD")  # Vaud canton
 CALENDARIFIC_CACHE_DIR = os.path.join(CACHE_DIR, "calendarific")
-CALENDARIFIC_CACHE_FILE = os.path.join(CALENDARIFIC_CACHE_DIR, "holidays_cache.json")
 CALENDARIFIC_CACHE_TTL_DAYS = int(os.getenv("CALENDARIFIC_CACHE_TTL_DAYS", "7"))
 CALENDARIFIC_PREFETCH_DAYS = int(os.getenv("CALENDARIFIC_PREFETCH_DAYS", "7"))
 CALENDARIFIC_RATE_LIMIT_MONTHLY = 500  # Free tier: 500 calls/month
+CALENDARIFIC_SOURCES_STATE_FILE = os.path.join(STORAGE_DIR, "calendarific_sources.json")
 CALENDARIFIC_RATE_WARNING_THRESHOLD = 400  # Warn when approaching limit
+CALENDARIFIC_STATS_FILE = os.path.join(STORAGE_DIR, "calendarific_stats.json")
 
-# ----- RELIGIOUS HOLIDAYS CONFIGURATION -----
-
-# Islamic holidays from Saudi Arabia (authoritative Hijri calendar source)
-RELIGIOUS_HOLIDAYS_ENABLED = os.getenv("RELIGIOUS_HOLIDAYS_ENABLED", "true").lower() == "true"
-RELIGIOUS_HOLIDAYS_COUNTRY = "SA"
-RELIGIOUS_HOLIDAYS_CACHE_FILE = os.path.join(CALENDARIFIC_CACHE_DIR, "religious_cache.json")
-RELIGIOUS_HOLIDAYS_WHITELIST = [
-    "Eid al-Fitr",
-    "Eid al-Adha",
-    "Ramadan",
-    "Muharram",
+# Multi-source configuration: each source fetches from a different country/region
+# fetch_strategy: "daily" = fetch day-by-day (N API calls), "yearly" = fetch entire year (1 API call)
+# whitelist: empty = include all holidays; non-empty = only matching names (case-insensitive)
+CALENDARIFIC_SOURCES = [
+    {
+        "id": "ch",
+        "country": "CH",
+        "state": os.getenv("CALENDARIFIC_STATE", "VD"),
+        "enabled": True,
+        "label": "Switzerland",
+        "category": "Holiday",
+        "emoji": "📅",
+        "whitelist": [],
+        "fetch_strategy": "yearly",
+        "api_type": "national,local",
+    },
+    {
+        "id": "sa",
+        "country": "SA",
+        "state": None,
+        "enabled": True,
+        "label": "Islamic Holidays",
+        "category": "Religious",
+        "emoji": "🌙",
+        "whitelist": ["Eid al-Fitr", "Eid al-Adha", "Ramadan", "Muharram"],
+        "fetch_strategy": "yearly",
+        "api_type": "national",
+    },
+    {
+        "id": "il",
+        "country": "IL",
+        "state": None,
+        "enabled": False,
+        "label": "Jewish Holidays",
+        "category": "Religious",
+        "emoji": "🕎",
+        "whitelist": [
+            "Hanukkah",
+            "Yom Kippur",
+            "Passover",
+            "Rosh Hashanah",
+            "Sukkot",
+            "Purim",
+            "Shavuot",
+        ],
+        "fetch_strategy": "yearly",
+        "api_type": "national",
+    },
+    {
+        "id": "in",
+        "country": "IN",
+        "state": None,
+        "enabled": False,
+        "label": "Hindu Holidays",
+        "category": "Religious",
+        "emoji": "🪔",
+        "whitelist": ["Diwali", "Holi", "Navratri", "Ganesh Chaturthi", "Raksha Bandhan", "Pongal"],
+        "fetch_strategy": "yearly",
+        "api_type": "national",
+    },
 ]
 
 # ----- UN OBSERVANCES CONFIGURATION -----

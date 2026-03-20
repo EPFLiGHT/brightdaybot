@@ -28,7 +28,6 @@ from config import (
     DEDUP_SIGNIFICANT_WORD_MIN_LENGTH,
     DEFAULT_ANNOUNCEMENT_TIME,
     MAX_BACKUPS,
-    RELIGIOUS_HOLIDAYS_ENABLED,
     SPECIAL_DAYS_CATEGORIES,
     SPECIAL_DAYS_CONFIG_FILE,
     SPECIAL_DAYS_ENABLED,
@@ -257,31 +256,12 @@ def load_all_special_days() -> List[SpecialDay]:
         except Exception as e:
             logger.warning(f"Failed to load {source_name} observances cache: {e}")
 
-    # 3. Load Calendarific from consolidated cache
-    # Uses the same _dict_to_special_day() method as get_holidays_for_date()
+    # 3. Load Calendarific (all configured sources)
     if CALENDARIFIC_ENABLED and CALENDARIFIC_API_KEY:
         try:
-            from config import CALENDARIFIC_CACHE_FILE
             from integrations.calendarific import get_calendarific_client
 
-            client = get_calendarific_client()
-
-            if os.path.exists(CALENDARIFIC_CACHE_FILE):
-                try:
-                    with open(CALENDARIFIC_CACHE_FILE, "r") as f:
-                        cache_data = json.load(f)
-                        entries = cache_data.get("entries", {})
-                        # Iterate through all cached dates
-                        for date_key, entry in entries.items():
-                            holidays = entry.get("holidays", [])
-                            # Use client's conversion method for proper field mapping
-                            for h in holidays:
-                                special_day = client._dict_to_special_day(h)
-                                if special_day.date:  # Only add if date is valid
-                                    all_days.append(special_day)
-                except (json.JSONDecodeError, IOError) as e:
-                    logger.debug(f"Failed to read Calendarific cache: {e}")
-
+            all_days.extend(get_calendarific_client().get_all_cached_special_days())
         except Exception as e:
             logger.warning(f"Failed to load Calendarific cache: {e}")
 
@@ -587,12 +567,16 @@ def _deduplicate_special_days(special_days: List[SpecialDay]) -> List[SpecialDay
     if not special_days:
         return []
 
-    # Sort by source priority: UN first, then Calendarific, then others
-    source_priority = {"UN": 0, "WHO": 0, "UNESCO": 0, "Calendarific": 1}
+    # Sort by source priority: UN/WHO/UNESCO first, then Calendarific, then others
+    source_priority = {"UN": 0, "WHO": 0, "UNESCO": 0}
 
     def get_priority(day: SpecialDay) -> int:
         source = getattr(day, "source", "") or ""
-        return source_priority.get(source, 2)
+        if source in source_priority:
+            return source_priority[source]
+        if source.startswith("Calendarific"):
+            return 1
+        return 2
 
     sorted_days = sorted(special_days, key=get_priority)
 
@@ -720,33 +704,19 @@ def get_special_days_for_date(
         except Exception as e:
             logger.error(f"WHO_OBSERVANCES: Failed to fetch for {date_str}: {e}")
 
-    # Source 4: Calendarific API (if enabled) - Swiss national holidays
+    # Source 4: Calendarific (all configured sources)
     if CALENDARIFIC_ENABLED and CALENDARIFIC_API_KEY:
         try:
             from integrations.calendarific import get_calendarific_client
 
-            client = get_calendarific_client()
-            api_days = client.get_holidays_for_date(date)
-            special_days.extend(api_days)
-            if api_days:
-                logger.debug(f"CALENDARIFIC: Found {len(api_days)} holiday(s) for {date_str}")
+            cal_days = get_calendarific_client().get_holidays_for_date(date)
+            special_days.extend(cal_days)
+            if cal_days:
+                logger.debug(f"CALENDARIFIC: Found {len(cal_days)} holiday(s) for {date_str}")
         except Exception as e:
             logger.error(f"CALENDARIFIC: Failed to fetch for {date_str}: {e}")
 
-    # Source 5: Religious holidays from Saudi Arabia (if enabled)
-    if RELIGIOUS_HOLIDAYS_ENABLED and CALENDARIFIC_ENABLED and CALENDARIFIC_API_KEY:
-        try:
-            from integrations.calendarific import get_calendarific_client
-
-            client = get_calendarific_client()
-            religious_days = client.get_religious_holidays_for_date(date)
-            special_days.extend(religious_days)
-            if religious_days:
-                logger.debug(f"RELIGIOUS: Found {len(religious_days)} holiday(s) for {date_str}")
-        except Exception as e:
-            logger.error(f"RELIGIOUS: Failed to fetch for {date_str}: {e}")
-
-    # Source 6: Custom days from JSON (use pre-loaded if available)
+    # Source 5: Custom days from JSON (use pre-loaded if available)
     if custom_days is None:
         custom_days = load_special_days()
     matching_custom = [d for d in custom_days if d.date == date_str]

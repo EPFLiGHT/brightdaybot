@@ -564,7 +564,7 @@ def _build_observances_section():
             except Exception:
                 rows.append(f"| {name} | 🔴 Error | ? | ? |")
 
-        # Calendarific
+        # Calendarific (per-source rows)
         try:
             from config import CALENDARIFIC_ENABLED
 
@@ -572,12 +572,17 @@ def _build_observances_section():
                 from integrations.calendarific import get_calendarific_client
 
                 cal_status = get_calendarific_client().get_api_status()
-                cal_fresh = "🟢 Fresh" if not cal_status.get("needs_prefetch") else "🟡 Stale"
-                cal_count = cal_status.get("holiday_count", cal_status.get("cached_dates", "?"))
-                cal_updated = cal_status.get("last_prefetch", "?")
-                if isinstance(cal_updated, str) and "T" in cal_updated:
-                    cal_updated = cal_updated[:10]
-                rows.append(f"| Calendarific | {cal_fresh} | {cal_count} | {cal_updated} |")
+
+                for sid, info in cal_status.get("sources", {}).items():
+                    if info.get("enabled"):
+                        count = info.get("holiday_count", "?")
+                        fresh = "🟢 Fresh" if info.get("cache_fresh") else "🟡 Stale"
+                        updated = info.get("last_updated", "?")
+                        if isinstance(updated, str) and "T" in updated:
+                            updated = updated[:10]
+                        rows.append(
+                            f"| {info['label']} ({info['country']}) | {fresh} | {count} | {updated} |"
+                        )
         except Exception as e:
             logger.debug(f"CANVAS: Could not get Calendarific status: {e}")
 

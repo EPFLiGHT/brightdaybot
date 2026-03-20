@@ -549,22 +549,26 @@ def build_health_status_blocks(
                 except (json.JSONDecodeError, OSError, KeyError, TypeError):
                     sd_text += "\n• WHO observances: cache error"
 
-            # Check Calendarific cache (uses consolidated cache file)
+            # Check Calendarific sources
             from config import CALENDARIFIC_ENABLED
 
             if CALENDARIFIC_ENABLED:
                 try:
                     from integrations.calendarific import get_calendarific_client
 
-                    calendarific_status = get_calendarific_client().get_api_status()
-                    holiday_count = calendarific_status.get(
-                        "holiday_count", calendarific_status.get("cached_dates", 0)
+                    cal_status = get_calendarific_client().get_api_status()
+                    month_calls = cal_status.get("month_calls", 0)
+                    monthly_limit = cal_status.get("monthly_limit", 500)
+
+                    for sid, info in cal_status.get("sources", {}).items():
+                        if info.get("enabled"):
+                            count = info.get("holiday_count", 0)
+                            sd_text += f"\n• {info['label']}: {count} holidays"
+                    sd_text += (
+                        f"\n• _Calendarific API: {month_calls}/{monthly_limit} calls this month_"
                     )
-                    month_calls = calendarific_status.get("month_calls", 0)
-                    monthly_limit = calendarific_status.get("monthly_limit", 500)
-                    sd_text += f"\n• Calendarific: {holiday_count} holidays ({month_calls}/{monthly_limit} API calls this month)"
                 except (ImportError, AttributeError, KeyError, TypeError):
-                    sd_text += "\n• Calendarific: cache error"
+                    sd_text += "\n• Calendarific: error"
 
             # Total deduplicated count
             try:
