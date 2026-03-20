@@ -1083,17 +1083,15 @@ def update_category_status(category: str, enabled: bool) -> bool:
     return save_special_days_config(config)
 
 
-def has_announced_special_day_today(date: Optional[datetime] = None) -> bool:
+def get_announced_special_day_names(date: Optional[datetime] = None) -> set:
     """
-    Check if we've already announced special days for today.
-
-    Uses consolidated JSON tracking via storage/birthdays.py.
+    Get the set of special day names already announced today.
 
     Args:
         date: Optional date to check (defaults to today)
 
     Returns:
-        True if already announced, False otherwise
+        Set of announced special day names (lowercase), or empty set
     """
     from storage.birthdays import _load_announcements
 
@@ -1103,17 +1101,50 @@ def has_announced_special_day_today(date: Optional[datetime] = None) -> bool:
     date_str = date.strftime("%Y-%m-%d")
     data = _load_announcements()
 
-    return date_str in data.get("special_days", {})
+    entry = data.get("special_days", {}).get(date_str)
+    if isinstance(entry, dict):
+        return set(n.lower() for n in entry.get("names", []))
+    # Legacy format (just a timestamp string) — treat as "all announced"
+    if isinstance(entry, str):
+        return {"__all__"}
+    return set()
 
 
-def mark_special_day_announced(date: Optional[datetime] = None) -> bool:
+def has_announced_special_day_today(date: Optional[datetime] = None) -> bool:
     """
-    Mark that we've announced special days for today.
+    Check if we've already announced special days for today.
 
-    Uses consolidated JSON tracking via storage/birthdays.py.
+    Returns True only if ALL current special days have been announced.
+    If new days were added mid-day, returns False so they get announced.
+
+    Args:
+        date: Optional date to check (defaults to today)
+
+    Returns:
+        True if all announced, False if there are unannounced days
+    """
+    announced = get_announced_special_day_names(date)
+    if not announced:
+        return False
+    # Legacy format — treat as fully announced
+    if "__all__" in announced:
+        return True
+
+    # Check if any current special days are NOT yet announced
+    current_days = get_special_days_for_date(date or datetime.now())
+    for day in current_days:
+        if day.name.lower() not in announced:
+            return False
+    return True
+
+
+def mark_special_day_announced(date: Optional[datetime] = None, names: list = None) -> bool:
+    """
+    Mark specific special days as announced for today.
 
     Args:
         date: Optional date to mark (defaults to today)
+        names: List of special day names that were announced
 
     Returns:
         True if successful, False otherwise
@@ -1129,7 +1160,18 @@ def mark_special_day_announced(date: Optional[datetime] = None) -> bool:
     if "special_days" not in data:
         data["special_days"] = {}
 
-    data["special_days"][date_str] = datetime.now().isoformat()
+    # Merge with existing announced names
+    entry = data["special_days"].get(date_str)
+    if isinstance(entry, dict):
+        existing = set(entry.get("names", []))
+    else:
+        existing = set()
+
+    new_names = list(existing | set(names or []))
+    data["special_days"][date_str] = {
+        "names": new_names,
+        "last_announced": datetime.now().isoformat(),
+    }
 
     if _save_announcements(data):
         logger.info(f"Marked special days as announced for {date_str}")

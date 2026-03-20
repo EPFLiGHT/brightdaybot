@@ -447,9 +447,9 @@ def check_and_announce_special_days(app, moment):
         generate_special_day_message,
     )
     from storage.special_days import (
+        get_announced_special_day_names,
         get_special_days_for_date,
         get_special_days_mode,
-        has_announced_special_day_today,
         mark_special_day_announced,
     )
 
@@ -470,17 +470,27 @@ def check_and_announce_special_days(app, moment):
         )
         return False
 
-    # Check if we've already announced today
-    if has_announced_special_day_today(moment):
-        logger.debug("SPECIAL_DAYS: Already announced today, skipping")
-        return False
-
-    # Get special days for today
+    # Get special days for today and filter out already-announced ones
     special_days = get_special_days_for_date(moment)
 
     if not special_days:
         logger.debug(f"SPECIAL_DAYS: No special days for {moment.strftime('%Y-%m-%d')}")
         return False
+
+    announced = get_announced_special_day_names(moment)
+    if "__all__" in announced:
+        # Legacy format — treat as fully announced
+        logger.debug("SPECIAL_DAYS: Already announced today (legacy format), skipping")
+        return False
+
+    if announced:
+        special_days = [d for d in special_days if d.name.lower() not in announced]
+        if not special_days:
+            logger.debug("SPECIAL_DAYS: All special days already announced, skipping")
+            return False
+        logger.info(
+            f"SPECIAL_DAYS: {len(announced)} already announced, {len(special_days)} new to announce"
+        )
 
     try:
         logger.info(
@@ -570,7 +580,7 @@ def check_and_announce_special_days(app, moment):
                         except Exception as track_error:
                             logger.warning(f"SPECIAL_DAYS: Failed to track thread: {track_error}")
 
-                mark_special_day_announced(moment)
+                mark_special_day_announced(moment, names=[sd.name for sd in special_days])
                 logger.info(
                     f"SPECIAL_DAYS: Consolidated announcement sent ({len(special_days)} observances)"
                 )
@@ -606,6 +616,7 @@ def check_and_announce_special_days(app, moment):
             from slack.blocks import build_special_day_blocks
 
             announcements_sent = 0
+            announced_names = []
             for special_day in special_days:
                 try:
                     message, detailed_content = generated.get(special_day.name, (None, None))
@@ -627,6 +638,7 @@ def check_and_announce_special_days(app, moment):
 
                     if result["success"]:
                         announcements_sent += 1
+                        announced_names.append(special_day.name)
                         logger.info(
                             f"SPECIAL_DAYS: Sent announcement {announcements_sent}/{len(special_days)}: {special_day.name}"
                         )
@@ -667,7 +679,7 @@ def check_and_announce_special_days(app, moment):
                     logger.error(f"SPECIAL_DAYS: Error announcing {special_day.name}: {e}")
 
             if announcements_sent > 0:
-                mark_special_day_announced(moment)
+                mark_special_day_announced(moment, names=announced_names)
                 logger.info(
                     f"SPECIAL_DAYS: Successfully sent {announcements_sent}/{len(special_days)} announcement(s)"
                 )
