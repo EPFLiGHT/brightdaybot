@@ -28,6 +28,7 @@ from config import (
     DEDUP_SIGNIFICANT_WORD_MIN_LENGTH,
     DEFAULT_ANNOUNCEMENT_TIME,
     MAX_BACKUPS,
+    RELIGIOUS_HOLIDAYS_ENABLED,
     SPECIAL_DAYS_CATEGORIES,
     SPECIAL_DAYS_CONFIG_FILE,
     SPECIAL_DAYS_ENABLED,
@@ -732,7 +733,20 @@ def get_special_days_for_date(
         except Exception as e:
             logger.error(f"CALENDARIFIC: Failed to fetch for {date_str}: {e}")
 
-    # Source 5: Custom Company days from JSON (use pre-loaded if available)
+    # Source 5: Religious holidays from Saudi Arabia (if enabled)
+    if RELIGIOUS_HOLIDAYS_ENABLED and CALENDARIFIC_ENABLED and CALENDARIFIC_API_KEY:
+        try:
+            from integrations.calendarific import get_calendarific_client
+
+            client = get_calendarific_client()
+            religious_days = client.get_religious_holidays_for_date(date)
+            special_days.extend(religious_days)
+            if religious_days:
+                logger.debug(f"RELIGIOUS: Found {len(religious_days)} holiday(s) for {date_str}")
+        except Exception as e:
+            logger.error(f"RELIGIOUS: Failed to fetch for {date_str}: {e}")
+
+    # Source 6: Custom Company days from JSON (use pre-loaded if available)
     if custom_days is None:
         custom_days = load_special_days()
     company_days = [d for d in custom_days if d.date == date_str and d.category == "Company"]

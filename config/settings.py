@@ -354,6 +354,7 @@ SPECIAL_DAYS_CATEGORIES = [
     "Tech",
     "Culture",
     "Company",
+    "Religious",
 ]
 
 # Keywords for category classification (minimal set covering ~90% of cases)
@@ -411,6 +412,19 @@ CALENDARIFIC_CACHE_TTL_DAYS = int(os.getenv("CALENDARIFIC_CACHE_TTL_DAYS", "7"))
 CALENDARIFIC_PREFETCH_DAYS = int(os.getenv("CALENDARIFIC_PREFETCH_DAYS", "7"))
 CALENDARIFIC_RATE_LIMIT_MONTHLY = 500  # Free tier: 500 calls/month
 CALENDARIFIC_RATE_WARNING_THRESHOLD = 400  # Warn when approaching limit
+
+# ----- RELIGIOUS HOLIDAYS CONFIGURATION -----
+
+# Islamic holidays from Saudi Arabia (authoritative Hijri calendar source)
+RELIGIOUS_HOLIDAYS_ENABLED = os.getenv("RELIGIOUS_HOLIDAYS_ENABLED", "true").lower() == "true"
+RELIGIOUS_HOLIDAYS_COUNTRY = "SA"
+RELIGIOUS_HOLIDAYS_CACHE_FILE = os.path.join(CALENDARIFIC_CACHE_DIR, "religious_cache.json")
+RELIGIOUS_HOLIDAYS_WHITELIST = [
+    "Eid al-Fitr",
+    "Eid al-Adha",
+    "Ramadan",
+    "Muharram",
+]
 
 # ----- UN OBSERVANCES CONFIGURATION -----
 

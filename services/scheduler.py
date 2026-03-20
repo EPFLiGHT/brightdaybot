@@ -184,8 +184,9 @@ def weekly_calendarific_refresh_task():
     """
     Weekly task - refreshes Calendarific cache for upcoming holidays.
     Runs every Sunday at CACHE_REFRESH_TIME.
+    Also refreshes religious holidays cache (SA source) if enabled.
     """
-    from config import CALENDARIFIC_ENABLED
+    from config import CALENDARIFIC_ENABLED, RELIGIOUS_HOLIDAYS_ENABLED
 
     logger.info("SCHEDULER: Running weekly Calendarific cache refresh")
 
@@ -196,6 +197,10 @@ def weekly_calendarific_refresh_task():
             client = get_calendarific_client()
             stats = client.weekly_prefetch(force=True)
             logger.info(f"SCHEDULER: Calendarific prefetch complete: {stats}")
+
+            if RELIGIOUS_HOLIDAYS_ENABLED:
+                religious_stats = client.religious_holidays_prefetch(force=True)
+                logger.info(f"SCHEDULER: Religious holidays prefetch complete: {religious_stats}")
         except Exception as e:
             logger.error(f"SCHEDULER: Failed to refresh Calendarific cache: {e}")
     else:

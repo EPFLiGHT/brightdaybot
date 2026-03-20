@@ -35,6 +35,10 @@ from config import (
     CALENDARIFIC_STATE,
     CALENDARIFIC_STATS_FILE,
     HEALTH_CATEGORY_KEYWORDS,
+    RELIGIOUS_HOLIDAYS_CACHE_FILE,
+    RELIGIOUS_HOLIDAYS_COUNTRY,
+    RELIGIOUS_HOLIDAYS_ENABLED,
+    RELIGIOUS_HOLIDAYS_WHITELIST,
     TECH_CATEGORY_KEYWORDS,
     TIMEOUTS,
 )
@@ -644,6 +648,176 @@ class CalendarificClient:
         if removed:
             self._save_consolidated_cache(cache_data)
             logger.info(f"CALENDARIFIC: Removed {removed} old cache entries")
+
+    # ----- RELIGIOUS HOLIDAYS (Saudi Arabia source) -----
+
+    def get_religious_holidays_for_date(self, date: datetime) -> List["SpecialDay"]:
+        """Get religious holidays for a specific date, auto-populating cache if needed."""
+        if not RELIGIOUS_HOLIDAYS_ENABLED:
+            return []
+
+        cached = self._load_religious_cache()
+
+        cached_year = cached.get("year")
+        if not cached.get("cached_at") or cached_year != date.year:
+            logger.info("RELIGIOUS: Cache empty or stale, auto-populating...")
+            self.religious_holidays_prefetch(force=True)
+            cached = self._load_religious_cache()
+
+        date_key = date.strftime("%Y-%m-%d")
+
+        entry = cached.get("entries", {}).get(date_key)
+        if entry is None:
+            return []
+
+        return [self._religious_dict_to_special_day(h) for h in entry.get("holidays", [])]
+
+    def religious_holidays_prefetch(self, force: bool = False) -> Dict[str, int]:
+        """Prefetch religious holidays from Saudi Arabia for the current year (1 API call)."""
+        if not RELIGIOUS_HOLIDAYS_ENABLED:
+            return {"skipped": "Religious holidays disabled"}
+
+        if not self.api_key:
+            return {"error": "No API key configured"}
+
+        if not force:
+            cached = self._load_religious_cache()
+            cached_at = cached.get("cached_at")
+            if cached_at:
+                try:
+                    cache_time = datetime.fromisoformat(cached_at)
+                    cache_age_days = (datetime.now() - cache_time).total_seconds() / 86400
+                    if cache_age_days < self.cache_ttl_days:
+                        logger.debug("RELIGIOUS: Cache is fresh, skipping prefetch")
+                        return {"skipped": "Cache fresh"}
+                except (ValueError, TypeError):
+                    pass
+
+        try:
+            self._check_rate_limit()
+
+            year = datetime.now().year
+            params = {
+                "api_key": self.api_key,
+                "country": RELIGIOUS_HOLIDAYS_COUNTRY,
+                "year": year,
+                "type": "national",
+            }
+
+            response = requests.get(
+                self.BASE_URL,
+                params=params,
+                timeout=TIMEOUTS.get("http_request", 30),
+            )
+            response.raise_for_status()
+            self._increment_rate_counter()
+
+            data = response.json()
+            if data.get("meta", {}).get("code") != 200:
+                error_msg = data.get("meta", {}).get("error_detail", "Unknown error")
+                return {"error": f"API error: {error_msg}"}
+
+            resp = data.get("response", {})
+            holidays = resp.get("holidays", []) if isinstance(resp, dict) else []
+
+            whitelist_lower = [name.lower() for name in RELIGIOUS_HOLIDAYS_WHITELIST]
+            filtered = []
+            for h in holidays:
+                name_lower = h.get("name", "").lower()
+                if any(w in name_lower for w in whitelist_lower):
+                    filtered.append(h)
+
+            cache_data = {"entries": {}, "cached_at": datetime.now().isoformat(), "year": year}
+            for h in filtered:
+                date_info = h.get("date", {})
+                iso_date = (
+                    date_info.get("iso", "").split("T")[0] if isinstance(date_info, dict) else ""
+                )
+                if iso_date:
+                    if iso_date not in cache_data["entries"]:
+                        cache_data["entries"][iso_date] = {"holidays": []}
+                    cache_data["entries"][iso_date]["holidays"].append(h)
+
+            self._save_religious_cache(cache_data)
+
+            logger.info(
+                f"RELIGIOUS: Prefetched {len(filtered)} holidays for {year} "
+                f"across {len(cache_data['entries'])} dates"
+            )
+
+            return {
+                "fetched": len(filtered),
+                "dates": len(cache_data["entries"]),
+                "api_calls": 1,
+                "holidays": [h.get("name") for h in filtered],
+            }
+
+        except RateLimitExceeded as e:
+            logger.error(f"RELIGIOUS: Rate limit exceeded: {e}")
+            return {"error": str(e)}
+        except Exception as e:
+            logger.warning(f"RELIGIOUS: Prefetch failed: {e}")
+            return {"error": str(e)}
+
+    def _religious_dict_to_special_day(self, holiday: Dict) -> "SpecialDay":
+        """Convert a Saudi Arabia holiday dict to a SpecialDay."""
+        from storage.special_days import SpecialDay
+
+        name = holiday.get("name", "Unknown")
+        description = holiday.get("description", "")
+
+        date_info = holiday.get("date", {})
+        date_str = ""
+        if isinstance(date_info, dict):
+            iso_date = date_info.get("iso", "")
+            if iso_date:
+                try:
+                    dt = datetime.fromisoformat(iso_date.split("T")[0])
+                    date_str = dt.strftime("%d/%m")
+                except ValueError:
+                    pass
+
+        name_lower = name.lower()
+        if "eid" in name_lower:
+            emoji = "🌙"
+        elif "ramadan" in name_lower:
+            emoji = "🕌"
+        elif "muharram" in name_lower:
+            emoji = "📿"
+        else:
+            emoji = "🌙"
+
+        return SpecialDay(
+            date=date_str,
+            name=name,
+            category="Religious",
+            description=description or f"Islamic observance: {name}",
+            emoji=emoji,
+            enabled=True,
+            source="Calendarific (SA)",
+            url="",
+        )
+
+    def _load_religious_cache(self) -> Dict:
+        """Load the religious holidays cache file."""
+        if not os.path.exists(RELIGIOUS_HOLIDAYS_CACHE_FILE):
+            return {"entries": {}, "cached_at": None}
+
+        try:
+            with open(RELIGIOUS_HOLIDAYS_CACHE_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(f"RELIGIOUS: Failed to load cache: {e}")
+            return {"entries": {}, "cached_at": None}
+
+    def _save_religious_cache(self, cache_data: Dict):
+        """Save the religious holidays cache file."""
+        try:
+            os.makedirs(os.path.dirname(RELIGIOUS_HOLIDAYS_CACHE_FILE), exist_ok=True)
+            with open(RELIGIOUS_HOLIDAYS_CACHE_FILE, "w", encoding="utf-8") as f:
+                json.dump(cache_data, f, indent=2, ensure_ascii=False, sort_keys=True)
+        except OSError as e:
+            logger.warning(f"RELIGIOUS: Failed to save cache: {e}")
 
 
 class RateLimitExceeded(Exception):
