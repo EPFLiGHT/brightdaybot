@@ -596,9 +596,10 @@ class CalendarificClient:
                 os.remove(CALENDARIFIC_CACHE_FILE)
             logger.info("CALENDARIFIC: Cleared all cache")
 
-    def get_cached_holiday_count(self) -> int:
+    def get_cached_holiday_count(self, cache_data=None) -> int:
         """Count unique cached holidays by DD/MM + name (recurring yearly)."""
-        cache_data = self._load_consolidated_cache()
+        if cache_data is None:
+            cache_data = self._load_consolidated_cache()
         seen = set()
         for entry in cache_data.get("entries", {}).values():
             for h in entry.get("holidays", []):
@@ -619,7 +620,7 @@ class CalendarificClient:
         month_calls = self._get_rate_count()
         cache_data = self._load_consolidated_cache()
         cached_dates = len(cache_data.get("entries", {}))
-        holiday_count = self.get_cached_holiday_count()
+        holiday_count = self.get_cached_holiday_count(cache_data=cache_data)
         last_prefetch = self.get_last_prefetch()
 
         return {

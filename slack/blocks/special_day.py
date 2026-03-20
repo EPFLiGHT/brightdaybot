@@ -46,16 +46,24 @@ def _save_details_cache(cache):
 
 def store_special_day_details(action_id, content, name=None, source=None, url=None):
     """Store detailed content for a special day View Details button (persisted to disk)."""
+    store_special_day_details_batch(
+        {action_id: {"content": content, "name": name, "source": source, "url": url}}
+    )
+
+
+def store_special_day_details_batch(entries: Dict[str, dict]):
+    """Store multiple details entries in one file read/write cycle.
+
+    Args:
+        entries: Dict mapping action_id to {content, name, source, url}
+    """
+    if not entries:
+        return
     cache = _load_details_cache()
-    cache[action_id] = {
-        "content": content,
-        "name": name,
-        "source": source,
-        "url": url,
-        "stored_at": time.time(),
-    }
-    # Prune expired entries on write
     now = time.time()
+    for action_id, data in entries.items():
+        cache[action_id] = {**data, "stored_at": now}
+    # Prune expired entries
     cache = {k: v for k, v in cache.items() if (now - v.get("stored_at", 0)) < _details_cache_ttl}
     _save_details_cache(cache)
 
@@ -294,6 +302,7 @@ def build_consolidated_special_day_blocks(
 
     # Per-observance sections — mirrors single-day structure:
     #   section (name + teaser) → context (source + personality) → actions (buttons)
+    cache_entries = {}  # Collect for batch write
     for idx, day in enumerate(special_days):
         name = _get_attr(day, "name", "Special Day")
         emoji = _get_attr(day, "emoji", "🌍") or "🌍"
@@ -318,24 +327,21 @@ def build_consolidated_special_day_blocks(
             )
             blocks.append({"type": "context", "elements": context_elements})
         else:
-            # Compact: source inline in section text (already above)
             if source:
-                # Amend the last section block
                 blocks[-1]["text"]["text"] += f"\n📋 _Source: {source}_"
 
-        # Buttons — store in cache, button value is just the name
+        # Buttons — collect cache entries for batch write
         details = detailed_contents.get(name, "")
         if details or url:
             actions = []
             if details:
                 action_id = f"special_day_details_{date_str.replace('/', '_') if date_str else 'unknown'}_{idx}"
-                store_special_day_details(
-                    action_id,
-                    details,
-                    name=name,
-                    source=source,
-                    url=url,
-                )
+                cache_entries[action_id] = {
+                    "content": details,
+                    "name": name,
+                    "source": source,
+                    "url": url,
+                }
                 actions.append(
                     {
                         "type": "button",
@@ -359,6 +365,10 @@ def build_consolidated_special_day_blocks(
 
     # Closing divider + footer
     blocks.append({"type": "divider"})
+    # Batch write all cached details in one file I/O cycle
+    if cache_entries:
+        store_special_day_details_batch(cache_entries)
+
     footer = f"📊 *{count} observance{'s' if count != 1 else ''}* today"
     blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": footer}]})
 

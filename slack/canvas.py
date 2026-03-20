@@ -27,12 +27,19 @@ from utils.log_setup import get_logger
 
 logger = get_logger("slack")
 
+
+def _flag(val):
+    """Format a boolean as ✅/❌ for dashboard display."""
+    return "✅" if val else "❌"
+
+
 # Module state
 _recent_changes = collections.deque(maxlen=CANVAS_RECENT_CHANGES_MAX)
 _recent_warnings = collections.deque(maxlen=CANVAS_WARNINGS_MAX)
 _warnings_ttl_seconds = CANVAS_WARNINGS_TTL_HOURS * 3600
 _last_update_time = None
 _last_sched_ok = None
+_last_sd_total = None
 _update_lock = threading.Lock()
 
 
@@ -166,7 +173,7 @@ def _ensure_canvas(app, channel_id):
     return None
 
 
-def _update_channel_topic(app, channel_id):
+def _update_channel_topic(app, channel_id, sd_total=None):
     """Update channel topic only when data changes, to avoid system message spam."""
     try:
         from config import BIRTHDAY_CHANNEL
@@ -195,8 +202,9 @@ def _update_channel_topic(app, channel_id):
         health = get_scheduler_health()
         sched_ok = health.get("status") == "ok"
 
-        # Total special days count
-        sd_total = len(load_all_special_days())
+        # Total special days count (use precomputed if available)
+        if sd_total is None:
+            sd_total = len(load_all_special_days())
 
         global _last_sched_ok
 
@@ -432,9 +440,6 @@ def _build_health_section():
 
         bot_celebration = load_bot_celebration_setting()
 
-        def _flag(val):
-            return "✅" if val else "❌"
-
         overall_emoji = "✅" if overall == "ok" else "⚠️"
 
         img_quality = IMAGE_GENERATION_PARAMS["quality"]["default"]
@@ -587,10 +592,12 @@ def _build_observances_section():
             logger.debug(f"CANVAS: Could not load custom special days: {e}")
 
         # Total merged count (all sources, deduplicated)
+        global _last_sd_total
         try:
             from storage.special_days import load_all_special_days
 
             total_count = len(load_all_special_days())
+            _last_sd_total = total_count
             rows.append(f"| **Total (deduplicated)** | | **{total_count}** | |")
         except Exception as e:
             logger.debug(f"CANVAS: Could not load deduplicated special days count: {e}")
@@ -605,9 +612,6 @@ def _build_observances_section():
             SPECIAL_DAYS_MODE,
             SPECIAL_DAYS_WEEKLY_DAY,
         )
-
-        def _flag(val):
-            return "✅" if val else "❌"
 
         day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
         mode_text = SPECIAL_DAYS_MODE.title()
@@ -899,7 +903,8 @@ def update_canvas(app, reason="periodic", force=False):
         markdown = _build_dashboard_markdown(app)
         _replace_canvas_content(app, canvas_id, markdown)
 
-        _update_channel_topic(app, OPS_CHANNEL_ID)
+        # Reuse sd_total computed during _build_observances_section to avoid re-loading
+        _update_channel_topic(app, OPS_CHANNEL_ID, sd_total=_last_sd_total)
         _save_settings({"canvas_updated_at": datetime.now().isoformat()})
         logger.info(f"CANVAS: Dashboard updated successfully (reason: {reason})")
         return True

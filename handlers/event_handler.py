@@ -251,7 +251,7 @@ def register_event_handlers(app):
                     if isinstance(first, dict):
                         header_text = first.get("text", {}).get("text", "")
                         if header_text and len(header_text) < 100:
-                            observance_name = header_text.lstrip("🌍 ")
+                            observance_name = header_text.removeprefix("🌍 ")
                 source = None
                 url = None
 
