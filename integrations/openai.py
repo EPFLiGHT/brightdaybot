@@ -19,8 +19,7 @@ from datetime import datetime
 
 from openai import APIConnectionError, APIError, APITimeoutError, OpenAI, RateLimitError
 
-from config import get_logger
-from config.settings import supports_reasoning
+from config import get_logger, supports_reasoning
 from storage.settings import get_configured_openai_model
 
 logger = get_logger("ai")

@@ -22,8 +22,8 @@ from config import (
     CANVAS_WARNINGS_TTL_HOURS,
     OPS_CHANNEL_ID,
     SLACK_HISTORY_PAGE_SIZE,
+    get_logger,
 )
-from utils.log_setup import get_logger
 
 logger = get_logger("slack")
 
@@ -869,6 +869,14 @@ def record_warning(warning_text):
 def clear_warnings():
     """Clear all warnings from the canvas dashboard."""
     _recent_warnings.clear()
+
+
+def safe_record_warning(warning_text):
+    """Fire-and-forget wrapper for record_warning. Never raises."""
+    try:
+        record_warning(warning_text)
+    except Exception:
+        pass
 
 
 def update_canvas(app, reason="periodic", force=False):

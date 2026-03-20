@@ -316,12 +316,9 @@ class BirthdayCelebrationPipeline:
 
         except Exception as e:
             logger.error(f"{self.mode}_ERROR: Failed to celebrate birthdays: {e}")
-            try:
-                from slack.canvas import record_warning
+            from slack.canvas import safe_record_warning
 
-                record_warning(f"Celebration failed ({self.mode}): {e}")
-            except Exception:
-                pass
+            safe_record_warning(f"Celebration failed ({self.mode}): {e}")
 
             # DO NOT mark as celebrated on failure - let celebrate_missed_birthdays retry
             # The missed birthday check exists specifically to handle celebration failures

@@ -295,9 +295,10 @@ def _generate_special_day_response(
         Response text or None on failure
     """
     try:
-        from config import TEMPERATURE_SETTINGS, TOKEN_LIMITS
+        from config import PROMPT_INPUT_LIMITS, TEMPERATURE_SETTINGS, TOKEN_LIMITS
         from config.personality import PERSONALITIES
         from integrations.openai import complete
+        from utils.sanitization import sanitize_for_prompt
 
         # Defensive check for special_day_info
         if not special_day_info or not isinstance(special_day_info, dict):
@@ -331,7 +332,7 @@ def _generate_special_day_response(
 Today's special day(s):{day_context}
 
 A user asked in the thread about this special day:
-"{text[:300]}"
+"{sanitize_for_prompt(text, max_length=PROMPT_INPUT_LIMITS['thread_response'])}"
 
 Generate a helpful, informative response (2-4 sentences, maximum 600 characters total) that:
 1. Directly addresses their question or comment

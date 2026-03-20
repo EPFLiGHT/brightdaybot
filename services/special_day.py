@@ -19,13 +19,13 @@ from config import (
     TEAM_NAME,
     TEMPERATURE_SETTINGS,
     TOKEN_LIMITS,
+    get_logger,
 )
 from config.personality import get_personality_config
 from integrations.openai import complete
 from integrations.web_search import get_birthday_facts
 from services.image_generator import generate_birthday_image
 from slack.emoji import get_emoji_context_for_ai
-from utils.log_setup import get_logger
 from utils.sanitization import markdown_to_slack_mrkdwn
 
 # Get dedicated logger

@@ -8,7 +8,8 @@ Builds context from special days, birthdays, and general knowledge.
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from config import get_logger
+from config import PROMPT_INPUT_LIMITS, get_logger
+from utils.sanitization import sanitize_for_prompt
 
 logger = get_logger("ai")
 
@@ -255,7 +256,7 @@ Your capabilities:
 
 """
 
-    prompt += f"""A user asked: "{question_text}"
+    prompt += f"""A user asked: "{sanitize_for_prompt(question_text, max_length=PROMPT_INPUT_LIMITS['mention_question'])}"
 
 SLACK FORMATTING: Use *single asterisks* for bold, _single underscores_ for italic. Do NOT use **double asterisks** or __double underscores__. For links use <URL|text> format.
 

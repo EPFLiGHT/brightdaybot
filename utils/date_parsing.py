@@ -14,7 +14,8 @@ import json
 from datetime import datetime
 from typing import Any, Dict
 
-from config import MIN_BIRTH_YEAR, get_logger
+from config import MIN_BIRTH_YEAR, PROMPT_INPUT_LIMITS, get_logger
+from utils.sanitization import sanitize_for_prompt
 
 logger = get_logger("ai")
 
@@ -119,7 +120,7 @@ def _parse_with_llm(text: str) -> Dict[str, Any]:
 
         prompt = f"""Extract the birthday date from this text. Return ONLY a JSON object with day, month, and year (if provided).
 
-Text: "{text}"
+Text: "{sanitize_for_prompt(text, max_length=PROMPT_INPUT_LIMITS['date_parsing'])}"
 
 Rules:
 - day: integer 1-31

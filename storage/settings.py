@@ -27,8 +27,8 @@ from config import (
     PERSONALITY_FILE,
     SUPPORTED_OPENAI_MODELS,
     USE_CUSTOM_EMOJIS,
+    get_logger,
 )
-from utils.log_setup import get_logger
 
 logger = get_logger("config")
 

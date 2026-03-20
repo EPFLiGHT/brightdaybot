@@ -227,12 +227,9 @@ def celebrate_bot_birthday(app, moment):
         )
     else:
         logger.error(f"BOT_BIRTHDAY_ERROR: Celebration failed: {result.get('error')}")
-        try:
-            from slack.canvas import record_warning
+        from slack.canvas import safe_record_warning
 
-            record_warning(f"Bot birthday celebration failed: {result.get('error')}")
-        except Exception:
-            pass
+        safe_record_warning(f"Bot birthday celebration failed: {result.get('error')}")
 
     return result["success"]
 
@@ -521,7 +518,7 @@ def check_and_announce_special_days(app, moment):
             intro = generate_consolidated_intro_message(special_days, app=app)
 
             # Generate individual teasers and details (parallel if multiple)
-            from config.settings import run_parallel
+            from config import run_parallel
 
             def _generate_for_sd(sd):
                 teaser = generate_special_day_message(
@@ -595,7 +592,7 @@ def check_and_announce_special_days(app, moment):
             logger.info(f"SPECIAL_DAYS: Sending {len(special_days)} separate announcement(s)")
 
             # Pre-generate all AI content, then send sequentially
-            from config.settings import run_parallel
+            from config import run_parallel
 
             def _generate_individual(sd):
                 teaser = generate_special_day_message([sd], app=app, use_teaser=True)
@@ -694,12 +691,9 @@ def check_and_announce_special_days(app, moment):
 
     except Exception as e:
         logger.error(f"SPECIAL_DAYS_ERROR: Failed to announce special days: {e}")
-        try:
-            from slack.canvas import record_warning
+        from slack.canvas import safe_record_warning
 
-            record_warning(f"Special days announcement failed: {e}")
-        except Exception:
-            pass
+        safe_record_warning(f"Special days announcement failed: {e}")
         return False
 
 
@@ -1145,12 +1139,9 @@ def timezone_aware_check(app, moment):
 
         if not result["success"] and result["error"]:
             logger.error(f"TIMEZONE_ERROR: Celebration pipeline failed: {result['error']}")
-            try:
-                from slack.canvas import record_warning
+            from slack.canvas import safe_record_warning
 
-                record_warning(f"Timezone celebration failed: {result['error']}")
-            except Exception:
-                pass
+            safe_record_warning(f"Timezone celebration failed: {result['error']}")
 
     elif all_birthday_people_today:
         # Enhanced logging: Show who has birthdays but no triggers
@@ -1241,12 +1232,9 @@ def simple_daily_check(app, moment):
 
         if not result["success"] and result["error"]:
             logger.error(f"SIMPLE_DAILY_ERROR: Celebration pipeline failed: {result['error']}")
-            try:
-                from slack.canvas import record_warning
+            from slack.canvas import safe_record_warning
 
-                record_warning(f"Daily celebration failed: {result['error']}")
-            except Exception:
-                pass
+            safe_record_warning(f"Daily celebration failed: {result['error']}")
     else:
         logger.info("SIMPLE_DAILY: No birthdays to celebrate today")
 

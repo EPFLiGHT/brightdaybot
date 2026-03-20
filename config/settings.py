@@ -239,6 +239,13 @@ TOKEN_LIMITS = {
     "profile_analysis": 100,  # Vision API profile photo element extraction
 }
 
+# Max characters for user input sanitization before embedding in AI prompts
+PROMPT_INPUT_LIMITS = {
+    "thread_response": 300,  # Special day thread replies
+    "mention_question": 300,  # @-mention questions
+    "date_parsing": 200,  # NLP date extraction input
+}
+
 # Temperature settings for creativity control
 TEMPERATURE_SETTINGS = {
     "default": 0.7,  # Standard temperature for most messages

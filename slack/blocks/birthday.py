@@ -7,13 +7,12 @@ error messages, and list displays.
 
 from typing import Any, Dict, List, Optional
 
-from config import BOT_BIRTHDAY, DEFAULT_IMAGE_PERSONALITY, MIN_BIRTH_YEAR
+from config import BOT_BIRTHDAY, DEFAULT_IMAGE_PERSONALITY, MIN_BIRTH_YEAR, get_logger
 from config.personality import (
     get_celebration_personality_count,
     get_personality_display_name,
 )
 from utils.date_utils import date_to_words
-from utils.log_setup import get_logger
 
 logger = get_logger("slack")
 

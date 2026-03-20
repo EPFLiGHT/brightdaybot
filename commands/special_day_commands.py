@@ -249,6 +249,70 @@ def handle_admin_special_command_with_quotes(command_text, user_id, say, app):
         handle_admin_special_command(simple_args, user_id, say, app)
 
 
+def _show_observance_status(source_name, source_key, say):
+    """Show cache status for an observance source (UN/UNESCO/WHO)."""
+    try:
+        from integrations.observances import get_enabled_sources
+
+        status_fn = None
+        for name, _refresh, status in get_enabled_sources():
+            if name == source_name:
+                status_fn = status
+                break
+
+        if not status_fn:
+            say(f"❌ {source_name} observances not enabled")
+            return
+
+        status = status_fn()
+        last_updated = status.get("last_updated")
+        last_str = "Never"
+        if last_updated:
+            last_dt = datetime.fromisoformat(last_updated)
+            last_str = f"`{last_dt.strftime('%Y-%m-%d %H:%M')}`"
+
+        say(
+            f"📊 *{source_name} Observances Cache Status*\n\n"
+            f"• Cache exists: {'✅ Yes' if status['cache_exists'] else '❌ No'}\n"
+            f"• Cache fresh: {'✅ Yes' if status['cache_fresh'] else '⚠️ Stale'}\n"
+            f"• Last updated: {last_str}\n"
+            f"• Observances cached: {status['observance_count']}\n\n"
+            f"*Source:* {status['source_url']}\n\n"
+            f"_Use `admin special {source_key}-refresh` to force update._"
+        )
+    except Exception as e:
+        say(f"❌ Failed to get {source_name} cache status: {e}")
+        logger.error(f"ADMIN_SPECIAL: Failed to get {source_name} status: {e}")
+
+
+def _refresh_observance(source_name, source_key, say, username):
+    """Force refresh an observance source cache (UN/UNESCO/WHO)."""
+    try:
+        from integrations.observances import get_enabled_sources
+
+        refresh_fn = None
+        for name, refresh, _status in get_enabled_sources():
+            if name == source_name:
+                refresh_fn = refresh
+                break
+
+        if not refresh_fn:
+            say(f"❌ {source_name} observances not enabled")
+            return
+
+        say(f"🔄 Refreshing {source_name} observances cache...")
+        stats = refresh_fn(force=True)
+
+        if stats.get("error"):
+            say(f"❌ Refresh failed: {stats['error']}")
+        else:
+            say(f"✅ {source_name} observances cache refreshed: {stats['fetched']} observances")
+            logger.info(f"ADMIN_SPECIAL: {username} refreshed {source_name} cache")
+    except Exception as e:
+        say(f"❌ Refresh error: {e}")
+        logger.error(f"ADMIN_SPECIAL: {source_name} refresh failed: {e}")
+
+
 def handle_admin_special_command(args, user_id, say, app):
     """Handle admin special days commands (non-add commands only)"""
     from config import CALENDARIFIC_API_KEY, CALENDARIFIC_ENABLED
@@ -364,7 +428,7 @@ def handle_admin_special_command(args, user_id, say, app):
 
                 intro = generate_consolidated_intro_message(special_days, app=app)
 
-                from config.settings import run_parallel
+                from config import run_parallel
 
                 def _generate_for_sd(sd):
                     teaser = generate_special_day_message(
@@ -410,7 +474,7 @@ def handle_admin_special_command(args, user_id, say, app):
                 say(f"📋 Sending {len(special_days)} separate test announcement(s)")
 
                 # Pre-generate all AI content
-                from config.settings import run_parallel
+                from config import run_parallel
 
                 def _generate_individual(sd):
                     teaser = generate_special_day_message(
@@ -714,151 +778,17 @@ _Use `admin special [un|unesco|who]-refresh` or `all-refresh` to force update._"
             logger.error(f"ADMIN_SPECIAL: Failed to get observances status: {e}")
 
     elif subcommand in ["un-status", "un"]:
-        # UN Observances: Show cache status
-        try:
-            from integrations.observances.un import get_un_cache_status
-
-            status = get_un_cache_status()
-
-            last_updated = status.get("last_updated")
-            if last_updated:
-                last_dt = datetime.fromisoformat(last_updated)
-                last_str = f"`{last_dt.strftime('%Y-%m-%d %H:%M')}`"
-            else:
-                last_str = "Never"
-
-            message = f"""📊 *UN Observances Cache Status*
-
-• Cache exists: {"✅ Yes" if status["cache_exists"] else "❌ No"}
-• Cache fresh: {"✅ Yes" if status["cache_fresh"] else "⚠️ Stale"}
-• Last updated: {last_str}
-• Observances cached: {status["observance_count"]}
-
-*Source:* {status["source_url"]}
-
-_Cache refreshes weekly. Use `admin special un-refresh` to force update._"""
-            say(message)
-
-        except Exception as e:
-            say(f"❌ Failed to get UN cache status: {e}")
-            logger.error(f"ADMIN_SPECIAL: Failed to get UN status: {e}")
-
+        _show_observance_status("UN", "un", say)
     elif subcommand == "un-refresh":
-        # UN Observances: Force refresh
-        try:
-            from integrations.observances.un import refresh_un_cache
-
-            say("🔄 Refreshing UN observances cache...")
-
-            stats = refresh_un_cache(force=True)
-
-            if stats.get("error"):
-                say(f"❌ Refresh failed: {stats['error']}")
-            else:
-                say(f"✅ UN observances cache refreshed: {stats['fetched']} observances")
-                logger.info(f"ADMIN_SPECIAL: {username} refreshed UN cache")
-
-        except Exception as e:
-            say(f"❌ Refresh error: {e}")
-            logger.error(f"ADMIN_SPECIAL: UN refresh failed: {e}")
-
+        _refresh_observance("UN", "un", say, username)
     elif subcommand in ["unesco-status", "unesco"]:
-        # UNESCO Observances: Show cache status
-        try:
-            from integrations.observances.unesco import get_unesco_cache_status
-
-            status = get_unesco_cache_status()
-
-            last_updated = status.get("last_updated")
-            if last_updated:
-                last_dt = datetime.fromisoformat(last_updated)
-                last_str = f"`{last_dt.strftime('%Y-%m-%d %H:%M')}`"
-            else:
-                last_str = "Never"
-
-            message = f"""📊 *UNESCO Observances Cache Status*
-
-• Cache exists: {"✅ Yes" if status["cache_exists"] else "❌ No"}
-• Cache fresh: {"✅ Yes" if status["cache_fresh"] else "⚠️ Stale"}
-• Last updated: {last_str}
-• Observances cached: {status["observance_count"]}
-
-*Source:* {status["source_url"]}
-
-_Cache refreshes monthly. Use `admin special unesco-refresh` to force update._"""
-            say(message)
-
-        except Exception as e:
-            say(f"❌ Failed to get UNESCO cache status: {e}")
-            logger.error(f"ADMIN_SPECIAL: Failed to get UNESCO status: {e}")
-
+        _show_observance_status("UNESCO", "unesco", say)
     elif subcommand == "unesco-refresh":
-        # UNESCO Observances: Force refresh
-        try:
-            from integrations.observances.unesco import refresh_unesco_cache
-
-            say("🔄 Refreshing UNESCO observances cache...")
-
-            stats = refresh_unesco_cache(force=True)
-
-            if stats.get("error"):
-                say(f"❌ Refresh failed: {stats['error']}")
-            else:
-                say(f"✅ UNESCO observances cache refreshed: {stats['fetched']} observances")
-                logger.info(f"ADMIN_SPECIAL: {username} refreshed UNESCO cache")
-
-        except Exception as e:
-            say(f"❌ Refresh error: {e}")
-            logger.error(f"ADMIN_SPECIAL: UNESCO refresh failed: {e}")
-
+        _refresh_observance("UNESCO", "unesco", say, username)
     elif subcommand in ["who-status", "who"]:
-        # WHO Observances: Show cache status
-        try:
-            from integrations.observances.who import get_who_cache_status
-
-            status = get_who_cache_status()
-
-            last_updated = status.get("last_updated")
-            if last_updated:
-                last_dt = datetime.fromisoformat(last_updated)
-                last_str = f"`{last_dt.strftime('%Y-%m-%d %H:%M')}`"
-            else:
-                last_str = "Never"
-
-            message = f"""📊 *WHO Observances Cache Status*
-
-• Cache exists: {"✅ Yes" if status["cache_exists"] else "❌ No"}
-• Cache fresh: {"✅ Yes" if status["cache_fresh"] else "⚠️ Stale"}
-• Last updated: {last_str}
-• Observances cached: {status["observance_count"]}
-
-*Source:* {status["source_url"]}
-
-_Cache refreshes monthly. Use `admin special who-refresh` to force update._"""
-            say(message)
-
-        except Exception as e:
-            say(f"❌ Failed to get WHO cache status: {e}")
-            logger.error(f"ADMIN_SPECIAL: Failed to get WHO status: {e}")
-
+        _show_observance_status("WHO", "who", say)
     elif subcommand == "who-refresh":
-        # WHO Observances: Force refresh
-        try:
-            from integrations.observances.who import refresh_who_cache
-
-            say("🔄 Refreshing WHO observances cache...")
-
-            stats = refresh_who_cache(force=True)
-
-            if stats.get("error"):
-                say(f"❌ Refresh failed: {stats['error']}")
-            else:
-                say(f"✅ WHO observances cache refreshed: {stats['fetched']} observances")
-                logger.info(f"ADMIN_SPECIAL: {username} refreshed WHO cache")
-
-        except Exception as e:
-            say(f"❌ Refresh error: {e}")
-            logger.error(f"ADMIN_SPECIAL: WHO refresh failed: {e}")
+        _refresh_observance("WHO", "who", say, username)
 
     elif subcommand == "all-refresh":
         # Refresh all observance sources at once

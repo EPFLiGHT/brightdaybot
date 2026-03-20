@@ -46,8 +46,8 @@ from config import (
     WEEKDAY_NAMES,
     WHO_OBSERVANCES_CACHE_FILE,
     WHO_OBSERVANCES_ENABLED,
+    get_logger,
 )
-from utils.log_setup import get_logger
 
 # Get dedicated logger for special days
 logger = get_logger("special_days")

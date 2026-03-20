@@ -41,8 +41,8 @@ from config import (
     RELIGIOUS_HOLIDAYS_WHITELIST,
     TECH_CATEGORY_KEYWORDS,
     TIMEOUTS,
+    get_logger,
 )
-from utils.log_setup import get_logger
 
 logger = get_logger("calendarific")
 
