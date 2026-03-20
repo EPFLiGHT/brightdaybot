@@ -294,13 +294,7 @@ class CalendarificClient:
             self._increment_rate_counter()
 
             if source.whitelist:
-                wl = [w.lower() for w in source.whitelist]
-                holidays = [
-                    h
-                    for h in holidays
-                    if any(w in h.get("name", "").lower() for w in wl)
-                    and "holiday" not in h.get("name", "").lower()
-                ]
+                holidays = [h for h in holidays if self._matches_source_filter(h, source)]
 
             # Assign emojis via LLM (with keyword fallback)
             holidays = self._enrich_holidays_with_emojis(holidays)
@@ -332,8 +326,9 @@ class CalendarificClient:
             "api_key": self.api_key,
             "country": source.country,
             "year": year,
-            "type": source.api_type,
         }
+        if source.api_type:
+            params["type"] = source.api_type
         if month is not None:
             params["month"] = month
         if day is not None:
@@ -350,6 +345,11 @@ class CalendarificClient:
 
         body = data.get("response", {})
         holidays = body.get("holidays", []) if isinstance(body, dict) else []
+
+        # Whitelisted sources: keep all holidays (whitelist filter applied later)
+        # Non-whitelisted: filter to national/local/observance types only
+        if source.whitelist:
+            return holidays
 
         return [
             h
@@ -368,9 +368,28 @@ class CalendarificClient:
         name = holiday.get("name", "").lower()
         if not source.whitelist:
             return True
-        # Whitelist: name must contain a whitelist term, but exclude "Holiday" extensions
+        import re
+
+        # Whitelist: name must match a whitelist term at word boundary
         wl = [w.lower() for w in source.whitelist]
-        return any(w in name for w in wl) and "holiday" not in name
+        if not any(re.search(rf"\b{re.escape(w)}\b", name) for w in wl):
+            return False
+        # Exclude extension/variant days
+        if any(kw in name for kw in ["holiday", "day off", "observed", "substitute"]):
+            return False
+        day_match = re.search(r"\(day (\d+)\)", name)
+        if day_match and int(day_match.group(1)) > 1:
+            return False
+        if name.endswith(" eve"):
+            return False
+        # Exclude parenthetical variants like (Smarta), (substitute)
+        # but keep descriptive ones like (Muslim New Year), (Day 1)
+        paren = re.search(r"\(([^)]+)\)$", name)
+        if paren:
+            inner = paren.group(1).lower()
+            if inner not in ("day 1",) and not any(kw in inner for kw in ["new year", "day 1"]):
+                return False
+        return True
 
     def _dict_to_special_day(self, holiday: Dict, source: CalendarificSource) -> "SpecialDay":
         from storage.special_days import SpecialDay
