@@ -911,7 +911,7 @@ _Run `admin special calendarific-refresh` to update cache_"""
 • `admin special calendarific-status` - Show Calendarific status
 • `admin special calendarific-refresh [days]` - Prefetch upcoming days
 
-*Categories:* Global Health, Tech, Culture, Company"""
+*Categories:* Global Health, Tech, Culture, Company, Religious"""
         say(help_text)
 
     logger.info(
