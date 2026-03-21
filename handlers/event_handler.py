@@ -503,6 +503,69 @@ def register_event_handlers(app):
                 text="Sorry, there was an error updating your celebration style. Please try again.",
             )
 
+    @app.action("view_all_birthdays")
+    def handle_view_all_birthdays(ack, body, client):
+        """Send full birthday list to user's DM."""
+        ack()
+        user_id = body.get("user", {}).get("id")
+        if not user_id:
+            return
+        try:
+            from commands.birthday_commands import handle_list_command
+            from slack.messaging import send_message
+
+            def dm_say(text=None, **kwargs):
+                send_message(app, user_id, text or "", kwargs.get("blocks"))
+
+            handle_list_command(["list", "all"], user_id, dm_say, app)
+        except Exception as e:
+            events_logger.error(f"VIEW_ALL_BIRTHDAYS: Failed: {e}")
+            from slack.messaging import send_message as _send
+
+            _send(app, user_id, "❌ Failed to load birthday list.")
+
+    @app.action("export_birthdays_ics")
+    def handle_export_birthdays(ack, body, client):
+        """Export birthdays as ICS and send to user's DM."""
+        ack()
+        user_id = body.get("user", {}).get("id")
+        if not user_id:
+            return
+        try:
+            from handlers.slash_handler import _handle_slash_export
+            from slack.messaging import send_message as _send
+
+            def dm_respond(text=None, **kwargs):
+                _send(app, user_id, text or "")
+
+            _handle_slash_export(user_id, dm_respond, app)
+        except Exception as e:
+            events_logger.error(f"EXPORT_BIRTHDAYS: Failed: {e}")
+            from slack.messaging import send_message as _send
+
+            _send(app, user_id, "❌ Failed to export birthdays.")
+
+    @app.action("export_special_days_ics")
+    def handle_export_special_days(ack, body, client):
+        """Export special days as ICS and send to user's DM."""
+        ack()
+        user_id = body.get("user", {}).get("id")
+        if not user_id:
+            return
+        try:
+            from commands.special_day_commands import handle_special_command
+            from slack.messaging import send_message as _send
+
+            def dm_say(text=None, **kwargs):
+                _send(app, user_id, text or "", kwargs.get("blocks"))
+
+            handle_special_command(["export"], user_id, dm_say, app)
+        except Exception as e:
+            events_logger.error(f"EXPORT_SPECIAL_DAYS: Failed: {e}")
+            from slack.messaging import send_message as _send
+
+            _send(app, user_id, "❌ Failed to export special days.")
+
     @app.event("message")
     def handle_message(event, say, client, logger):
         """Handle direct message events and thread replies"""

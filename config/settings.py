@@ -720,7 +720,9 @@ DEFAULT_ANNOUNCEMENT_TIME = "09:00"
 MIN_BIRTH_YEAR = 1900
 
 # App Home settings
-APP_HOME_UPCOMING_BIRTHDAYS_LIMIT = 5  # Number of upcoming birthdays to show
+APP_HOME_UPCOMING_BIRTHDAY_DATES = (
+    5  # Number of unique birthday dates to show (all people per date)
+)
 APP_HOME_UPCOMING_SPECIAL_DAYS = 7  # Days to look ahead for special days
 
 # Slash command settings

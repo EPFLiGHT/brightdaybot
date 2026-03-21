@@ -10,8 +10,9 @@ from datetime import datetime, timezone
 from slack_sdk.errors import SlackApiError
 
 from config import (
-    APP_HOME_UPCOMING_BIRTHDAYS_LIMIT,
+    APP_HOME_UPCOMING_BIRTHDAY_DATES,
     APP_HOME_UPCOMING_SPECIAL_DAYS,
+    SLACK_SECTION_TEXT_MAX_LENGTH,
     get_logger,
 )
 from slack.client import get_username
@@ -76,8 +77,8 @@ def _build_home_view(user_id, app):
     channel_members = get_channel_members(app, BIRTHDAY_CHANNEL)
     channel_member_set = set(channel_members) if channel_members else set()
 
-    # Get upcoming birthdays
-    upcoming = _get_upcoming_birthdays(birthdays, app, limit=APP_HOME_UPCOMING_BIRTHDAYS_LIMIT)
+    # Get upcoming birthdays (date-grouped)
+    upcoming = _get_upcoming_birthdays(birthdays, app, channel_member_set=channel_member_set)
 
     # Get birthday statistics
     stats = _get_birthday_statistics(birthdays, channel_member_set)
@@ -121,6 +122,21 @@ def _build_home_view(user_id, app):
             fields.append({"type": "mrkdwn", "text": f"🎈 *Age*\n{age} years"})
 
         blocks.append({"type": "section", "fields": fields})
+
+        # Personal birthday countdown
+        days_until_own = calculate_days_until_birthday(
+            user_birthday["date"], datetime.now(timezone.utc)
+        )
+        if days_until_own == 0:
+            countdown = "🎉 *Today is your birthday!*"
+        elif days_until_own == 1:
+            countdown = "🔜 *Your birthday is tomorrow!*"
+        elif days_until_own is not None:
+            countdown = f"⏳ *{days_until_own} days* until your birthday"
+        else:
+            countdown = None
+        if countdown:
+            blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": countdown}]})
 
         # Get and display preferences (use centralized defaults)
         from storage.birthdays import DEFAULT_PREFERENCES
@@ -251,7 +267,7 @@ def _build_home_view(user_id, app):
 
     blocks.append({"type": "divider"})
 
-    # Upcoming Birthdays
+    # Upcoming Birthdays (date-grouped, consistent with special days)
     blocks.append(
         {
             "type": "section",
@@ -260,25 +276,41 @@ def _build_home_view(user_id, app):
     )
 
     if upcoming:
-        # Build bulleted list of upcoming birthdays
         birthday_lines = []
-        for bday in upcoming:
-            if bday["days_until"] == 0:
-                days_text = "🎂 _Today!_"
-            elif bday["days_until"] == 1:
-                days_text = "🔜 _Tomorrow_"
+        for group in upcoming:
+            days = group["days_until"]
+            if days == 0:
+                days_text = "_Today!_ 🎉"
+            elif days == 1:
+                days_text = "_Tomorrow_"
             else:
-                days_text = f"_in {bday['days_until']} days_"
+                days_text = f"_in {days} days_"
 
-            birthday_lines.append(f"• <@{bday['user_id']}> ({bday['date']}) — {days_text}")
+            names = ", ".join(f"<@{p['user_id']}>" for p in group["people"])
+            birthday_lines.append(f"• 🎂 {names} ({group['date_words']}) - {days_text}")
 
         blocks.append(
             {
                 "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": "\n".join(birthday_lines),
-                },
+                "text": {"type": "mrkdwn", "text": "\n".join(birthday_lines)},
+            }
+        )
+
+        # View All button
+        blocks.append(
+            {
+                "type": "actions",
+                "elements": [
+                    {
+                        "type": "button",
+                        "text": {
+                            "type": "plain_text",
+                            "text": "📋 View All Birthdays",
+                            "emoji": True,
+                        },
+                        "action_id": "view_all_birthdays",
+                    }
+                ],
             }
         )
     else:
@@ -287,74 +319,14 @@ def _build_home_view(user_id, app):
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": "_No upcoming birthdays in the next few days._",
+                    "text": "_No upcoming birthdays this week._",
                 },
             }
         )
 
-    # Birthday Statistics Section
-    if stats:
-        blocks.append({"type": "divider"})
-
-        blocks.append(
-            {
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": "*📊 Birthday Statistics*"},
-            }
-        )
-
-        # Build stats fields for 2-column layout
-        stats_fields = [
-            {
-                "type": "mrkdwn",
-                "text": f"🎂 *Total Registered*\n{stats['total']} birthdays",
-            }
-        ]
-
-        if stats["this_week"] > 0:
-            week_text = (
-                "1 celebration" if stats["this_week"] == 1 else f"{stats['this_week']} celebrations"
-            )
-            stats_fields.append({"type": "mrkdwn", "text": f"📅 *This Week*\n{week_text}"})
-
-        if stats["this_month"] > 0:
-            month_text = (
-                "1 upcoming" if stats["this_month"] == 1 else f"{stats['this_month']} upcoming"
-            )
-            stats_fields.append({"type": "mrkdwn", "text": f"🗓️ *Next 30 Days*\n{month_text}"})
-
-        if stats["most_common_month"]:
-            count = stats["most_common_count"]
-            count_text = "1 birthday" if count == 1 else f"{count} birthdays"
-            stats_fields.append(
-                {
-                    "type": "mrkdwn",
-                    "text": f"⭐ *Most Popular*\n{stats['most_common_month']} ({count_text})",
-                }
-            )
-
-        blocks.append({"type": "section", "fields": stats_fields})
-
-        # Fun fact about empty months as context
-        if stats["empty_months"]:
-            if len(stats["empty_months"]) == 1:
-                fun_fact = f"💡 No one born in {stats['empty_months'][0]} yet — be the first!"
-            elif len(stats["empty_months"]) <= 3:
-                fun_fact = f"💡 Missing birthdays in: {', '.join(stats['empty_months'])}"
-            else:
-                fun_fact = None
-
-            if fun_fact:
-                blocks.append(
-                    {
-                        "type": "context",
-                        "elements": [{"type": "mrkdwn", "text": fun_fact}],
-                    }
-                )
-
     blocks.append({"type": "divider"})
 
-    # Upcoming Special Days
+    # Upcoming Special Days (no truncation — show all names per date)
     blocks.append(
         {
             "type": "section",
@@ -369,16 +341,13 @@ def _build_home_view(user_id, app):
         today = datetime.now(timezone.utc).date()
 
         for date_str, days_list in upcoming_special.items():
-            # Parse date and calculate days until (with validation)
             try:
                 day, month = map(int, date_str.split("/"))
                 special_date = today.replace(month=month, day=day)
-                # Handle year rollover
                 if special_date < today:
                     special_date = special_date.replace(year=today.year + 1)
                 days_until = (special_date - today).days
             except (ValueError, TypeError):
-                # Skip malformed date entries
                 continue
 
             if days_until == 0:
@@ -388,60 +357,125 @@ def _build_home_view(user_id, app):
             else:
                 days_text = f"_in {days_until} days_"
 
-            # Show up to 2 special days per date to avoid clutter
-            # Include emoji prefix if available
-            day_names = [f"{d.emoji} {d.name}" if d.emoji else d.name for d in days_list[:2]]
-            if len(days_list) > 2:
-                day_names.append(f"+{len(days_list) - 2} more")
-            special_lines.append(f"• {', '.join(day_names)} ({date_str}) - {days_text}")
+            # Date as header, each observance on its own line
+            special_lines.append(f"*{date_str}* — {days_text}")
+            for d in days_list:
+                prefix = f"{d.emoji} " if d.emoji else ""
+                special_lines.append(f"  {prefix}{d.name}")
+
+        # Truncate on line boundary if exceeding Slack section text limit
+        kept_lines = []
+        total_len = 0
+        for line in special_lines:
+            if total_len + len(line) + 1 > SLACK_SECTION_TEXT_MAX_LENGTH:
+                break
+            kept_lines.append(line)
+            total_len += len(line) + 1
 
         blocks.append(
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": "\n".join(special_lines),
-                },
-            }
+            {"type": "section", "text": {"type": "mrkdwn", "text": "\n".join(kept_lines)}}
         )
     else:
         blocks.append(
             {
                 "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": "_No special days coming up this week._",
-                },
+                "text": {"type": "mrkdwn", "text": "_No special days coming up this week._"},
             }
         )
+
+    # Birthday Statistics (enhanced)
+    if stats:
+        blocks.append({"type": "divider"})
+
+        # Compact stats: coverage + upcoming as header, month + sign as fields
+        total = stats["total"]
+        channel = stats.get("channel_size", 0)
+        pct = f" ({round(total / channel * 100)}%)" if channel > 0 else ""
+        week = stats["this_week"]
+        month = stats["this_month"]
+
+        summary_parts = [f"👥 *{total}* registered{pct}"]
+        if week > 0:
+            summary_parts.append(f"🎉 *{week}* this week")
+        if month > 0:
+            summary_parts.append(f"📅 *{month}* next 30 days")
+        summary = " · ".join(summary_parts)
+
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": f"*📊 Birthday Statistics*\n{summary}"},
+            }
+        )
+
+        stats_fields = []
+        if stats["most_common_month"]:
+            stats_fields.append(
+                {
+                    "type": "mrkdwn",
+                    "text": f"🏆 *Top Month*\n{stats['most_common_month']} ({stats['most_common_count']})",
+                }
+            )
+        if stats.get("most_common_sign"):
+            stats_fields.append(
+                {
+                    "type": "mrkdwn",
+                    "text": f"⭐ *Top Star Sign*\n{stats['most_common_sign']} ({stats['most_common_sign_count']})",
+                }
+            )
+
+        if stats_fields:
+            blocks.append({"type": "section", "fields": stats_fields})
+
+        # Fun facts as context
+        fun_facts = []
+        if stats.get("empty_months"):
+            if len(stats["empty_months"]) == 1:
+                fun_facts.append(f"No one born in {stats['empty_months'][0]} yet — be the first!")
+            elif len(stats["empty_months"]) <= 3:
+                fun_facts.append(f"Missing: {', '.join(stats['empty_months'])}")
+        if fun_facts:
+            blocks.append(
+                {
+                    "type": "context",
+                    "elements": [{"type": "mrkdwn", "text": f"💡 {' · '.join(fun_facts)}"}],
+                }
+            )
 
     blocks.append({"type": "divider"})
 
-    # Quick Commands — only commands not already represented on this page
+    # Export & Tools (action buttons replacing Quick Commands)
     blocks.append(
         {
-            "type": "section",
-            "text": {"type": "mrkdwn", "text": "*⌨️ Quick Commands*"},
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "📅 Export Birthdays (ICS)",
+                        "emoji": True,
+                    },
+                    "action_id": "export_birthdays_ics",
+                },
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "🌍 Export Special Days (ICS)",
+                        "emoji": True,
+                    },
+                    "action_id": "export_special_days_ics",
+                },
+            ],
         }
     )
 
-    blocks.append(
-        {
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": "• `/birthday export` — Export birthdays to calendar (ICS)\n"
-                + "• `/special-day` — View today's special days\n"
-                + "• `/special-day export` — Export special days to calendar (ICS)",
-            },
-        }
-    )
-
-    # Context footer — different for users with/without birthday
+    # Context footer
     if user_birthday:
-        tip_text = "💡 Tip: Use `/birthday` to edit your settings or `/special-day` to see today's observances."
+        tip_text = "💡 Use `/birthday check @name` to check a teammate's birthday."
     else:
-        tip_text = "💡 Tip: Use `/birthday` or click *Add My Birthday* above to get started!"
+        tip_text = "💡 Click *Add My Birthday* above to get started!"
     blocks.append(
         {
             "type": "context",
@@ -452,60 +486,77 @@ def _build_home_view(user_id, app):
     return {"type": "home", "blocks": blocks}
 
 
-def _get_upcoming_birthdays(birthdays, app, limit=APP_HOME_UPCOMING_BIRTHDAYS_LIMIT):
-    """Get list of upcoming birthdays for validated users only."""
-    from config import BIRTHDAY_CHANNEL
-    from slack.client import get_channel_members
+def _safe_date_words(date_str):
+    """Convert DD/MM to words, falling back to raw string on error."""
+    from utils.date_utils import date_to_words
+
+    try:
+        return date_to_words(date_str)
+    except (ValueError, TypeError):
+        return date_str
+
+
+def _get_upcoming_birthdays(
+    birthdays, app, limit=APP_HOME_UPCOMING_BIRTHDAY_DATES, channel_member_set=None
+):
+    """Get upcoming birthdays grouped by date for validated users only.
+
+    Returns list of date groups: [{"date": "DD/MM", "date_words": "...", "days_until": N, "people": [...]}]
+    Limited to `limit` unique dates (all people per date shown).
+    """
     from storage.birthdays import is_user_active
 
     reference_date = datetime.now(timezone.utc)
-    upcoming = []
+    flat = []
 
-    # Get channel members once for validation
-    channel_members = get_channel_members(app, BIRTHDAY_CHANNEL)
-    channel_member_set = set(channel_members) if channel_members else set()
+    if channel_member_set is None:
+        from config import BIRTHDAY_CHANNEL
+        from slack.client import get_channel_members
+
+        channel_members = get_channel_members(app, BIRTHDAY_CHANNEL)
+        channel_member_set = set(channel_members) if channel_members else set()
 
     for user_id, data in birthdays.items():
-        # Skip users not in birthday channel
         if user_id not in channel_member_set:
             continue
-
-        # Skip users with paused celebrations
         if not is_user_active(user_id, data):
             continue
 
         days = calculate_days_until_birthday(data["date"], reference_date)
         if days is not None:
-            upcoming.append(
-                {
-                    "user_id": user_id,
-                    "username": get_username(app, user_id),
-                    "date": data["date"],
-                    "year": data.get("year"),
-                    "days_until": days,
-                }
-            )
+            flat.append({"user_id": user_id, "date": data["date"], "days_until": days})
 
-    # Sort by days until and limit
-    upcoming.sort(key=lambda x: x["days_until"])
-    return upcoming[:limit]
+    flat.sort(key=lambda x: x["days_until"])
+
+    # Group by date, preserving sort order
+    by_date = {}
+    for entry in flat:
+        by_date.setdefault(entry["date"], []).append(entry)
+
+    # Take first N dates, resolve usernames only for displayed people
+    result = []
+    for date_str, people in list(by_date.items())[:limit]:
+        for p in people:
+            p["username"] = get_username(app, p["user_id"])
+        result.append(
+            {
+                "date": date_str,
+                "date_words": _safe_date_words(date_str),
+                "days_until": people[0]["days_until"],
+                "people": people,
+            }
+        )
+
+    return result
 
 
 def _get_birthday_statistics(birthdays, channel_member_set):
-    """
-    Calculate fun birthday statistics for the team.
-
-    Args:
-        birthdays: Dict of user_id -> birthday_data
-        channel_member_set: Set of user IDs in the birthday channel
-
-    Returns:
-        Dict with various statistics
-    """
+    """Calculate birthday statistics including coverage and star sign distribution."""
     from calendar import month_name
     from collections import Counter
 
-    # Filter to only active channel members
+    from utils.date_utils import get_star_sign
+
     active_birthdays = {
         uid: data
         for uid, data in birthdays.items()
@@ -515,45 +566,29 @@ def _get_birthday_statistics(birthdays, channel_member_set):
     if not active_birthdays:
         return None
 
-    # Count birthdays by month
-    month_counts = Counter()
-    for data in active_birthdays.values():
-        try:
-            day, month = data["date"].split("/")
-            month_counts[int(month)] += 1
-        except (ValueError, KeyError):
-            continue
-
-    if not month_counts:
-        return None
-
-    # Find most common month
-    most_common_month = month_counts.most_common(1)[0] if month_counts else None
-
-    # Find months with no birthdays
-    all_months = set(range(1, 13))
-    months_with_birthdays = set(month_counts.keys())
-    empty_months = all_months - months_with_birthdays
-
-    # Count birthdays this week (next 7 days)
     from datetime import timedelta
 
     today = datetime.now(timezone.utc).date()
     week_end = today + timedelta(days=7)
     month_end = today + timedelta(days=30)
 
+    month_counts = Counter()
+    star_sign_counts = Counter()
     birthdays_this_week = 0
     birthdays_this_month = 0
 
     for data in active_birthdays.values():
         try:
             day, month = map(int, data["date"].split("/"))
-            # Create date for this year
+            month_counts[month] += 1
+
+            sign = get_star_sign(data["date"])
+            if sign:
+                star_sign_counts[sign] += 1
+
             bday_this_year = today.replace(month=month, day=day)
-            # Handle year rollover
             if bday_this_year < today:
                 bday_this_year = bday_this_year.replace(year=today.year + 1)
-
             if today <= bday_this_year <= week_end:
                 birthdays_this_week += 1
             if today <= bday_this_year <= month_end:
@@ -561,10 +596,20 @@ def _get_birthday_statistics(birthdays, channel_member_set):
         except (ValueError, TypeError):
             continue
 
+    if not month_counts:
+        return None
+
+    most_common_month = month_counts.most_common(1)[0] if month_counts else None
+    most_common_sign = star_sign_counts.most_common(1)[0] if star_sign_counts else None
+    empty_months = set(range(1, 13)) - set(month_counts.keys())
+
     return {
         "total": len(active_birthdays),
+        "channel_size": len(channel_member_set),
         "most_common_month": month_name[most_common_month[0]] if most_common_month else None,
         "most_common_count": most_common_month[1] if most_common_month else 0,
+        "most_common_sign": most_common_sign[0] if most_common_sign else None,
+        "most_common_sign_count": most_common_sign[1] if most_common_sign else 0,
         "empty_months": [month_name[m] for m in sorted(empty_months)],
         "this_week": birthdays_this_week,
         "this_month": birthdays_this_month,

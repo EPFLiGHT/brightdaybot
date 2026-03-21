@@ -363,16 +363,17 @@ class TestAppHomeViewBuilding:
 
 
 class TestUpcomingBirthdaysFiltering:
-    """Tests for upcoming birthdays calculation"""
+    """Tests for upcoming birthdays date-grouped calculation"""
 
-    def test_get_upcoming_birthdays_limits_results(self, mock_birthday_data):
-        """Upcoming birthdays respects limit parameter"""
+    def test_get_upcoming_birthdays_limits_by_dates(self, mock_birthday_data):
+        """Limit applies to unique dates, not people"""
         from datetime import datetime
 
         from handlers.app_home_handler import _get_upcoming_birthdays
 
         mock_app = MagicMock()
 
+        # 10 people on 10 different dates
         birthdays = {
             f"U{i}": mock_birthday_data(date=f"{10+i:02d}/01", year=1990) for i in range(10)
         }
@@ -389,33 +390,40 @@ class TestUpcomingBirthdaysFiltering:
                         result = _get_upcoming_birthdays(birthdays, mock_app, limit=5)
 
         assert len(result) <= 5
+        # Each result is a date group with "people" list
+        for group in result:
+            assert "date" in group
+            assert "people" in group
+            assert "days_until" in group
 
-    def test_get_upcoming_birthdays_includes_all_dates(self, mock_birthday_data):
-        """All birthdays are included regardless of days until"""
+    def test_get_upcoming_birthdays_groups_same_date(self, mock_birthday_data):
+        """People with the same birthday are grouped together"""
         from handlers.app_home_handler import _get_upcoming_birthdays
 
         mock_app = MagicMock()
 
+        # Two people on same date, one on different
         birthdays = {
             "U1": mock_birthday_data(date="01/01", year=1990),
-            "U2": mock_birthday_data(date="02/01", year=1985),
+            "U2": mock_birthday_data(date="01/01", year=1985),
+            "U3": mock_birthday_data(date="02/01", year=1995),
         }
 
         with patch("handlers.app_home_handler.get_username", return_value="User"):
-            with patch("slack.client.get_channel_members", return_value=["U1", "U2"]):
+            with patch("slack.client.get_channel_members", return_value=["U1", "U2", "U3"]):
                 with patch("storage.birthdays.is_user_active", return_value=True):
                     with patch(
                         "handlers.app_home_handler.calculate_days_until_birthday",
-                        side_effect=[5, 40],
+                        side_effect=[5, 5, 10],
                     ):
                         result = _get_upcoming_birthdays(birthdays, mock_app, limit=10)
 
-        assert len(result) == 2
-        assert result[0]["user_id"] == "U1"
-        assert result[1]["user_id"] == "U2"
+        assert len(result) == 2  # 2 unique dates
+        assert len(result[0]["people"]) == 2  # Two people on 01/01
+        assert len(result[1]["people"]) == 1  # One person on 02/01
 
     def test_get_upcoming_birthdays_filters_non_channel_members(self, mock_birthday_data):
-        """Users not in channel are excluded from upcoming birthdays"""
+        """Users not in channel are excluded"""
         from handlers.app_home_handler import _get_upcoming_birthdays
 
         mock_app = MagicMock()
@@ -435,10 +443,10 @@ class TestUpcomingBirthdaysFiltering:
                         result = _get_upcoming_birthdays(birthdays, mock_app, limit=10)
 
         assert len(result) == 1
-        assert result[0]["user_id"] == "U1"
+        assert result[0]["people"][0]["user_id"] == "U1"
 
     def test_get_upcoming_birthdays_filters_paused_users(self, mock_birthday_data):
-        """Users with paused celebrations are excluded from upcoming birthdays"""
+        """Users with paused celebrations are excluded"""
         from handlers.app_home_handler import _get_upcoming_birthdays
 
         mock_app = MagicMock()
@@ -461,4 +469,4 @@ class TestUpcomingBirthdaysFiltering:
                         result = _get_upcoming_birthdays(birthdays, mock_app, limit=10)
 
         assert len(result) == 1
-        assert result[0]["user_id"] == "U1"
+        assert result[0]["people"][0]["user_id"] == "U1"
