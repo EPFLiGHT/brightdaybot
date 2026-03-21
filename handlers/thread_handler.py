@@ -319,13 +319,19 @@ def _generate_special_day_response(
 
         day_context = ""
         for day in days:
-            day_context += f"\n- Name: {day.get('name', 'Unknown')}"
+            day_context += (
+                f"\n- Name: {sanitize_for_prompt(day.get('name', 'Unknown'), max_length=100)}"
+            )
             if day.get("description"):
-                day_context += f"\n  Description: {day['description'][:500]}"
+                day_context += (
+                    f"\n  Description: {sanitize_for_prompt(day['description'], max_length=500)}"
+                )
             if day.get("category"):
-                day_context += f"\n  Category: {day['category']}"
+                day_context += (
+                    f"\n  Category: {sanitize_for_prompt(day['category'], max_length=50)}"
+                )
             if day.get("source"):
-                day_context += f"\n  Source: {day['source']}"
+                day_context += f"\n  Source: {sanitize_for_prompt(day['source'], max_length=50)}"
 
         prompt = f"""You are {personality_name}, a knowledgeable bot that shares information about special days and observances.
 

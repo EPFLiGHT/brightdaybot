@@ -357,11 +357,13 @@ def _build_home_view(user_id, app):
             else:
                 days_text = f"_in {days_until} days_"
 
-            # Date as header, each observance on its own line
+            # Blank line before each group (except first)
+            if special_lines:
+                special_lines.append("")
             special_lines.append(f"*{date_str}* — {days_text}")
             for d in days_list:
-                prefix = f"{d.emoji} " if d.emoji else ""
-                special_lines.append(f"  {prefix}{d.name}")
+                prefix = f"{d.emoji} " if d.emoji else "• "
+                special_lines.append(f"› {prefix}{d.name}")
 
         # Truncate on line boundary if exceeding Slack section text limit
         kept_lines = []
@@ -402,9 +404,12 @@ def _build_home_view(user_id, app):
         summary = " · ".join(summary_parts)
 
         blocks.append(
+            {"type": "section", "text": {"type": "mrkdwn", "text": "*📊 Birthday Statistics*"}}
+        )
+        blocks.append(
             {
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": f"*📊 Birthday Statistics*\n{summary}"},
+                "type": "context",
+                "elements": [{"type": "mrkdwn", "text": summary}],
             }
         )
 

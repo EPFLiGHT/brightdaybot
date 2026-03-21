@@ -338,9 +338,11 @@ def register_event_handlers(app):
                 events_logger.info(f"SPECIAL_DAY_DETAILS: Sent ephemeral for user {user_id}")
 
         except Exception as e:
-            events_logger.error(f"SPECIAL_DAY_DETAILS_ERROR: Failed to show details: {e}")
-            events_logger.error(f"SPECIAL_DAY_DETAILS_ERROR: Body: {body}")
-            events_logger.error(f"SPECIAL_DAY_DETAILS_ERROR: Action: {action}")
+            events_logger.error(
+                f"SPECIAL_DAY_DETAILS_ERROR: Failed: {e} "
+                f"(user={body.get('user', {}).get('id')}, "
+                f"action_id={action.get('action_id')})"
+            )
 
             # Try to send error message to user
             try:
