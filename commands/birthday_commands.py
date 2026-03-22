@@ -19,6 +19,7 @@ from services.celebration import (
     should_celebrate_immediately,
 )
 from services.message_generator import create_birthday_announcement
+from slack.blocks.birthday import format_countdown_text
 from slack.client import (
     check_command_permission,
     get_channel_members,
@@ -200,9 +201,6 @@ def handle_list_command(parts, user_id, say, app):
     reference_date = datetime.now()
     logger.info(f"LIST: Using reference date {reference_date.strftime('%Y-%m-%d')}")
 
-    # Current time display at the top
-    current_utc = reference_date.strftime("%Y-%m-%d %H:%M:%S")
-
     # Convert to list for formatting
     birthday_list = []
 
@@ -373,14 +371,13 @@ def handle_list_command(parts, user_id, say, app):
             user_mention,
         ) in birthday_list:
             date_words = date_to_words(bdate)
-            days_text = "Today! 🎉" if days == 0 else f"in {days} days"
+            days_text = format_countdown_text(days, italic=False)
             formatted_birthdays.append((user_mention, date_words, age_text, days_text))
 
         blocks, fallback = build_birthday_list_blocks(
             birthdays=formatted_birthdays,
             list_type="upcoming",
-            total_count=len(validated_birthdays),  # Total validated birthdays
-            current_utc=current_utc,
+            total_count=len(validated_birthdays),
         )
 
     say(blocks=blocks, text=fallback)

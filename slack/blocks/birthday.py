@@ -17,6 +17,17 @@ from utils.date_utils import date_to_words
 logger = get_logger("slack")
 
 
+def format_countdown_text(days_until: int, italic: bool = True) -> str:
+    """Consistent countdown text across all birthday/special day list surfaces."""
+    if days_until == 0:
+        text = "Today! 🎉"
+    elif days_until == 1:
+        text = "Tomorrow"
+    else:
+        text = f"in {days_until} days"
+    return f"_{text}_" if italic else text
+
+
 def build_birthday_blocks(
     birthday_people_or_username=None,
     message: str = None,
@@ -280,7 +291,6 @@ def build_birthday_list_blocks(
     birthdays: List[tuple],
     list_type: str = "upcoming",
     total_count: int = None,
-    current_utc: str = None,
 ) -> tuple[List[Dict[str, Any]], str]:
     """
     Build Block Kit structure for birthday list (upcoming or all)
@@ -289,7 +299,6 @@ def build_birthday_list_blocks(
         birthdays: List of birthday tuples (user_mention, date_words, age_text, days_text/month)
         list_type: "upcoming" or "all" - determines formatting
         total_count: Total number of birthdays (for context)
-        current_utc: Current UTC time string (for context)
 
     Returns:
         Tuple of (blocks list, fallback_text string)
@@ -297,8 +306,6 @@ def build_birthday_list_blocks(
     # Build header
     if list_type == "upcoming":
         header_text = "📅 Upcoming Birthdays"
-        if current_utc:
-            header_text += f" (UTC: {current_utc})"
     else:
         header_text = "📅 All Birthdays by Month"
 
@@ -317,7 +324,7 @@ def build_birthday_list_blocks(
         # For upcoming birthdays, show in a compact format
         birthday_text = ""
         for user_mention, date_words, age_text, days_text in birthdays:
-            birthday_text += f"• {user_mention} ({date_words}{age_text}): *{days_text}*\n"
+            birthday_text += f"• {user_mention}{age_text} — {date_words} — *{days_text}*\n"
 
         if birthday_text:
             blocks.append(
@@ -747,7 +754,8 @@ def build_upcoming_birthdays_blocks(
     Build Block Kit structure for upcoming birthdays list (slash command version).
 
     Args:
-        upcoming: List of upcoming birthday dicts with user_id, username, date, days_until
+        upcoming: List of upcoming birthday dicts with user_id, username, date,
+                  date_words (optional), days_until
 
     Returns:
         Tuple of (blocks list, fallback_text string)
@@ -755,7 +763,7 @@ def build_upcoming_birthdays_blocks(
     blocks = [
         {
             "type": "header",
-            "text": {"type": "plain_text", "text": "Upcoming Birthdays"},
+            "text": {"type": "plain_text", "text": "📅 Upcoming Birthdays"},
         }
     ]
 
@@ -771,23 +779,18 @@ def build_upcoming_birthdays_blocks(
         )
         return blocks, "No upcoming birthdays"
 
+    lines = []
     for bday in upcoming:
-        if bday["days_until"] == 0:
-            days_text = "Today!"
-        elif bday["days_until"] == 1:
-            days_text = "Tomorrow"
-        else:
-            days_text = f"in {bday['days_until']} days"
+        days_text = format_countdown_text(bday["days_until"])
+        display_date = bday.get("date_words") or date_to_words(bday["date"])
+        lines.append(f"• <@{bday['user_id']}> ({display_date}) - {days_text}")
 
-        blocks.append(
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": f"<@{bday['user_id']}> ({bday['date']}) - {days_text}",
-                },
-            }
-        )
+    blocks.append(
+        {
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": "\n".join(lines)},
+        }
+    )
 
     blocks.append(
         {

@@ -194,34 +194,35 @@ def _handle_slash_list(respond, app):
     """
     from datetime import datetime
 
+    from config import BIRTHDAY_CHANNEL, SLASH_UPCOMING_BIRTHDAYS_LIMIT
     from slack.blocks import build_upcoming_birthdays_blocks
-    from slack.client import get_username
-    from storage.birthdays import load_birthdays
-    from utils.date_utils import calculate_days_until_birthday
+    from slack.client import get_channel_members, get_username
+    from storage.birthdays import is_user_active, load_birthdays
+    from utils.date_utils import calculate_days_until_birthday, date_to_words
 
     birthdays = load_birthdays()
     reference_date = datetime.now()  # Server local for display ("today/tomorrow")
 
-    # Build list of upcoming birthdays (defer username resolution until after slicing)
+    # Filter to active channel members only (consistent with App Home and DM list)
+    channel_members = get_channel_members(app, BIRTHDAY_CHANNEL)
+    channel_member_set = set(channel_members) if channel_members else set()
+
     upcoming = []
     for uid, data in birthdays.items():
+        if uid not in channel_member_set or not is_user_active(uid, data):
+            continue
         days = calculate_days_until_birthday(data["date"], reference_date)
         if days is not None:
             upcoming.append(
                 {
                     "user_id": uid,
                     "date": data["date"],
-                    "year": data.get("year"),
+                    "date_words": date_to_words(data["date"]),
                     "days_until": days,
                 }
             )
 
-    # Sort by days until birthday
     upcoming.sort(key=lambda x: x["days_until"])
-
-    # Limit to configured number, then resolve usernames only for displayed entries
-    from config import SLASH_UPCOMING_BIRTHDAYS_LIMIT
-
     upcoming = upcoming[:SLASH_UPCOMING_BIRTHDAYS_LIMIT]
     for entry in upcoming:
         entry["username"] = get_username(app, entry["user_id"])

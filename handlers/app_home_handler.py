@@ -15,10 +15,11 @@ from config import (
     SLACK_SECTION_TEXT_MAX_LENGTH,
     get_logger,
 )
+from slack.blocks.birthday import format_countdown_text
 from slack.client import get_username
 from storage.birthdays import get_user_preferences, load_birthdays
 from storage.special_days import get_upcoming_special_days
-from utils.date_utils import calculate_days_until_birthday
+from utils.date_utils import calculate_days_until_birthday, calculate_next_birthday_age
 
 logger = get_logger("events")
 
@@ -277,16 +278,23 @@ def _build_home_view(user_id, app):
     if upcoming:
         birthday_lines = []
         for group in upcoming:
-            days = group["days_until"]
-            if days == 0:
-                days_text = "_Today!_ 🎉"
-            elif days == 1:
-                days_text = "_Tomorrow_"
-            else:
-                days_text = f"_in {days} days_"
+            days_text = format_countdown_text(group["days_until"])
 
-            names = ", ".join(f"<@{p['user_id']}>" for p in group["people"])
-            birthday_lines.append(f"• 🎂 {names} ({group['date_words']}) - {days_text}")
+            # Build name list with age in parentheses when available
+            name_parts = []
+            for p in group["people"]:
+                mention = f"<@{p['user_id']}>"
+                birth_year = p.get("year")
+                if birth_year and p.get("show_age", True):
+                    dd, mm = group["date"].split("/")
+                    age_text = calculate_next_birthday_age(
+                        birth_year, int(mm), int(dd), datetime.now()
+                    )
+                    mention += f" {age_text.strip()}" if age_text else ""
+                name_parts.append(mention)
+
+            names = ", ".join(name_parts)
+            birthday_lines.append(f"• 🎂 {names} — *{group['date_words']}* — {days_text}")
 
         blocks.append(
             {
@@ -349,12 +357,7 @@ def _build_home_view(user_id, app):
             except (ValueError, TypeError):
                 continue
 
-            if days_until == 0:
-                days_text = "_Today!_ 🎉"
-            elif days_until == 1:
-                days_text = "_Tomorrow_"
-            else:
-                days_text = f"_in {days_until} days_"
+            days_text = format_countdown_text(days_until)
 
             # Blank line before each group (except first)
             if special_lines:
@@ -529,7 +532,16 @@ def _get_upcoming_birthdays(
 
         days = calculate_days_until_birthday(data["date"], reference_date)
         if days is not None:
-            flat.append({"user_id": user_id, "date": data["date"], "days_until": days})
+            prefs = data.get("preferences", {})
+            flat.append(
+                {
+                    "user_id": user_id,
+                    "date": data["date"],
+                    "year": data.get("year"),
+                    "show_age": prefs.get("show_age", True),
+                    "days_until": days,
+                }
+            )
 
     flat.sort(key=lambda x: x["days_until"])
 

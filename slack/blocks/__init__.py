@@ -21,6 +21,7 @@ from slack.blocks.birthday import (
     build_birthday_not_found_blocks,
     build_bot_celebration_blocks,
     build_upcoming_birthdays_blocks,
+    format_countdown_text,
 )
 from slack.blocks.help import (
     build_hello_blocks,
@@ -47,6 +48,7 @@ __all__ = [
     "build_birthday_not_found_blocks",
     "build_birthday_modal",
     "build_upcoming_birthdays_blocks",
+    "format_countdown_text",
     # Special day
     "build_special_day_blocks",
     "build_consolidated_special_day_blocks",
