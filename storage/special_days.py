@@ -1008,7 +1008,7 @@ def has_announced_weekly_digest(date: Optional[datetime] = None) -> bool:
     from storage.birthdays import _load_announcements
 
     if date is None:
-        date = datetime.now()
+        date = datetime.now(timezone.utc)
 
     # Get ISO week number (year, week_number, weekday)
     iso_year, iso_week, _ = date.isocalendar()
@@ -1034,7 +1034,7 @@ def mark_weekly_digest_announced(date: Optional[datetime] = None) -> bool:
     from storage.birthdays import _load_announcements, _save_announcements
 
     if date is None:
-        date = datetime.now()
+        date = datetime.now(timezone.utc)
 
     # Get ISO week number (year, week_number, weekday)
     iso_year, iso_week, _ = date.isocalendar()
@@ -1045,7 +1045,7 @@ def mark_weekly_digest_announced(date: Optional[datetime] = None) -> bool:
     if "weekly_special_days" not in data:
         data["weekly_special_days"] = {}
 
-    data["weekly_special_days"][week_key] = datetime.now().isoformat()
+    data["weekly_special_days"][week_key] = datetime.now(timezone.utc).isoformat()
 
     if _save_announcements(data):
         logger.info(f"Marked weekly special days digest as announced for {week_key}")
@@ -1093,7 +1093,7 @@ def get_announced_special_day_names(date: Optional[datetime] = None) -> set:
     from storage.birthdays import _load_announcements
 
     if date is None:
-        date = datetime.now()
+        date = datetime.now(timezone.utc)
 
     date_str = date.strftime("%Y-%m-%d")
     data = _load_announcements()
@@ -1109,49 +1109,64 @@ def get_announced_special_day_names(date: Optional[datetime] = None) -> set:
 
 def mark_special_day_announced(date: Optional[datetime] = None, names: list = None) -> bool:
     """
-    Mark specific special days as announced for today.
+    Atomically mark specific special days as announced for today.
+
+    Holds the file lock across the entire load-merge-save to prevent
+    concurrent writes from dropping announced names.
 
     Args:
-        date: Optional date to mark (defaults to today)
+        date: Optional date to mark (defaults to today, UTC)
         names: List of special day names that were announced
 
     Returns:
         True if successful, False otherwise
     """
-    from storage.birthdays import _load_announcements, _save_announcements
+    from storage.birthdays import ANNOUNCEMENTS_FILE, ANNOUNCEMENTS_LOCK_FILE
 
     if date is None:
-        date = datetime.now()
+        date = datetime.now(timezone.utc)
 
     date_str = date.strftime("%Y-%m-%d")
-    data = _load_announcements()
 
-    if "special_days" not in data:
-        data["special_days"] = {}
+    try:
+        lock = FileLock(ANNOUNCEMENTS_LOCK_FILE, timeout=30)
+        with lock:
+            # Load within lock
+            if os.path.exists(ANNOUNCEMENTS_FILE):
+                with open(ANNOUNCEMENTS_FILE, "r") as f:
+                    data = json.load(f)
+            else:
+                data = {"birthdays": {}, "timezone_birthdays": {}, "special_days": {}}
 
-    # Merge with existing announced names
-    entry = data["special_days"].get(date_str)
-    if isinstance(entry, dict):
-        existing = set(entry.get("names", []))
-    elif isinstance(entry, str):
-        # Legacy format (timestamp string) — migrate: load all current day names
-        # to preserve the "all announced" semantics
-        current_days = get_special_days_for_date(date)
-        existing = set(d.name for d in current_days)
-    else:
-        existing = set()
+            if "special_days" not in data:
+                data["special_days"] = {}
 
-    new_names = list(existing | set(names or []))
-    data["special_days"][date_str] = {
-        "names": new_names,
-        "last_announced": datetime.now().isoformat(),
-    }
+            # Merge with existing announced names (within lock)
+            entry = data["special_days"].get(date_str)
+            if isinstance(entry, dict):
+                existing = set(entry.get("names", []))
+            elif isinstance(entry, str):
+                # Legacy format — migrate: load current day names
+                current_days = get_special_days_for_date(date)
+                existing = set(d.name for d in current_days)
+            else:
+                existing = set()
 
-    if _save_announcements(data):
+            new_names = list(existing | set(names or []))
+            data["special_days"][date_str] = {
+                "names": new_names,
+                "last_announced": datetime.now(timezone.utc).isoformat(),
+            }
+
+            # Save within lock
+            with open(ANNOUNCEMENTS_FILE, "w") as f:
+                json.dump(data, f, indent=2, sort_keys=True)
+
         logger.info(f"Marked special days as announced for {date_str}")
         return True
-    else:
-        logger.error(f"Error marking special days as announced for {date_str}")
+
+    except Exception as e:
+        logger.error(f"Error marking special days as announced for {date_str}: {e}")
         return False
 
 

@@ -5,7 +5,7 @@ Displays user's birthday status, quick actions, and upcoming birthdays
 when users open the app's Home tab.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime
 
 from slack_sdk.errors import SlackApiError
 
@@ -124,9 +124,8 @@ def _build_home_view(user_id, app):
         blocks.append({"type": "section", "fields": fields})
 
         # Personal birthday countdown
-        days_until_own = calculate_days_until_birthday(
-            user_birthday["date"], datetime.now(timezone.utc)
-        )
+        # Use server local time so "today/tomorrow" matches the user's clock
+        days_until_own = calculate_days_until_birthday(user_birthday["date"], datetime.now())
         if days_until_own == 0:
             countdown = "🎉 *Today is your birthday!*"
         elif days_until_own == 1:
@@ -338,7 +337,7 @@ def _build_home_view(user_id, app):
 
     if upcoming_special:
         special_lines = []
-        today = datetime.now(timezone.utc).date()
+        today = datetime.now().date()  # Server local for display consistency
 
         for date_str, days_list in upcoming_special.items():
             try:
@@ -511,7 +510,8 @@ def _get_upcoming_birthdays(
     """
     from storage.birthdays import is_user_active
 
-    reference_date = datetime.now(timezone.utc)
+    # Server local time so "today/tomorrow/in N days" matches user's clock
+    reference_date = datetime.now()
     flat = []
 
     if channel_member_set is None:
@@ -573,7 +573,7 @@ def _get_birthday_statistics(birthdays, channel_member_set):
 
     from datetime import timedelta
 
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now().date()  # Server local for display
     week_end = today + timedelta(days=7)
     month_end = today + timedelta(days=30)
 

@@ -192,7 +192,7 @@ def _handle_slash_list(respond, app):
         respond: Slack respond function for ephemeral messages
         app: Slack app instance for username lookups
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from slack.blocks import build_upcoming_birthdays_blocks
     from slack.client import get_username
@@ -200,7 +200,7 @@ def _handle_slash_list(respond, app):
     from utils.date_utils import calculate_days_until_birthday
 
     birthdays = load_birthdays()
-    reference_date = datetime.now(timezone.utc)
+    reference_date = datetime.now()  # Server local for display ("today/tomorrow")
 
     # Build list of upcoming birthdays (defer username resolution until after slicing)
     upcoming = []

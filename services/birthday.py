@@ -737,7 +737,7 @@ def check_and_announce_weekly_special_days(app, moment):
     # Check if today is the configured weekly day
     configured_day = get_weekly_day()
     # Python weekday(): Monday=0, Sunday=6 (same as our config)
-    current_weekday = moment.weekday() if hasattr(moment, "weekday") else datetime.now().weekday()
+    current_weekday = moment.weekday()
 
     if current_weekday != configured_day:
         day_name = WEEKDAY_NAMES[configured_day].capitalize()
@@ -1303,7 +1303,7 @@ def celebrate_missed_birthdays(app):
             app=app,
             birthdays=birthdays,
             channel_member_set=channel_member_set,
-            reference_moment=datetime.now(),
+            reference_moment=datetime.now(timezone.utc),
             profile_cache=profile_cache,
             check_already_celebrated=True,
             log_prefix="MISSED_BIRTHDAYS",

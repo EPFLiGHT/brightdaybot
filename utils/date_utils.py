@@ -10,7 +10,7 @@ is_celebration_time_for_user(), format_timezone_schedule().
 
 import re
 from calendar import month_name
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from config import (
@@ -134,9 +134,11 @@ def calculate_next_birthday_age(birth_year: int, month: int, day: int, reference
 
     try:
         next_birthday_year = reference_date.year
-        birthday_this_year = datetime(next_birthday_year, month, day, tzinfo=timezone.utc)
+        # Compare dates only — time-of-day is irrelevant for "has birthday passed this year"
+        ref_date = reference_date.date() if hasattr(reference_date, "date") else reference_date
+        birthday_this_year = date(next_birthday_year, month, day)
 
-        if birthday_this_year < reference_date:
+        if birthday_this_year < ref_date:
             next_birthday_year += 1
 
         next_age = next_birthday_year - birth_year

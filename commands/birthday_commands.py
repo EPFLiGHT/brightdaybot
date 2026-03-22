@@ -5,7 +5,7 @@ Handles birthday list, check, remind commands, and immediate celebration logic.
 """
 
 from calendar import month_name
-from datetime import datetime, timezone
+from datetime import datetime
 
 from config import (
     AI_IMAGE_GENERATION_ENABLED,
@@ -196,11 +196,11 @@ def handle_list_command(parts, user_id, say, app):
         )
         return
 
-    # Use consistent UTC reference date for all calculations
-    reference_date = datetime.now(timezone.utc)
-    logger.info(f"LIST: Using reference date {reference_date.strftime('%Y-%m-%d')} (UTC)")
+    # Use server local time so "today/tomorrow" matches user's clock
+    reference_date = datetime.now()
+    logger.info(f"LIST: Using reference date {reference_date.strftime('%Y-%m-%d')}")
 
-    # Current UTC time display at the top
+    # Current time display at the top
     current_utc = reference_date.strftime("%Y-%m-%d %H:%M:%S")
 
     # Convert to list for formatting

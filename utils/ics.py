@@ -6,7 +6,7 @@ calendar exports using the icalendar library.
 """
 
 import hashlib
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 from icalendar import Calendar, Event, vRecur
 
@@ -51,7 +51,7 @@ def generate_birthday_ics(birthdays):
 
         event = Event()
         event.add("uid", f"birthday-{user_id}@brightdaybot")
-        event.add("dtstamp", datetime.utcnow())
+        event.add("dtstamp", datetime.now(timezone.utc))
         event.add("dtstart", date(current_year, month, day))
         event.add("summary", summary)
         event.add("rrule", vRecur({"FREQ": "YEARLY"}))
@@ -83,7 +83,7 @@ def generate_special_days_ics(days, source_label=None):
     cal.add("x-wr-calname", cal_name)
 
     current_year = datetime.now().year
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     for day in days:
         try:
