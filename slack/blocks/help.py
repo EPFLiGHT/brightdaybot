@@ -22,7 +22,13 @@ def get_special_days_help_text() -> str:
 • `admin special calendarific-status` - All sources and status
 • `admin special calendarific-refresh [source_id] [force]` - Prefetch all or one source
 • `admin special calendarific-toggle <source_id>` - Enable/disable a source
-• `admin special calendarific-emojis [source_id]` - Assign emojis via AI"""
+• `admin special calendarific-emojis [source_id]` - Assign emojis via AI
+• `admin special ics-list` - List ICS feed subscriptions
+• `admin special ics-add <url> "Label" [category] [emoji]` - Subscribe to feed
+• `admin special ics-remove <id>` - Remove subscription
+• `admin special ics-toggle <id>` - Enable/disable subscription
+• `admin special ics-refresh [id]` - Refresh feed(s)
+• `admin special ics-test <url>` - Preview feed without subscribing"""
 
 
 def build_welcome_blocks(

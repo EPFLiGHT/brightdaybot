@@ -17,11 +17,13 @@ from datetime import datetime, timedelta
 from config import (
     DATE_FORMAT,
     DEFAULT_ANNOUNCEMENT_TIME,
+    ICS_MAX_CONSECUTIVE_FAILURES,
     UPCOMING_DAYS_DEFAULT,
     UPCOMING_DAYS_EXTENDED,
     get_logger,
 )
 from slack.client import get_username
+from utils.sanitization import sanitize_slack_text
 
 logger = get_logger("commands")
 
@@ -115,6 +117,8 @@ def handle_special_command(args, user_id, say, app):
 
     else:
         # Unknown subcommand - show help
+        from slack.blocks import build_slash_help_blocks
+
         blocks, fallback = build_slash_help_blocks("special-day")
         say(blocks=blocks, text=fallback)
 
@@ -939,6 +943,109 @@ _Use `admin special [un|unesco|who]-refresh` or `all-refresh` to force update._"
                 say(f"❌ Source `{source_id}` not found. Available: {available}")
         except Exception as e:
             say(f"❌ Toggle failed: {e}")
+
+    elif subcommand == "ics-list":
+        from integrations.ics_feed import get_ics_feed_client
+
+        client = get_ics_feed_client()
+        if not client.subscriptions:
+            say("📅 No ICS subscriptions configured. Use `admin special ics-add` to add one.")
+        else:
+            lines = []
+            for s in client.subscriptions:
+                flag = "✅" if s.enabled else "❌"
+                parts = [f"• {flag} *{s.label}* (`{s.id}`) — {s.event_count} events"]
+                if s.consecutive_failures > 0:
+                    parts.append(
+                        f" ({s.consecutive_failures}/{ICS_MAX_CONSECUTIVE_FAILURES} failures)"
+                    )
+                if s.last_error:
+                    parts.append(f" ⚠️ {s.last_error}")
+                lines.append("".join(parts))
+            say("📅 *ICS Subscriptions*\n\n" + "\n".join(lines))
+
+    elif subcommand == "ics-add":
+        from integrations.ics_feed import get_ics_feed_client
+
+        if len(args) < 3:
+            say("❌ Usage: `admin special ics-add <url> <label> [category] [emoji]`")
+        else:
+            url = args[1]
+            label = sanitize_slack_text(args[2].strip('"').strip("'"), max_length=100)
+            category = sanitize_slack_text(args[3], max_length=50) if len(args) > 3 else "Company"
+            emoji = args[4][:10] if len(args) > 4 else "📅"
+
+            say(f"🔄 Subscribing to `{label}`...")
+            client = get_ics_feed_client()
+            success, message = client.add_subscription(url, label, category, emoji, user_id)
+            say(f"{'✅' if success else '❌'} {message}")
+            if success:
+                logger.info(f"ADMIN_SPECIAL: {username} added ICS subscription: {label}")
+            else:
+                logger.warning(f"ADMIN_SPECIAL: {username} failed to add ICS subscription: {label}")
+
+    elif subcommand == "ics-remove" and len(args) > 1:
+        from integrations.ics_feed import get_ics_feed_client
+
+        success, message = get_ics_feed_client().remove_subscription(args[1])
+        say(f"{'✅' if success else '❌'} {message}")
+        logger.info(f"ADMIN_SPECIAL: {username} removed ICS subscription: {args[1]}")
+
+    elif subcommand == "ics-toggle" and len(args) > 1:
+        from integrations.ics_feed import get_ics_feed_client
+
+        success, message = get_ics_feed_client().toggle_subscription(args[1])
+        say(f"{'✅' if success else '❌'} {message}")
+        logger.info(f"ADMIN_SPECIAL: {username} toggled ICS subscription: {args[1]}")
+
+    elif subcommand == "ics-refresh":
+        from integrations.ics_feed import get_ics_feed_client
+
+        client = get_ics_feed_client()
+        sub_id = args[1] if len(args) > 1 else None
+
+        if sub_id:
+            say(f"🔄 Refreshing `{sub_id}`...")
+            stats = client.refresh_subscription(sub_id, force=True)
+            if stats.get("error"):
+                say(f"❌ {stats['error']}")
+            else:
+                say(f"✅ {stats.get('event_count', 0)} events loaded")
+        else:
+            say("🔄 Refreshing all ICS subscriptions...")
+            results = client.refresh_all(force=True)
+            if not results:
+                say("📅 No enabled ICS subscriptions to refresh.")
+            else:
+                lines = []
+                for sid, stats in results.items():
+                    sub = next((s for s in client.subscriptions if s.id == sid), None)
+                    label = sub.label if sub else sid
+                    if stats.get("error"):
+                        lines.append(f"• ❌ *{label}*: {stats['error']}")
+                    else:
+                        lines.append(f"• ✅ *{label}*: {stats.get('event_count', 0)} events")
+                say("✅ *ICS Refresh Complete*\n\n" + "\n".join(lines))
+        logger.info(f"ADMIN_SPECIAL: {username} refreshed ICS subscriptions")
+
+    elif subcommand == "ics-test" and len(args) > 1:
+        from integrations.ics_feed import get_ics_feed_client
+
+        say("🔄 Testing feed...")
+        result = get_ics_feed_client().preview_feed(args[1])
+        if result.get("error"):
+            say(f"❌ {result['error']}")
+        else:
+            count = result["event_count"]
+            sample = result.get("sample", [])
+            lines = [f"✅ Found *{count}* events"]
+            for ev in sample:
+                name = sanitize_slack_text(ev["name"], max_length=200)
+                lines.append(f"  • {ev.get('emoji', '📅')} {name} ({ev['date']})")
+            if count > 5:
+                lines.append(f"  _...and {count - 5} more_")
+            say("\n".join(lines))
+        logger.info(f"ADMIN_SPECIAL: {username} tested ICS feed: {args[1]}")
 
     else:
         from slack.blocks.help import get_special_days_help_text

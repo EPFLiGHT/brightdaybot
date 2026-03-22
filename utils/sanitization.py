@@ -126,6 +126,27 @@ def sanitize_for_prompt(
     return text
 
 
+def sanitize_slack_text(text: Optional[str], max_length: int = 200) -> str:
+    """
+    Sanitize text for safe display in Slack mrkdwn.
+
+    Escapes angle brackets to prevent Slack link/mention injection
+    (<!here>, <!channel>, <url|text> etc).
+
+    Args:
+        text: Untrusted text to sanitize (error messages, user labels, etc.)
+        max_length: Maximum allowed length
+
+    Returns:
+        Safe string for Slack mrkdwn display
+    """
+    if not text:
+        return ""
+    text = str(text)[:max_length]
+    text = text.replace("<", "&lt;").replace(">", "&gt;")
+    return text.strip()
+
+
 def sanitize_username(username: Optional[str]) -> str:
     """
     Sanitize a username for prompt inclusion.

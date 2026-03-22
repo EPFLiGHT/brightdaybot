@@ -722,11 +722,7 @@ class BirthdayCelebrationPipeline:
         try:
             thread_message = random.choice(EPIC_THREAD_MESSAGES)
 
-            self.app.client.chat_postMessage(
-                channel=self.birthday_channel,
-                thread_ts=message_ts,
-                text=thread_message,
-            )
+            send_message(self.app, self.birthday_channel, thread_message, thread_ts=message_ts)
 
             epic_names = [p["username"] for p in epic_people]
             logger.info(f"{self.mode}: Posted epic thread celebration for: {', '.join(epic_names)}")

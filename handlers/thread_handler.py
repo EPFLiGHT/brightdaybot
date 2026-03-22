@@ -19,6 +19,7 @@ from config import (
     THREAD_REACTION_KEYWORDS,
     get_logger,
 )
+from slack.messaging import send_message
 
 logger = get_logger("events")
 
@@ -179,13 +180,9 @@ def handle_special_day_thread_reply(
         response_with_mention = f"<@{user_id}> {response}"
 
         # Send as threaded reply
-        send_result = app.client.chat_postMessage(
-            channel=channel,
-            thread_ts=thread_ts,
-            text=response_with_mention,
-        )
+        send_result = send_message(app, channel, response_with_mention, thread_ts=thread_ts)
 
-        if send_result.get("ok"):
+        if send_result.get("success"):
             # Increment per-user response count
             tracker = get_thread_tracker()
             new_count = tracker.increment_responses(channel, thread_ts, user_id)

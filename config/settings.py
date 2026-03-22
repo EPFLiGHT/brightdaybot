@@ -28,7 +28,6 @@ TRACKING_DIR = os.path.join(DATA_DIR, "tracking")
 TRACKED_THREADS_FILE = os.path.join(STORAGE_DIR, "tracked_threads.json")
 ANNOUNCEMENTS_FILE = os.path.join(STORAGE_DIR, "announcements.json")
 SCHEDULER_STATS_FILE = os.path.join(STORAGE_DIR, "scheduler_stats.json")
-CALENDARIFIC_STATS_FILE = os.path.join(STORAGE_DIR, "calendarific_stats.json")
 THREAD_TRACKING_TTL_DAYS = int(os.getenv("THREAD_TRACKING_TTL_DAYS", "60"))
 BACKUP_DIR = os.path.join(DATA_DIR, "backups")
 MAX_BACKUPS = int(os.getenv("MAX_BACKUPS", "10"))
@@ -491,7 +490,7 @@ CALENDARIFIC_SOURCES = [
     {
         "id": "ch",
         "country": "CH",
-        "state": os.getenv("CALENDARIFIC_STATE", "VD"),
+        "state": "VD",
         "enabled": True,
         "label": "Switzerland",
         "category": "Holiday",
@@ -624,6 +623,18 @@ WHO_OBSERVANCES_URL = "https://www.who.int/campaigns"
 WHO_OBSERVANCES_CACHE_TTL_DAYS = int(os.getenv("WHO_OBSERVANCES_CACHE_TTL_DAYS", "180"))
 WHO_OBSERVANCES_CACHE_DIR = os.path.join(CACHE_DIR, "who_observances")
 WHO_OBSERVANCES_CACHE_FILE = os.path.join(WHO_OBSERVANCES_CACHE_DIR, "who_days.json")
+
+# ----- ICS CALENDAR SUBSCRIPTIONS -----
+
+# External ICS/webcal feed subscriptions for special days
+ICS_SUBSCRIPTIONS_ENABLED = os.getenv("ICS_SUBSCRIPTIONS_ENABLED", "false").lower() == "true"
+ICS_SUBSCRIPTIONS_FILE = os.path.join(STORAGE_DIR, "ics_subscriptions.json")
+ICS_CACHE_DIR = os.path.join(CACHE_DIR, "ics_feeds")
+ICS_MAX_SUBSCRIPTIONS = 16
+ICS_MAX_EVENTS_PER_FEED = 256
+ICS_MAX_FILE_SIZE_BYTES = 1024 * 1024  # 1MB
+ICS_CACHE_TTL_DAYS = 1  # Daily refresh
+ICS_MAX_CONSECUTIVE_FAILURES = 4  # Auto-disable after this many failures
 
 # ----- THREAD ENGAGEMENT CONFIGURATION -----
 
@@ -795,6 +806,7 @@ for directory in [
     CACHE_DIR,
     MESSAGES_CACHE_DIR,
     CALENDARIFIC_CACHE_DIR,
+    ICS_CACHE_DIR,
 ]:
     if not os.path.exists(directory):
         os.makedirs(directory)

@@ -20,10 +20,12 @@ from config import (
     CANVAS_SETTINGS_FILE,
     CANVAS_WARNINGS_MAX,
     CANVAS_WARNINGS_TTL_HOURS,
+    ICS_SUBSCRIPTIONS_ENABLED,
     OPS_CHANNEL_ID,
     SLACK_HISTORY_PAGE_SIZE,
     get_logger,
 )
+from slack.messaging import send_message
 
 logger = get_logger("slack")
 
@@ -586,6 +588,24 @@ def _build_observances_section():
         except Exception as e:
             logger.debug(f"CANVAS: Could not get Calendarific status: {e}")
 
+        # ICS calendar subscriptions
+        try:
+            if ICS_SUBSCRIPTIONS_ENABLED:
+                from integrations.ics_feed import get_ics_feed_client
+
+                ics_status = get_ics_feed_client().get_status()
+                if ics_status.get("enabled_count", 0) > 0:
+                    ics_total = ics_status.get("total_events", 0)
+                    ics_fresh = "🟢 Fresh" if ics_status.get("all_fresh") else "🟡 Stale"
+                    ics_updated = ics_status.get("last_updated", "—")
+                    if isinstance(ics_updated, str) and "T" in ics_updated:
+                        ics_updated = ics_updated[:10]
+                    rows.append(
+                        f"| ICS Feeds ({ics_status['enabled_count']}) | {ics_fresh} | {ics_total} | {ics_updated} |"
+                    )
+        except Exception as e:
+            logger.debug(f"CANVAS: Could not get ICS status: {e}")
+
         # Custom/CSV days
         try:
             from storage.special_days import load_special_days
@@ -708,9 +728,10 @@ def _ensure_backup_thread(app):
 
     # Post a parent message and pin it
     try:
-        result = app.client.chat_postMessage(
-            channel=OPS_CHANNEL_ID,
-            text="📎 *Birthday Backup Files*\nBackup uploads are posted as replies to this thread.",
+        result = send_message(
+            app,
+            OPS_CHANNEL_ID,
+            "📎 *Birthday Backup Files*\nBackup uploads are posted as replies to this thread.",
         )
         thread_ts = result.get("ts")
         if thread_ts:

@@ -29,7 +29,7 @@
 - **AI Images**: Face-accurate images using Slack profile photos
 - **Multiple Personalities**: Ludo the Mystic Dog, Captain BirthdayBeard, TechBot 3000, and more
 - **Multi-Timezone**: Celebrates at 9 AM in each user's timezone
-- **Special Days**: International observances and national holidays with AI-generated content, consolidated into a single daily announcement
+- **Special Days**: International observances (UN, UNESCO, WHO), national holidays (Calendarific), ICS calendar feed subscriptions, and CSV custom days with AI-generated content, consolidated into a single daily announcement
 - **Slash Commands**: `/birthday` and `/special-day` with modal forms
 - **App Home**: Dashboard with birthday status, statistics, and upcoming events
 - **Calendar Export**: Export team birthdays to ICS format
@@ -146,6 +146,8 @@ uv run python app.py
 | `admin announce [message]`                                       | Send announcement               |
 | `admin canvas [status\|refresh\|reset\|clean\|dismiss-warnings]` | Manage ops canvas dashboard     |
 | `admin special [subcommand]`                                     | Special days management         |
+| `admin special ics-add <url> "Label"`                            | Subscribe to ICS calendar feed  |
+| `admin special ics-list/remove/toggle/refresh/test`              | Manage ICS subscriptions        |
 | `admin backup` / `admin restore latest`                          | Backup operations               |
 | `admin cache clear [DD/MM]`                                      | Clear web search cache          |
 | `admin config`                                                   | View/change command permissions |
@@ -180,7 +182,7 @@ Each personality brings a unique voice, writing style, and image aesthetic to ce
 All optional settings are documented in [`.env.example`](.env.example) with defaults and descriptions. Key categories:
 
 - **AI & Core**: Model selection, image generation, backups
-- **Special Days Sources**: Observance cache TTLs, multi-source Calendarific holidays
+- **Special Days Sources**: Observance cache TTLs, multi-source Calendarific holidays, ICS feed subscriptions
 - **Interactive Features**: Thread engagement, @-mention Q&A, NLP date parsing
 - **Announcements**: @-here mentions, channel topic updates, consolidated special days
 - **Canvas Dashboard**: Ops channel with auto-updating system overview
@@ -225,6 +227,7 @@ brightdaybot/
 │   └── special_day.py            # Special day messages
 ├── integrations/                 # External API clients
 │   ├── calendarific.py           # Multi-source holiday API
+│   ├── ics_feed.py               # External ICS calendar subscriptions
 │   ├── openai.py                 # OpenAI API
 │   ├── web_search.py             # Historical facts
 │   └── observances/              # Web-scraped sources
@@ -238,6 +241,7 @@ brightdaybot/
 │   ├── emoji.py                  # Emoji selection & management
 │   ├── messaging.py              # Message sending & file uploads
 │   └── blocks/                   # Block Kit builders
+│       ├── __init__.py           # Re-exports all block functions
 │       ├── admin.py              # Admin/status blocks
 │       ├── birthday.py           # Birthday blocks
 │       ├── help.py               # Help & welcome blocks
@@ -262,7 +266,7 @@ brightdaybot/
     ├── logs/                     # Component log files
     ├── tracking/                 # Duplicate prevention
     ├── backups/                  # Auto backups
-    └── cache/                    # Images, profiles, observances
+    └── cache/                    # Images, profiles, observances, calendarific, ics_feeds
 ```
 
 </details>

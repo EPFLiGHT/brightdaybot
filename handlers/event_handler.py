@@ -329,7 +329,7 @@ def register_event_handlers(app):
             fallback = f"📖 {observance_name} - Details"
 
             if channel_type == "im":
-                client.chat_postMessage(channel=channel_id, blocks=blocks, text=fallback)
+                send_message(app, channel_id, fallback, blocks=blocks)
                 events_logger.info(f"SPECIAL_DAY_DETAILS: Sent to DM for user {user_id}")
             else:
                 client.chat_postEphemeral(
@@ -368,10 +368,8 @@ def register_event_handlers(app):
                 channel_type = body.get("channel", {}).get("type", "unknown")
                 if channel_type == "im":
                     # For DMs, send regular message
-                    client.chat_postMessage(
-                        channel=error_channel_id,
-                        blocks=error_blocks,
-                        text="⚠️ Error loading details",  # Fallback
+                    send_message(
+                        app, error_channel_id, "⚠️ Error loading details", blocks=error_blocks
                     )
                 elif error_user_id:
                     # For channels, send ephemeral (requires user_id)
@@ -427,16 +425,14 @@ def register_event_handlers(app):
                 # Send external backup for removal
                 trigger_external_backup(False, username, app, change_type="remove")
                 events_logger.info(f"APP_HOME: Removed birthday for {username} ({user_id})")
-                client.chat_postMessage(
-                    channel=user_id,
-                    text="Your birthday has been removed. You can add it again anytime via the modal or `/birthday` command.",
+                send_message(
+                    app,
+                    user_id,
+                    "Your birthday has been removed. You can add it again anytime via the modal or `/birthday` command.",
                 )
             else:
                 events_logger.warning(f"APP_HOME: No birthday found to remove for {user_id}")
-                client.chat_postMessage(
-                    channel=user_id,
-                    text="No birthday was found to remove.",
-                )
+                send_message(app, user_id, "No birthday was found to remove.")
 
             # Refresh the App Home view
             from handlers.app_home_handler import _build_home_view
@@ -446,9 +442,8 @@ def register_event_handlers(app):
 
         except Exception as e:
             events_logger.error(f"REMOVE_BIRTHDAY_ERROR: Failed to remove birthday: {e}")
-            client.chat_postMessage(
-                channel=user_id,
-                text="Sorry, there was an error removing your birthday. Please try again.",
+            send_message(
+                app, user_id, "Sorry, there was an error removing your birthday. Please try again."
             )
 
     @app.action(re.compile(r"^set_celebration_style_(quiet|standard|epic)$"))
@@ -486,9 +481,10 @@ def register_event_handlers(app):
                 events_logger.warning(
                     f"CELEBRATION_STYLE: Could not update style for {user_id} - no birthday found"
                 )
-                client.chat_postMessage(
-                    channel=user_id,
-                    text="Please add your birthday first before setting celebration preferences.",
+                send_message(
+                    app,
+                    user_id,
+                    "Please add your birthday first before setting celebration preferences.",
                 )
                 return
 
@@ -500,9 +496,10 @@ def register_event_handlers(app):
 
         except Exception as e:
             events_logger.error(f"CELEBRATION_STYLE_ERROR: Failed to update style: {e}")
-            client.chat_postMessage(
-                channel=user_id,
-                text="Sorry, there was an error updating your celebration style. Please try again.",
+            send_message(
+                app,
+                user_id,
+                "Sorry, there was an error updating your celebration style. Please try again.",
             )
 
     @app.action("view_all_birthdays")

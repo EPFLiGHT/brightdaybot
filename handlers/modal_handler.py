@@ -10,6 +10,7 @@ from datetime import datetime
 
 from config import MIN_BIRTH_YEAR, get_logger
 from slack.client import get_username
+from slack.messaging import send_message
 from storage.birthdays import save_birthday, trigger_external_backup
 from utils.date_utils import check_if_birthday_today
 
@@ -48,9 +49,7 @@ def register_modal_handlers(app):
             logger.error(
                 f"MODAL: Missing required fields - month: {month_option}, day: {day_option}"
             )
-            _send_modal_error(
-                app.client, user_id, "Please select both a month and day for your birthday."
-            )
+            _send_modal_error(app, user_id, "Please select both a month and day for your birthday.")
             return
 
         month_value = month_option.get("value")
@@ -58,9 +57,7 @@ def register_modal_handlers(app):
 
         if not month_value or not day_value:
             logger.error(f"MODAL: Invalid field values - month: {month_value}, day: {day_value}")
-            _send_modal_error(
-                app.client, user_id, "Invalid month or day selection. Please try again."
-            )
+            _send_modal_error(app, user_id, "Invalid month or day selection. Please try again.")
             return
 
         # Get optional year from text input
@@ -158,17 +155,15 @@ def register_modal_handlers(app):
 
             # Check if birthday is today
             if check_if_birthday_today(date_ddmm):
-                _send_birthday_today_message(
-                    client, user_id, username, date_ddmm, birth_year, updated, app
-                )
+                _send_birthday_today_message(app, user_id, username, date_ddmm, birth_year, updated)
             else:
-                _send_modal_confirmation(client, user_id, date_ddmm, birth_year, updated)
+                _send_modal_confirmation(app, user_id, date_ddmm, birth_year, updated)
 
             logger.info(f"MODAL: Birthday {'updated' if updated else 'saved'} for {username}")
 
         except ValueError as e:
             logger.error(f"MODAL_ERROR: Invalid input from {username}: {e}")
-            _send_modal_error(client, user_id, "Invalid input. Please try again.")
+            _send_modal_error(app, user_id, "Invalid input. Please try again.")
 
     @app.action("open_birthday_modal")
     def handle_open_modal_button(ack, body, client):
@@ -191,7 +186,7 @@ def register_modal_handlers(app):
     logger.info("MODAL: Modal handlers registered")
 
 
-def _send_modal_confirmation(client, user_id, date_ddmm, birth_year, updated):
+def _send_modal_confirmation(app, user_id, date_ddmm, birth_year, updated):
     """Send confirmation after modal submission."""
     from storage.birthdays import (
         CELEBRATION_STYLE_EMOJIS,
@@ -252,10 +247,10 @@ def _send_modal_confirmation(client, user_id, date_ddmm, birth_year, updated):
         }
     )
 
-    client.chat_postMessage(channel=user_id, blocks=blocks, text=f"Birthday {action} successfully!")
+    send_message(app, user_id, f"Birthday {action} successfully!", blocks=blocks)
 
 
-def _send_birthday_today_message(client, user_id, username, date_ddmm, birth_year, updated, app):
+def _send_birthday_today_message(app, user_id, username, date_ddmm, birth_year, updated):
     """Send special message when birthday is today."""
     from utils.date_utils import date_to_words
 
@@ -277,11 +272,7 @@ def _send_birthday_today_message(client, user_id, username, date_ddmm, birth_yea
         },
     ]
 
-    client.chat_postMessage(
-        channel=user_id,
-        blocks=blocks,
-        text=f"Happy Birthday! Your birthday has been {action}.",
-    )
+    send_message(app, user_id, f"Happy Birthday! Your birthday has been {action}.", blocks=blocks)
 
     # Trigger immediate celebration via existing flow
     logger.info(f"MODAL: Birthday today for {username}, triggering immediate celebration")
@@ -295,7 +286,7 @@ def _send_birthday_today_message(client, user_id, username, date_ddmm, birth_yea
 
         def modal_say(msg=None, **kwargs):
             """Adapter: send to user DM since modal has no say()."""
-            client.chat_postMessage(channel=user_id, text=msg or "", **kwargs)
+            send_message(app, user_id, msg or "", blocks=kwargs.get("blocks"))
 
         send_immediate_birthday_announcement(
             user_id, username, date_ddmm, birth_year, dw, age_text, modal_say, app
@@ -304,7 +295,7 @@ def _send_birthday_today_message(client, user_id, username, date_ddmm, birth_yea
         logger.error(f"MODAL: Failed to trigger immediate celebration for {username}: {e}")
 
 
-def _send_modal_error(client, user_id, message):
+def _send_modal_error(app, user_id, message):
     """Send error message to user."""
     blocks = [
         {"type": "header", "text": {"type": "plain_text", "text": "Error"}},
@@ -315,4 +306,4 @@ def _send_modal_error(client, user_id, message):
         },
     ]
 
-    client.chat_postMessage(channel=user_id, blocks=blocks, text=f"Error: {message}")
+    send_message(app, user_id, f"Error: {message}", blocks=blocks)

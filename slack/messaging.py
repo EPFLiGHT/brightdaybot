@@ -40,7 +40,9 @@ def _resolve_dm_channel(app, channel):
 # =============================================================================
 
 
-def send_message(app, channel: str, text: str, blocks=None, context: dict = None):
+def send_message(
+    app, channel: str, text: str, blocks=None, context: dict = None, thread_ts: str = None
+):
     """
     Send a message to a Slack channel with error handling and automatic archiving.
 
@@ -52,12 +54,15 @@ def send_message(app, channel: str, text: str, blocks=None, context: dict = None
         text: Message text
         blocks: Optional blocks for rich formatting
         context: Optional context for archiving (message_type, personality, etc.)
+        thread_ts: Optional thread timestamp for threaded replies
 
     Returns:
         dict: {"success": bool, "ts": str or None} - ts is first message timestamp for threading
     """
     try:
         first_ts = None
+        # Build optional kwargs for threading
+        extra = {"thread_ts": thread_ts} if thread_ts else {}
 
         # Handle block count exceeding Slack limit by batching
         if blocks and len(blocks) > SLACK_MAX_BLOCKS:
@@ -73,7 +78,9 @@ def send_message(app, channel: str, text: str, blocks=None, context: dict = None
             for i, batch in enumerate(batches):
                 if i == 0:
                     # First batch: send with text as main message
-                    response = app.client.chat_postMessage(channel=channel, text=text, blocks=batch)
+                    response = app.client.chat_postMessage(
+                        channel=channel, text=text, blocks=batch, **extra
+                    )
                     first_ts = response.get("ts") if response.get("ok") else None
                 else:
                     # Subsequent batches: send as thread replies
@@ -102,9 +109,11 @@ def send_message(app, channel: str, text: str, blocks=None, context: dict = None
 
         # Normal path: blocks within limit
         if blocks:
-            response = app.client.chat_postMessage(channel=channel, text=text, blocks=blocks)
+            response = app.client.chat_postMessage(
+                channel=channel, text=text, blocks=blocks, **extra
+            )
         else:
-            response = app.client.chat_postMessage(channel=channel, text=text)
+            response = app.client.chat_postMessage(channel=channel, text=text, **extra)
 
         # Extract message timestamp for thread tracking
         message_ts = response.get("ts") if response.get("ok") else None

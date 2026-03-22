@@ -27,6 +27,7 @@ from config import (
     DEDUP_PREFIX_SUFFIX_MIN_LENGTH,
     DEDUP_SIGNIFICANT_WORD_MIN_LENGTH,
     DEFAULT_ANNOUNCEMENT_TIME,
+    ICS_SUBSCRIPTIONS_ENABLED,
     MAX_BACKUPS,
     SPECIAL_DAYS_CATEGORIES,
     SPECIAL_DAYS_CONFIG_FILE,
@@ -264,6 +265,15 @@ def load_all_special_days() -> List[SpecialDay]:
             all_days.extend(get_calendarific_client().get_all_cached_special_days())
         except Exception as e:
             logger.warning(f"Failed to load Calendarific cache: {e}")
+
+    # 4. Load ICS calendar subscriptions (if enabled)
+    if ICS_SUBSCRIPTIONS_ENABLED:
+        try:
+            from integrations.ics_feed import get_ics_feed_client
+
+            all_days.extend(get_ics_feed_client().get_all_cached_special_days())
+        except Exception as e:
+            logger.warning(f"Failed to load ICS subscription cache: {e}")
 
     # Deduplicate
     unique_days = _deduplicate_special_days(all_days)
@@ -556,7 +566,7 @@ def _deduplicate_special_days(special_days: List[SpecialDay]) -> List[SpecialDay
     - Prefix variations: "International Day of X" vs "World X Day"
     - Similar names: "Women's Day" vs "International Women's Day"
 
-    Priority: UN source > Calendarific > CSV (first match wins within same priority)
+    Priority: UN/WHO/UNESCO (0) > Calendarific/ICS (1) > Custom/CSV (2)
 
     Args:
         special_days: List of SpecialDay objects (may contain duplicates)
@@ -567,15 +577,17 @@ def _deduplicate_special_days(special_days: List[SpecialDay]) -> List[SpecialDay
     if not special_days:
         return []
 
-    # Sort by source priority: UN/WHO/UNESCO first, then Calendarific, then others
-    source_priority = {"UN": 0, "WHO": 0, "UNESCO": 0}
+    # Sort by source priority: UN/WHO/UNESCO (0) > Calendarific/ICS (1) > Custom (2)
+    _exact_priority = {"UN": 0, "WHO": 0, "UNESCO": 0}
+    _prefix_priority = {"Calendarific": 1, "ICS": 1}
 
     def get_priority(day: SpecialDay) -> int:
         source = getattr(day, "source", "") or ""
-        if source in source_priority:
-            return source_priority[source]
-        if source.startswith("Calendarific"):
-            return 1
+        if source in _exact_priority:
+            return _exact_priority[source]
+        for prefix, priority in _prefix_priority.items():
+            if source.startswith(prefix):
+                return priority
         return 2
 
     sorted_days = sorted(special_days, key=get_priority)
@@ -648,9 +660,12 @@ def get_special_days_for_date(
     Get all special days for a specific date from multiple sources.
 
     Sources (in order of priority):
-    1. UN Observances (scraped from un.org) - Global Health, Tech, Culture
-    2. Calendarific API (if enabled) - Swiss national/local holidays
-    3. CSV file - Company custom days (always loaded)
+    1. UN/UNESCO/WHO Observances (scraped) - International days, health campaigns
+    2. Calendarific API (if enabled) - Multi-source holidays
+    3. ICS Feeds (if enabled) - External calendar subscriptions
+    4. CSV file - Company custom days (always loaded)
+
+    Deduplication merges results with priority: UN/WHO/UNESCO > Calendarific/ICS > Custom.
 
     Args:
         date: datetime object to check
@@ -716,7 +731,19 @@ def get_special_days_for_date(
         except Exception as e:
             logger.error(f"CALENDARIFIC: Failed to fetch for {date_str}: {e}")
 
-    # Source 5: Custom days from JSON (use pre-loaded if available)
+    # Source 5: ICS calendar subscriptions (if enabled)
+    if ICS_SUBSCRIPTIONS_ENABLED:
+        try:
+            from integrations.ics_feed import get_ics_feed_client
+
+            ics_days = get_ics_feed_client().get_events_for_date(date)
+            special_days.extend(ics_days)
+            if ics_days:
+                logger.debug(f"ICS: Found {len(ics_days)} event(s) for {date_str}")
+        except Exception as e:
+            logger.error(f"ICS: Failed to fetch for {date_str}: {e}")
+
+    # Source 6: Custom days from JSON (use pre-loaded if available)
     if custom_days is None:
         custom_days = load_special_days()
     matching_custom = [d for d in custom_days if d.date == date_str]

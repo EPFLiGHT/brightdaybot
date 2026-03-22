@@ -938,11 +938,9 @@ def _test_blockkit_mode(
     say("Sending Block Kit message with embedded image...")
 
     try:
-        result = app.client.chat_postMessage(
-            channel=user_id, text=f"Block Kit Test: {label}", blocks=blocks
-        )
+        result = send_message(app, user_id, f"Block Kit Test: {label}", blocks=blocks)
 
-        if result["ok"]:
+        if result.get("success"):
             say("✅ Block Kit message sent successfully!")
             logger.info(f"{log_prefix}: Success!")
         else:

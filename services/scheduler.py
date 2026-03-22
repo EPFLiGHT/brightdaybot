@@ -25,8 +25,10 @@ from filelock import FileLock
 
 from config import (
     CACHE_REFRESH_TIME,
+    CANVAS_DASHBOARD_ENABLED,
     DAILY_CHECK_TIME,
     HEARTBEAT_STALE_THRESHOLD_SECONDS,
+    ICS_SUBSCRIPTIONS_ENABLED,
     SCHEDULER_CHECK_INTERVAL_SECONDS,
     SCHEDULER_STATS_FILE,
     SCHEDULER_STATS_SAVE_INTERVAL,
@@ -247,6 +249,20 @@ def monthly_observances_refresh_task():
             logger.error(f"SCHEDULER: Failed to refresh {name} observances cache: {e}")
 
 
+def daily_ics_refresh_task():
+    """Daily task — refreshes all ICS calendar subscription caches."""
+    if not ICS_SUBSCRIPTIONS_ENABLED:
+        return
+    try:
+        from integrations.ics_feed import get_ics_feed_client
+
+        results = get_ics_feed_client().refresh_all()
+        total = sum(r.get("event_count", 0) for r in results.values() if not r.get("error"))
+        logger.info(f"SCHEDULER: ICS refresh complete: {total} events")
+    except Exception as e:
+        logger.error(f"SCHEDULER: ICS refresh failed: {e}")
+
+
 def canvas_refresh_task():
     """Periodic task to refresh the ops channel canvas dashboard."""
     from config import CANVAS_DASHBOARD_ENABLED, OPS_CHANNEL_ID
@@ -387,9 +403,12 @@ def setup_scheduler(app, timezone_aware_check, simple_daily_check):
             "SCHEDULER: Weekly special days task scheduled (current: daily mode, task will skip)"
         )
 
-    # Schedule canvas dashboard refresh
-    from config import CANVAS_DASHBOARD_ENABLED
+    # Schedule daily ICS subscription refresh
+    if ICS_SUBSCRIPTIONS_ENABLED:
+        schedule.every().day.at(cache_time_str).do(daily_ics_refresh_task)
+        logger.info(f"SCHEDULER: Daily ICS subscription refresh scheduled at {cache_time_str}")
 
+    # Schedule canvas dashboard refresh
     if CANVAS_DASHBOARD_ENABLED:
         schedule.every().hour.at(":00").do(canvas_refresh_task)
         schedule.every().hour.at(":30").do(canvas_refresh_task)
