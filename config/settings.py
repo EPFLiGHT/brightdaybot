@@ -410,6 +410,7 @@ SPECIAL_DAYS_MODE = os.getenv("SPECIAL_DAYS_MODE", "daily")
 
 # Day of week for weekly digest (0=Monday through 6=Sunday)
 SPECIAL_DAYS_WEEKLY_DAY = int(os.getenv("SPECIAL_DAYS_WEEKLY_DAY", "0"))
+SPECIAL_DAYS_WEEKLY_LOOKAHEAD = 7  # Weekly digest always covers exactly one week
 
 # Weekday names for display and parsing
 WEEKDAY_NAMES = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]

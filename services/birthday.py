@@ -22,6 +22,7 @@ from config import (
     DAILY_CHECK_TIME,
     IMAGE_GENERATION_PARAMS,
     SPECIAL_DAY_THREAD_ENABLED,
+    SPECIAL_DAYS_WEEKLY_LOOKAHEAD,
     TIMEZONE_CELEBRATION_TIME,
     get_logger,
 )
@@ -760,11 +761,11 @@ def check_and_announce_weekly_special_days(app, moment):
         logger.debug("WEEKLY_SPECIAL_DAYS: Already announced this week, skipping")
         return False
 
-    # Get special days for the next 7 days
-    upcoming_days = get_upcoming_special_days(7)
+    # Get special days for the upcoming lookahead period
+    upcoming_days = get_upcoming_special_days(SPECIAL_DAYS_WEEKLY_LOOKAHEAD, reference_date=moment)
 
     if not upcoming_days:
-        logger.info("WEEKLY_SPECIAL_DAYS: No special days in the next 7 days, skipping")
+        logger.info("WEEKLY_SPECIAL_DAYS: No special days in the next week, skipping")
         return False
 
     try:

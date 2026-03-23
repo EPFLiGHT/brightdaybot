@@ -57,18 +57,19 @@ def _build_context(app: Any, question_type: str) -> Dict[str, Any]:
     Returns:
         Dict with context information
     """
+    now = datetime.now()
     context = {
-        "today": datetime.now().strftime("%A, %B %d, %Y"),
+        "today": now.strftime("%A, %B %d, %Y"),
         "special_days": [],
         "upcoming_birthdays": [],
         "bot_info": _get_bot_info(),
     }
 
     if question_type in ["special_days", "upcoming", "general"]:
-        context["special_days"] = _get_special_days_context()
+        context["special_days"] = _get_special_days_context(now)
 
     if question_type in ["birthdays", "upcoming", "general"]:
-        context["upcoming_birthdays"] = _get_birthday_context(app)
+        context["upcoming_birthdays"] = _get_birthday_context(app, now)
 
     return context
 
@@ -89,12 +90,12 @@ def _get_bot_info() -> Dict[str, str]:
     }
 
 
-def _get_special_days_context() -> List[Dict[str, str]]:
+def _get_special_days_context(now: datetime) -> List[Dict[str, str]]:
     """Get today's special days for context."""
     try:
         from storage.special_days import get_todays_special_days
 
-        special_days = get_todays_special_days()
+        special_days = get_todays_special_days(reference_date=now)
 
         return [
             {
@@ -110,7 +111,7 @@ def _get_special_days_context() -> List[Dict[str, str]]:
         return []
 
 
-def _get_birthday_context(app: Any) -> List[Dict[str, str]]:
+def _get_birthday_context(app: Any, now: datetime) -> List[Dict[str, str]]:
     """Get upcoming birthdays for context."""
     try:
         from config import UPCOMING_DAYS_DEFAULT
@@ -118,7 +119,7 @@ def _get_birthday_context(app: Any) -> List[Dict[str, str]]:
         from storage.birthdays import load_birthdays
 
         birthdays = load_birthdays()
-        today = datetime.now()
+        today = now
         upcoming = []
 
         for user_id, birthday_data in birthdays.items():

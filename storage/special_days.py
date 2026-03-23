@@ -390,14 +390,18 @@ def remove_special_day(date: str, name: Optional[str] = None, app=None, username
         return False
 
 
-def get_todays_special_days() -> List[SpecialDay]:
+def get_todays_special_days(reference_date: Optional[datetime] = None) -> List[SpecialDay]:
     """
     Get all special days for today's date.
+
+    Args:
+        reference_date: Optional reference date (defaults to UTC for announcement tracking;
+                        callers doing display should pass datetime.now() for server local)
 
     Returns:
         List of SpecialDay objects for today
     """
-    today = datetime.now(timezone.utc)
+    today = reference_date or datetime.now(timezone.utc)
     return get_special_days_for_date(today)
 
 
@@ -768,18 +772,21 @@ def get_special_days_for_date(
 
 def get_upcoming_special_days(
     days_ahead: int = UPCOMING_DAYS_DEFAULT,
+    reference_date: Optional[datetime] = None,
 ) -> Dict[str, List[SpecialDay]]:
     """
     Get special days for the next N days.
 
     Args:
         days_ahead: Number of days to look ahead
+        reference_date: Optional reference date (defaults to UTC for announcement tracking;
+                        callers doing display should pass datetime.now() for server local)
 
     Returns:
         Dictionary mapping date strings to lists of SpecialDay objects
     """
     upcoming = {}
-    today = datetime.now(timezone.utc)
+    today = reference_date or datetime.now(timezone.utc)
 
     # Pre-load custom days once to avoid O(n²) repeated file reads
     custom_days = load_special_days()
@@ -1231,8 +1238,12 @@ def get_special_day_statistics() -> dict:
         "by_category": {},
         "by_source": by_source,
         "csv_entries": len(csv_days),
-        "next_7_days": len(get_upcoming_special_days(UPCOMING_DAYS_DEFAULT)),
-        "next_30_days": len(get_upcoming_special_days(UPCOMING_DAYS_EXTENDED)),
+        "next_7_days": len(
+            get_upcoming_special_days(UPCOMING_DAYS_DEFAULT, reference_date=datetime.now())
+        ),
+        "next_30_days": len(
+            get_upcoming_special_days(UPCOMING_DAYS_EXTENDED, reference_date=datetime.now())
+        ),
         "feature_enabled": config.get("enabled", False),
         "current_personality": config.get("personality", "chronicler"),
     }
@@ -1494,8 +1505,8 @@ if __name__ == "__main__":
     print(f"\nToday's special days: {today_days}")
 
     # Test upcoming
-    upcoming = get_upcoming_special_days(7)
-    print("\nUpcoming special days in next 7 days:")
+    upcoming = get_upcoming_special_days(UPCOMING_DAYS_DEFAULT, reference_date=datetime.now())
+    print(f"\nUpcoming special days in next {UPCOMING_DAYS_DEFAULT} days:")
     for date, days_list in upcoming.items():
         print(f"  {date}: {[d.name for d in days_list]}")
 

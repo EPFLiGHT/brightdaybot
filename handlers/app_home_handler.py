@@ -67,6 +67,9 @@ def _build_home_view(user_id, app):
     """Build the App Home view blocks."""
     from utils.date_utils import calculate_age, date_to_words, get_star_sign
 
+    # Single time capture for the entire render — prevents midnight-crossing races
+    now = datetime.now()
+
     # Get user's birthday status
     birthdays = load_birthdays()
     user_birthday = birthdays.get(user_id)
@@ -79,10 +82,12 @@ def _build_home_view(user_id, app):
     channel_member_set = set(channel_members) if channel_members else set()
 
     # Get upcoming birthdays (date-grouped)
-    upcoming = _get_upcoming_birthdays(birthdays, app, channel_member_set=channel_member_set)
+    upcoming = _get_upcoming_birthdays(
+        birthdays, app, channel_member_set=channel_member_set, reference_date=now
+    )
 
     # Get birthday statistics
-    stats = _get_birthday_statistics(birthdays, channel_member_set)
+    stats = _get_birthday_statistics(birthdays, channel_member_set, reference_date=now)
 
     blocks = []
 
@@ -126,7 +131,7 @@ def _build_home_view(user_id, app):
 
         # Personal birthday countdown
         # Use server local time so "today/tomorrow" matches the user's clock
-        days_until_own = calculate_days_until_birthday(user_birthday["date"], datetime.now())
+        days_until_own = calculate_days_until_birthday(user_birthday["date"], now)
         if days_until_own == 0:
             countdown = "🎉 *Today is your birthday!*"
         elif days_until_own == 1:
@@ -287,9 +292,7 @@ def _build_home_view(user_id, app):
                 birth_year = p.get("year")
                 if birth_year and p.get("show_age", True):
                     dd, mm = group["date"].split("/")
-                    age_text = calculate_next_birthday_age(
-                        birth_year, int(mm), int(dd), datetime.now()
-                    )
+                    age_text = calculate_next_birthday_age(birth_year, int(mm), int(dd), now)
                     mention += f" {age_text.strip()}" if age_text else ""
                 name_parts.append(mention)
 
@@ -341,11 +344,13 @@ def _build_home_view(user_id, app):
         }
     )
 
-    upcoming_special = get_upcoming_special_days(days_ahead=APP_HOME_UPCOMING_SPECIAL_DAYS)
+    upcoming_special = get_upcoming_special_days(
+        days_ahead=APP_HOME_UPCOMING_SPECIAL_DAYS, reference_date=now
+    )
 
     if upcoming_special:
         special_lines = []
-        today = datetime.now().date()  # Server local for display consistency
+        today = now.date()
 
         for date_str, days_list in upcoming_special.items():
             try:
@@ -504,7 +509,11 @@ def _safe_date_words(date_str):
 
 
 def _get_upcoming_birthdays(
-    birthdays, app, limit=APP_HOME_UPCOMING_BIRTHDAY_DATES, channel_member_set=None
+    birthdays,
+    app,
+    limit=APP_HOME_UPCOMING_BIRTHDAY_DATES,
+    channel_member_set=None,
+    reference_date=None,
 ):
     """Get upcoming birthdays grouped by date for validated users only.
 
@@ -513,8 +522,8 @@ def _get_upcoming_birthdays(
     """
     from storage.birthdays import is_user_active
 
-    # Server local time so "today/tomorrow/in N days" matches user's clock
-    reference_date = datetime.now()
+    if reference_date is None:
+        reference_date = datetime.now()
     flat = []
 
     if channel_member_set is None:
@@ -567,7 +576,7 @@ def _get_upcoming_birthdays(
     return result
 
 
-def _get_birthday_statistics(birthdays, channel_member_set):
+def _get_birthday_statistics(birthdays, channel_member_set, reference_date=None):
     """Calculate birthday statistics including coverage and star sign distribution."""
     from calendar import month_name
     from collections import Counter
@@ -585,7 +594,7 @@ def _get_birthday_statistics(birthdays, channel_member_set):
 
     from datetime import timedelta
 
-    today = datetime.now().date()  # Server local for display
+    today = (reference_date or datetime.now()).date()
     week_end = today + timedelta(days=7)
     month_end = today + timedelta(days=30)
 
