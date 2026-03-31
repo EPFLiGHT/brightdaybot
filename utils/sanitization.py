@@ -33,9 +33,9 @@ def markdown_to_slack_mrkdwn(text: str) -> str:
     if not text:
         return text
 
-    # Remove HTML tags first (preserve Slack special: <@user>, <!here>, <#channel>)
-    # Must happen before link conversion so <url|text> links aren't stripped
-    text = re.sub(r"<(?![@!#])(.*?)>", r"\1", text)
+    # Remove HTML tags (preserve Slack special: <@user>, <!here>, <#channel>, <url|text>)
+    # Must happen before link conversion so existing Slack links aren't stripped
+    text = re.sub(r"<(?![@!#]|https?://)(.*?)>", r"\1", text)
 
     # Bold: **text** → *text*
     text = re.sub(r"\*\*(.*?)\*\*", r"*\1*", text)
