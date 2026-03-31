@@ -1,0 +1,20 @@
+[Unit]
+Description=BrightDayBot (Docker)
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+# --- Customize for your server ---
+WorkingDirectory=/path/to/brightdaybot
+# ----------------------------------
+ExecStart=/usr/bin/docker compose up --build
+ExecStop=/usr/bin/docker compose down
+Restart=always
+RestartSec=30
+TimeoutStartSec=300
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

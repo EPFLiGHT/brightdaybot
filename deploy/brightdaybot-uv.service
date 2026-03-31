@@ -1,0 +1,18 @@
+[Unit]
+Description=BrightDayBot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# --- Customize for your server ---
+WorkingDirectory=/path/to/brightdaybot
+# ----------------------------------
+EnvironmentFile=/path/to/brightdaybot/.env
+ExecStart=/usr/local/bin/uv run python app.py
+Restart=always
+RestartSec=30
+Environment="PLAYWRIGHT_BROWSERS_PATH=/opt/playwright"
+
+[Install]
+WantedBy=multi-user.target

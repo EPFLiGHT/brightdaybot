@@ -1,0 +1,17 @@
+[Unit]
+Description=BrightDayBot Auto-Update Check
+After=network-online.target brightdaybot.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+
+# --- Customize for your server ---
+Environment=BRIGHTDAYBOT_DIR=/path/to/brightdaybot
+# ----------------------------------
+
+ExecStart=/usr/bin/bash /path/to/brightdaybot/deploy/auto-update.sh
+TimeoutStartSec=300
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=brightdaybot-updater

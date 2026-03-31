@@ -199,6 +199,7 @@ brightdaybot/
 ├── Dockerfile                    # Docker image definition
 ├── docker-compose.yml            # Docker Compose configuration
 ├── pyproject.toml                # Project metadata & dependencies
+├── deploy/                       # systemd service files & auto-update
 ├── config/                       # Configuration package
 │   ├── __init__.py               # Re-exports (backward compatibility)
 │   ├── settings.py               # Core settings, API parameters
@@ -273,6 +274,8 @@ brightdaybot/
 
 ## Production Deployment
 
+Service files are in the [`deploy/`](deploy/) directory.
+
 <details open>
 <summary><strong>Option A: Docker + systemd (Recommended)</strong></summary>
 
@@ -286,34 +289,12 @@ cp .env.example .env
 docker compose up --build    # Test the setup
 ```
 
-```ini
-# /etc/systemd/system/brightdaybot.service
-[Unit]
-Description=BrightDayBot (Docker)
-After=network-online.target docker.service
-Wants=network-online.target
-Requires=docker.service
-
-[Service]
-Type=simple
-WorkingDirectory=/path/to/brightdaybot
-ExecStart=/usr/bin/docker compose up --build
-ExecStop=/usr/bin/docker compose down
-Restart=always
-RestartSec=30
-TimeoutStartSec=300
-
-[Install]
-WantedBy=multi-user.target
-```
+Install the service (edit `WorkingDirectory` in the file first):
 
 ```bash
+sudo cp deploy/brightdaybot.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now brightdaybot
-
-sudo systemctl status brightdaybot     # Check status
-sudo journalctl -u brightdaybot -f     # Follow logs
-sudo systemctl restart brightdaybot    # Restart after changes
 ```
 
 </details>
@@ -339,42 +320,52 @@ PLAYWRIGHT_BROWSERS_PATH=/opt/playwright uv run crawl4ai-setup
 PLAYWRIGHT_BROWSERS_PATH=/opt/playwright uv run python -m patchright install chromium --with-deps
 ```
 
-```ini
-# /etc/systemd/system/brightdaybot.service
-[Unit]
-Description=BrightDayBot
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-ExecStart=/usr/local/bin/uv run python app.py
-WorkingDirectory=/path/to/brightdaybot
-Restart=always
-RestartSec=30
-Environment="PLAYWRIGHT_BROWSERS_PATH=/opt/playwright"
-
-[Install]
-WantedBy=multi-user.target
-```
+Install the service (edit `WorkingDirectory` in the file first):
 
 ```bash
+sudo cp deploy/brightdaybot-uv.service /etc/systemd/system/brightdaybot.service
 sudo systemctl daemon-reload
 sudo systemctl enable --now brightdaybot
 ```
 
 </details>
 
+<details>
+<summary><strong>Auto-Deploy (Optional)</strong></summary>
+
+Automatically pull code updates and restart the bot. See [`deploy/SETUP.md`](deploy/SETUP.md) for git access setup.
+
+```bash
+chmod +x deploy/auto-update.sh
+sudo cp deploy/brightdaybot-updater.service /etc/systemd/system/
+sudo cp deploy/brightdaybot-updater.timer /etc/systemd/system/
+# Edit BRIGHTDAYBOT_DIR in brightdaybot-updater.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now brightdaybot-updater.timer
+```
+
+Checks upstream every 5 minutes. Only pulls and restarts when changes are detected.
+
+</details>
+
+### Managing the Service
+
+```bash
+sudo systemctl status brightdaybot      # Check status
+sudo journalctl -u brightdaybot -f      # Follow logs
+sudo systemctl restart brightdaybot     # Restart after changes
+```
+
 ## Troubleshooting
 
 1. **Health check**: `admin status` in Slack
-2. **Logs**: Check `data/logs/` (`main.log`, `commands.log`, `ai.log`, `birthday.log`, `slack.log`, `storage.log`, `system.log`, `scheduler.log`, `events.log`)
+2. **Logs**: Check `data/logs/` — `main.log`, `commands.log`, `ai.log`, `birthday.log`, `slack.log`, `storage.log`, `system.log`, `scheduler.log`, `events.log`
 3. **Common issues**:
    - Missing API keys → Check `.env`
    - Image failures → Verify OpenAI key has image access
    - Timezone issues → User must set timezone in Slack profile
-   - Playwright browser not found (Docker) → Rebuild with `docker compose up -d --build`
-   - Playwright browser not found (uv) → Run `PLAYWRIGHT_BROWSERS_PATH=/opt/playwright uv run python -m patchright install chromium --with-deps` and restart the service
+   - Playwright not found (Docker) → `docker compose up -d --build`
+   - Playwright not found (uv) → `PLAYWRIGHT_BROWSERS_PATH=/opt/playwright uv run python -m patchright install chromium --with-deps`
 
 ## License
 
