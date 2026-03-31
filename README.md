@@ -333,7 +333,7 @@ sudo systemctl enable --now brightdaybot
 <details>
 <summary><strong>Auto-Deploy (Optional)</strong></summary>
 
-Automatically pull code updates and restart the bot. See [`deploy/SETUP.md`](deploy/SETUP.md) for git access setup.
+Automatically pull code updates and restart the bot. See [`deploy/README.md`](deploy/README.md) for full setup guide.
 
 ```bash
 chmod +x deploy/auto-update.sh
