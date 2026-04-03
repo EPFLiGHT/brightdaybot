@@ -5,13 +5,27 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-# --- Customize for your server ---
-WorkingDirectory=/path/to/brightdaybot
-# ----------------------------------
-EnvironmentFile=/path/to/brightdaybot/.env
-ExecStart=/usr/local/bin/uv run python app.py
-Restart=always
-RestartSec=30
+
+# --- Customize: must match BRIGHTDAYBOT_BASE in deploy.sh ---
+WorkingDirectory=/opt/brightdaybot/current
+EnvironmentFile=/opt/brightdaybot/shared/.env
+# -------------------------------------------------------------
+
+# Pre-start import validation (fast-fail before replacing the old process)
+ExecStartPre=/opt/brightdaybot/current/.venv/bin/python -c "from config import settings"
+
+# Run from the pre-built venv (no runtime dependency resolution)
+ExecStart=/opt/brightdaybot/current/.venv/bin/python app.py
+
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=120
+TimeoutStopSec=30
+
+# Stop crash-looping: 3 failures in 5 minutes -> give up
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
 Environment="PLAYWRIGHT_BROWSERS_PATH=/opt/playwright"
 
 [Install]

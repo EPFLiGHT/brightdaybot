@@ -199,7 +199,7 @@ brightdaybot/
 ├── Dockerfile                    # Docker image definition
 ├── docker-compose.yml            # Docker Compose configuration
 ├── pyproject.toml                # Project metadata & dependencies
-├── deploy/                       # systemd service files & auto-update
+├── deploy/                       # Deployment (shadow build + symlink cutover)
 ├── config/                       # Configuration package
 │   ├── __init__.py               # Re-exports (backward compatibility)
 │   ├── settings.py               # Core settings, API parameters
@@ -274,86 +274,48 @@ brightdaybot/
 
 ## Production Deployment
 
-Service files are in the [`deploy/`](deploy/) directory.
+Uses shadow builds with atomic symlink cutover — new versions are built and validated before switching, with automatic rollback on failure. See [`deploy/README.md`](deploy/README.md) for the full guide.
 
 <details open>
-<summary><strong>Option A: Docker + systemd (Recommended)</strong></summary>
-
-Docker handles dependencies, Playwright browsers, and isolation. systemd ensures the bot starts on boot and restarts on failure.
+<summary><strong>Quick Start</strong></summary>
 
 ```bash
-cd /path/to/brightdaybot
-cp .env.example .env
-# Edit .env with your actual tokens
+# 1. Set up directory structure
+sudo deploy/setup.sh /opt/brightdaybot https://github.com/EPFLiGHT/brightdaybot.git
 
-docker compose up --build    # Test the setup
-```
+# 2. Configure secrets
+cp .env.example /opt/brightdaybot/shared/.env
+# Edit with your actual tokens
 
-Install the service (edit `WorkingDirectory` in the file first):
+# 3. First deploy
+sudo BRIGHTDAYBOT_BASE=/opt/brightdaybot /opt/brightdaybot/repo/deploy/deploy.sh
 
-```bash
-sudo cp deploy/brightdaybot.service /etc/systemd/system/
+# 4. Install systemd units — pick ONE service file:
+#    Docker (recommended):
+sudo cp /opt/brightdaybot/repo/deploy/brightdaybot.service /etc/systemd/system/
+#    Native uv (requires manual Playwright setup):
+# sudo cp /opt/brightdaybot/repo/deploy/brightdaybot-uv.service /etc/systemd/system/brightdaybot.service
+
+sudo cp /opt/brightdaybot/repo/deploy/brightdaybot-updater.service /etc/systemd/system/
+sudo cp /opt/brightdaybot/repo/deploy/brightdaybot-updater.timer /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now brightdaybot
-```
-
-</details>
-
-<details>
-<summary><strong>Option B: systemd with uv (No Docker)</strong></summary>
-
-Run the bot directly with uv. Requires manual Playwright browser setup.
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-sudo mv ~/.local/bin/uv /usr/local/bin/
-
-cd /path/to/brightdaybot
-uv sync
-cp .env.example .env
-# Edit .env with your actual tokens
-
-sudo mkdir -p /opt/playwright && sudo chmod -R 777 /opt/playwright
-PLAYWRIGHT_BROWSERS_PATH=/opt/playwright uv run crawl4ai-setup
-
-# If crawl4ai-setup fails with permission errors:
-PLAYWRIGHT_BROWSERS_PATH=/opt/playwright uv run python -m patchright install chromium --with-deps
-```
-
-Install the service (edit `WorkingDirectory` in the file first):
-
-```bash
-sudo cp deploy/brightdaybot-uv.service /etc/systemd/system/brightdaybot.service
-sudo systemctl daemon-reload
-sudo systemctl enable --now brightdaybot
-```
-
-</details>
-
-<details>
-<summary><strong>Auto-Deploy (Optional)</strong></summary>
-
-Automatically pull code updates and restart the bot. See [`deploy/README.md`](deploy/README.md) for full setup guide.
-
-```bash
-chmod +x deploy/auto-update.sh
-sudo cp deploy/brightdaybot-updater.service /etc/systemd/system/
-sudo cp deploy/brightdaybot-updater.timer /etc/systemd/system/
-# Edit BRIGHTDAYBOT_DIR in brightdaybot-updater.service
-sudo systemctl daemon-reload
 sudo systemctl enable --now brightdaybot-updater.timer
 ```
 
-Checks upstream every 5 minutes. Only pulls and restarts when changes are detected.
+Auto-deploys every 5 minutes: fetches, builds in staging, validates, swaps symlink, restarts, verifies health. Old version keeps running until the new one passes all checks.
 
 </details>
 
 ### Managing the Service
 
 ```bash
-sudo systemctl status brightdaybot      # Check status
-sudo journalctl -u brightdaybot -f      # Follow logs
-sudo systemctl restart brightdaybot     # Restart after changes
+sudo systemctl status brightdaybot                 # Check status
+sudo journalctl -u brightdaybot -f                 # Follow logs
+sudo journalctl -u brightdaybot-deploy -n 50       # Deploy logs
+sudo systemctl start brightdaybot-updater.service  # Trigger deploy now
+readlink /opt/brightdaybot/current                 # Current release
+sudo /opt/brightdaybot/repo/deploy/rollback.sh     # Instant rollback
 ```
 
 ## Troubleshooting

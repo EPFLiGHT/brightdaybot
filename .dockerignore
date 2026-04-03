@@ -21,19 +21,8 @@ ENV
 *.swp
 *.swo
 
-# Data directories (will be mounted as volumes)
-data/logs/*
-data/storage/*
-data/tracking/*
-data/backups/*
-data/cache/*
-
-# Keep directory structure
-!data/logs/.gitkeep
-!data/storage/.gitkeep
-!data/tracking/.gitkeep
-!data/backups/.gitkeep
-!data/cache/.gitkeep
+# Data directory (mounted as volumes at runtime, not needed in image)
+data
 
 # Environment files
 .env

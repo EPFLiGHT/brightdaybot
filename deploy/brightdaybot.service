@@ -6,13 +6,20 @@ Requires=docker.service
 
 [Service]
 Type=simple
-# --- Customize for your server ---
-WorkingDirectory=/path/to/brightdaybot
-# ----------------------------------
+
+# --- Customize: must match BRIGHTDAYBOT_BASE in deploy.sh ---
+WorkingDirectory=/opt/brightdaybot/current
+# -------------------------------------------------------------
+
 ExecStart=/usr/bin/docker compose up --build
 ExecStop=/usr/bin/docker compose down
-Restart=always
-RestartSec=30
+Restart=on-failure
+RestartSec=10
+
+# Stop crash-looping: 3 failures in 5 minutes -> give up
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
 TimeoutStartSec=300
 TimeoutStopSec=30
 

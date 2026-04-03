@@ -1,17 +1,18 @@
 [Unit]
-Description=BrightDayBot Auto-Update Check
+Description=BrightDayBot Safe Deploy Check
 After=network-online.target brightdaybot.service
 Wants=network-online.target
 
 [Service]
 Type=oneshot
 
-# --- Customize for your server ---
-Environment=BRIGHTDAYBOT_DIR=/path/to/brightdaybot
-# ----------------------------------
+# --- Customize: must match setup.sh BASE_DIR ---
+Environment=BRIGHTDAYBOT_BASE=/opt/brightdaybot
+ExecStart=/usr/bin/bash /opt/brightdaybot/repo/deploy/deploy.sh
+# ------------------------------------------------
 
-ExecStart=/usr/bin/bash /path/to/brightdaybot/deploy/auto-update.sh
-TimeoutStartSec=300
+# Allow time for uv sync + validation
+TimeoutStartSec=600
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=brightdaybot-updater
+SyslogIdentifier=brightdaybot-deploy
