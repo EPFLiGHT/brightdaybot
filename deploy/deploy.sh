@@ -168,11 +168,11 @@ git fetch "$REMOTE" "$BRANCH" 2>&1 || fail "git fetch failed"
 LOCAL=$(git rev-parse HEAD)
 REMOTE_HEAD=$(git rev-parse "$REMOTE/$BRANCH")
 
-if [ "$LOCAL" = "$REMOTE_HEAD" ] && [ -L "$CURRENT_LINK" ]; then
+if [ "$LOCAL" = "$REMOTE_HEAD" ] && [ -L "$CURRENT_LINK" ] && [ -d "$RELEASES_DIR/$REMOTE_HEAD" ]; then
     log "Up to date (${LOCAL:0:7})"
     exit 0
 elif [ "$LOCAL" = "$REMOTE_HEAD" ]; then
-    log "No current release found — forcing first deploy of ${LOCAL:0:7}"
+    log "Release ${LOCAL:0:7} missing or no current symlink — forcing deploy"
 fi
 
 SHORT_OLD="${LOCAL:0:7}"
