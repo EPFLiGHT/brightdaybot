@@ -82,7 +82,7 @@ fi
 
 # --- Deploy notification helpers ---
 write_deploy_info() {
-    # Writes deploy metadata for the bot's canvas dashboard.
+    # Appends deploy metadata to the deploy history log.
     # Path must match config/settings.py:DEPLOY_INFO_FILE
     local status="$1"
     local deploy_json="$SHARED_DIR/data/storage/deploy_info.json"
@@ -90,8 +90,9 @@ write_deploy_info() {
     local commits
     commits=$(cd "$REPO_DIR" && git log --oneline "$LOCAL..$REMOTE_HEAD" 2>/dev/null | head -10)
 
-    # Build JSON with jq for proper escaping; atomic write via temp+rename
-    echo "$commits" | jq -R . | jq -s \
+    # Build the new entry
+    local new_entry
+    new_entry=$(echo "$commits" | jq -R . | jq -s \
         --arg old "$LOCAL" \
         --arg new "$REMOTE_HEAD" \
         --arg old_short "$SHORT_OLD" \
@@ -105,7 +106,17 @@ write_deploy_info() {
             old_short: $old_short, new_short: $new_short,
             timestamp: $ts, duration_seconds: $dur,
             mode: $mode, status: $status, commits: .
-        }' > "${deploy_json}.tmp" && chmod 644 "${deploy_json}.tmp" && mv "${deploy_json}.tmp" "$deploy_json" || true
+        }')
+
+    # Append to existing history (or create new array); atomic write via temp+rename
+    local existing="[]"
+    [ -f "$deploy_json" ] && existing=$(jq '.' "$deploy_json" 2>/dev/null || echo "[]")
+    # Migrate from old single-object format to array
+    if echo "$existing" | jq -e 'type == "object"' >/dev/null 2>&1; then
+        existing=$(echo "$existing" | jq '[.]')
+    fi
+    echo "$existing" | jq --argjson entry "$new_entry" '. + [$entry]' \
+        > "${deploy_json}.tmp" && chmod 644 "${deploy_json}.tmp" && mv "${deploy_json}.tmp" "$deploy_json" || true
 }
 
 notify_slack() {

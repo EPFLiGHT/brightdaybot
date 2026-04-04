@@ -58,7 +58,15 @@ def _check_deploy_notification(app):
             return
 
         with open(DEPLOY_INFO_FILE, "r", encoding="utf-8") as f:
-            info = json.load(f)
+            data = json.load(f)
+
+        # Support both old single-object and new array format
+        if isinstance(data, list) and data:
+            info = data[-1]  # Latest entry
+        elif isinstance(data, dict):
+            info = data
+        else:
+            return
 
         new_commit = info.get("new_short", "")
         if not new_commit:

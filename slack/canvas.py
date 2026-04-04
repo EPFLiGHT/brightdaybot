@@ -15,6 +15,7 @@ from slack_sdk.errors import SlackApiError
 
 from config import (
     CANVAS_DASHBOARD_ENABLED,
+    CANVAS_DEPLOY_DISPLAY_MAX,
     CANVAS_MIN_UPDATE_INTERVAL_SECONDS,
     CANVAS_RECENT_CHANGES_MAX,
     CANVAS_SETTINGS_FILE,
@@ -276,40 +277,56 @@ def _update_channel_topic(app, channel_id, sd_total=None):
 # --- Dashboard content ---
 
 
+def _format_deploy_entry(info):
+    """Format a single deploy entry for canvas display."""
+    old_short = info.get("old_short", "?")
+    new_short = info.get("new_short", "?")
+    timestamp = info.get("timestamp", "?")
+    duration = info.get("duration_seconds", "?")
+    status = info.get("status", "success")
+    commits = info.get("commits", [])
+
+    # Format timestamp for display (strip timezone offset)
+    if isinstance(timestamp, str) and "T" in timestamp:
+        timestamp = timestamp.replace("T", " ")[:19]
+
+    status_emoji = {"success": "✅", "rolled_back": "⚠️", "failed": "❌", "build_failed": "❌"}.get(
+        status, "❓"
+    )
+
+    line = f"`{old_short}` → `{new_short}` {status_emoji} `{timestamp}` ({duration}s)"
+    if commits:
+        line += " — " + ", ".join(
+            c.split(" ", 1)[1] if " " in c else c for c in commits[:CANVAS_DEPLOY_DISPLAY_MAX]
+        )
+    return line
+
+
 def _build_deploy_section():
-    """Build last deploy info section from deploy_info.json."""
+    """Build deploy history section from deploy_info.json (shows latest 3)."""
     try:
         if not os.path.exists(DEPLOY_INFO_FILE):
             return None
 
         with open(DEPLOY_INFO_FILE, "r", encoding="utf-8") as f:
-            info = json.load(f)
+            data = json.load(f)
 
-        old_short = info.get("old_short", "?")
-        new_short = info.get("new_short", "?")
-        timestamp = info.get("timestamp", "?")
-        duration = info.get("duration_seconds", "?")
-        mode = info.get("mode", "?")
-        status = info.get("status", "success")
-        commits = info.get("commits", [])
+        # Support both old single-object and new array format
+        if isinstance(data, dict):
+            deploys = [data]
+        elif isinstance(data, list):
+            deploys = data
+        else:
+            return None
 
-        # Format timestamp for display (strip timezone offset)
-        if isinstance(timestamp, str) and "T" in timestamp:
-            timestamp = timestamp.replace("T", " ")[:19]
+        if not deploys:
+            return None
 
-        status_emoji = {"success": "✅", "rolled_back": "⚠️", "failed": "❌"}.get(status, "❓")
-
-        lines = [
-            "## 🚀 Last Deploy",
-            f"- **Version:** `{old_short}` → `{new_short}` {status_emoji}",
-            f"- **Deployed:** `{timestamp}` ({duration}s)",
-            f"- **Mode:** {mode}",
-        ]
-
-        if commits:
-            lines.append("- **Commits:**")
-            for c in commits[:5]:
-                lines.append(f"  - `{c}`")
+        # Show latest 3, newest first
+        recent = deploys[-CANVAS_DEPLOY_DISPLAY_MAX:][::-1]
+        lines = [f"## 🚀 Deploys ({len(deploys)} total)"]
+        for entry in recent:
+            lines.append(f"- {_format_deploy_entry(entry)}")
 
         return "\n".join(lines)
 
