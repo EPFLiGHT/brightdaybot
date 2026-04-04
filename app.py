@@ -44,6 +44,50 @@ register_slash_commands(app)
 register_modal_handlers(app)
 register_app_home_handlers(app)
 
+
+def _check_deploy_notification(app):
+    """Detect new deploy on startup and trigger canvas refresh."""
+    try:
+        import json
+        import os
+
+        from config import CANVAS_SETTINGS_FILE, DEPLOY_INFO_FILE
+        from slack.canvas import record_change, update_canvas_async
+
+        if not os.path.exists(DEPLOY_INFO_FILE):
+            return
+
+        with open(DEPLOY_INFO_FILE, "r", encoding="utf-8") as f:
+            info = json.load(f)
+
+        new_commit = info.get("new_short", "")
+        if not new_commit:
+            return
+
+        # Check if we already processed this deploy
+        settings = {}
+        if os.path.exists(CANVAS_SETTINGS_FILE):
+            with open(CANVAS_SETTINGS_FILE, "r", encoding="utf-8") as f:
+                settings = json.load(f)
+
+        if settings.get("last_deploy_commit") == new_commit:
+            return
+
+        old_short = info.get("old_short", "?")
+        status = info.get("status", "success")
+        record_change(f"Deploy: `{old_short}` → `{new_commit}` ({status})")
+
+        settings["last_deploy_commit"] = new_commit
+        with open(CANVAS_SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=2)
+
+        update_canvas_async(app, reason="deploy")
+        logger.info(f"INIT: Deploy detected ({old_short} → {new_commit}), canvas refresh triggered")
+
+    except Exception as e:
+        logger.warning(f"INIT: Deploy detection failed (non-fatal): {e}")
+
+
 # Start the app
 if __name__ == "__main__":
     handler = SocketModeHandler(app)
@@ -54,6 +98,9 @@ if __name__ == "__main__":
 
         # Initialize special days caches if stale or missing
         initialize_special_days_cache()
+
+        # Detect new deploy and trigger canvas refresh
+        _check_deploy_notification(app)
 
         # Check for today's birthdays at startup and catch up on missed celebrations
         run_now()

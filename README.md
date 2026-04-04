@@ -37,7 +37,8 @@
 - **Thread Engagement**: Reacts to birthday thread replies with contextual emojis
 - **@-Mention Q&A**: Ask the bot about special days, birthdays, and capabilities
 - **NLP Date Parsing**: Set birthday with natural language ("July 14th")
-- **Ops Canvas Dashboard**: Auto-updating channel canvas with system health, birthday stats, scheduler, caches, and backups
+- **Ops Canvas Dashboard**: Auto-updating channel canvas with system health, birthday stats, deploy info, scheduler, caches, and backups
+- **Deploy Notifications**: Slack ops channel alerts on deploy success, failure, and rollback
 
 ## Quick Start
 

@@ -4,7 +4,7 @@ Safe deployment with shadow builds, atomic symlink cutover, and automatic rollba
 
 ## How It Works
 
-```
+```text
 /opt/brightdaybot/
     current -> releases/def5678   # atomic symlink to active release
     shared/
@@ -35,6 +35,14 @@ Two runtime modes — choose one via the service file you install:
 
 If build or validation fails, the old version keeps running untouched.
 If health check fails after restart, automatic rollback to the previous release.
+
+After each deploy, a notification is sent to the Slack ops channel and deploy info is shown on the canvas dashboard.
+
+### Prerequisites
+
+- `git`, `jq` on the deploy server
+- Docker or uv (depending on chosen mode)
+- `SLACK_BOT_TOKEN` and `OPS_CHANNEL_ID` in `.env` (for deploy notifications)
 
 ## Fresh Deployment
 
@@ -145,7 +153,7 @@ Environment variables (set in `brightdaybot-updater.service`):
 | `BRIGHTDAYBOT_SERVICE`        | `brightdaybot`      | systemd service name                                   |
 | `BRIGHTDAYBOT_MODE`           | auto-detect         | `uv` or `docker` (auto-detects from installed service) |
 | `BRIGHTDAYBOT_KEEP_RELEASES`  | `3`                 | Number of releases to retain                           |
-| `BRIGHTDAYBOT_HEALTH_TIMEOUT` | `30`                | Seconds for health check                               |
+| `BRIGHTDAYBOT_HEALTH_TIMEOUT` | `60`                | Seconds for health check                               |
 
 ## Files
 

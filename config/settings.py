@@ -53,6 +53,7 @@ BACKUP_ON_EVERY_CHANGE = os.getenv("BACKUP_ON_EVERY_CHANGE", "true").lower() == 
 # Canvas dashboard in ops channel
 CANVAS_DASHBOARD_ENABLED = os.getenv("CANVAS_DASHBOARD_ENABLED", "true").lower() == "true"
 CANVAS_SETTINGS_FILE = os.path.join(STORAGE_DIR, "canvas_settings.json")
+DEPLOY_INFO_FILE = os.path.join(STORAGE_DIR, "deploy_info.json")
 CANVAS_REFRESH_INTERVAL_MINUTES = 30
 CANVAS_MIN_UPDATE_INTERVAL_SECONDS = 30
 CANVAS_RECENT_CHANGES_MAX = 8

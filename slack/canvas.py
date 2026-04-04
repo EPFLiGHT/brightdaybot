@@ -20,6 +20,7 @@ from config import (
     CANVAS_SETTINGS_FILE,
     CANVAS_WARNINGS_MAX,
     CANVAS_WARNINGS_TTL_HOURS,
+    DEPLOY_INFO_FILE,
     ICS_SUBSCRIPTIONS_ENABLED,
     OPS_CHANNEL_ID,
     SLACK_HISTORY_PAGE_SIZE,
@@ -275,15 +276,60 @@ def _update_channel_topic(app, channel_id, sd_total=None):
 # --- Dashboard content ---
 
 
+def _build_deploy_section():
+    """Build last deploy info section from deploy_info.json."""
+    try:
+        if not os.path.exists(DEPLOY_INFO_FILE):
+            return None
+
+        with open(DEPLOY_INFO_FILE, "r", encoding="utf-8") as f:
+            info = json.load(f)
+
+        old_short = info.get("old_short", "?")
+        new_short = info.get("new_short", "?")
+        timestamp = info.get("timestamp", "?")
+        duration = info.get("duration_seconds", "?")
+        mode = info.get("mode", "?")
+        status = info.get("status", "success")
+        commits = info.get("commits", [])
+
+        # Format timestamp for display (strip timezone offset)
+        if isinstance(timestamp, str) and "T" in timestamp:
+            timestamp = timestamp.replace("T", " ")[:19]
+
+        status_emoji = {"success": "✅", "rolled_back": "⚠️", "failed": "❌"}.get(status, "❓")
+
+        lines = [
+            "## 🚀 Last Deploy",
+            f"- **Version:** `{old_short}` → `{new_short}` {status_emoji}",
+            f"- **Deployed:** `{timestamp}` ({duration}s)",
+            f"- **Mode:** {mode}",
+        ]
+
+        if commits:
+            lines.append("- **Commits:**")
+            for c in commits[:5]:
+                lines.append(f"  - `{c}`")
+
+        return "\n".join(lines)
+
+    except Exception as e:
+        logger.warning(f"CANVAS: Could not build deploy section: {e}")
+        return None
+
+
 def _build_dashboard_markdown(app=None):
     """Build the full dashboard markdown from existing data sources."""
     timestamp = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
     warnings_section = _build_warnings_section()
+    deploy_section = _build_deploy_section()
     sections = [
         f"## 🕐 Last refreshed: `{timestamp}`",
         _build_birthday_section(app),
         _build_health_section(),
     ]
+    if deploy_section:
+        sections.append(deploy_section)
     if warnings_section:
         sections.append(warnings_section)
     sections += [

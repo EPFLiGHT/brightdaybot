@@ -26,6 +26,7 @@
 
 set -euo pipefail
 umask 027  # Restrict new files/dirs: owner+group only, no world access
+DEPLOY_START=$SECONDS
 
 # --- Configuration ---
 BASE_DIR="${BRIGHTDAYBOT_BASE:-/opt/brightdaybot}"
@@ -33,7 +34,7 @@ REMOTE="${BRIGHTDAYBOT_REMOTE:-origin}"
 BRANCH="${BRIGHTDAYBOT_BRANCH:-main}"
 SERVICE="${BRIGHTDAYBOT_SERVICE:-brightdaybot}"
 KEEP_RELEASES="${BRIGHTDAYBOT_KEEP_RELEASES:-3}"
-HEALTH_TIMEOUT="${BRIGHTDAYBOT_HEALTH_TIMEOUT:-30}"
+HEALTH_TIMEOUT="${BRIGHTDAYBOT_HEALTH_TIMEOUT:-60}"
 
 RELEASES_DIR="$BASE_DIR/releases"
 SHARED_DIR="$BASE_DIR/shared"
@@ -69,6 +70,7 @@ log "Deploy mode: $MODE"
 # --- Preflight ---
 [ -d "$REPO_DIR/.git" ] || fail "$REPO_DIR is not a git repository"
 [ -d "$SHARED_DIR" ]    || fail "$SHARED_DIR does not exist (run setup.sh first)"
+command -v jq >/dev/null || fail "jq not found in PATH"
 
 if [ "$MODE" = "uv" ]; then
     command -v uv >/dev/null || fail "uv not found in PATH"
@@ -77,6 +79,84 @@ elif [ "$MODE" = "docker" ]; then
 else
     fail "Unknown mode: $MODE (expected 'uv' or 'docker')"
 fi
+
+# --- Deploy notification helpers ---
+write_deploy_info() {
+    # Writes deploy metadata for the bot's canvas dashboard.
+    # Path must match config/settings.py:DEPLOY_INFO_FILE
+    local status="$1"
+    local deploy_json="$SHARED_DIR/data/storage/deploy_info.json"
+    local duration=$((SECONDS - DEPLOY_START))
+    local commits
+    commits=$(cd "$REPO_DIR" && git log --oneline "$LOCAL..$REMOTE_HEAD" 2>/dev/null | head -10)
+
+    # Build JSON with jq for proper escaping; atomic write via temp+rename
+    echo "$commits" | jq -R . | jq -s \
+        --arg old "$LOCAL" \
+        --arg new "$REMOTE_HEAD" \
+        --arg old_short "$SHORT_OLD" \
+        --arg new_short "$SHORT_NEW" \
+        --arg ts "$(date -Iseconds)" \
+        --argjson dur "$duration" \
+        --arg mode "$MODE" \
+        --arg status "$status" \
+        '{
+            old_commit: $old, new_commit: $new,
+            old_short: $old_short, new_short: $new_short,
+            timestamp: $ts, duration_seconds: $dur,
+            mode: $mode, status: $status, commits: .
+        }' > "${deploy_json}.tmp" && mv "${deploy_json}.tmp" "$deploy_json" || true
+}
+
+notify_slack() {
+    local emoji="$1" title="$2" extra="${3:-}"
+    local token channel
+
+    # Parse .env value: handles export prefix, quotes, CRLF, inline comments
+    _env_val() { grep -E "^(export )?$1=" "$SHARED_DIR/.env" 2>/dev/null | head -1 | sed "s/^[^=]*=//" | tr -d '"'"'" | tr -d '\r' | sed 's/[[:space:]]*#.*//'; }
+
+    token=$(_env_val SLACK_BOT_TOKEN)
+    channel=$(_env_val OPS_CHANNEL_ID)
+    [ -z "$channel" ] && channel=$(_env_val BACKUP_CHANNEL_ID)
+
+    if [ -z "$token" ] || [ -z "$channel" ]; then
+        log "Skipping Slack notification (missing token or channel in .env)"
+        return 0
+    fi
+
+    local duration=$((SECONDS - DEPLOY_START))
+    local commits
+    commits=$(cd "$REPO_DIR" && git log --oneline "$LOCAL..$REMOTE_HEAD" 2>/dev/null | head -5)
+
+    local commit_block=""
+    if [ -n "$commits" ]; then
+        commit_block=$(printf '\n\n*Commits:*\n%s' "$(echo "$commits" | sed 's/^/> /')")
+    fi
+
+    local text
+    text=$(printf '%s *%s*  \x60%s\x60 → \x60%s\x60\n*Duration:* %ds · *Mode:* %s%s%s' \
+        "$emoji" "$title" "$SHORT_OLD" "$SHORT_NEW" "$duration" "$MODE" "$extra" "$commit_block")
+
+    # Best-effort, non-fatal
+    curl -sf -X POST "https://slack.com/api/chat.postMessage" \
+        -H "Authorization: Bearer $token" \
+        -H "Content-Type: application/json; charset=utf-8" \
+        -d "$(jq -n --arg ch "$channel" --arg txt "$text" \
+            '{channel: $ch, text: $txt, unfurl_links: false}')" \
+        >/dev/null 2>&1 || log "Warning: Slack notification failed (non-fatal)"
+}
+
+abort_deploy() {
+    local reason="$1"
+    log "ERROR: $reason — aborting deploy, old version still running"
+    rm -rf "$STAGING_DIR"
+    # Notify if we have the git refs (set after Stage 1)
+    if [ -n "${SHORT_NEW:-}" ]; then
+        write_deploy_info "build_failed"
+        notify_slack ":x:" "Deploy aborted" " · $reason"
+    fi
+    exit 1
+}
 
 # ============================================================
 # Stage 1: Fetch
@@ -127,16 +207,13 @@ ln -sfn "$SHARED_DIR/data" "$STAGING_DIR/data"
 if [ "$MODE" = "uv" ]; then
     log "Building virtual environment..."
     if ! (cd "$STAGING_DIR" && uv sync --locked 2>&1); then
-        log "ERROR: uv sync failed — aborting deploy, old version still running"
-        rm -rf "$STAGING_DIR"
-        exit 1
+        abort_deploy "uv sync failed"
     fi
 elif [ "$MODE" = "docker" ]; then
     log "Pre-building Docker image..."
-    if ! (cd "$STAGING_DIR" && docker compose build 2>&1); then
-        log "ERROR: docker compose build failed — aborting deploy, old version still running"
-        rm -rf "$STAGING_DIR"
-        exit 1
+    # Use fixed project name so the pre-built image matches what systemd starts
+    if ! (cd "$STAGING_DIR" && COMPOSE_PROJECT_NAME=brightdaybot docker compose build 2>&1); then
+        abort_deploy "docker compose build failed"
     fi
 fi
 
@@ -148,16 +225,12 @@ if [ "$MODE" = "uv" ]; then
 
     log "Validating syntax..."
     if ! "$VENV_PYTHON" -m py_compile "$STAGING_DIR/app.py" 2>&1; then
-        log "ERROR: syntax check failed — aborting deploy"
-        rm -rf "$STAGING_DIR"
-        exit 1
+        abort_deploy "syntax check failed"
     fi
 
     log "Validating imports..."
     if ! (cd "$STAGING_DIR" && "$VENV_PYTHON" -c "from config import settings; print('Import check passed')" 2>&1); then
-        log "ERROR: import check failed — aborting deploy"
-        rm -rf "$STAGING_DIR"
-        exit 1
+        abort_deploy "import check failed"
     fi
 fi
 
@@ -193,6 +266,15 @@ mv -T "${CURRENT_LINK}.tmp" "$CURRENT_LINK"
 # ============================================================
 # Stage 5: Restart
 # ============================================================
+# Remove stale container from pre-COMPOSE_PROJECT_NAME deploys (one-time migration)
+if [ "$MODE" = "docker" ]; then
+    _project=$(docker inspect --format='{{index .Config.Labels "com.docker.compose.project"}}' brightdaybot 2>/dev/null || true)
+    if [ -n "$_project" ] && [ "$_project" != "brightdaybot" ]; then
+        log "Removing stale container from old deploy (project: $_project)..."
+        docker rm -f brightdaybot 2>/dev/null || true
+    fi
+fi
+
 log "Restarting $SERVICE..."
 systemctl restart "$SERVICE"
 
@@ -212,12 +294,12 @@ is_healthy() {
     # Docker mode: also verify the container reports healthy
     if [ "$MODE" = "docker" ]; then
         local container
-        container=$(cd "$RELEASE_DIR" && docker compose ps -q 2>/dev/null | head -1)
+        container=$(cd "$RELEASE_DIR" && COMPOSE_PROJECT_NAME=brightdaybot docker compose ps -q 2>/dev/null | head -1)
         if [ -n "$container" ]; then
             local status
             status=$(docker inspect --format='{{.State.Health.Status}}' "$container" 2>/dev/null || echo "none")
-            # Accept "healthy" or "none" (no healthcheck defined)
-            [ "$status" = "healthy" ] || [ "$status" = "none" ] || return 1
+            # Accept "healthy", "starting" (within start_period), or "none" (no healthcheck)
+            [ "$status" = "healthy" ] || [ "$status" = "starting" ] || [ "$status" = "none" ] || return 1
         fi
     fi
 
@@ -242,6 +324,8 @@ done
 
 if [ "$HEALTHY" = true ]; then
     log "Service healthy after ${ELAPSED}s"
+    write_deploy_info "success"
+    notify_slack ":rocket:" "Deploy complete" ""
 else
     log "ERROR: Service failed health check after ${HEALTH_TIMEOUT}s"
 
@@ -251,8 +335,12 @@ else
         ln -sfn "$PREV_RELEASE" "${CURRENT_LINK}.tmp"
         mv -T "${CURRENT_LINK}.tmp" "$CURRENT_LINK"
         systemctl restart "$SERVICE" || log "ERROR: rollback restart also failed"
+        write_deploy_info "rolled_back"
+        notify_slack ":warning:" "Deploy failed — rolled back" ""
         log "Rollback complete"
     else
+        write_deploy_info "failed"
+        notify_slack ":x:" "Deploy failed" " · No previous release to roll back to"
         log "ERROR: no previous release to roll back to"
     fi
     exit 1
