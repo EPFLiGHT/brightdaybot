@@ -105,7 +105,7 @@ write_deploy_info() {
             old_short: $old_short, new_short: $new_short,
             timestamp: $ts, duration_seconds: $dur,
             mode: $mode, status: $status, commits: .
-        }' > "${deploy_json}.tmp" && mv "${deploy_json}.tmp" "$deploy_json" || true
+        }' > "${deploy_json}.tmp" && chmod 644 "${deploy_json}.tmp" && mv "${deploy_json}.tmp" "$deploy_json" || true
 }
 
 notify_slack() {
