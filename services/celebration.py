@@ -798,11 +798,18 @@ def validate_birthday_people_for_posting(app, birthday_people, birthday_channel_
         f"VALIDATION: Starting pre-posting validation for {len(birthday_people)} birthday people"
     )
 
+    is_test_mode = mode and mode.upper() == "TEST"
+
     # Get fresh birthday data and channel membership
     try:
         current_birthdays = load_birthdays()
-        channel_members = get_channel_members(app, birthday_channel_id)
-        channel_member_set = set(channel_members) if channel_members else set()
+        # Skip channel member lookup in test mode — birthday_channel is a user ID (DM),
+        # not a real channel, and the per-person membership check is also skipped
+        if is_test_mode:
+            channel_member_set = set()
+        else:
+            channel_members = get_channel_members(app, birthday_channel_id)
+            channel_member_set = set(channel_members) if channel_members else set()
     except Exception as e:
         logger.error(f"VALIDATION_ERROR: Failed to load fresh data: {e}")
         # If we can't validate, assume all are still valid (safer than blocking)
@@ -829,7 +836,7 @@ def validate_birthday_people_for_posting(app, birthday_people, birthday_channel_
         invalid_reason = None
 
         # Check 1: Still has birthday today? (Skip in test mode - allow testing any time)
-        if mode and mode.upper() == "TEST":
+        if is_test_mode:
             # Test mode: Skip birthday-today validation to allow testing at any time
             logger.debug(f"VALIDATION: Skipping birthday-today check for {username} (test mode)")
         else:
@@ -845,7 +852,7 @@ def validate_birthday_people_for_posting(app, birthday_people, birthday_channel_
                 invalid_reason = "birthday_removed"
 
         # Check 2: Already celebrated? (Skip in test mode - test doesn't mark as celebrated)
-        if mode and mode.upper() == "TEST":
+        if is_test_mode:
             logger.debug(
                 f"VALIDATION: Skipping already-celebrated check for {username} (test mode)"
             )
@@ -855,7 +862,7 @@ def validate_birthday_people_for_posting(app, birthday_people, birthday_channel_
                 invalid_reason = "already_celebrated"
 
         # Check 3: Still in birthday channel? (Skip in test mode - test sends to DM not channel)
-        if mode and mode.upper() == "TEST":
+        if is_test_mode:
             logger.debug(
                 f"VALIDATION: Skipping channel membership check for {username} (test mode)"
             )

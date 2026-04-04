@@ -263,7 +263,7 @@ class TestValidateBirthdayPeopleForPosting:
     @patch("services.celebration.get_channel_members")
     @patch("services.celebration.load_birthdays")
     def test_test_mode_skips_checks(self, mock_load, mock_members, mock_status):
-        """TEST mode skips birthday-today, celebrated, and channel checks"""
+        """TEST mode skips birthday-today, celebrated, and channel membership checks"""
         mock_load.return_value = {"U1": {"date": "20/03"}}  # Wrong date
         mock_members.return_value = []  # Not in channel
         mock_status.return_value = ("active", False, False, "Alice")
@@ -272,6 +272,8 @@ class TestValidateBirthdayPeopleForPosting:
             MagicMock(), [{"user_id": "U1", "username": "Alice"}], "C123", mode="test"
         )
         assert len(result["valid_people"]) == 1
+        # Test mode should not call get_channel_members (birthday_channel may be a user ID)
+        mock_members.assert_not_called()
 
     @patch("services.celebration.get_channel_members", side_effect=Exception("API error"))
     @patch("services.celebration.load_birthdays", side_effect=Exception("File error"))
