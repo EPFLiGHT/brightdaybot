@@ -502,6 +502,51 @@ def register_event_handlers(app):
                 "Sorry, there was an error updating your celebration style. Please try again.",
             )
 
+    @app.action(re.compile(r"^(pause|resume)_birthday$"))
+    def handle_pause_resume_birthday(ack, body, action, client):
+        """Handle pause/resume button clicks from App Home."""
+        ack()
+        user_id = body.get("user", {}).get("id")
+        if not user_id:
+            events_logger.error("PAUSE_RESUME_ERROR: Missing user_id in body")
+            return
+
+        action_id = action.get("action_id", "")
+        is_pause = action_id == "pause_birthday"
+        new_active = not is_pause  # pause → False, resume → True
+
+        try:
+            from storage.birthdays import update_user_preferences
+
+            success = update_user_preferences(user_id, {"active": new_active})
+
+            if success:
+                state = "paused" if is_pause else "resumed"
+                events_logger.info(f"PAUSE_RESUME: User {user_id} {state} birthday celebrations")
+            else:
+                events_logger.warning(
+                    f"PAUSE_RESUME: Could not update active for {user_id} - no birthday found"
+                )
+                send_message(
+                    app,
+                    user_id,
+                    "Please add your birthday first before changing celebration settings.",
+                )
+                return
+
+            from handlers.app_home_handler import _build_home_view
+
+            view = _build_home_view(user_id, app)
+            client.views_publish(user_id=user_id, view=view)
+
+        except Exception as e:
+            events_logger.error(f"PAUSE_RESUME_ERROR: Failed to update: {e}")
+            send_message(
+                app,
+                user_id,
+                "Sorry, there was an error updating your setting. Please try again.",
+            )
+
     @app.action("view_all_birthdays")
     def handle_view_all_birthdays(ack, body, client):
         """Send full birthday list to user's DM."""

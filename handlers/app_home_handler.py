@@ -215,6 +215,21 @@ def _build_home_view(user_id, app):
             }
         )
 
+        # Pause / Resume toggle
+        pause_button = {
+            "type": "button",
+            "text": {
+                "type": "plain_text",
+                "text": "⏸️ Pause Celebrations" if is_active else "▶️ Resume Celebrations",
+                "emoji": True,
+            },
+            "action_id": "pause_birthday" if is_active else "resume_birthday",
+            "value": "pause" if is_active else "resume",
+        }
+        if is_active:
+            pause_button["style"] = "danger"
+        blocks.append({"type": "actions", "elements": [pause_button]})
+
         # Edit and Remove buttons
         blocks.append(
             {
