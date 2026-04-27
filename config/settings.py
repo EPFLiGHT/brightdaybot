@@ -203,6 +203,8 @@ USERNAME_CACHE_EVICTION_FRACTION = 4  # Evict oldest 1/N of cache when full
 
 # Centralized list of supported OpenAI models
 SUPPORTED_OPENAI_MODELS = [
+    "gpt-5.5",
+    "gpt-5.5-pro",
     "gpt-5.4",
     "gpt-5.2",
     "gpt-5.1",
@@ -217,7 +219,7 @@ SUPPORTED_OPENAI_MODELS = [
 ]
 
 # Default OpenAI models
-DEFAULT_OPENAI_MODEL = "gpt-5.4"
+DEFAULT_OPENAI_MODEL = "gpt-5.5"
 DEFAULT_IMAGE_MODEL = "gpt-image-2"
 
 # Centralized list of supported OpenAI image models
