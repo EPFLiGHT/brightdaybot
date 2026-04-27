@@ -58,6 +58,7 @@ from commands.admin_commands import (
     handle_cache_command,
     handle_canvas_command,
     handle_config_command,
+    handle_image_model_command,
     handle_model_command,
     handle_personality_command,
     handle_restore_command,
@@ -728,6 +729,9 @@ def handle_admin_command(
 
     elif subcommand == "model":
         handle_model_command(args, user_id, say, app, username)
+
+    elif subcommand == "image-model":
+        handle_image_model_command(args, user_id, say, app, username)
 
     elif subcommand == "cache":
         handle_cache_command(args, user_id, say, app)

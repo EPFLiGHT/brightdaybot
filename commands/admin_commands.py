@@ -34,9 +34,11 @@ from slack.client import (
 )
 from storage.birthdays import create_backup, load_birthdays, restore_latest_backup
 from storage.settings import (
+    get_current_openai_image_model,
     get_current_openai_model,
     get_current_personality_name,
     save_admins_to_file,
+    set_current_openai_image_model,
     set_current_openai_model,
     set_current_personality,
 )
@@ -396,6 +398,106 @@ def handle_model_command(args, user_id, say, _app, username):
 *Examples:*
 • `admin model set gpt-4o`
 • `admin model set gpt-5`""")
+
+
+def handle_image_model_command(args, user_id, say, _app, username):
+    """
+    Manage OpenAI image-generation model settings.
+
+    Mirrors handle_model_command but for the image model used by services/image_generator.
+    Subcommands: (none) → status, list, set <model>, reset.
+    """
+    from config import DEFAULT_IMAGE_MODEL
+    from storage.settings import (
+        get_openai_image_model_info,
+        get_supported_openai_image_models,
+        is_valid_openai_image_model,
+    )
+
+    if not args:
+        info = get_openai_image_model_info()
+        current = info["model"]
+        valid_status = "✅ Valid" if info["valid"] else "⚠️ Unknown model"
+
+        response = f"*Current Image Model:* `{current}`\n"
+        response += f"*Source:* {info['source'].replace('_', ' ').title()}\n"
+        response += f"*Status:* {valid_status}\n"
+        if info.get("updated_at"):
+            response += f"*Last Updated:* {info['updated_at']}\n"
+        response += (
+            "\nUse `admin image-model set <model>` to change "
+            "or `admin image-model list` to see available models."
+        )
+        say(response)
+        return
+
+    subcommand = args[0].lower()
+
+    if subcommand == "list":
+        valid_models = get_supported_openai_image_models()
+        current = get_current_openai_image_model()
+        lines = []
+        for model in valid_models:
+            marker = " ← *current*" if model == current else ""
+            lines.append(f"• `{model}`{marker}")
+        say(
+            "*Available Image Models:*\n\n"
+            + "\n".join(lines)
+            + "\n\nUse `admin image-model set <model>` to change."
+        )
+
+    elif subcommand == "set" and len(args) > 1:
+        new_model = args[1].strip()
+        current = get_current_openai_image_model()
+
+        if new_model == current:
+            say(f"Image model is already set to `{new_model}`")
+            return
+
+        if not is_valid_openai_image_model(new_model):
+            say(
+                f"⚠️ Unknown image model `{new_model}`. Use `admin image-model list` "
+                "to see known models.\n*Note:* The model will be saved anyway in case "
+                "it's a newer model not in our list."
+            )
+
+        if set_current_openai_image_model(new_model):
+            say(f"✅ Image model changed from `{current}` to `{new_model}`")
+            logger.info(
+                f"ADMIN_IMAGE_MODEL: {username} ({user_id}) changed image model "
+                f"from '{current}' to '{new_model}'"
+            )
+        else:
+            say(f"❌ Failed to change image model to `{new_model}`. Check logs.")
+
+    elif subcommand == "reset":
+        default_model = DEFAULT_IMAGE_MODEL
+        current = get_current_openai_image_model()
+
+        if current == default_model:
+            say(f"Image model is already set to default (`{default_model}`)")
+            return
+
+        if set_current_openai_image_model(default_model):
+            say(f"✅ Image model reset from `{current}` to default (`{default_model}`)")
+            logger.info(
+                f"ADMIN_IMAGE_MODEL: {username} ({user_id}) reset image model "
+                f"from '{current}' to default '{default_model}'"
+            )
+        else:
+            say("❌ Failed to reset image model to default. Check logs.")
+
+    else:
+        say(f"""*Image Model Management Commands:*
+
+• `admin image-model` - Show current image model information
+• `admin image-model list` - List supported image models
+• `admin image-model set <model>` - Change to specified model
+• `admin image-model reset` - Reset to default ({DEFAULT_IMAGE_MODEL})
+
+*Examples:*
+• `admin image-model set gpt-image-2`
+• `admin image-model set gpt-image-1.5`""")
 
 
 def handle_cache_command(parts, user_id, say, app):

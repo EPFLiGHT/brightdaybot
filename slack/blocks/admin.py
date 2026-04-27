@@ -458,7 +458,6 @@ def build_health_status_blocks(
         # Timing & Configuration
         from config import (
             DAILY_CHECK_TIME,
-            DEFAULT_IMAGE_MODEL,
             IMAGE_GENERATION_PARAMS,
             MENTION_RATE_LIMIT_MAX,
             MENTION_RATE_LIMIT_WINDOW,
@@ -472,6 +471,9 @@ def build_health_status_blocks(
             SPECIAL_DAYS_WEEKLY_DAY,
             TIMEZONE_CELEBRATION_TIME,
         )
+        from storage.settings import get_configured_openai_image_model
+
+        active_image_model = get_configured_openai_image_model()
 
         tz_enabled, _ = load_timezone_settings()
         day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -491,7 +493,7 @@ def build_health_status_blocks(
 
         img_quality = IMAGE_GENERATION_PARAMS["quality"]["default"]
         img_size = IMAGE_GENERATION_PARAMS["size"]["default"]
-        timing_text += f"\n• Image model: {DEFAULT_IMAGE_MODEL} · Quality: {img_quality} · Size: {img_size} · Profile analysis {'✅' if PROFILE_ANALYSIS_ENABLED else '❌'}"
+        timing_text += f"\n• Image model: {active_image_model} · Quality: {img_quality} · Size: {img_size} · Profile analysis {'✅' if PROFILE_ANALYSIS_ENABLED else '❌'}"
         timing_text += f"\n• @-Mention rate limit: {MENTION_RATE_LIMIT_MAX} requests / {MENTION_RATE_LIMIT_WINDOW}s"
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": timing_text}})
 

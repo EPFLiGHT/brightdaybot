@@ -246,7 +246,11 @@ def build_help_blocks(is_admin: bool = False) -> tuple[List[Dict[str, Any]], str
         ai_config = """• `admin model` - Show current OpenAI model and configuration
 • `admin model list` - List all supported OpenAI models
 • `admin model set <model>` - Change to specified model
-• `admin model reset` - Reset to default model"""
+• `admin model reset` - Reset to default model
+• `admin image-model` - Show current image model
+• `admin image-model list` - List supported image models
+• `admin image-model set <model>` - Change image model (e.g. gpt-image-2)
+• `admin image-model reset` - Reset image model to default"""
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": ai_config}})
 
         blocks.append({"type": "divider"})

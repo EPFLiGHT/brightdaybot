@@ -490,7 +490,6 @@ def _build_health_section():
         # Feature flags
         from config import (
             AI_IMAGE_GENERATION_ENABLED,
-            DEFAULT_IMAGE_MODEL,
             EXTERNAL_BACKUP_ENABLED,
             IMAGE_GENERATION_PARAMS,
             MENTION_QA_ENABLED,
@@ -501,7 +500,12 @@ def _build_health_section():
             USE_CUSTOM_EMOJIS,
             WEB_SEARCH_CACHE_ENABLED,
         )
-        from storage.settings import load_bot_celebration_setting
+        from storage.settings import (
+            get_configured_openai_image_model,
+            load_bot_celebration_setting,
+        )
+
+        active_image_model = get_configured_openai_image_model()
 
         bot_celebration = load_bot_celebration_setting()
 
@@ -515,7 +519,7 @@ def _build_health_section():
 - **Birthday Channel:** {channel_status}
 - **Admins:** {admin_count}
 - **Personality:** `{personality}` · **Timezone:** {tz_mode}
-- **Model:** `{model}` · **Image:** `{DEFAULT_IMAGE_MODEL}` ({img_quality}, {img_size})
+- **Model:** `{model}` · **Image:** `{active_image_model}` ({img_quality}, {img_size})
 - **Logs:** {total_log_mb} MB total
 
 **🔧 Features:** {_flag(THREAD_ENGAGEMENT_ENABLED)} Threads · {_flag(MENTION_QA_ENABLED)} @-Mentions · {_flag(NLP_DATE_PARSING_ENABLED)} NLP dates · {_flag(AI_IMAGE_GENERATION_ENABLED)} AI images · {_flag(SPECIAL_DAYS_IMAGE_ENABLED)} SD images · {_flag(PROFILE_ANALYSIS_ENABLED)} Profiles · {_flag(WEB_SEARCH_CACHE_ENABLED)} Web cache · {_flag(USE_CUSTOM_EMOJIS)} Custom emoji · {_flag(bot_celebration)} Bot birthday · {_flag(EXTERNAL_BACKUP_ENABLED)} Ext. backups"""

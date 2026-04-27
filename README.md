@@ -139,7 +139,8 @@ uv run python app.py
 | Command                                                          | Description                     |
 | ---------------------------------------------------------------- | ------------------------------- |
 | `admin status [detailed]`                                        | System health check             |
-| `admin model set <model>`                                        | Change AI model                 |
+| `admin model set <model>`                                        | Change AI text model            |
+| `admin image-model set <model>`                                  | Change AI image model           |
 | `admin personality [name]`                                       | View or change bot personality  |
 | `admin timezone enable/disable`                                  | Toggle timezone mode            |
 | `admin bot-celebration enable/disable`                           | Toggle bot self-celebration     |

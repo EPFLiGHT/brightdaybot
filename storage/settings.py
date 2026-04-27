@@ -21,10 +21,12 @@ from config import (
     BOT_PERSONALITIES,
     COMMAND_PERMISSIONS,
     DEFAULT_ADMIN_USERS,
+    DEFAULT_IMAGE_MODEL,
     DEFAULT_OPENAI_MODEL,
     DEFAULT_PERSONALITY,
     PERMISSIONS_FILE,
     PERSONALITY_FILE,
+    SUPPORTED_IMAGE_MODELS,
     SUPPORTED_OPENAI_MODELS,
     USE_CUSTOM_EMOJIS,
     get_logger,
@@ -43,11 +45,15 @@ BOT_CELEBRATION_SETTINGS_FILE = os.path.join(
 OPENAI_MODEL_SETTINGS_FILE = os.path.join(
     os.path.dirname(ADMINS_FILE), "openai_model_settings.json"
 )
+OPENAI_IMAGE_MODEL_SETTINGS_FILE = os.path.join(
+    os.path.dirname(ADMINS_FILE), "openai_image_model_settings.json"
+)
 
 # Global state variables with thread lock for concurrent access
 _settings_lock = threading.Lock()
 _current_personality = DEFAULT_PERSONALITY
 _current_openai_model = None  # Will be set during initialization
+_current_openai_image_model = None  # Will be set during initialization
 
 
 def get_current_personality_name():
@@ -156,7 +162,11 @@ def get_supported_openai_models():
 
 def set_current_openai_model(model_name):
     """
-    Set the current OpenAI model and save to storage file (thread-safe)
+    Set the current OpenAI model and save to storage file (thread-safe).
+
+    Holds _settings_lock across the disk write and the in-memory update so
+    concurrent readers cannot observe a state where the file has the new
+    value but the in-memory cache still has the old one.
 
     Args:
         model_name: OpenAI model name to set
@@ -167,23 +177,75 @@ def set_current_openai_model(model_name):
     global _current_openai_model
 
     try:
-        # Save to file
-        if save_openai_model_setting(model_name):
-            with _settings_lock:
-                _current_openai_model = model_name
-            logger.info(f"CONFIG: OpenAI model changed to '{model_name}'")
-            return True
-        else:
-            logger.error(f"CONFIG_ERROR: Failed to save OpenAI model setting '{model_name}'")
-            return False
+        with _settings_lock:
+            if not save_openai_model_setting(model_name):
+                logger.error(f"CONFIG_ERROR: Failed to save OpenAI model setting '{model_name}'")
+                return False
+            _current_openai_model = model_name
+        logger.info(f"CONFIG: OpenAI model changed to '{model_name}'")
+        return True
     except Exception as e:
         logger.error(f"CONFIG_ERROR: Error setting OpenAI model '{model_name}': {e}")
         return False
 
 
+def get_current_openai_image_model():
+    """Get the currently configured OpenAI image model (thread-safe).
+
+    On first call, resolves the model OUTSIDE the lock (file I/O) and only
+    grabs the lock to commit the cached value, avoiding holding the lock
+    across disk reads.
+    """
+    global _current_openai_image_model
+    # Fast path: cached value already populated.
+    if _current_openai_image_model is not None:
+        with _settings_lock:
+            if _current_openai_image_model is not None:
+                return _current_openai_image_model
+
+    # Slow path: resolve without holding the lock.
+    info = get_openai_image_model_info()
+    resolved = info["model"]
+    with _settings_lock:
+        if _current_openai_image_model is None:
+            _current_openai_image_model = resolved
+        return _current_openai_image_model
+
+
+def is_valid_openai_image_model(model_name):
+    """Check if an image model name is in the supported list."""
+    return model_name in SUPPORTED_IMAGE_MODELS
+
+
+def get_supported_openai_image_models():
+    """Return a copy of the supported image models list."""
+    return SUPPORTED_IMAGE_MODELS.copy()
+
+
+def set_current_openai_image_model(model_name):
+    """Set the current OpenAI image model and persist to storage (thread-safe).
+
+    Holds _settings_lock across the disk write and the in-memory update so
+    concurrent readers never see file/cache divergence after a successful set.
+    """
+    global _current_openai_image_model
+
+    try:
+        with _settings_lock:
+            if not save_openai_image_model_setting(model_name):
+                logger.error(f"CONFIG_ERROR: Failed to save image model setting '{model_name}'")
+                return False
+            _current_openai_image_model = model_name
+        logger.info(f"CONFIG: OpenAI image model changed to '{model_name}'")
+        return True
+    except Exception as e:
+        logger.error(f"CONFIG_ERROR: Error setting image model '{model_name}': {e}")
+        return False
+
+
 def initialize_config():
     """Initialize configuration from storage files (thread-safe)"""
-    global ADMIN_USERS, _current_personality, BOT_PERSONALITIES, COMMAND_PERMISSIONS, _current_openai_model
+    global ADMIN_USERS, _current_personality, BOT_PERSONALITIES, COMMAND_PERMISSIONS, _current_openai_model, _current_openai_image_model
 
     # Load admins
     admin_users_from_file = load_admins_from_file()
@@ -236,7 +298,35 @@ def initialize_config():
         f"CONFIG: OpenAI model loaded: '{model_info['model']}' (source: {model_info['source']})"
     )
 
+    image_model_info = get_openai_image_model_info()
+    with _settings_lock:
+        _current_openai_image_model = image_model_info["model"]
+    logger.info(
+        f"CONFIG: OpenAI image model loaded: '{image_model_info['model']}' "
+        f"(source: {image_model_info['source']})"
+    )
+
     logger.info("CONFIG: Configuration initialized from storage files")
+
+
+def get_configured_openai_image_model():
+    """
+    Get the currently configured OpenAI image model.
+
+    Resolution is delegated to get_current_openai_image_model, which itself
+    consults get_openai_image_model_info — order: storage file > OPENAI_IMAGE_MODEL
+    env var > DEFAULT_IMAGE_MODEL. This wrapper exists for symmetry with
+    get_configured_openai_model and as the public entry point used by
+    services/image_generator and dashboards.
+    """
+    try:
+        return get_current_openai_image_model()
+    except Exception as e:
+        logger.error(
+            f"CONFIG_ERROR: Failed to get configured image model: {e}. "
+            f"Using fallback: {DEFAULT_IMAGE_MODEL}"
+        )
+        return DEFAULT_IMAGE_MODEL
 
 
 # Centralized OpenAI model configuration function
@@ -715,6 +805,93 @@ def get_openai_model_info():
         logger.error(f"CONFIG_ERROR: Failed to get OpenAI model info: {e}")
         return {
             "model": DEFAULT_OPENAI_MODEL,
+            "source": "error_fallback",
+            "file_exists": False,
+            "valid": True,
+            "error": str(e),
+        }
+
+
+def save_openai_image_model_setting(model_name):
+    """Persist the OpenAI image model setting to disk."""
+    try:
+        if not is_valid_openai_image_model(model_name):
+            logger.warning(f"CONFIG: Unknown image model '{model_name}', saving anyway")
+
+        data = {
+            "openai_image_model": model_name,
+            "updated_at": datetime.now().isoformat(),
+            "source": "admin_command",
+        }
+
+        with open(OPENAI_IMAGE_MODEL_SETTINGS_FILE, "w") as f:
+            json.dump(data, f, indent=2, sort_keys=True)
+
+        logger.info(f"CONFIG: Saved image model setting '{model_name}'")
+        return True
+    except Exception as e:
+        logger.error(f"CONFIG_ERROR: Failed to save image model setting: {e}")
+        return False
+
+
+def load_openai_image_model_setting():
+    """Load the OpenAI image model setting from disk, or None if absent."""
+    try:
+        if not os.path.exists(OPENAI_IMAGE_MODEL_SETTINGS_FILE):
+            return None
+
+        with open(OPENAI_IMAGE_MODEL_SETTINGS_FILE, "r") as f:
+            data = json.load(f)
+            model_name = data.get("openai_image_model")
+            if model_name:
+                logger.info(f"CONFIG: Loaded image model setting '{model_name}'")
+                return model_name
+            logger.warning("CONFIG: Image model settings file exists but no model found")
+            return None
+    except Exception as e:
+        logger.error(f"CONFIG_ERROR: Failed to load image model setting: {e}")
+        return None
+
+
+def get_openai_image_model_info():
+    """Return detailed information about current OpenAI image model setting."""
+    try:
+        info = {
+            "model": None,
+            "source": "default",
+            "file_exists": False,
+            "env_var": os.getenv("OPENAI_IMAGE_MODEL"),
+            "valid": True,
+        }
+
+        if os.path.exists(OPENAI_IMAGE_MODEL_SETTINGS_FILE):
+            info["file_exists"] = True
+            try:
+                with open(OPENAI_IMAGE_MODEL_SETTINGS_FILE, "r") as f:
+                    data = json.load(f)
+                    file_model = data.get("openai_image_model")
+                    if file_model:
+                        info["model"] = file_model
+                        info["source"] = "file"
+                        info["updated_at"] = data.get("updated_at")
+            except Exception as e:
+                logger.error(f"Error reading image model settings file: {e}")
+                info["error"] = str(e)
+
+        if not info["model"] and info["env_var"]:
+            info["model"] = info["env_var"]
+            info["source"] = "environment"
+
+        if not info["model"]:
+            info["model"] = DEFAULT_IMAGE_MODEL
+            info["source"] = "default"
+
+        info["valid"] = is_valid_openai_image_model(info["model"])
+        return info
+    except Exception as e:
+        logger.error(f"CONFIG_ERROR: Failed to get image model info: {e}")
+        return {
+            "model": DEFAULT_IMAGE_MODEL,
             "source": "error_fallback",
             "file_exists": False,
             "valid": True,

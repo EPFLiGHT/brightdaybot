@@ -218,7 +218,49 @@ SUPPORTED_OPENAI_MODELS = [
 
 # Default OpenAI models
 DEFAULT_OPENAI_MODEL = "gpt-5.4"
-DEFAULT_IMAGE_MODEL = "gpt-image-1.5"
+DEFAULT_IMAGE_MODEL = "gpt-image-2"
+
+# Centralized list of supported OpenAI image models
+SUPPORTED_IMAGE_MODELS = [
+    "gpt-image-2",
+    "gpt-image-1.5",
+    "gpt-image-1",
+    "gpt-image-1-mini",
+]
+
+# Per-model capability flags. Drives call-site decisions about which params
+# to send. gpt-image-2 dropped input_fidelity (always-high) and transparent bg.
+IMAGE_MODEL_CAPABILITIES = {
+    "gpt-image-2": {
+        "input_fidelity": False,
+        "transparent_bg": False,
+        "max_size": "2048x2048",
+    },
+    "gpt-image-1.5": {
+        "input_fidelity": True,
+        "transparent_bg": True,
+        "max_size": "1536x1024",
+    },
+    "gpt-image-1": {
+        "input_fidelity": True,
+        "transparent_bg": True,
+        "max_size": "1536x1024",
+    },
+    "gpt-image-1-mini": {
+        "input_fidelity": True,
+        "transparent_bg": True,
+        "max_size": "1024x1024",
+    },
+}
+
+
+def get_image_model_capabilities(model_name):
+    """Return capability flags for a given image model, with safe defaults."""
+    return IMAGE_MODEL_CAPABILITIES.get(
+        model_name,
+        {"input_fidelity": False, "transparent_bg": False, "max_size": "1024x1024"},
+    )
+
 
 # ----- OPENAI API PARAMETERS -----
 

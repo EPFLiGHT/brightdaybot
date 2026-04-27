@@ -24,7 +24,6 @@ from PIL import Image
 from config import (
     CACHE_DIR,
     CACHE_RETENTION_DAYS,
-    DEFAULT_IMAGE_MODEL,
     DEFAULT_IMAGE_PERSONALITY,
     IMAGE_CLEANUP_PROBABILITY,
     IMAGE_GENERATION_PARAMS,
@@ -32,9 +31,11 @@ from config import (
     RETRY_LIMITS,
     TIMEOUTS,
     TOKEN_LIMITS,
+    get_image_model_capabilities,
     get_logger,
 )
 from integrations.openai import analyze_image, get_openai_client, log_image_generation_usage
+from storage.settings import get_configured_openai_image_model
 
 logger = get_logger("image_generator")
 
@@ -141,7 +142,18 @@ def generate_birthday_image(
             )
             cost_mode = "low-cost test" if test_mode else "full quality"
 
-        # Use centralized input fidelity setting
+        # Resolve active image model (file > env > default) and its capabilities
+        active_image_model = get_configured_openai_image_model()
+        model_caps = get_image_model_capabilities(active_image_model)
+        supports_input_fidelity = model_caps["input_fidelity"]
+        supports_transparent_bg = model_caps["transparent_bg"]
+
+        # Tracks whether transparency was actually applied to the API call. Reference
+        # mode never applies transparency, so it stays False there. The text-only
+        # branch may flip this to True if the model supports it.
+        applied_transparency = False
+
+        # Use centralized input fidelity setting (only honored if model supports it)
         input_fidelity = IMAGE_GENERATION_PARAMS["input_fidelity"]["default"]
 
         # Determine image size - allow override via image_size parameter
@@ -151,7 +163,9 @@ def generate_birthday_image(
             final_image_size = IMAGE_GENERATION_PARAMS["size"]["default"]
 
         logger.info(
-            f"IMAGE_GEN: Generating birthday image for {name} in {personality} style ({'reference-based' if use_reference_mode else 'text-only'}, {cost_mode})"
+            f"IMAGE_GEN: Generating birthday image for {name} in {personality} style "
+            f"({'reference-based' if use_reference_mode else 'text-only'}, {cost_mode}, "
+            f"model={active_image_model}, fidelity_param={supports_input_fidelity})"
         )
 
         # Generate image using either reference-based editing or text-only generation
@@ -161,15 +175,17 @@ def generate_birthday_image(
             max_attempts = RETRY_LIMITS["image_generation"]
             for attempt in range(max_attempts):
                 try:
+                    edit_params = {
+                        "model": active_image_model,
+                        "prompt": prompt,
+                        "size": final_image_size,
+                        "quality": image_quality,
+                    }
+                    if supports_input_fidelity:
+                        edit_params["input_fidelity"] = input_fidelity
+
                     with open(profile_photo_path, "rb") as image_file:
-                        response = _get_client().images.edit(
-                            model=DEFAULT_IMAGE_MODEL,
-                            image=image_file,
-                            prompt=prompt,
-                            size=final_image_size,
-                            input_fidelity=input_fidelity,
-                            quality=image_quality,
-                        )
+                        response = _get_client().images.edit(image=image_file, **edit_params)
 
                     # Log usage for monitoring
                     log_image_generation_usage(
@@ -179,7 +195,7 @@ def generate_birthday_image(
                         image_count=1,
                         quality=image_quality,
                         image_size=final_image_size,
-                        model=DEFAULT_IMAGE_MODEL,
+                        model=active_image_model,
                     )
 
                     logger.info(f"IMAGE_GEN: Successfully used reference photo for {name}")
@@ -236,16 +252,25 @@ def generate_birthday_image(
         if not use_reference_mode:
             # Standard text-only generation
             generation_params = {
-                "model": DEFAULT_IMAGE_MODEL,
+                "model": active_image_model,
                 "prompt": prompt,
                 "size": final_image_size,
                 "quality": image_quality,
             }
 
-            # Add transparency support if requested (only for text-only mode)
+            # Add transparency support if requested AND the active model supports it.
+            # Track the *applied* outcome separately from the caller's request so we
+            # don't mutate the input flag.
             if enable_transparency:
-                generation_params["response_format"] = "b64_json"
-                generation_params["background"] = "transparent"
+                if supports_transparent_bg:
+                    generation_params["response_format"] = "b64_json"
+                    generation_params["background"] = "transparent"
+                    applied_transparency = True
+                else:
+                    logger.warning(
+                        f"IMAGE_GEN: Transparent background requested but model "
+                        f"{active_image_model} does not support it; generating opaque"
+                    )
 
             response = _get_client().images.generate(**generation_params)
 
@@ -257,7 +282,7 @@ def generate_birthday_image(
                 image_count=1,
                 quality=image_quality,
                 image_size=final_image_size,
-                model=DEFAULT_IMAGE_MODEL,
+                model=active_image_model,
             )
 
         # Handle both base64 and URL responses
@@ -285,15 +310,17 @@ def generate_birthday_image(
             "personality": personality,
             "generated_for": name,
             "generated_at": datetime.now().isoformat(),
-            "model": DEFAULT_IMAGE_MODEL,
-            "has_transparency": enable_transparency,
+            "model": active_image_model,
+            "has_transparency": applied_transparency,
             "format": "png",  # PNG format for transparency support
             "generation_mode": "reference_photo" if use_reference_mode else "text_only",
             "used_profile_photo": profile_photo_path is not None,
             "test_mode": test_mode,
             "image_size": final_image_size,
             "image_quality": image_quality,
-            "input_fidelity": input_fidelity if use_reference_mode else None,
+            "input_fidelity": (
+                input_fidelity if use_reference_mode and supports_input_fidelity else None
+            ),
             "user_profile": user_profile,  # Include user profile for title generation
         }
 

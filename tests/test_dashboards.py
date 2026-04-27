@@ -144,9 +144,19 @@ def mock_timezone_settings():
 def mock_model_info():
     """Mock OpenAI model info."""
     info = {"model": "gpt-5.4", "source": "storage", "valid": True}
+    image_info = {"model": "gpt-image-2", "source": "default", "valid": True}
     with (
         patch("storage.settings.get_openai_model_info", return_value=info),
         patch("storage.settings.get_current_openai_model", return_value="gpt-5.4"),
+        patch("storage.settings.get_openai_image_model_info", return_value=image_info),
+        patch(
+            "storage.settings.get_current_openai_image_model",
+            return_value="gpt-image-2",
+        ),
+        patch(
+            "storage.settings.get_configured_openai_image_model",
+            return_value="gpt-image-2",
+        ),
         patch("storage.settings.get_current_personality_name", return_value="mystic_dog"),
     ):
         yield info
@@ -606,6 +616,7 @@ class TestCanvasHealthSection:
     ):
         md = self._build(mock_model_info, mock_timezone_settings, mock_bot_celebration)
         assert "Image:" in md
+        assert "gpt-image-2" in md
 
     def test_shows_expanded_feature_flags(
         self, mock_model_info, mock_timezone_settings, mock_bot_celebration
