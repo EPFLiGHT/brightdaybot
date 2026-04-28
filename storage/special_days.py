@@ -17,6 +17,7 @@ from filelock import FileLock
 # Pre-compiled regex patterns for deduplication (performance optimization)
 _PUNCTUATION_PATTERN = re.compile(r"[^\w\s]")
 _WHITESPACE_PATTERN = re.compile(r"\s+")
+_PARENTHETICAL_PATTERN = re.compile(r"\s*\([^)]*\)")
 
 from config import (
     BACKUP_DIR,
@@ -420,6 +421,9 @@ def _normalize_name(name: str) -> str:
     """
     name = name.lower().strip()
 
+    # Strip parenthetical qualifiers e.g. "May Day (Half-Day)", "Christmas (Observed)"
+    name = _PARENTHETICAL_PATTERN.sub("", name).strip()
+
     # Expand common abbreviations (before other processing)
     abbreviations = {
         " tb ": " tuberculosis ",
@@ -618,12 +622,13 @@ def _deduplicate_special_days(special_days: List[SpecialDay]) -> List[SpecialDay
             logger.debug(f"DEDUP: Skipping '{day.name}' (normalized match)")
             continue
 
-        # Get significant words for this day
-        sig_words = _get_significant_words(norm_name)
+        # Index by all words (not just significant ≥4-char ones) so short
+        # names like "May Day" are reachable as candidates.
+        index_words = set(norm_name.split())
 
-        # Find candidate indices to check (items sharing at least one significant word)
+        # Find candidate indices to check (items sharing at least one word)
         candidate_indices: set = set()
-        for word in sig_words:
+        for word in index_words:
             if word in word_index:
                 candidate_indices.update(word_index[word])
 
@@ -646,7 +651,7 @@ def _deduplicate_special_days(special_days: List[SpecialDay]) -> List[SpecialDay
             seen_normalized.add(norm_name)
 
             # Update inverted index
-            for word in sig_words:
+            for word in index_words:
                 if word not in word_index:
                     word_index[word] = set()
                 word_index[word].add(new_idx)

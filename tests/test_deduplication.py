@@ -29,6 +29,12 @@ class TestNormalizeName:
         """Normalizes to lowercase"""
         assert _normalize_name("WORLD HEALTH DAY") == "health"
 
+    def test_strips_parenthetical_qualifiers(self):
+        """Strips Calendarific-style qualifiers in parentheses"""
+        assert _normalize_name("May Day (Half-Day)") == "may day"
+        assert _normalize_name("Christmas Day (Observed)") == "christmas day"
+        assert _normalize_name("Boxing Day (Substitute Day)") == "boxing day"
+
 
 class TestNamesMatch:
     """Tests for _names_match() function"""
@@ -92,3 +98,22 @@ class TestDeduplicateSpecialDays:
         ]
         result = _deduplicate_special_days(days)
         assert len(result) == 2
+
+    def test_collapses_parenthetical_qualifier(self):
+        """'May Day' and 'May Day (Half-Day)' should dedup to one entry"""
+        days = [
+            self.make_day("01/05", "May Day", "Calendarific-CH"),
+            self.make_day("01/05", "May Day (Half-Day)", "Calendarific-CH"),
+        ]
+        result = _deduplicate_special_days(days)
+        assert len(result) == 1
+        assert result[0].name == "May Day"
+
+    def test_short_names_still_dedup(self):
+        """Names with only short words (no ≥4-char tokens) still reach fuzzy match"""
+        days = [
+            self.make_day("01/05", "May Day", "Calendarific"),
+            self.make_day("01/05", "may day", "ICS"),
+        ]
+        result = _deduplicate_special_days(days)
+        assert len(result) == 1
