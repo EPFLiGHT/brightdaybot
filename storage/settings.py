@@ -592,6 +592,18 @@ def set_command_permission(command, is_admin_only):
     return save_permissions_to_file(COMMAND_PERMISSIONS)
 
 
+# Cache: (mtime_or_None, (enabled, interval)). Invalidated by mtime change
+# (or by save). Avoids logging+disk on the 14 call sites that read this.
+_timezone_cache_lock = threading.Lock()
+_timezone_cache: tuple | None = None
+
+
+def _invalidate_timezone_cache():
+    global _timezone_cache
+    with _timezone_cache_lock:
+        _timezone_cache = None
+
+
 def save_timezone_settings(enabled=True, check_interval_hours=1):
     """
     Save timezone-aware announcement settings
@@ -613,6 +625,7 @@ def save_timezone_settings(enabled=True, check_interval_hours=1):
         with open(TIMEZONE_SETTINGS_FILE, "w") as f:
             json.dump(data, f, indent=2, sort_keys=True)
 
+        _invalidate_timezone_cache()
         logger.info(
             f"CONFIG: Saved timezone settings - enabled: {enabled}, "
             f"interval: {check_interval_hours}h"
@@ -625,31 +638,47 @@ def save_timezone_settings(enabled=True, check_interval_hours=1):
 
 def load_timezone_settings():
     """
-    Load timezone settings from file
+    Load timezone settings from file (memoized by mtime).
 
     Returns:
         tuple: (enabled, check_interval_hours), defaults to (True, 1)
     """
+    global _timezone_cache
+
     try:
-        if not os.path.exists(TIMEZONE_SETTINGS_FILE):
-            logger.info(
+        mtime = os.path.getmtime(TIMEZONE_SETTINGS_FILE)
+    except OSError:
+        mtime = None  # File missing — sentinel for "defaults"
+
+    with _timezone_cache_lock:
+        if _timezone_cache is not None and _timezone_cache[0] == mtime:
+            return _timezone_cache[1]
+
+    try:
+        if mtime is None:
+            logger.debug(
                 "CONFIG: Timezone settings file not found, using defaults "
                 "(enabled: True, interval: 1h)"
             )
-            return True, 1
-
-        with open(TIMEZONE_SETTINGS_FILE, "r") as f:
-            data = json.load(f)
-            enabled = data.get("timezone_aware_enabled", True)
-            interval = data.get("check_interval_hours", 1)
-
-            logger.info(
-                f"CONFIG: Loaded timezone settings - enabled: {enabled}, " f"interval: {interval}h"
+            result = (True, 1)
+        else:
+            with open(TIMEZONE_SETTINGS_FILE, "r") as f:
+                data = json.load(f)
+            result = (
+                data.get("timezone_aware_enabled", True),
+                data.get("check_interval_hours", 1),
             )
-            return enabled, interval
+            logger.info(
+                f"CONFIG: Loaded timezone settings - enabled: {result[0]}, "
+                f"interval: {result[1]}h"
+            )
     except Exception as e:
         logger.error(f"CONFIG_ERROR: Failed to load timezone settings: {e}")
-        return True, 1
+        result = (True, 1)
+
+    with _timezone_cache_lock:
+        _timezone_cache = (mtime, result)
+    return result
 
 
 def save_bot_celebration_setting(enabled=True):

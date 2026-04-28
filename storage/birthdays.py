@@ -48,6 +48,18 @@ logger = get_logger("storage")
 # File lock for birthday data operations (cross-process)
 BIRTHDAYS_LOCK_FILE = BIRTHDAYS_JSON_FILE + ".lock"
 
+# Mtime-keyed cache of the parsed birthdays dict. Read-heavy file (≥150x/day)
+# with rare writes; mtime invalidation gives correctness without TTL guesswork.
+_birthdays_cache_lock = threading.Lock()
+_birthdays_cache: tuple | None = None  # (mtime_or_None, dict)
+
+
+def _invalidate_birthdays_cache() -> None:
+    global _birthdays_cache
+    with _birthdays_cache_lock:
+        _birthdays_cache = None
+
+
 # File lock for announcements tracking
 ANNOUNCEMENTS_LOCK_FILE = ANNOUNCEMENTS_FILE + ".lock"
 
@@ -235,31 +247,42 @@ def restore_latest_backup():
 
 def load_birthdays():
     """
-    Load birthdays from JSON storage.
+    Load birthdays from JSON storage (memoized by file mtime).
 
     Returns:
         Dictionary mapping user_id to birthday data with preferences
     """
+    global _birthdays_cache
+
+    try:
+        mtime = os.path.getmtime(BIRTHDAYS_JSON_FILE)
+    except OSError:
+        mtime = None
+
+    with _birthdays_cache_lock:
+        if _birthdays_cache is not None and _birthdays_cache[0] == mtime:
+            return _birthdays_cache[1]
+
     lock = FileLock(BIRTHDAYS_LOCK_FILE, timeout=TIMEOUTS["file_lock"])
+    data: dict = {}
 
     try:
         with lock:
             with open(BIRTHDAYS_JSON_FILE, "r") as f:
                 data = json.load(f)
                 logger.info(f"STORAGE: Loaded {len(data)} birthdays from JSON")
-                return data
     except FileNotFoundError:
         logger.warning(f"FILE_ERROR: {BIRTHDAYS_JSON_FILE} not found")
-        return {}
     except json.JSONDecodeError as e:
         logger.error(f"JSON_ERROR: Failed to parse birthdays JSON: {e}")
-        return {}
     except PermissionError as e:
         logger.error(f"PERMISSION_ERROR: Cannot read {BIRTHDAYS_JSON_FILE}: {e}")
-        return {}
     except Exception as e:
         logger.error(f"UNEXPECTED_ERROR: Failed to load birthdays: {e}")
-        return {}
+
+    with _birthdays_cache_lock:
+        _birthdays_cache = (mtime, data)
+    return data
 
 
 def save_birthdays(birthdays):
@@ -277,6 +300,7 @@ def save_birthdays(birthdays):
                 json.dump(birthdays, f, indent=2, sort_keys=True)
 
             logger.info(f"STORAGE: Saved {len(birthdays)} birthdays to JSON")
+            _invalidate_birthdays_cache()
             create_backup()
 
     except PermissionError as e:

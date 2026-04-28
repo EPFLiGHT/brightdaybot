@@ -107,7 +107,7 @@ def _build_api_params(
         params["max_output_tokens"] = max_tokens
     if reasoning_effort is not None and supports_reasoning(model):
         params["reasoning"] = {"effort": reasoning_effort}
-    elif temperature is not None:
+    if temperature is not None and not supports_reasoning(model):
         params["temperature"] = temperature
 
     return params

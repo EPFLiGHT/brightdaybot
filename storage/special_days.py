@@ -9,6 +9,7 @@ import json
 import os
 import re
 import shutil
+import threading
 from datetime import date, datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
@@ -22,12 +23,14 @@ _PARENTHETICAL_PATTERN = re.compile(r"\s*\([^)]*\)")
 from config import (
     BACKUP_DIR,
     CALENDARIFIC_API_KEY,
+    CALENDARIFIC_CACHE_DIR,
     CALENDARIFIC_ENABLED,
     DATE_FORMAT,
     DEDUP_CONTAINMENT_THRESHOLD,
     DEDUP_PREFIX_SUFFIX_MIN_LENGTH,
     DEDUP_SIGNIFICANT_WORD_MIN_LENGTH,
     DEFAULT_ANNOUNCEMENT_TIME,
+    ICS_CACHE_DIR,
     ICS_SUBSCRIPTIONS_ENABLED,
     MAX_BACKUPS,
     SPECIAL_DAYS_CATEGORIES,
@@ -214,16 +217,61 @@ def load_special_days() -> List[SpecialDay]:
     return _load_json_special_days()
 
 
+# Cache the deduped output of load_all_special_days. Invalidated whenever the
+# max mtime across any source file/dir changes — covers writes from the
+# scheduled scrape jobs and admin-triggered refreshes alike.
+_special_days_cache_lock = threading.Lock()
+_special_days_cache: tuple | None = None  # (signature, list[SpecialDay])
+
+
+def _special_days_signature() -> tuple:
+    """Build an mtime signature across all source files for cache invalidation."""
+    paths = [
+        SPECIAL_DAYS_JSON_FILE,
+        UN_OBSERVANCES_CACHE_FILE,
+        UNESCO_OBSERVANCES_CACHE_FILE,
+        WHO_OBSERVANCES_CACHE_FILE,
+    ]
+    sig = []
+    for p in paths:
+        try:
+            sig.append((p, os.path.getmtime(p)))
+        except OSError:
+            sig.append((p, None))
+    # For Calendarific and ICS, we hash the directory mtime (changes when any
+    # cache file inside is added/replaced).
+    for d in (CALENDARIFIC_CACHE_DIR, ICS_CACHE_DIR):
+        try:
+            sig.append((d, os.path.getmtime(d)))
+        except OSError:
+            sig.append((d, None))
+    return tuple(sig)
+
+
+def _invalidate_special_days_cache() -> None:
+    global _special_days_cache
+    with _special_days_cache_lock:
+        _special_days_cache = None
+
+
 def load_all_special_days() -> List[SpecialDay]:
     """
     Load special days from ALL sources (CSV, UN cache, Calendarific cache).
 
     Unlike load_special_days() which only reads CSV, this function combines
-    all available data sources and deduplicates them.
+    all available data sources and deduplicates them. Memoized against the
+    set of source file mtimes.
 
     Returns:
         List of SpecialDay objects from all sources, deduplicated
     """
+    global _special_days_cache
+
+    signature = _special_days_signature()
+    with _special_days_cache_lock:
+        if _special_days_cache is not None and _special_days_cache[0] == signature:
+            return list(_special_days_cache[1])
+
     all_days = []
 
     # 1. Load custom entries from JSON
@@ -284,6 +332,8 @@ def load_all_special_days() -> List[SpecialDay]:
         f"(custom: {len(custom_days)}, total before dedup: {len(all_days)})"
     )
 
+    with _special_days_cache_lock:
+        _special_days_cache = (signature, list(unique_days))
     return unique_days
 
 

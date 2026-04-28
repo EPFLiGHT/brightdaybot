@@ -4,6 +4,8 @@ Slack API client utilities for BrightDayBot.
 User profiles, permissions, channel operations, and formatting utilities.
 """
 
+import threading
+import time
 from datetime import datetime
 
 from slack_sdk.errors import SlackApiError
@@ -325,9 +327,29 @@ def check_command_permission(app, user_id, command):
     return True
 
 
+# Short TTL cache for channel members. A canvas refresh hits this twice within
+# ~2s; many user-facing handlers also run during the same scheduled tick.
+# Membership rarely changes faster than the TTL.
+CHANNEL_MEMBERS_CACHE_TTL_SECONDS = 60
+_channel_members_cache: dict[str, tuple[float, list[str]]] = {}
+_channel_members_lock = threading.Lock()
+
+
+def invalidate_channel_members(channel_id: str | None = None) -> None:
+    """Drop the cached member list for one channel, or all if channel_id is None."""
+    with _channel_members_lock:
+        if channel_id is None:
+            _channel_members_cache.clear()
+        else:
+            _channel_members_cache.pop(channel_id, None)
+
+
 def get_channel_members(app, channel_id):
     """
-    Get all members of a channel with pagination support
+    Get all members of a channel with pagination support.
+
+    Memoized for ~60 s to coalesce the duplicate calls that happen within a
+    single canvas refresh / handler invocation.
 
     Args:
         app: Slack app instance
@@ -336,6 +358,12 @@ def get_channel_members(app, channel_id):
     Returns:
         List of user IDs
     """
+    now = time.monotonic()
+    with _channel_members_lock:
+        cached = _channel_members_cache.get(channel_id)
+        if cached and cached[0] > now:
+            return list(cached[1])
+
     members = []
     next_cursor = None
 
@@ -361,6 +389,11 @@ def get_channel_members(app, channel_id):
                 break
 
         logger.info(f"CHANNEL: Retrieved {len(members)} members from channel {channel_id}")
+        with _channel_members_lock:
+            _channel_members_cache[channel_id] = (
+                now + CHANNEL_MEMBERS_CACHE_TTL_SECONDS,
+                list(members),
+            )
         return members
 
     except SlackApiError as e:
