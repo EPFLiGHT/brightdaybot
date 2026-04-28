@@ -1,6 +1,5 @@
 """Tests for _build_api_params parameter shaping."""
 
-
 from integrations.openai import _build_api_params
 
 
