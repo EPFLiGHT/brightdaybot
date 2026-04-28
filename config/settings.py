@@ -266,22 +266,25 @@ def get_image_model_capabilities(model_name):
 
 # ----- OPENAI API PARAMETERS -----
 
-# Token limits for different chat completion use cases
+# Token limits for different chat completion use cases.
+# Generous on purpose: gpt-5.5 reasoning consumes part of the output budget
+# silently, so caps below ~400 risked empty-output fallbacks. Functionality >
+# pennies — keep room for reasoning tokens plus the actual visible text.
 TOKEN_LIMITS = {
-    "single_birthday": 1000,  # Default for regular birthday messages
-    "consolidated_birthday": 2000,  # Multiple birthday messages
-    "web_search_facts": 1200,  # Historical date summarization (+buffer for reasoning tokens)
-    "image_title_generation": 200,  # AI-generated image titles
-    "special_day_details": 1200,  # Single special day details (cached, no button value limit)
-    "special_day_details_consolidated": 1600,  # Multiple special day details (cached)
+    "single_birthday": 1500,  # Default for regular birthday messages
+    "consolidated_birthday": 2500,  # Multiple birthday messages
+    "web_search_facts": 1500,  # Historical date summarization (+buffer for reasoning tokens)
+    "image_title_generation": 500,  # AI-generated image titles
+    "special_day_details": 1500,  # Single special day details (cached, no button value limit)
+    "special_day_details_consolidated": 2000,  # Multiple special day details (cached)
     # Interactive features
-    "mention_response": 300,  # Responses to @-mentions
-    "special_day_thread_response": 400,  # Responses to special day thread replies
-    "date_parsing": 100,  # NLP date extraction from natural language
+    "mention_response": 800,  # Responses to @-mentions
+    "special_day_thread_response": 800,  # Responses to special day thread replies
+    "date_parsing": 400,  # NLP date extraction from natural language
     # Weekly digest
-    "digest_descriptions": 400,  # One-line descriptions for weekly digest observances
+    "digest_descriptions": 800,  # One-line descriptions for weekly digest observances
     # Vision analysis
-    "profile_analysis": 100,  # Vision API profile photo element extraction
+    "profile_analysis": 400,  # Vision API profile photo element extraction
 }
 
 # Max characters for user input sanitization before embedding in AI prompts

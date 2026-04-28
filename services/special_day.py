@@ -223,7 +223,7 @@ def generate_special_day_message(
 
         # Generate the message using Responses API
         # Use lower token limit for teasers (shorter messages)
-        max_tokens = 200 if use_teaser else TOKEN_LIMITS.get("single_birthday", 500)
+        max_tokens = 600 if use_teaser else TOKEN_LIMITS.get("single_birthday", 1500)
         temperature = TEMPERATURE_SETTINGS.get("default", 0.7)
 
         logger.info(
@@ -241,6 +241,7 @@ def generate_special_day_message(
             ],
             max_tokens=max_tokens,
             temperature=temperature,
+            reasoning_effort=REASONING_EFFORT["analytical"],
             context="SPECIAL_DAY_MESSAGE",
         )
         if not message:
@@ -313,8 +314,9 @@ Available emojis: {emoji_examples}"""
                 },
                 {"role": "user", "content": prompt},
             ],
-            max_tokens=150,
+            max_tokens=500,
             temperature=TEMPERATURE_SETTINGS.get("default", 0.7),
+            reasoning_effort=REASONING_EFFORT["analytical"],
             context="CONSOLIDATED_INTRO_MESSAGE",
         )
 
@@ -437,8 +439,9 @@ TONE: Informative but not overwhelming. This is a summary, not a detailed announ
                 },
                 {"role": "user", "content": prompt},
             ],
-            max_tokens=150,
+            max_tokens=500,
             temperature=TEMPERATURE_SETTINGS.get("default", 0.7),
+            reasoning_effort=REASONING_EFFORT["analytical"],
             context="WEEKLY_DIGEST_MESSAGE",
         )
 
