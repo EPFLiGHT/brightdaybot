@@ -117,6 +117,61 @@ class TestLoadBirthdaysCache:
 
 
 # -----------------------------------------------------------------------------
+# _load_announcements
+# -----------------------------------------------------------------------------
+
+
+class TestLoadAnnouncementsCache:
+    def test_second_call_skips_disk(self, tmp_path):
+        from storage import birthdays as b
+
+        b._invalidate_announcements_cache()
+        path = tmp_path / "announcements.json"
+        path.write_text(json.dumps({"birthdays": {"2026-04-28": ["U1"]}}))
+
+        with (
+            patch.object(b, "ANNOUNCEMENTS_FILE", str(path)),
+            patch.object(b, "ANNOUNCEMENTS_LOCK_FILE", str(path) + ".lock"),
+        ):
+            first = b._load_announcements()
+            with patch("builtins.open", side_effect=AssertionError("disk hit")):
+                second = b._load_announcements()
+        assert first == second
+        assert "U1" in second["birthdays"]["2026-04-28"]
+
+    def test_save_invalidates(self, tmp_path):
+        from storage import birthdays as b
+
+        b._invalidate_announcements_cache()
+        path = tmp_path / "announcements.json"
+        path.write_text(json.dumps({"birthdays": {}}))
+
+        with (
+            patch.object(b, "ANNOUNCEMENTS_FILE", str(path)),
+            patch.object(b, "ANNOUNCEMENTS_LOCK_FILE", str(path) + ".lock"),
+        ):
+            b._load_announcements()
+            assert b._save_announcements({"birthdays": {"2026-04-28": ["U2"]}})
+            # Cache must reflect the new value, not the old empty dict.
+            assert b._load_announcements()["birthdays"]["2026-04-28"] == ["U2"]
+
+    def test_atomic_mark_invalidates(self, tmp_path):
+        from storage import birthdays as b
+
+        b._invalidate_announcements_cache()
+        path = tmp_path / "announcements.json"
+        path.write_text(json.dumps({"birthdays": {}}))
+
+        with (
+            patch.object(b, "ANNOUNCEMENTS_FILE", str(path)),
+            patch.object(b, "ANNOUNCEMENTS_LOCK_FILE", str(path) + ".lock"),
+        ):
+            b._load_announcements()  # warm cache
+            assert b.try_mark_birthday_announced("U3") is True
+            assert b.is_user_celebrated_today("U3") is True
+
+
+# -----------------------------------------------------------------------------
 # load_all_special_days
 # -----------------------------------------------------------------------------
 

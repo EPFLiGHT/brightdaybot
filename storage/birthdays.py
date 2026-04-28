@@ -490,10 +490,32 @@ def get_all_active_birthdays() -> dict:
 
 # ==================== ANNOUNCEMENT TRACKING (Consolidated JSON) ====================
 
+# is_user_celebrated_today + mark_* + get_announced_* call _load_announcements
+# many times per celebration tick; each call took the cross-process FileLock.
+# Cache by mtime to skip the lock on the read path; explicit invalidation on
+# every write covers the case where two writes land within mtime resolution.
+_announcements_cache_lock = threading.Lock()
+_announcements_cache: tuple | None = None  # (mtime_or_None, dict)
+
+
+def _invalidate_announcements_cache() -> None:
+    global _announcements_cache
+    with _announcements_cache_lock:
+        _announcements_cache = None
+
+
+def _default_announcements() -> dict:
+    return {
+        "birthdays": {},
+        "timezone_birthdays": {},
+        "special_days": {},
+        "last_cleanup": None,
+    }
+
 
 def _load_announcements() -> dict:
     """
-    Load announcements tracking data from JSON file.
+    Load announcements tracking data from JSON file (memoized by mtime).
 
     Returns:
         Dictionary with structure:
@@ -504,24 +526,33 @@ def _load_announcements() -> dict:
             "last_cleanup": "ISO timestamp"
         }
     """
+    global _announcements_cache
+
+    try:
+        mtime = os.path.getmtime(ANNOUNCEMENTS_FILE)
+    except OSError:
+        mtime = None
+
+    with _announcements_cache_lock:
+        if _announcements_cache is not None and _announcements_cache[0] == mtime:
+            return _announcements_cache[1]
+
+    data = _default_announcements()
+
     try:
         lock = FileLock(ANNOUNCEMENTS_LOCK_FILE, timeout=TIMEOUTS["file_lock"])
         with lock:
             if os.path.exists(ANNOUNCEMENTS_FILE):
                 with open(ANNOUNCEMENTS_FILE, "r") as f:
-                    return json.load(f)
+                    data = json.load(f)
     except FileNotFoundError:
         pass
     except Exception as e:
         logger.error(f"FILE_ERROR: Failed to load announcements: {e}")
 
-    # Return default structure
-    return {
-        "birthdays": {},
-        "timezone_birthdays": {},
-        "special_days": {},
-        "last_cleanup": None,
-    }
+    with _announcements_cache_lock:
+        _announcements_cache = (mtime, data)
+    return data
 
 
 def _save_announcements(data: dict) -> bool:
@@ -539,6 +570,7 @@ def _save_announcements(data: dict) -> bool:
         with lock:
             with open(ANNOUNCEMENTS_FILE, "w") as f:
                 json.dump(data, f, indent=2, sort_keys=True)
+        _invalidate_announcements_cache()
         return True
     except Exception as e:
         logger.error(f"FILE_ERROR: Failed to save announcements: {e}")
@@ -655,6 +687,7 @@ def try_mark_birthday_announced(user_id):
             with open(ANNOUNCEMENTS_FILE, "w") as f:
                 json.dump(data, f, indent=2, sort_keys=True)
 
+            _invalidate_announcements_cache()
             logger.info(f"BIRTHDAY: Atomically marked {user_id}'s birthday as announced")
             return True
 

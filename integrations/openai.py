@@ -165,7 +165,12 @@ def complete(
                 f"total={getattr(usage, 'total_tokens', 'N/A')}"
             )
 
-        return response.output_text
+        text = response.output_text or ""
+        if not text:
+            logger.warning(
+                f"AI_{context}: Empty output_text — likely reasoning consumed entire budget"
+            )
+        return text
 
     except RateLimitError as e:
         logger.error(f"AI_{context}_ERROR: Rate limit exceeded: {e}")
@@ -194,6 +199,10 @@ def complete_with_usage(
     """
     Generate a completion and return both text and usage info.
 
+    Same exception contract as complete(): API errors propagate to the caller.
+    On a successful call, returns ("", usage_dict) when output_text is empty
+    (e.g. reasoning models that exhausted the budget) — never None.
+
     Returns:
         tuple: (response_text, usage_dict) where usage_dict contains token counts
     """
@@ -207,29 +216,27 @@ def complete_with_usage(
 
     logger.info(f"AI_{context}: Calling Responses API with model={model}")
 
-    try:
-        response = client.responses.create(**params)
+    response = client.responses.create(**params)
 
-        usage_dict = {}
-        if hasattr(response, "usage") and response.usage:
-            usage = response.usage
-            usage_dict = {
-                "input_tokens": getattr(usage, "input_tokens", 0),
-                "output_tokens": getattr(usage, "output_tokens", 0),
-                "total_tokens": getattr(usage, "total_tokens", 0),
-            }
-            logger.info(
-                f"AI_{context}_USAGE: "
-                f"input={usage_dict['input_tokens']}, "
-                f"output={usage_dict['output_tokens']}, "
-                f"total={usage_dict['total_tokens']}"
-            )
+    usage_dict = {}
+    if hasattr(response, "usage") and response.usage:
+        usage = response.usage
+        usage_dict = {
+            "input_tokens": getattr(usage, "input_tokens", 0),
+            "output_tokens": getattr(usage, "output_tokens", 0),
+            "total_tokens": getattr(usage, "total_tokens", 0),
+        }
+        logger.info(
+            f"AI_{context}_USAGE: "
+            f"input={usage_dict['input_tokens']}, "
+            f"output={usage_dict['output_tokens']}, "
+            f"total={usage_dict['total_tokens']}"
+        )
 
-        return response.output_text, usage_dict
-
-    except Exception as e:
-        logger.error(f"AI_{context}_ERROR: Responses API call failed: {e}")
-        return None, {}
+    text = response.output_text or ""
+    if not text:
+        logger.warning(f"AI_{context}: Empty output_text — likely reasoning consumed entire budget")
+    return text, usage_dict
 
 
 # =============================================================================

@@ -1,6 +1,11 @@
-"""Tests for _build_api_params parameter shaping."""
+"""Tests for _build_api_params parameter shaping and complete() return contract."""
 
-from integrations.openai import _build_api_params
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from integrations.openai import _build_api_params, complete, complete_with_usage
 
 
 def _build(model, **kwargs):
@@ -34,3 +39,44 @@ class TestBuildApiParams:
     def test_o3_drops_temperature(self):
         params = _build("o3-mini", temperature=0.5)
         assert "temperature" not in params
+
+
+def _fake_response(output_text, *, has_usage=True):
+    usage = (
+        SimpleNamespace(input_tokens=10, output_tokens=20, total_tokens=30) if has_usage else None
+    )
+    return SimpleNamespace(output_text=output_text, usage=usage)
+
+
+class TestCompleteReturnContract:
+    """complete() must never return None; reasoning models can yield empty text."""
+
+    def test_complete_returns_empty_string_when_output_text_is_none(self):
+        client = MagicMock()
+        client.responses.create.return_value = _fake_response(None)
+        with patch("integrations.openai.get_openai_client", return_value=client):
+            result = complete(input_text="hi", model="gpt-5.5")
+        assert result == ""
+
+    def test_complete_returns_empty_string_when_output_text_is_empty(self):
+        client = MagicMock()
+        client.responses.create.return_value = _fake_response("")
+        with patch("integrations.openai.get_openai_client", return_value=client):
+            result = complete(input_text="hi", model="gpt-5.5")
+        assert result == ""
+
+    def test_complete_with_usage_returns_empty_string_not_none(self):
+        client = MagicMock()
+        client.responses.create.return_value = _fake_response(None)
+        with patch("integrations.openai.get_openai_client", return_value=client):
+            text, usage = complete_with_usage(input_text="hi", model="gpt-5.5")
+        assert text == ""
+        assert usage["output_tokens"] == 20  # usage still surfaces
+
+    def test_complete_with_usage_propagates_api_errors(self):
+        """No more silent (None, {}) — API failures must reach the caller."""
+        client = MagicMock()
+        client.responses.create.side_effect = RuntimeError("boom")
+        with patch("integrations.openai.get_openai_client", return_value=client):
+            with pytest.raises(RuntimeError):
+                complete_with_usage(input_text="hi", model="gpt-5.5")
