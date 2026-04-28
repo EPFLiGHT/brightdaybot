@@ -295,7 +295,7 @@ def get_system_status(app=None, include_live_checks=False):
     Returns:
         dict: Health status of all components
     """
-    logger.info("Running system health check")
+    logger.debug("Running system health check")
 
     status = {
         "timestamp": format_timestamp(),
@@ -358,7 +358,10 @@ def get_system_status(app=None, include_live_checks=False):
 
     status["overall"] = STATUS_ERROR if has_error else STATUS_OK
 
-    logger.info(f"Health check complete: {status['overall']}")
+    if has_error:
+        logger.warning(f"Health check complete: {status['overall']}")
+    else:
+        logger.debug(f"Health check complete: {status['overall']}")
     return status
 
 
